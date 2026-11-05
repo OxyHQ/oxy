@@ -48,7 +48,7 @@ const idSchema = z.string().regex(ID);
  * now rather than a look that never takes effect. A character with nothing in
  * it draws nothing: it needs a preset, or a shape and a paint.
  */
-export const avatarCharacterSchema: z.ZodType<AvatarCharacter, z.ZodTypeDef, unknown> = z
+export const avatarCharacterSchema: z.ZodType<AvatarCharacter, unknown> = z
   .object({
     preset: idSchema.optional(),
     shape: idSchema.optional(),

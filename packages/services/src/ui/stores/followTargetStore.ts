@@ -29,6 +29,13 @@ import type { FollowErrorCode } from '../utils/followErrors';
 /** The status of one target, or `undefined` when it has never been read. */
 type StatusMap = Record<string, FollowStatus | undefined>;
 
+let followTargetGeneration = 0;
+
+/** The generation changes whenever account-scoped follow state is reset. */
+export function getFollowTargetGeneration(): number {
+  return followTargetGeneration;
+}
+
 interface FollowTargetState {
   statuses: StatusMap;
   /** In-flight writes, per target. Reads do not set this — only mutations do. */
@@ -80,7 +87,10 @@ export const useFollowTargetStore = create<FollowTargetState>((set) => ({
   // account switch the whole map is wrong, not stale — the next user's follows
   // are a different set entirely, and showing one user their previous
   // account's follow state is a privacy failure rather than a rendering one.
-  reset: () => set({ statuses: {}, pending: {}, errors: {} }),
+  reset: () => {
+    followTargetGeneration += 1;
+    set({ statuses: {}, pending: {}, errors: {} });
+  },
 }));
 
 /**

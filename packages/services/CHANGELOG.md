@@ -1,5 +1,375 @@
 # Changelog
 
+## [14.3.8] - 2026-11-04
+
+### Changed
+
+- `@peable.to/sdk` 3.0.0. Peable retired its Stripe-Billing proxy (`billing.*` beyond meters, the signed tax-quote and invoice-authority overlay, `billing.observation.updated`); services reads only `@peable.to/sdk/display`, which is unchanged.
+
+## [14.3.7] - 2026-11-04
+
+### Fixed
+
+- Translucent washes are built with Bloom's `withAlpha` instead of appending two hex digits to a theme colour: the sign-in prompt's logo badge, the new-user welcome's avatar placeholder and two payment surfaces. Bloom's theme tokens are `rgb(...)` strings, so `${colors.primary}22` was an invalid colour, which Android drew opaque.
+
+## [14.3.6] - 2026-11-04
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 2.0.0 (was 1.0.2). 2.0 changes only Peable Tax and billing amounts on the wire (base-unit strings, signed documents at `schema_version: 3`); `@peable.to/sdk/display` is byte-identical to 1.0.2's, so `useDisplayPrice` behaves as before, and an app on the 2.0 SDK installs one copy instead of two.
+
+## [14.3.5] - 2026-11-04
+
+### Fixed
+
+- `@peable.to/sdk` 1.0.2 (was 1.0.0). 1.0.0's checkout UI entry imported the `@peable.to/shared-types` barrel, which carries the Node-only webhook signer (`node:crypto`), so a React Native app bundling the checkout UI (Mention's Plus checkout) failed to build its native bundle. 1.0.2's browser entries import only the module they read; the API is unchanged.
+
+## [14.3.4] - 2026-11-04
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 1.0.0 (was 0.20.0). `@peable.to/sdk/display` is unchanged in 1.0, so `useDisplayPrice` behaves as before; an app that also depends on the 1.0 SDK now installs one copy instead of two.
+
+## [14.3.3] - 2026-11-03
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 0.20.0 (was 0.8.0). `@peable.to/sdk/display` keeps its API.
+
+## [14.3.2] - 2026-11-03
+
+### Changed
+
+- Built with TypeScript 6.0 and react-native-builder-bob 0.44. The JavaScript is unchanged; in the declarations `FollowTargetButton` is typed as the `memo` component it is (`MemoExoticComponent`) and some string unions list their members in another order.
+- `lib/commonjs` and `lib/module` carry no `.d.ts` files: bob 0.44 copies a source `.d.ts` next to the JavaScript, and the declarations live in `lib/typescript`. That also drops the stray `lib/*/assets/assets/**/*.d.ts` copies.
+
+## [14.3.0] - 2026-11-03
+
+### Changed
+
+- `@react-native-async-storage/async-storage` peer is `>=2.0.0 <4.0.0`: an app on 3.x (aligned above Expo SDK 58's bundled 2.2.0 and listed in `expo.install.exclude`) installs without a peer conflict; the SDK only uses `getItem`, `setItem`, `removeItem` and `clear`, which both majors provide, and 3.x's default export reads the data 2.x wrote. Expo SDK 54's 2.2.0 is still checked by `compat/expo-54`.
+- Built against `@oxy.so/core` 7.14.0 and `@oxy.so/protocol` 1.6.0 (`@noble/*` 2).
+
+## [14.2.1] - 2026-11-03
+
+### Changed
+
+- Failure toasts go through one `useApiErrorToast` hook; the error wording reuses core's `getErrorStatus`, `isRateLimitError` and `isServerError`, and the follow errors share the offline codes with every other toast.
+- A server username refusal whose message this client does not know reads as "something you entered isn't valid" instead of naming a rule it did not break.
+- The profile username editor checks the policy once (the availability hook), not twice; the check is skipped on edit screens that are not the username's.
+- Dead branches removed: the empty-email invite check (the button is disabled while empty) and the too-long new-password check (the field's `maxLength` bounds it).
+
+## [14.2.0] - 2026-11-03
+
+### Added
+
+- `useAccountColorSave({ canUse })` takes the same app rule as `useAccountColor`: `colors` lists only presets the app allows and `saveColor` refuses the rest, so an app with its own paywall saves through the SDK instead of its own `updateMe`.
+
+### Fixed
+
+- `useAccountColor` applies the account colour when the account's colour (or the app's permission to wear it) changes, not whenever the local theme differs. A colour just picked was pulled back to the stored one while its save was in flight, and an app that saved without updating the session user kept the old colour on its root theme (an open settings modal stayed on the old colour while profile surfaces showed the new one).
+
+## [14.1.2] - 2026-11-03
+
+### Fixed
+
+- The sign-in identifier and every email field (sign-up, change email, member invite) drop spaces as typed: neither a username nor an email address can hold one.
+
+## [14.1.1] - 2026-11-03
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 0.8.0 (was 0.4.1). `@peable.to/sdk/display` keeps its API; its EUR display rate now comes from the ECB reference rate and is omitted when no fresh official observation exists.
+
+## [14.1.0] - 2026-11-03
+
+### Fixed
+
+- Creating an account: the username is checked against the policy before the server is asked, and the field says which rule a name breaks (too short or long, spaces, separators, only numbers, reserved). Characters a username cannot hold are dropped as typed. A name like `hash saah` no longer ends in "Something went wrong".
+- The profile username editor and account creation use the same check and copy (a bot is held to the bot rule); neither shows the policy's or the server's English.
+- Failure toasts (profile, avatar, settings, privacy, notifications, preferences, connected apps, sessions, devices, members, domains, account settings and creation) word the failure from the API's code and status — offline, invalid input, a server fault, a rate limit, or what was being done — and never show the server's `message`. `createProfileMutation` and `createGenericMutation` show the caller's `errorMessage`, not the server's.
+- Sign-in and re-authentication never send a partly typed authenticator or backup code; password and identifier fields carry their maximum length; a new password over the maximum says so instead of "too short".
+- Inviting a member checks the email address first, and the invite form is localized.
+- Verifying a domain checks it with the server's own rule and says what to type.
+- The onboarding name step checks the name policy inline and no longer shows two toasts on failure.
+- Deleting an account says when the typed username does not match.
+
+## [14.0.1] - 2026-11-03
+
+### Fixed
+
+- Dropsea (`so.oxy.dropsea`, and `so.oxy.dropsea.dev`) is an Oxy app on Android: the shared device-session provider's caller allow-list now admits it, so it can read the device's session when signed with the ecosystem key.
+
+## [13.16.0] - 2026-11-01
+
+### Added
+
+- `ProfileButton.onBeforeAddAccount` lets an app close its drawer immediately before the shared add-account flow. Existing `onAddAccount` overrides keep their behavior and take precedence.
+
+## [13.15.0] - 2026-10-31
+
+### Added
+
+- `@oxy.so/services/runtime` exposes the provider's instance-bound runtime hook without loading account screens. Its revision changes synchronously for each projected account-id or active-session-id change, including within a batch. `getAccountSessionIdentity()` reads the live ids and revision together, which can differ from the published snapshot during a batch. Neither tracks actor changes for the same account and session, validates the bearer session, guards an uncommitted switch intent, or authorizes requests.
+
+## [13.14.1] - 2026-10-31
+
+### Fixed
+
+- Hold the private API readiness gate while a known bearer subject differs from the projected account. Tokens without `userId` or `id` retain their existing behavior. Callbacks captured before a transition still need their own synchronous session guard.
+
+## [13.14.0] - 2026-10-31
+
+### Added
+
+- `memoryOnlyMutationKeys` marks account-owned mutations that are removed on account changes and excluded from both persisted caches without enabling global unregistered-mutation cleanup.
+
+## [13.13.0] - 2026-10-31
+
+### Added
+
+- `parseOrganizationDraft` normalizes and validates organization form fields using the shared client contract. It is available from `@oxy.so/services/organization-draft`, `ui/client` and `ui`. Callers remain responsible for authorizing creation.
+
+## [13.12.1] - 2026-10-31
+
+### Fixed
+
+- Keep superseded session operations from restoring a previous account or overwriting the current account's follow and authentication state. Genuine unauthorized responses retain their existing handling.
+
+## [13.11.0] - 2026-10-31
+
+### Changed
+
+- **`OxyDeviceSignIn` prints the short comparison code**, `CE7F-B31F`
+  (`deviceComparisonCode` from `@oxy.so/core/session`), the same code the
+  `auth.oxy.so/device` approval page now prints, instead of all thirty-two
+  characters of the authorize code. With nine characters it is set at 10% of the
+  QR's edge (28 points at the default 280), large enough to read from across a
+  room. Requires `@oxy.so/core` ^7.9.0.
+
+## [13.10.0] - 2026-10-30
+
+### Changed
+
+- **`OxyDeviceSignIn` draws no heading.** The host screen says what is being set
+  up ("Scan to set up this frame") at the size its room needs; the component's own
+  "Sign in with your phone" / "Scan with your phone's camera" only repeated it. It
+  is now the QR, the hint and the code. A host that relied on that title renders
+  its own.
+- **Its code grows with the QR.** The code and its hint were 14 and 13 points at
+  any `size`; they are now 5% and 4.6% of `size` (the same 14 and 13 at the
+  default 280), so the code stays legible beside a QR meant to be read from across
+  a room.
+
+## [13.9.0] - 2026-10-30
+
+### Added
+
+- **`OxyDeviceSignIn`: sign-in for a device with no keyboard** (a TV, a photo
+  frame, a kiosk). A large QR of the request's https approval page
+  (`signIn.approvalUrl`, `auth.oxy.so/device?user_code=…`), which any phone camera
+  opens, and the code that page prints, so the person can check they approve this
+  screen. It owns one QR-only request (`startInlineQr`), like the sign-in entry's
+  embedded QR: started on mount, renewed when it expires, withdrawn on unmount.
+  On approval `OxyProvider` signs the app in. `size` sets the QR's edge (280 by
+  default). Exported from `@oxy.so/services` and `@oxy.so/services/ui`, not from
+  the light `ui/client` entry. Requires `@oxy.so/core` ^7.8.0 and an API that
+  returns `approvalUrl`.
+
+## [13.6.0] - 2026-10-25
+
+### Fixed
+
+- The account members screen reads member handles with `users.lookupMany` and fails the query when a chunk failed, so React Query retries it. With `getMany` a failed read resolved empty and members showed their raw id for the whole five-minute stale window. Requires `@oxy.so/core` ^7.3.0.
+
+## [13.5.0] - 2026-10-24
+
+### Changed
+
+- **`expo-crypto`, `expo-secure-store` and `react-native-keyboard-controller`
+  are REQUIRED peers.** Every app must list them itself:
+  `npx expo install expo-crypto expo-secure-store react-native-keyboard-controller`.
+  Expo SDK 58's autolinking links the app's dependencies and the NON-optional
+  peers of what it walks, and skips optional peers. `expo-crypto` was only an
+  optional peer of `@oxy.so/core` / `@oxy.so/protocol`, so in an app that did not
+  list it the native module was never linked: measured on a Pixel 10 Pro, Allo's
+  Android release failed to start its client with `[oxy.protocol.crypto]
+  'expo-crypto' is not installed, so the React Native CSPRNG
+  (crypto.getRandomValues) is unavailable … Cannot find native module
+  'ExpoCrypto'`, and "Sign in with Oxy" failed at once in
+  `generateChallenge()`. `expo-secure-store` (the device credential and the
+  shared iOS device session; without it the credential falls back to
+  plaintext AsyncStorage) was not declared at all, and
+  `react-native-keyboard-controller` was optional although the native
+  `KeyboardBoundary` imports it statically. Core and protocol keep them
+  optional: they also run in Node, servers and browsers.
+- `expo-secure-store` is loaded by a literal `import()` in a `try` instead of a
+  runtime-computed specifier. Behaviour is unchanged: Babel evaluates the old
+  constant, so Metro resolved the package all along; only this package's own
+  gates could not see it.
+
+### Added
+
+- `__tests__/packaging/requiredNativePeers.test.ts` reads every runtime load in
+  services', core's and protocol's source and fails on a native module that is
+  neither a required peer of services nor recorded as a graceful optional one
+  (haptics, pickers, clipboard, push, the third-party OAuth browser, video).
+
+## [13.4.0] - 2026-10-24
+
+### Changed
+
+- `plugins/withOxySharedPermissions` now also applies the new
+  `plugins/withOxyReleaseSigning`: an app cannot declare the Oxy signature
+  permissions without its Android release being signed with, and checked
+  against, the ONE ecosystem certificate (SHA-256
+  `b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d`, alias
+  `oxy`). It replaces `@oxy.so/app-preset/plugin/withOxyAndroidRelease`
+  (removed in app-preset 5.0.0) and app-local copies such as Mention's
+  `plugins/withAndroidReleaseBuild.js`; prebuild refuses a `build.gradle` one of
+  them already edited. Measured on a phone: a debug-signed Mention release took
+  ownership of `so.oxy.permission.IDENTITY` / `DEVICE_SESSION`, and every
+  correctly signed Oxy app then failed with `INSTALL_FAILED_DUPLICATE_PERMISSION`.
+  - The `release` buildType is always signed by `signingConfigs.release`, never
+    the debug key. The keystore comes from the Gradle properties
+    `OXY_UPLOAD_STORE_FILE`, `OXY_UPLOAD_STORE_PASSWORD` or (new)
+    `OXY_UPLOAD_STORE_PASSWORD_FILE`, `OXY_UPLOAD_KEY_ALIAS`, and optionally
+    `OXY_UPLOAD_KEY_PASSWORD` / `OXY_UPLOAD_KEY_PASSWORD_FILE` (default: the
+    store password). `~/` is expanded.
+  - **A release build without the ecosystem key FAILS.** `oxyVerifyReleaseSigning`
+    runs before every release variant (`pre…ReleaseBuild`,
+    `validateSigning…Release`), opens the release buildType's effective signing
+    config and compares the key's certificate with the ecosystem one, so it also
+    refuses an EAS-managed or per-app key and a wrong alias. The error says how
+    to provide the key and never prints a password. Debug builds never run it,
+    and there is no opt-out for release.
+  - Opt-in `OXY_UPLOAD_SIGN_DEBUG=true` signs the debug buildType with the same
+    key and puts it under the same check (a dev client that can be installed
+    next to real Oxy apps). It replaces Willo's `withOxyDebugSigning`
+    (`OXY_DEBUG_*`), which prebuild now refuses.
+  - An app that declares no Oxy permission (Authenticator) lists
+    `plugins/withOxyReleaseSigning` directly.
+
+## [13.3.0] - 2026-10-24
+
+Needs `@oxy.so/core` 7.2.0.
+
+### Added
+
+- `useAccountTheme({ canUse })` applies the account theme to Bloom: the account
+  colour always (through `useAccountColor`), the account's mode
+  (`user.themePreference.mode`) while this device's theme source is `account`.
+  The source (`'app' | 'account'`, default `account`) is a local, per-device
+  choice, read synchronously on web so the first paint knows it.
+- `useAccountThemeControls()` returns `{ source, changeThemeSource,
+  changeThemeMode }` for a settings screen: a mode change applies at once and,
+  on the `account` source, is written to the account's portable theme; turning
+  the source to `account` seeds an account that has no theme yet. Without a
+  session that can reach the account the effective source is `app`.
+
+### Changed
+
+- `useFileDownloadUrl` answers a URL core already resolved in its first render
+  (`assets.cachedUrl`), with no request and no loading frame, and returns an
+  absolute `http(s)` reference unchanged. A result is never shown for another
+  file, variant, expiry or viewer.
+
+## [13.2.0] - 2026-10-24
+
+### Added
+
+- A single query can be kept across restarts for the signed-in account with
+  `meta: { persist: 'account' }` (type `AccountQueryMeta`), without declaring
+  its root in `accountQueries`: it is written to that account's blob, restored
+  before the account cache is ready, dropped from memory on an account switch
+  and deleted on sign-out, exactly like a declared root. Meant for the few
+  reads that shape a returning user's first paint (tab layout, theme), not for
+  lists. Apps that pass no `accountQueries` get this too.
+
+### Changed
+
+- A cold boot that paints a saved session resolves `isAuthResolved` only once
+  the account's cached queries are restored (one local read), so the first
+  paint already has them instead of shifting a moment later.
+- The SDK's query persisters serialize only when a query they keep (or a
+  mutation) changes; activity in other queries (feeds, search) no longer
+  re-serializes them.
+- An account cache whose stored blob cannot be read becomes ready empty
+  instead of never becoming ready.
+
+## [13.1.0] - 2026-10-24
+
+### Added
+
+- Runs on React Native 0.81 to 0.88 and Expo SDK 54 to 58 (it needed 0.85 and
+  SDK 56). The peer floors are now the Expo SDK 54 stack: `react-native`
+  `>=0.81.0`, `expo` `>=54.0.0`, each `expo-*` module at its SDK 54 version,
+  `react-native-reanimated` `>=4.1.0`, `react-native-gesture-handler`
+  `>=2.28.0`, `react-native-safe-area-context` `>=5.6.0`, `react-native-svg`
+  `>=15.12.1`, `react-native-keyboard-controller` `>=1.18.5` and
+  `@expo/app-integrity` `>=0.1.10`. `compat/expo-54` installs that stack as an
+  external consumer in CI and typechecks, renders and bundles `OxyProvider`
+  against it.
+- Runs on react-native-macos (Astro). Importing the SDK there used to throw,
+  because expo-image and react-native-keyboard-controller have no macOS
+  implementation and throw on import. `.macos` forks now draw images and read
+  their size through react-native's `Image` and skip the keyboard provider;
+  the SDK's own iOS/Android native modules, and the Expo modules macOS lacks,
+  are optional at runtime and their features stay off.
+
+### Fixed
+
+- The native OAuth return no longer calls `URLSearchParams.keys()`, which React
+  Native's own `URLSearchParams` typings before 0.85 do not declare.
+
+## 13.0.0
+
+### Breaking
+
+- Own application sign-in and account use no longer expose internal app scope or consent controls. External OAuth connections retain consent and scoped access.
+- Require core 7 and contracts 6 for the shared authority contract.
+
+## [12.14.0] - 2026-10-23
+
+Needs `@oxy.so/core` 6.16.0.
+
+### Changed
+
+- A returning signed-in user's cold boot paints at once: with a session saved
+  on the device, the provider shows the account from its cached profile (and
+  the account's cached queries), plants a still-valid persisted token and
+  resolves `isAuthResolved` before any network. The app's classification and
+  the session are then checked in the background: a fresh registry lookup and
+  a mint with the app's own device credential, whose commit refreshes the
+  profile. If the registry now classifies the app OAuth-only, or the server
+  ends the session (`invalid_device_secret` / `no_active_session` with no
+  recovery lane restoring one), it signs out at that moment. If neither can be
+  asked (offline, a timeout, a 5xx), the cached session stays on screen and is
+  asked again on the lost-token backoff and on reconnect. The provider keeps
+  the registry's last verdict per clientId and the last profile it held, in
+  its own storage next to the account query cache; a sign-out deletes the
+  profile, and a profile only paints for the account the saved session belongs
+  to.
+- A first boot (nothing cached), an identity-bound provider
+  (`sessionMode: 'identity'`) and an OAuth return on the URL boot as before:
+  the classification and the session hand-off stay on the critical path, with
+  their deadlines.
+
+## [12.13.0] - 2026-10-23
+
+Needs `@oxy.so/contracts` 5.8.0.
+
+### Changed
+
+- `useSupervision()` reads the session's supervision state from the cache
+  instead of blocking every mount on a fresh request. `OxyProvider` keeps it
+  current: fetched when the session is established, refetched when the app
+  returns to the foreground and when the session socket signals
+  `supervision_changed`. `data` is undefined only while the session's first
+  fetch is pending, while the query is disabled and after a failed fetch. The
+  return shape is unchanged; the server still enforces supervision on every
+  content request.
+
 ## [12.12.0] - 2026-10-22
 
 ### Changed

@@ -1,23 +1,31 @@
+import {
+  integerCheck,
+  isoDateTime,
+  safeNumberCheck,
+  urlCheck,
+  utf16MaxLength,
+  utf16MinLength,
+} from '@oxy.so/contracts';
 import { z } from 'zod';
 import { productSubscriptionCancellationResultSchema } from '@oxy.so/contracts';
 
 // POST /billing/checkout/credits
 export const checkoutCreditsSchema = z.object({
-  packageId: z.string().trim().min(1),
-  successUrl: z.string().url(),
-  cancelUrl: z.string().url(),
+  packageId: z.string().trim().check(utf16MinLength(1)),
+  successUrl: z.string().check(urlCheck()),
+  cancelUrl: z.string().check(urlCheck()),
 });
 
 // POST /billing/checkout/subscription
 export const checkoutSubscriptionSchema = z.object({
-  planId: z.string().trim().min(1),
-  successUrl: z.string().url(),
-  cancelUrl: z.string().url(),
+  planId: z.string().trim().check(utf16MinLength(1)),
+  successUrl: z.string().check(urlCheck()),
+  cancelUrl: z.string().check(urlCheck()),
 });
 
 // POST /billing/portal
 export const portalSchema = z.object({
-  returnUrl: z.string().url(),
+  returnUrl: z.string().check(urlCheck()),
 });
 
 // GET /billing/transactions
@@ -29,8 +37,12 @@ export const transactionsQuerySchema = z.object({
 /** These selectors name the mirror row, never an arbitrary provider subscription. */
 export const cancelCreditSubscriptionSchema = z
   .object({
-    subscriptionId: z.string().uuid(),
-    expectedSubjectAccountId: z.string().min(1).max(160).optional(),
+    subscriptionId: z.string().guid(),
+    expectedSubjectAccountId: z
+      .string()
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(160))
+      .optional(),
   })
   .strict();
 export const namedProductCancellationResponseSchema =
@@ -39,11 +51,11 @@ export const pendingProductCancellationResponseSchema =
   productSubscriptionCancellationResultSchema.options[1];
 const creditSubscriptionSchema = z
   .object({
-    _id: z.string().uuid(),
-    userId: z.string().min(1),
-    stripeCustomerId: z.string().min(1),
-    stripeSubscriptionId: z.string().min(1),
-    stripePriceId: z.string().min(1),
+    _id: z.string().guid(),
+    userId: z.string().check(utf16MinLength(1)),
+    stripeCustomerId: z.string().check(utf16MinLength(1)),
+    stripeSubscriptionId: z.string().check(utf16MinLength(1)),
+    stripePriceId: z.string().check(utf16MinLength(1)),
     status: z.enum([
       'active',
       'trialing',
@@ -54,19 +66,19 @@ const creditSubscriptionSchema = z
       'incomplete',
       'incomplete_expired',
     ]),
-    currentPeriodStart: z.string().datetime(),
-    currentPeriodEnd: z.string().datetime(),
+    currentPeriodStart: z.string().check(isoDateTime()),
+    currentPeriodEnd: z.string().check(isoDateTime()),
     cancelAtPeriodEnd: z.boolean(),
     plan: z
       .object({
         name: z.string(),
-        creditsPerMonth: z.number().int().nonnegative().safe(),
-        price: z.number().int().nonnegative().safe(),
+        creditsPerMonth: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
+        price: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
         currency: z.string().regex(/^[a-z]{3}$/),
       })
       .strict(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
+    updatedAt: z.string().check(isoDateTime()),
   })
   .strict();
 export const creditSubscriptionsResponseSchema = z

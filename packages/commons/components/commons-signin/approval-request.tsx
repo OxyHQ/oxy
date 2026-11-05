@@ -1,8 +1,7 @@
-import React from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
-import { GlyphButton } from '@oxy.so/bloom/button';
-import { View, Image, Pressable, StyleSheet } from 'react-native';
+import { Button, GlyphButton } from '@oxy.so/bloom/button';
+import { View, Image, StyleSheet } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { LogoIcon } from '@oxy.so/services';
 import {
@@ -112,6 +111,10 @@ export function ApprovalRequest({
   const appName = application.name;
   const originHost = formatRequestOrigin(info.boundOrigin);
   const scopeLines = summarizeScopes(info.scopes);
+  const firstParty =
+    application.isOfficial ||
+    application.isInternal ||
+    ['first_party', 'internal', 'system'].includes(application.type);
   const subject = info.subjectAccount;
   // Anti-phishing: treat anything other than an explicit `true` as unverified
   // (false OR a missing field → warn). The reassuring "official Oxy app"
@@ -241,27 +244,29 @@ export function ApprovalRequest({
         </View>
       ) : null}
 
-      {/* WHAT THE APP RECEIVES — server-resolved scopes, nothing implied. */}
-      <View testID="approval-scopes" className="gap-2 px-5 pt-5">
-        <Text style={[styles.fieldLabel, { color: colors.textTertiary }]}>
-          {t('signInApproval.approve.receivesTitle', { app: appName })}
-        </Text>
-        {scopeLines.length > 0 ? (
-          scopeLines.map((line) => (
-            <View key={line.scope} className="flex-row items-start gap-2">
+      {/* Permissions describe external connections, never an Oxy sign-in. */}
+      {!firstParty ? (
+        <View testID="approval-scopes" className="gap-2 px-5 pt-5">
+          <Text style={[styles.fieldLabel, { color: colors.textTertiary }]}>
+            {t('signInApproval.approve.receivesTitle', { app: appName })}
+          </Text>
+          {scopeLines.length > 0 ? (
+            scopeLines.map((line) => (
+              <View key={line.scope} className="flex-row items-start gap-2">
+                <Icons.check size="sm" fill={colors.success} />
+                <Text style={[styles.scopeText, { color: colors.text }]}>{scopeText(line, t)}</Text>
+              </View>
+            ))
+          ) : (
+            <View className="flex-row items-start gap-2">
               <Icons.check size="sm" fill={colors.success} />
-              <Text style={[styles.scopeText, { color: colors.text }]}>{scopeText(line, t)}</Text>
+              <Text style={[styles.scopeText, { color: colors.text }]}>
+                {t('signInApproval.approve.receivesBasic')}
+              </Text>
             </View>
-          ))
-        ) : (
-          <View className="flex-row items-start gap-2">
-            <Icons.check size="sm" fill={colors.success} />
-            <Text style={[styles.scopeText, { color: colors.text }]}>
-              {t('signInApproval.approve.receivesBasic')}
-            </Text>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
+      ) : null}
 
       {confirmationIssue ? (
         <View testID="approval-confirmation-issue" className="px-5 pt-3">
@@ -272,18 +277,26 @@ export function ApprovalRequest({
       {hasLegalLinks ? (
         <View className="flex-row flex-wrap items-center justify-center gap-x-4 gap-y-1 px-5 pt-5">
           {privacyPolicyUrl ? (
-            <Pressable onPress={() => onOpenLink(privacyPolicyUrl)} accessibilityRole="link">
-              <Text style={[styles.legalLink, { color: colors.textTertiary }]}>
-                {t('signInApproval.approve.privacyLink')}
-              </Text>
-            </Pressable>
+            <Button
+              appearance="plain"
+              tone="neutral"
+              size="sm"
+              accessibilityRole="link"
+              onPress={() => onOpenLink(privacyPolicyUrl)}
+            >
+              {t('signInApproval.approve.privacyLink')}
+            </Button>
           ) : null}
           {termsUrl ? (
-            <Pressable onPress={() => onOpenLink(termsUrl)} accessibilityRole="link">
-              <Text style={[styles.legalLink, { color: colors.textTertiary }]}>
-                {t('signInApproval.approve.termsLink')}
-              </Text>
-            </Pressable>
+            <Button
+              appearance="plain"
+              tone="neutral"
+              size="sm"
+              accessibilityRole="link"
+              onPress={() => onOpenLink(termsUrl)}
+            >
+              {t('signInApproval.approve.termsLink')}
+            </Button>
           ) : null}
         </View>
       ) : null}

@@ -1,9 +1,9 @@
-import { arraysEqual, nextApplicationScopes } from '../general-draft';
-import { mergeAliaMachineScopes } from '@/lib/application-scopes';
+import { arraysEqual } from '../general-draft';
+import { mergeAliaMachineScopes, nextApplicationScopes } from '@/lib/application-scopes';
 
 const untouched = { paymentsRead: false, paymentsWrite: false, aliaMachineAccess: null };
 
-describe('explicit Console Alia capability opt-in', () => {
+describe('external Alia API product ceiling', () => {
   it('does not grant capabilities by default', () => {
     const scopes = ['user:read'];
     expect(arraysEqual(nextApplicationScopes(scopes, untouched), scopes)).toBe(true);

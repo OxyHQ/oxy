@@ -1,3 +1,4 @@
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import { personalPlanCheckoutIntents } from '../db/schema/personalPlanCheckoutIntents';
 /** Unmounted adapter of explicit, trusted normalized data. No provider/network calls. */
@@ -21,7 +22,7 @@ import {
   recordProductAccessPeriod,
 } from './productAccessPersistence.service';
 
-const providerId = z.string().min(1).max(160);
+const providerId = z.string().check(utf16MinLength(1)).check(utf16MaxLength(160));
 const inputSchema = z
   .object({
     binding: productProviderBindingSchema,
@@ -49,7 +50,7 @@ const inputSchema = z
           .transform((value) => productOfferSegmentSchema.shape.period.parse(value)),
       })
       .strict(),
-    event: z.object({ id: providerId, createdAt: z.string().datetime() }).strict(),
+    event: z.object({ id: providerId, createdAt: z.string().check(isoDateTime()) }).strict(),
     providerObservedAt: z.date(),
   })
   .strict();

@@ -10,6 +10,8 @@ node_modules/
 .expo-shared/
 package-lock.json
 packages/*/package-lock.json
+# The shared release inspector installs its own npm runtime, outside Bun workspaces.
+!/.github/scripts/release-runtime/package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

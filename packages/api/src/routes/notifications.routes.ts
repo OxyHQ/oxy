@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Notification Routes
  *
@@ -53,8 +54,7 @@ const requireNotificationsWriteScope = (
   res: Response,
   next: NextFunction,
 ) => {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(NOTIFICATIONS_WRITE_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, NOTIFICATIONS_WRITE_SCOPE)) {
     return res.status(403).json({
       error: 'Forbidden',
       message: `Missing required scope: ${NOTIFICATIONS_WRITE_SCOPE}`,

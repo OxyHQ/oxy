@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Oxy Trust — reputation API contracts.
  *
@@ -224,7 +226,7 @@ export const reputationTransactionSchema: z.ZodType<ReputationTransaction> = z.o
   status: reputationTransactionStatusSchema,
   reversedTransactionId: z.string().optional(),
   reason: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   createdByUserId: z.string().optional(),
   reviewedByUserId: z.string().optional(),
   reviewedAt: z.string().optional(),
@@ -495,7 +497,7 @@ export interface ReputationRulesResponse {
 }
 
 export const reputationRulesResponseSchema: z.ZodType<ReputationRulesResponse> = z.object({
-  version: z.number().int(),
+  version: z.number().check(integerCheck()),
   rules: z.array(reputationRuleSchema),
 });
 
@@ -597,14 +599,14 @@ export interface AwardReputationInput {
 }
 
 export const awardReputationSchema: z.ZodType<AwardReputationInput> = z.object({
-  userId: z.string().trim().min(1),
-  actionType: z.string().trim().min(1),
-  applicationId: z.string().trim().min(1).optional(),
-  credentialId: z.string().trim().min(1).optional(),
-  sourceActionId: z.string().trim().min(1).optional(),
-  sourceActionType: z.string().trim().min(1).optional(),
-  targetEntityId: z.string().trim().min(1).optional(),
+  userId: z.string().trim().check(utf16MinLength(1)),
+  actionType: z.string().trim().check(utf16MinLength(1)),
+  applicationId: z.string().trim().check(utf16MinLength(1)).optional(),
+  credentialId: z.string().trim().check(utf16MinLength(1)).optional(),
+  sourceActionId: z.string().trim().check(utf16MinLength(1)).optional(),
+  sourceActionType: z.string().trim().check(utf16MinLength(1)).optional(),
+  targetEntityId: z.string().trim().check(utf16MinLength(1)).optional(),
   targetEntityType: reputationTargetEntityTypeSchema.optional(),
-  reason: z.string().trim().max(500).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  reason: z.string().trim().check(utf16MaxLength(500)).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });

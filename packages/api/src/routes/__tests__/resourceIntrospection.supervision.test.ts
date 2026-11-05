@@ -9,10 +9,27 @@ jest.mock('../../middleware/auth', () => ({
   serviceAuthMiddleware: (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
     req.serviceApp = {
       appId: CLARITY_BACKEND_APPLICATION_ID,
+      authority: 'first_party',
+      environment: 'production',
     };
     next();
   },
 }));
+jest.mock('../../services/agencyServicePrincipal.service', () => {
+  const actual = jest.requireActual('../../services/agencyServicePrincipal.service');
+  return {
+    ...actual,
+    // Subject revocation stays real; receiver signature/live binding is covered
+    // by the HTTP transition suite without this receiver-only fixture.
+    resolveLiveAgencyServicePrincipal: (token: { appId: string }) =>
+      token.appId === CLARITY_BACKEND_APPLICATION_ID
+        ? Promise.resolve({
+            authority: 'first_party',
+            applicationId: CLARITY_BACKEND_APPLICATION_ID,
+          })
+        : actual.resolveLiveAgencyServicePrincipal(token),
+  };
+});
 import router from '../resourceIntrospection';
 import { errorHandler } from '../../middleware/errorHandler';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
@@ -87,14 +104,15 @@ async function introspect(token: string) {
   expect(response.status).toBe(200);
   return response.json();
 }
-it('keeps a live adult first-party principal and intersects its current scope ceiling', async () => {
+it('keeps an external key on an official app scoped with external authority', async () => {
   const f = await fixture();
   expect(await introspect(f.token)).toMatchObject({
     active: true,
     accountId: f.owner,
     applicationId: f.app,
     scopes: ['user:read', 'clarity:search'],
-    tier: 'internal',
+    tier: 'external',
+    authority: 'external',
   });
   await getDb()
     .update(applications)

@@ -7,28 +7,29 @@ import { applications } from '../db/schema/applications';
 import { applicationWorkloadIdentities } from '../db/schema/applicationWorkloadIdentities';
 import { users } from '../db/schema/users';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
-import {
-  intersectScopes,
-  workloadBindingScopes,
-  type ApplicationScope,
-} from '../utils/applicationScopes';
-import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
+import { intersectScopes } from '../utils/applicationScopes';
+import { deploymentCredentialEnvironment } from '../utils/credentialEnvironment';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import {
   isWorkloadAttestationHandle,
   workloadAttestationHandle,
 } from './workloadAttestation.service';
+import {
+  isTrustedPublisherHandle,
+  resolveLiveTrustedPublisherPrincipal,
+} from './githubTrustedPublishing.service';
 
 export interface LiveAgencyServicePrincipal {
   readonly applicationId: string;
   readonly credentialId: string;
   readonly ownerAccountId: string;
-  readonly scopes: readonly string[];
+  readonly authority?: 'first_party' | 'external';
+  readonly scopes?: readonly string[];
   readonly capabilities: readonly string[];
 }
 
-async function loadPrincipal(applicationId: string, credentialId: string) {
+async function loadPrincipal(applicationId: string, credentialId: string, requireTrusted = true) {
   const [row] = await getDb()
     .select({
       applicationId: applications.id,
@@ -60,13 +61,13 @@ async function loadPrincipal(applicationId: string, credentialId: string) {
     )
     .limit(1);
   if (
-    !row ||
-    row.applicationStatus !== 'active' ||
-    !isTrustedApplication({
-      type: row.applicationType,
-      isOfficial: row.applicationIsOfficial,
-      isInternal: row.applicationIsInternal,
-    }) ||
+    row?.applicationStatus !== 'active' ||
+    (requireTrusted &&
+      !isTrustedApplication({
+        type: row.applicationType,
+        isOfficial: row.applicationIsOfficial,
+        isInternal: row.applicationIsInternal,
+      })) ||
     row.ownerAccountStatus !== 'active' ||
     row.ownerClosureFence !== null ||
     row.credentialType !== 'service' ||
@@ -82,66 +83,24 @@ async function loadPrincipal(applicationId: string, credentialId: string) {
 }
 
 /**
- * Re-resolves mutable app, credential, scope and capability authority on every
- * control-plane call — whichever proof the token was minted from.
- *
- * ## Why this needed a second arm
- *
- * It looked `token.credentialId` up in `application_credentials` and nowhere
- * else. An ADR 0026 attested token carries a `wl_…` attestation handle there, so
- * every route that re-reads its caller through this function refused an attested
- * first-party service. Measured against production from the same AWS account
- * minutes apart, `GET /capabilities/service-identity` answered `200` with Kaana's
- * key pair and `401 service_principal_no_longer_active` with a token attested
- * from `oxy-kaana-task` — and `authorizeKaanaValidation`
- * (`routes/inferenceProviderConnections.ts`), the gate on the BYOK validation
- * callback Kaana actually makes, is one of those routes. So Kaana could not give
- * its key pair up, and Mention — credential-free already and holding
- * `signals:write` — had the same defect latent behind
- * `req.serviceApp.credentialId` in `reputation.routes.ts` and `capabilities.ts`.
- *
- * `resolveServiceTokenPrincipal` (`services/attribution.service.ts`) fixed the
- * same shape of bug one resolver over. This is a second CALLER of the helper that
- * one added, {@link resolveLiveAgencyWorkloadByHandle}, not a second mechanism:
- * "what is a live binding" has exactly one definition and both hops ask it.
- *
- * ## The attested arm is not the weaker one
- *
- * {@link resolveLiveAgencyWorkloadByHandle} re-reads the binding on every call,
- * so deleting it — how a compromised workload is cut off — takes effect as fast
- * as revoking a credential does, and an expiry, a re-point, a suspended or
- * demoted application, a suspended owner, a closure fence and a scope the binding
- * no longer names all refuse there. It asks MORE than the credential arm does:
- * the credential arm does not care whether the application is still trusted
- * first-party, and this one does, because that is the gate the mint applies.
- *
- * The two claims checked HERE rather than there are the ones that are about this
- * token rather than about the binding, and they mirror the credential arm exactly:
- *
- *   * the owner account the token names must be the one the application has now,
- *     so a token cannot outlive a transfer;
- *   * the environment must be this deployment's. A binding has none — a workload
- *     proves what it is, never which environment it means — so
- *     `workloadTokenEnvironment()` is the whole answer, and it is the same single
- *     definition the mint wrote the claim from. A staging-minted token presented
- *     here is refused, which is what the credential arm's environment comparison
- *     buys on its side.
- *
- * Every refusal is still one `null`, and the callers still answer one
- * `service_principal_no_longer_active` — so an attested caller cannot probe
- * whether a binding exists, exactly as a credential caller cannot probe a
- * credential's lifecycle.
+ * Re-resolve live app, workload/credential and owner before every service call.
+ * Own workloads require a provisioned environment, active binding and trusted
+ * registry identity; their authority contains no scopes. External credentials
+ * retain their live scope intersection; legacy workload tokens are refused.
+ * Token owner/environment claims must match this current administrative binding.
  */
 export async function resolveLiveAgencyServicePrincipal(
   token: ServiceTokenPayload,
 ): Promise<LiveAgencyServicePrincipal | null> {
   if (await isSupervised(token.ownerAccountId)) return null;
   if (isWorkloadAttestationHandle(token.credentialId)) {
+    if (token.authority !== 'first_party') return null;
     const binding = await resolveLiveAgencyWorkloadByHandle(token.appId, token.credentialId);
     if (
       binding === null ||
       binding.ownerAccountId !== token.ownerAccountId ||
-      token.environment !== workloadTokenEnvironment()
+      token.environment !== binding.environment ||
+      (token.authority === 'first_party' && !binding.environmentBound)
     )
       return null;
     return {
@@ -152,14 +111,12 @@ export async function resolveLiveAgencyServicePrincipal(
       // ceiling.
       credentialId: binding.handle,
       ownerAccountId: binding.ownerAccountId,
-      // `token ∩ live`, the same composition the credential arm applies: an
-      // hour-old token can never do more than a fresh mint would give it, and
-      // never more than it already claimed.
-      scopes: intersectScopes(token.scopes, binding.scopes),
+      authority: 'first_party',
       capabilities: binding.capabilities,
     };
   }
 
+  if (token.authority === 'first_party') return null;
   const loaded = await loadPrincipal(token.appId, token.credentialId);
   if (
     !loaded ||
@@ -172,8 +129,40 @@ export async function resolveLiveAgencyServicePrincipal(
     applicationId: row.applicationId,
     credentialId: row.credentialId,
     ownerAccountId: row.ownerAccountId,
-    scopes: intersectScopes(token.scopes, loaded.scopes),
+    authority: 'external',
+    scopes: intersectScopes(token.scopes ?? [], loaded.scopes),
     capabilities: row.capabilities,
+  };
+}
+
+/** Signed external service authority for a registered resource receiver.
+ * Agency coordinator eligibility stays separate; branding cannot grant own authority.
+ */
+export async function resolveLiveExternalServicePrincipal(
+  token: ServiceTokenPayload,
+): Promise<LiveAgencyServicePrincipal | null> {
+  if (token.authority === 'first_party') return null;
+  if (isWorkloadAttestationHandle(token.credentialId))
+    return resolveLiveAgencyServicePrincipal(token);
+  // A GitHub trusted publisher (ADR 0057): no credential row exists, so the
+  // publisher row is what is re-read. Never an agency coordinator — the
+  // credential-shaped arms below would find no row for it and refuse anyway.
+  if (isTrustedPublisherHandle(token.credentialId))
+    return resolveLiveTrustedPublisherPrincipal(token);
+  const loaded = await loadPrincipal(token.appId, token.credentialId, false);
+  if (
+    !loaded ||
+    loaded.row.ownerAccountId !== token.ownerAccountId ||
+    loaded.row.credentialEnvironment !== token.environment
+  )
+    return null;
+  return {
+    applicationId: loaded.row.applicationId,
+    credentialId: loaded.row.credentialId,
+    ownerAccountId: loaded.row.ownerAccountId,
+    authority: 'external',
+    scopes: intersectScopes(token.scopes ?? [], loaded.scopes),
+    capabilities: [],
   };
 }
 
@@ -195,18 +184,21 @@ export async function resolveLiveAgencyServicePrincipal(
 export async function resolveLiveAgencyCoordinator(
   applicationId: string,
   credentialId: string,
+  authority: 'first_party' | 'external' = 'external',
 ): Promise<LiveAgencyServicePrincipal | null> {
   if (isWorkloadAttestationHandle(credentialId)) {
+    if (authority !== 'first_party') return null;
     const binding = await resolveLiveAgencyWorkloadByHandle(applicationId, credentialId);
-    if (binding === null) return null;
+    if (binding === null || (authority === 'first_party' && !binding.environmentBound)) return null;
     return {
       applicationId: binding.applicationId,
       credentialId: binding.handle,
       ownerAccountId: binding.ownerAccountId,
-      scopes: binding.scopes,
+      authority: 'first_party',
       capabilities: binding.capabilities,
     };
   }
+  if (authority === 'first_party') return null;
   const loaded = await loadPrincipal(applicationId, credentialId);
   if (!loaded) return null;
   return {
@@ -229,14 +221,15 @@ export async function resolveLiveAgencyCoordinator(
  * ceiling. `resolveLiveAgencyCoordinator` routes a handle here instead.
  */
 export interface LiveAgencyWorkloadPrincipal {
+  readonly bindingId: string;
   readonly applicationId: string;
+  readonly environment: 'development' | 'staging' | 'production';
+  readonly environmentBound: boolean;
   readonly provider: string;
   readonly subject: string;
   /** `wl_…` — what a token minted from this binding carries as `credentialId`. */
   readonly handle: string;
   readonly ownerAccountId: string;
-  /** What `workloadBindingScopes` decides, in its own vocabulary. */
-  readonly scopes: readonly ApplicationScope[];
   /**
    * The APPLICATION's capabilities, read exactly as the credential arm reads
    * them.
@@ -253,10 +246,10 @@ export interface LiveAgencyWorkloadPrincipal {
 }
 
 /**
- * The live ceiling for an attested caller, looked up by the ROLE it attested.
+ * The live registered identity for an attested caller, looked up by its subject.
  *
  * Every refusal below is a live revocation taking effect on the next call,
- * which is the property this exists for — an attested token lives an hour, and
+ * which is the property this exists for — an attested token remains valid up to the shared lifetime ceiling, and
  * nothing in it may outlive the row that authorised it:
  *
  *   * the binding row was DELETED (how a compromised workload is cut off) or
@@ -266,9 +259,10 @@ export interface LiveAgencyWorkloadPrincipal {
  *   * the application is no longer `active`, or is no longer trusted
  *     first-party — the same gate `exchangeWorkloadAttestation` applies at mint;
  *   * the owner account was suspended or is behind a closure fence;
- *   * the scopes the binding names no longer reach `inference:invoke`, decided
- *     by the same `workloadBindingScopes` the mint used, so what an hour-old
- *     token may still do can never exceed what a fresh one would be given.
+ *   * the administratively bound environment differs from this deployment.
+ *
+ * Workload scopes are never projected. Explicit first-party authority is accepted
+ * only after this live identity check.
  */
 export async function resolveLiveAgencyWorkload(
   applicationId: string,
@@ -279,15 +273,15 @@ export async function resolveLiveAgencyWorkload(
 ): Promise<LiveAgencyWorkloadPrincipal | null> {
   const [row] = await db
     .select({
+      bindingId: applicationWorkloadIdentities.id,
       applicationId: applications.id,
       ownerAccountId: applications.ownerAccountId,
       applicationStatus: applications.status,
       applicationType: applications.type,
       applicationIsOfficial: applications.isOfficial,
       applicationIsInternal: applications.isInternal,
-      applicationScopes: applications.scopes,
       capabilities: applications.capabilities,
-      bindingScopes: applicationWorkloadIdentities.scopes,
+      environment: applicationWorkloadIdentities.environment,
       ownerAccountStatus: users.accountStatus,
       ownerClosureFence: accountClosureFences.accountId,
     })
@@ -309,8 +303,9 @@ export async function resolveLiveAgencyWorkload(
     .limit(1);
 
   if (
-    !row ||
-    row.applicationStatus !== 'active' ||
+    row?.applicationStatus !== 'active' ||
+    row.environment === null ||
+    row.environment !== deploymentCredentialEnvironment() ||
     !isTrustedApplication({
       type: row.applicationType,
       isOfficial: row.applicationIsOfficial,
@@ -323,18 +318,20 @@ export async function resolveLiveAgencyWorkload(
 
   if (await isSupervised(row.ownerAccountId)) return null;
   return {
+    bindingId: row.bindingId,
     applicationId: row.applicationId,
     provider,
     subject,
+    environment: row.environment,
+    environmentBound: row.environment !== null,
     handle: workloadAttestationHandle(subject),
     ownerAccountId: row.ownerAccountId,
-    scopes: workloadBindingScopes(row.bindingScopes, row.applicationScopes),
     capabilities: row.capabilities,
   };
 }
 
 /**
- * The same live ceiling, addressed by the HANDLE a minted token carries.
+ * The same live registered identity, addressed by the minted token handle.
  *
  * {@link resolveLiveAgencyWorkload} takes the role, for a caller that declared
  * the ARN it admits. A consumer of an attested token has only what the token
@@ -422,5 +419,7 @@ export function principalHasCatalogCapability(
   principal: LiveAgencyServicePrincipal,
   appSlug: string,
 ): boolean {
-  return principal.capabilities.includes(`catalog:${appSlug}`);
+  return (
+    principal.authority === 'first_party' || principal.capabilities.includes(`catalog:${appSlug}`)
+  );
 }

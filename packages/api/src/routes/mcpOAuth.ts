@@ -1,3 +1,4 @@
+import { urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import express, { type Request, type Response } from 'express';
 import { and, desc, eq, isNull } from 'drizzle-orm';
@@ -42,6 +43,7 @@ import {
 import { userService } from '../services/user.service';
 import graphCache from '../utils/graphCache';
 import { listActiveCapabilityCatalogs } from '../services/capabilityCatalog.service';
+import { resolveApplicationPermissions } from '../services/applicationRoles.service';
 import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import { logger } from '../utils/logger';
 
@@ -104,19 +106,34 @@ const viewerGraphLimiter = rateLimit({
   keyGenerator: (request) => (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
 });
 
+/**
+ * The application-permissions read is asked on the same cadence as the viewer
+ * graph — at most once per served request, usually from the SDK's short cache —
+ * so it gets the same per-application budget.
+ */
+const appPermissionsLimiter = rateLimit({
+  prefix: 'rl:auth:mcp:app-permissions:',
+  windowMs: 60 * 1_000,
+  max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
+  keyGenerator: (request) => (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
+});
+
 const httpsUrl = z
   .string()
   .trim()
-  .max(2_048)
-  .url()
+  .check(utf16MaxLength(2_048))
+  .check(urlCheck())
   .refine((value) => new URL(value).protocol === 'https:', {
     message: 'must use HTTPS',
   });
 
 const clientRegistrationSchema = z
   .object({
-    client_name: z.string().trim().min(1).max(120),
-    redirect_uris: z.array(z.string().trim().min(1).max(2_048)).min(1).max(20),
+    client_name: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(120)),
+    redirect_uris: z
+      .array(z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(2_048)))
+      .min(1)
+      .max(20),
     grant_types: z
       .array(z.enum(['authorization_code', 'refresh_token']))
       .default(['authorization_code', 'refresh_token']),
@@ -143,66 +160,69 @@ const clientRegistrationSchema = z
     }
   });
 
-const clientParamsSchema = z.object({ clientId: z.string().trim().min(1) });
+const clientParamsSchema = z.object({ clientId: z.string().trim().check(utf16MinLength(1)) });
 const clientQuerySchema = z.object({
-  resource: z.string().trim().min(1),
-  redirectUri: z.string().trim().min(1),
+  resource: z.string().trim().check(utf16MinLength(1)),
+  redirectUri: z.string().trim().check(utf16MinLength(1)),
 });
 const consentQuerySchema = z.object({
-  clientId: z.string().trim().min(1),
-  redirectUri: z.string().trim().min(1),
-  resource: z.string().trim().min(1),
-  scope: z.string().trim().min(1),
-  accountId: z.string().trim().min(1),
+  clientId: z.string().trim().check(utf16MinLength(1)),
+  redirectUri: z.string().trim().check(utf16MinLength(1)),
+  resource: z.string().trim().check(utf16MinLength(1)),
+  scope: z.string().trim().check(utf16MinLength(1)),
+  accountId: z.string().trim().check(utf16MinLength(1)),
 });
 const authorizeSchema = z
   .object({
     responseType: z.literal('code'),
-    clientId: z.string().trim().min(1),
-    redirectUri: z.string().trim().min(1),
-    resource: z.string().trim().min(1),
-    scope: z.string().trim().min(1),
-    accountId: z.string().trim().min(1),
+    clientId: z.string().trim().check(utf16MinLength(1)),
+    redirectUri: z.string().trim().check(utf16MinLength(1)),
+    resource: z.string().trim().check(utf16MinLength(1)),
+    scope: z.string().trim().check(utf16MinLength(1)),
+    accountId: z.string().trim().check(utf16MinLength(1)),
     codeChallenge: z.string().regex(/^[A-Za-z0-9_-]{43,128}$/),
     codeChallengeMethod: z.literal('S256'),
-    state: z.string().max(1_024).optional(),
+    state: z.string().check(utf16MaxLength(1_024)).optional(),
   })
   .strict();
 const tokenRequestSchema = z.discriminatedUnion('grant_type', [
   z.object({
     grant_type: z.literal('authorization_code'),
-    code: z.string().min(1),
-    client_id: z.string().min(1),
-    redirect_uri: z.string().min(1),
+    code: z.string().check(utf16MinLength(1)),
+    client_id: z.string().check(utf16MinLength(1)),
+    redirect_uri: z.string().check(utf16MinLength(1)),
     code_verifier: z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/),
-    resource: z.string().min(1),
+    resource: z.string().check(utf16MinLength(1)),
   }),
   z.object({
     grant_type: z.literal('refresh_token'),
-    refresh_token: z.string().min(1),
-    client_id: z.string().min(1),
-    resource: z.string().min(1),
+    refresh_token: z.string().check(utf16MinLength(1)),
+    client_id: z.string().check(utf16MinLength(1)),
+    resource: z.string().check(utf16MinLength(1)),
   }),
 ]);
-const revokeSchema = z.object({ token: z.string().min(1), client_id: z.string().min(1) });
-const connectionTokenSchema = z.object({ token: z.string().min(1) }).strict();
+const revokeSchema = z.object({
+  token: z.string().check(utf16MinLength(1)),
+  client_id: z.string().check(utf16MinLength(1)),
+});
+const connectionTokenSchema = z.object({ token: z.string().check(utf16MinLength(1)) }).strict();
 const connectionAccountSchema = z
   .object({
-    token: z.string().min(1),
-    account_id: z.string().trim().min(1),
+    token: z.string().check(utf16MinLength(1)),
+    account_id: z.string().trim().check(utf16MinLength(1)),
   })
   .strict();
 const connectionFollowSchema = z
   .object({
-    token: z.string().min(1),
-    tool: z.string().trim().min(1).max(128),
-    target_user_id: z.string().trim().min(1).max(128),
+    token: z.string().check(utf16MinLength(1)),
+    tool: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    target_user_id: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     action: z.enum(['follow', 'unfollow']),
   })
   .strict();
-const linkIntentSchema = z.object({ intent: z.string().trim().min(1) }).strict();
-const introspectSchema = z.object({ token: z.string().min(1) }).strict();
-const grantParamsSchema = z.object({ grantId: z.string().min(1) });
+const linkIntentSchema = z.object({ intent: z.string().trim().check(utf16MinLength(1)) }).strict();
+const introspectSchema = z.object({ token: z.string().check(utf16MinLength(1)) }).strict();
+const grantParamsSchema = z.object({ grantId: z.string().check(utf16MinLength(1)) });
 
 function identity(request: AuthRequest): { principalUserId: string; effectiveAccountId: string } {
   if (!request.oxyToken)
@@ -704,6 +724,57 @@ router.post(
         action: body.action,
         changed: 'created' in result ? result.created : result.removed,
       });
+    } catch (error) {
+      sendMcpOAuthError(response, error);
+    }
+  },
+);
+
+/**
+ * Which of the CALLING application's declared permissions (application roles,
+ * `docs/auth/application-roles.md`) the person behind an MCP access token holds.
+ *
+ * `GET /applications/:appId/roles/me` answers this for a person in a session.
+ * An MCP request carries no session — the connector's token is bound to the
+ * resource and must never be forwarded as one — so the resource server presents
+ * the token HERE, as it does for the viewer graph:
+ *
+ *   - the token is live, unrevoked, and for a resource THIS service credential's
+ *     application registered; a token for another app's resource is refused;
+ *   - the application is the one that registered the token's resource, which is
+ *     the caller's own. There is no application parameter, so a service can
+ *     never read another application's grants;
+ *   - the person is the one who authorized the token (its `sub`), whichever
+ *     member account the connection is acting as — as `roles/me` answers for the
+ *     operator, never the account a session speaks as. A linked account lends
+ *     the connection its data, never its approver's operator powers;
+ *   - grants are read live. Revoking the grant, the token or the role ends it on
+ *     the next call.
+ *
+ * The answer is `roles/me`'s, from the same resolver
+ * (`resolveApplicationPermissions`), so the two can never disagree about what
+ * a person holds and the SDK reads both one way.
+ */
+router.post(
+  '/app-permissions',
+  serviceAuthMiddleware,
+  appPermissionsLimiter,
+  async (request: ServiceAuthRequest, response) => {
+    try {
+      const body = connectionTokenSchema.parse(request.body);
+      const caller = await connectionCallerGrant(request, body.token);
+      // `resolveLiveMcpAccessToken` refused the token unless the resource's
+      // application is the calling service's own. What the person holds is
+      // `roles/me`'s own resolver: this route only establishes who and which.
+      const answer = await resolveApplicationPermissions(
+        caller.descriptor.registeredByApplicationId,
+        caller.grant.principalUserId,
+      );
+      if (!answer) {
+        throw new McpOAuthError('invalid_client', 'The resource application is not live', 401);
+      }
+      response.set('cache-control', 'no-store');
+      response.json(answer);
     } catch (error) {
       sendMcpOAuthError(response, error);
     }

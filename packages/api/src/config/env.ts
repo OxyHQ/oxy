@@ -66,9 +66,11 @@ export interface RequiredEnvVars {
   ASSET_CDN_URL?: string;
 
   // Oxy Updates code-signing private key (base64-encoded RSA PEM). OPTIONAL at
-  // boot: the process starts without it, but any manifest request that asks for
-  // a signature (`expo-expect-signature`) then fails with a 500 until it is set.
-  // Production supplies it via SSM `/oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY`.
+  // boot so the rest of the API keeps serving, but without it every update
+  // manifest request answers 503 and every publish is refused: nothing is ever
+  // served unsigned. Production reads SSM `/oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY`
+  // (bound in deploy-aws.yml); its certificate is @oxy.so/app-preset's
+  // `certs/oxy-updates-code-signing.pem`.
   // Read directly by `services/updates/signing.service.ts`.
   UPDATES_CODE_SIGNING_PRIVATE_KEY?: string;
 

@@ -1,6 +1,6 @@
 # The TypeScript SDK, and the OpenAI SDK in TypeScript and Python
 
-Two ways to authenticate, one set of endpoints at `https://api.oxy.so/v1`.
+Distinct own and external authority lanes, one set of endpoints at `https://api.oxy.so/v1`.
 Authentication alone does not establish that the live audience and catalogue
 gates are open or that canonical Kaana is configured; see
 [Verify the deployed path](#verify-the-deployed-path) before planning around
@@ -17,8 +17,9 @@ the client reference. Status of the whole platform: [status.md](./status.md).
 | You have | Lane | How it travels |
 |---|---|---|
 | `oxy_sk_…` machine key | OpenAI-style | one bearer string, sent verbatim, no exchange |
-| An Oxy session (a signed-in app) | Oxy auth | the session's own access token, re-read per request |
-| `clientId` + `clientSecret` for a platform-trusted app | Oxy auth | a minted service token, re-read per request |
+| An Oxy session (a signed-in app) | Oxy auth | the session's own access token, re-read per request; served only on `kaana.ai/v1` under reviewed terms ([ADR 0050](../adr/0050-product-session-inference-on-kaana.md)) |
+| Registered own workload | Shared service transport | short-lived scope-less authority with live binding and exact audience |
+| External `clientId` + `clientSecret` | External service token | bounded scopes and live credential revocation |
 
 They are the same API. The only difference is where the bearer comes from, and
 whether it rotates.
@@ -47,19 +48,38 @@ import { createInferenceClient } from '@oxy.so/core/inference';
 const inference = createInferenceClient(oxyServices);
 ```
 
-```typescript
-// The Oxy auth lane, in a platform-trusted service.
-import { OxyInferenceClient } from '@oxy.so/core/inference';
-import { OxyServer } from '@oxy.so/core/server';
+`createInferenceClient` sends the session to `api.oxy.so/v1`, which refuses it:
+the old edge never admits a session and is deleted in Kaana ADR 0002's phase 5.
+A session is a credential on `https://kaana.ai/v1` only, for an application with
+reviewed product-session terms ([ADR 0050](../adr/0050-product-session-inference-on-kaana.md),
+[kaana-grants.md](./kaana-grants.md#the-callers-credential)): `Authorization:
+Bearer <the session's access token>`, re-read on every request, the level in
+`model` (`"instant"`) and `maxOutputTokens` set. An official app on the shared
+device session presents its registered public client id with it:
+`Authorization: Bearer oxy_session:<public client id>:<access token>`.
 
-const oxy = new OxyServer({
+Own backends use their workload-configured `OxyServer` and a product SDK's
+service factory. For the Oxy HTTP edge, the shared transport is:
+
+```typescript
+// `oxy` is the process's OxyServer with its temporary workload provider.
+const transport = oxy.createServiceClient({
   baseURL: 'https://api.oxy.so',
-  serviceAuth: { apiKey: 'oxy_dk_…', apiSecret: 'the-secret-shown-once' },
+  audience: 'oxy-api',
 });
-const inference = new OxyInferenceClient({
-  credential: () => oxy.serviceToken(),   // cached and refreshed for you
-});
+try {
+  const response = await transport.fetch('https://api.oxy.so/v1/models');
+  if (!response.ok) throw new Error(`Catalogue HTTP ${response.status}`);
+  const catalogue = await response.json();
+} finally {
+  transport.dispose();
+}
 ```
+
+This read does not prove generation availability. Workload minting, refresh and
+origin fencing belong to the shared transport; do not copy a service bearer
+into an app-local fetch wrapper. Kaana product SDK calls retain their separate
+canonical `kaana.ai` audience. Own callers request no app scopes.
 
 **`credential` is a string or a function, and the difference is not cosmetic.**
 A machine key is constant. An Oxy bearer rotates on refresh and on account
@@ -77,6 +97,8 @@ life.
 | `respond(request, options?)` | `POST /v1/responses` |
 | `stream(request, options?)` | `POST /v1/responses` with validated SSE |
 | `getGeneration(id)` | `GET /v1/generations/:id` |
+| `getGenerationRecord(id)` | Same read, accepting internal technical records as well as financial receipts |
+| `getGenerationRecordByIdempotencyKey(key)` | `GET /v1/generations/by-idempotency-key`, original key in a header; read-only recovery before a request id was received |
 
 `stream(request, options?)` is merged and published in `@oxy.so/core` by
 [#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana

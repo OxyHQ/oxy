@@ -1,4 +1,5 @@
 const { oxySplashScreenPlugin } = require('@oxy.so/expo-splash/config');
+const { resolvePushConfig } = require('./push-config');
 
 // App variant — lets a development build sit next to the production app on the
 // SAME device by giving it a distinct applicationId/bundleId + name.
@@ -20,6 +21,10 @@ const OXY_CLIENT_ID =
   process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
   'oxy_dk_f65326da2a0d106bf98e873ce19b0ca9094d6c0c1f845a18';
 
+// Push: the EAS project id and Firebase's google-services.json come from the
+// build environment, never the repo (see push-config.js for what to provide).
+const PUSH = resolvePushConfig({ packageName: APP_ID });
+
 // Channel this binary polls. `production` unless a preview build overrides it;
 // `oxy-ship publish --channel <name>` writes to the matching channel.
 const OXY_UPDATES_CHANNEL = process.env.EXPO_PUBLIC_OXY_UPDATES_CHANNEL ?? 'production';
@@ -31,11 +36,18 @@ module.exports = {
     // The OTA compatibility boundary (withOxyUpdates sets runtimeVersion
     // policy 'appVersion'): bump it whenever the native layer changes, so a
     // binary built from older native code never receives JS that needs newer
-    // native modules. 1.2.0 is the first Expo SDK 58 build.
-    version: '1.2.0',
+    // native modules. 1.2.0 is the first Expo SDK 58 build; 1.3.0 links
+    // expo-image-picker and expo-clipboard; 1.4.0 is the first binary that
+    // verifies Oxy Updates signatures (the certificate is baked in), so no
+    // update is ever published for a runtime that would run it unverified.
+    version: '1.4.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
-    scheme: ['commons', 'oxycommons'],
+    // `oxycommons` FIRST: it is the scheme every approve / card / attest /
+    // link payload is minted with (`@oxy.so/core`, the API), and expo-linking
+    // builds this app's own URLs from the first entry ("Using 'commons'" was
+    // logged on device). `commons` stays registered for older links.
+    scheme: ['oxycommons', 'commons'],
     userInterfaceStyle: 'automatic',
     platforms: ['ios', 'android'],
     // Native-only, but Expo Router 58 defaults an unset `web.output` to
@@ -49,7 +61,7 @@ module.exports = {
         backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
-      versionCode: 3,
+      ...(PUSH.googleServicesFile ? { googleServicesFile: PUSH.googleServicesFile } : {}),
       predictiveBackGestureEnabled: true,
       softwareKeyboardLayoutMode: 'resize',
       permissions: ['android.permission.USE_BIOMETRIC', 'android.permission.USE_FINGERPRINT'],
@@ -121,8 +133,8 @@ module.exports = {
             // Appended to android/app/proguard-rules.pro. Kept deliberately
             // small: react-native, expo-modules-core, reanimated and skia
             // already ship their own rules as consumerProguardFiles inside
-            // their AARs, and over-keeping would cancel the R8 optimization
-            // that withOxyAndroidRelease turns on.
+            // their AARs, and over-keeping would cancel R8's optimization
+            // (the template's proguard-android-optimize.txt).
             extraProguardRules: [
               '# expo-contacts is referenced by the autolinked ExpoModulesPackageList',
               "# but is not a dependency here; suppress R8's missing-class error for",
@@ -144,16 +156,28 @@ module.exports = {
           cameraPermission: 'Allow $(PRODUCT_NAME) to scan sign-in QR codes.',
         },
       ],
-      // Release buildType bits expo-build-properties cannot express: the R8
-      // -optimize proguard file, and the real release signing config
-      // (credentials come from Gradle properties, never the repo). The artefact
-      // MUST carry the shared Oxy ecosystem certificate: the other Oxy apps reach
-      // Commons through signature permissions — verify it, never assume it.
-      '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
+      // The SDK's account surface (Settings > Manage account) changes the
+      // profile picture through expo-image-picker, and its authenticator and
+      // app-info screens copy through expo-clipboard. Both are OPTIONAL peers of
+      // @oxy.so/services, and Expo autolinking skips optional peers, so without
+      // these direct dependencies the release had neither native module: the
+      // photo library said it was unavailable and copy did nothing. No
+      // microphone: Commons never records video.
+      [
+        'expo-image-picker',
+        {
+          photosPermission: 'Allow $(PRODUCT_NAME) to choose a profile picture from your photos.',
+          cameraPermission: 'Allow $(PRODUCT_NAME) to take a profile picture.',
+          microphonePermission: false,
+        },
+      ],
       // Every Oxy app declares AND requests so.oxy.permission.IDENTITY and
       // so.oxy.permission.DEVICE_SESSION (signature level) and queries the host
       // authorities. No Oxy app shares a UID: identity and session cross apps
-      // only through the providers below.
+      // only through the providers below. It also signs the release with the ONE
+      // ecosystem key (OXY_UPLOAD_* Gradle properties, never the repo) and fails
+      // a release whose certificate is not that one: the other Oxy apps reach
+      // Commons through signature permissions.
       '@oxy.so/services/plugins/withOxySharedPermissions',
       // The identity host (modules/oxy-identity-host): Commons is the ONLY
       // holder of the identity private key, and this provider answers the other
@@ -191,11 +215,18 @@ module.exports = {
     experiments: {
       typedRoutes: true,
       reactCompiler: true,
+      // Expo's oxc transformer, about 2x faster cold bundles than Babel. Development
+      // only: in a production export it keeps the requires of dead platform branches
+      // (`if (Platform.OS !== 'web') require(...)`), pulling native-only packages into
+      // the web bundle. The CLI sets NODE_ENV before it reads this config.
+      noxcturnalTransformWorker: process.env.NODE_ENV !== 'production',
     },
     extra: {
       router: {},
       eas: {
-        projectId: '',
+        // Read by the SDK's getExpoPushToken; `undefined` when not provided,
+        // never a placeholder that would mint nothing.
+        projectId: PUSH.easProjectId,
       },
     },
     owner: 'oxyhq',

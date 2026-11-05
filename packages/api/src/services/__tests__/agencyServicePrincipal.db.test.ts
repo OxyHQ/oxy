@@ -72,6 +72,7 @@ describe('live agency service principal', () => {
 
     const principal = await resolveLiveAgencyServicePrincipal(fixture.token);
 
+    expect(principal).not.toBeNull();
     expect(principal?.scopes).toEqual(['capabilities:read']);
     expect(principal?.capabilities).toContain('agency:coordinate');
   });
@@ -107,9 +108,7 @@ describe('live agency service principal', () => {
 describe('live agency workload principal', () => {
   const ROLE = () => `arn:aws:iam::237343248947:role/oxy-test-${randomUUID().slice(0, 8)}`;
 
-  async function workloadFixture(
-    overrides: { bindingScopes?: string[]; expiresAt?: Date; attribute?: boolean } = {},
-  ) {
+  async function workloadFixture(overrides: { expiresAt?: Date; attribute?: boolean } = {}) {
     const [owner] = await getDb()
       .insert(users)
       .values({ color: 'teal' })
@@ -131,9 +130,9 @@ describe('live agency workload principal', () => {
       .values({
         applicationId: application.id,
         provider: 'aws-iam',
+        environment: workloadTokenEnvironment(),
         subject,
         description: 'test binding',
-        scopes: overrides.bindingScopes ?? ['inference:invoke', 'acting-as:offline'],
         ...(overrides.expiresAt ? { expiresAt: overrides.expiresAt } : {}),
       })
       .returning({ id: applicationWorkloadIdentities.id });
@@ -165,11 +164,12 @@ describe('live agency workload principal', () => {
     );
     expect(principal?.applicationId).toBe(fixture.application.id);
     expect(principal?.handle).toBe(workloadAttestationHandle(fixture.subject));
-    expect(principal?.scopes).toEqual(['inference:invoke', 'acting-as:offline']);
+    expect(principal).not.toBeNull();
+    expect(principal).not.toHaveProperty('scopes');
   });
 
-  /** The application is the ceiling for a binding, as it is for a credential. */
-  it('intersects the binding with the application, so a scope staff removed is gone at once', async () => {
+  /** External application scope ceilings do not narrow workload identity. */
+  it('keeps workload identity independent of external application scope changes', async () => {
     const fixture = await workloadFixture();
     await getDb()
       .update(applications)
@@ -180,19 +180,24 @@ describe('live agency workload principal', () => {
       'aws-iam',
       fixture.subject,
     );
-    expect(principal?.scopes).toEqual(['inference:invoke']);
+    expect(principal).not.toBeNull();
+    expect(principal).not.toHaveProperty('scopes');
   });
 
-  /** Empty is "names none" — the application's NON-privileged grants, as the mint does. */
-  it("gives a scopeless binding the application's non-privileged grants only", async () => {
-    const fixture = await workloadFixture({ bindingScopes: [] });
+  /** An empty external application ceiling does not narrow own identity. */
+  it('never manufactures scopes from an empty external application ceiling', async () => {
+    const fixture = await workloadFixture();
+    await getDb()
+      .update(applications)
+      .set({ scopes: [] })
+      .where(eq(applications.id, fixture.application.id));
     const principal = await resolveLiveAgencyWorkload(
       fixture.application.id,
       'aws-iam',
       fixture.subject,
     );
-    expect(principal?.scopes).toEqual(['inference:invoke', 'user:read']);
-    expect(principal?.scopes).not.toContain('acting-as:offline');
+    expect(principal).not.toBeNull();
+    expect(principal).not.toHaveProperty('scopes');
   });
 
   it('rejects a binding that was deleted — how a compromised workload is cut off', async () => {
@@ -286,9 +291,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
    * application that holds BOTH is the only fixture in which "the wrong row was
    * re-read" is distinguishable from "no row was re-read".
    */
-  async function bothFixture(
-    overrides: { bindingScopes?: string[]; capabilities?: string[] } = {},
-  ) {
+  async function bothFixture(overrides: { capabilities?: string[] } = {}) {
     const [owner] = await getDb()
       .insert(users)
       .values({ color: 'teal' })
@@ -310,9 +313,9 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       .values({
         applicationId: application.id,
         provider: 'aws-iam',
+        environment: workloadTokenEnvironment(),
         subject,
         description: 'handle test binding',
-        scopes: overrides.bindingScopes ?? ['inference:invoke'],
       })
       .returning({ id: applicationWorkloadIdentities.id });
     // The binding's own attribution row, as both writers produce it.
@@ -345,19 +348,21 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       /**
        * What THIS deployment's mint writes, not a literal.
        *
-       * A binding has no environment, so `exchangeWorkloadAttestation` takes the
-       * claim from `workloadTokenEnvironment()` — and
+       * The fixture's explicit binding environment matches
+       * `workloadTokenEnvironment()` — and
        * `resolveLiveAgencyServicePrincipal` compares the claim against that same
        * single definition, so a fixture with a hard-coded `production` would be a
        * token this deployment's mint could not have produced and would make that
        * comparison untestable.
        */
       environment: workloadTokenEnvironment(),
-      scopes: ['inference:invoke'],
+      authority: 'first_party',
     };
     const credentialToken: ServiceTokenPayload = {
       ...attestedToken,
       credentialId: credential.id,
+      authority: 'external',
+      scopes: ['inference:invoke'],
       // The credential's own environment, which is the column the credential arm
       // compares against.
       environment: 'production',
@@ -402,7 +407,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       applicationId: fixture.application.id,
       credentialId: fixture.handle,
       ownerAccountId: fixture.owner.id,
-      scopes: ['inference:invoke'],
+      authority: 'first_party',
       capabilities: ['kaana:provider-credential-validation'],
     });
     // The credential of the same application is NOT what came back — the gate
@@ -417,6 +422,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       applicationId: fixture.application.id,
       credentialId: fixture.credential.id,
       ownerAccountId: fixture.owner.id,
+      authority: 'external',
       // `token ∩ credential ∩ application`, as before: the token asked for one.
       scopes: ['inference:invoke'],
       capabilities: ['catalog:alia'],
@@ -476,12 +482,11 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
     await expect(resolveLiveAgencyServicePrincipal(demoted.attestedToken)).resolves.toBeNull();
   });
 
-  it('refuses an attested token whose binding names no route to the scope it asks for', async () => {
-    const fixture = await bothFixture({ bindingScopes: ['user:read'] });
+  it('keeps resolved own authority scope-free', async () => {
+    const fixture = await bothFixture();
     const live = await resolveLiveAgencyServicePrincipal(fixture.attestedToken);
-    // Resolved, but with nothing the token asked for — so every scope gate above
-    // it refuses, and the refusal names the scope rather than the principal.
-    expect(live?.scopes).toEqual([]);
+    expect(live?.authority).toBe('first_party');
+    expect(live).not.toHaveProperty('scopes');
   });
 
   it('answers exactly what the subject addressing answers', async () => {
@@ -548,9 +553,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
         applicationId: fixture.application.id,
         ownerAccountId: fixture.owner.id,
         environment: workloadTokenEnvironment(),
-        // What the BINDING names, intersected with the application — not the
-        // credential's `acting-as:offline`, which is sitting right there.
-        scopes: ['inference:invoke'],
+        authority: 'first_party',
       },
     });
 

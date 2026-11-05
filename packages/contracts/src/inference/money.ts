@@ -1,3 +1,4 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
 /**
  * Money and usage units for the inference contracts.
  *
@@ -213,7 +214,7 @@ export const usageUnitSchema = z.enum(USAGE_UNITS);
 export const usageQuantitySchema = z
   .object({
     unit: usageUnitSchema,
-    quantity: z.number().int().nonnegative().safe(),
+    quantity: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
   })
   .strict();
 
@@ -241,7 +242,7 @@ export const unitPriceSchema = z
   .object({
     unit: usageUnitSchema,
     amount: exactDecimalSchema,
-    per: z.number().int().positive().safe(),
+    per: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     currency: currencyCodeSchema,
   })
   .strict();

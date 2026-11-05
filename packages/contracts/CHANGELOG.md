@@ -1,5 +1,81 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.9.0
+
+### Added
+
+- `productSubscriptionPortalRequestSchema` / `productSubscriptionPortalResponseSchema` (types `ProductSubscriptionPortalRequest`, `ProductSubscriptionPortalResponse`) and their client checks: open the payment provider's customer portal for one named source (`POST /billing/product-subscriptions/portal`).
+- `productSubscriptionSummarySchema.canManage`: whether the signed-in payer can open that portal for the source.
+
+### Removed
+
+- `productSubscriptionRenewalRequestSchema` (`ProductSubscriptionRenewalRequest`, `productSubscriptionRenewalRequestCheck`) and `canRenew`. They served only the manual FairCoin renewal of Peable's retired Stripe-Billing proxy, which never had a production subscription; a native subscription renews itself, and an open renewal invoice is paid in the portal. Released as a minor because no published consumer called them (only Oxy's own Accounts app, updated in the same change).
+
+## 6.8.0
+
+### Added
+
+- `resolveExternalIdentityResponseSchema.sourceDocument`: the source document Oxy fetched and verified for this answer (the ActivityPub actor, or the atproto `getProfile` view), present only when the request fetched the source and required to name `externalIdentity.actorUri`. A caller reads banner, counts, profile fields, flags, inbox and keys from it instead of fetching the source a second time.
+
+## 6.7.0
+
+### Added
+
+- `notificationAccessBatchInputSchema` / `notificationAccessBatchResponseSchema` (types `NotificationAccessInput`, `NotificationAccessBatchInput`): up to 100 unique `{ resourceId, actorAccountId, recipientAccountId }` items for `POST /safety/service/notification-access-batch`, one decision per resource.
+
+## 6.6.0
+
+### Added
+
+- `applicationPermissionSchema.heldByAccountRoles`: the owning account's roles whose members hold a key (ADR 0056). Set on a first-party application's keys, which are declared in code; empty for a key held through per-person grants.
+- `APPLICATION_ROLE_ERROR_CODES.firstPartyRolesInCode` (`FIRST_PARTY_ROLES_IN_CODE`, 409): a Console declaration or grant on one of Oxy's own applications.
+
+## 6.5.0
+
+### Added
+
+- `normalizeDomainName` and `DOMAIN_NAME_MAX_LENGTH` (client entry): the one domain rule `POST /identity/domains` and the domains screen share. Written without lookbehind, so it runs on Hermes.
+- `SIGN_IN_IDENTIFIER_MAX_LENGTH` (254) and `SECOND_FACTOR_CODE_MAX_LENGTH` (16), the bounds `signInIdentifierSchema` and `secondFactorCodeSchema` already enforced, named so a field can carry them as `maxLength`.
+
+## 6.4.0
+
+### Added
+
+- Holder-context evidence contracts (`holderContextEvidenceV1RequestSchema`/`ResponseSchema` and the client checks) for `POST /session/device/context-evidence-v1` (ADR 0053): identifiers and expiry only, no bearer or holder secret.
+
+## 6.3.0
+
+### Added
+
+- Registered-account aggregate contracts for a first-party deployment: the batched registration request/response and the total snapshot (`total`, `exact`, `computedAt`, `maxAgeSeconds`, `stale`), with their limits.
+
+## 6.2.0
+
+### Added
+
+- Versioned holder-proven active-context token request and response, with Zod-free client checks.
+
+## 6.0.0
+
+### Breaking
+
+- Root schemas and public schema types use patched Zod 4.6.7. Client checks remain Zod-free and match its validation and error codes. Explicit contract checks preserve existing UTF-16 limits, minute timestamps, URL values and integer bounds; oversized bounded collections fail before element validation.
+- Distinguish first-party authority without scopes from external scoped service, inference and agent authority.
+
+### Added
+
+- Typed resource introspection preserves service, API-key and human-session identity, original requester, effective account and live account permissions.
+- First-party task and operation context contracts preserve requester provenance without storing user bearer tokens.
+
+## 5.8.0
+
+### Added
+
+- `SUPERVISION_CHANGED_EVENT` (`supervision_changed`), from the root and
+  `@oxy.so/contracts/client`: the token-free Socket.IO signal the API emits to
+  `user:<accountId>` when that account's supervision state changes. It carries
+  no payload; a client refetches `GET /safety/supervision`.
+
 ## 5.7.0
 
 ### Changed

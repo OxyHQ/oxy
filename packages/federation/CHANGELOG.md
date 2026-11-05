@@ -1,5 +1,158 @@
 # Changelog: `@oxy.so/federation`
 
+## 3.1.0
+
+- `sendFollow(…, { durable: true })` hands the Follow to the delivery queue
+  before it resolves: the actor's inbox is resolved first (fetched when not
+  cached; it throws when there is none), and the job is queued, so a caller that
+  exits right after — a one-shot script — never loses the Follow. Without the
+  option nothing changes: the request never waits on the remote, and delivery
+  runs in the background.
+
+## 3.0.0
+
+A remote profile is fetched once per sync. Oxy's `/federation/identities/resolve`
+fetches and verifies the source and now returns the document it verified, so an
+app reads the actor from that answer instead of fetching it a second time. The
+connector contract loses the identity members nothing called.
+
+### Breaking
+
+- `NetworkConnector` no longer has `resolve`, `mapIdentity` or `receive`, and
+  `ReceiveContext` is gone. Identity belongs to Oxy (`/federation/identities/resolve`);
+  inbound activities reach the protocol's own inbox handler. Delete the methods
+  from your connectors.
+
+### Added
+
+- `ActorResolverConfig.fetchActorDocument`: where actor documents come from
+  (default: the signed GET). Its `source` result is handed to
+  `FederatedActorStore.upsertActor(uri, update, source)`, so the store reuses
+  what the fetcher learned (Oxy's verified identity) instead of asking again.
+  The resolver and store are generic over that `TSource`.
+- `createSignedFetcher`: `createSignedFetch` that also answers with the URL the
+  response came from after redirects (`SignedFetchResult.finalUrl`).
+- `SignedFetchLogger` lines carry a `{ status, url }` detail, so a sink can log
+  the URL in its own redacted form.
+- `readBoundedResponseText` / `readBoundedResponseJson` (and the body error
+  classes): the one bounded, deadlined `Response` body reader, exported.
+
+### Fixed
+
+- A signed fetch releases the body of every redirect hop and of a 5xx answer
+  it retries unsigned.
+
+## 2.17.0
+
+A field a server sends in a different, equally valid JSON-LD shape is read
+instead of silently dropped. JSON-LD compaction turns a one-element array into
+the value itself (GoToSocial sends a single `tag`, `attachment` or
+`alsoKnownAs`), a reference may be a `Link` naming its target by `href`, an icon
+may be a list of images (PeerTube 6+) or an `Image` whose `url` is a `Link`, a
+media type may carry its parameters in any spelling, and a date may use any ISO
+8601 offset spelling (`+0000`, `+00`). Readers that assumed one shape lost the
+others with no log line: an actor's only alias (so a Move was refused), its only
+profile field, an icon list.
+
+### Added
+
+- `apList(value)`: a one-or-many property as a list.
+- `apIriList(value)`: every IRI a one-or-many reference property names.
+- `apImageUrl(value)`: the first http(s) URL of an `icon` / `image` value, in
+  every shape.
+- `apMediaTypeBase(value)` and `isActivityPubMediaType(value)`: compare a media
+  type by its base, whatever its parameters.
+- `apDate(value)`: a date in any ISO 8601 offset spelling, without relying on
+  the engine's own `Date` parser; `undefined` when it names none.
+
+### Changed
+
+- `apIri(value)` also reads a `Link`'s `href` when the object has no `id`.
+- `ActorResolverConfig.firstStringUrl` is optional and defaults to `apImageUrl`.
+
+### Fixed
+
+- `createActorResolver` reads `alsoKnownAs` and the profile-field `attachment`
+  as one value or a list, and parses `published` / `verifiedAt` with `apDate`,
+  so an unparseable date is absent instead of an invalid `Date`.
+- `readProxyDeclarations` reads a single `proxyOf` declaration.
+- The inbox router and the inbound dispatcher read references through `apIri`.
+
+## 2.16.0
+
+An actor that embeds a collection or endpoint instead of linking it keeps it.
+JSON-LD lets a server send `"followers": { "id": "…/followers", "totalItems": 9 }`
+where Mastodon sends the IRI string; the resolver read only the string, so such
+an actor was stored with no followers URL (and its followers-only posts could
+not be told from direct messages), no outbox, featured collection or shared inbox.
+
+### Added
+
+- `apIri(value)`: the IRI a JSON-LD node reference names, the string itself or
+  an embedded object's `id`.
+
+### Fixed
+
+- `createActorResolver` reads `inbox`, `outbox`, `followers`, `following`,
+  `featured`, `featuredTags`, `endpoints.sharedInbox` and `movedTo` through
+  `apIri`, and counts an embedded collection by fetching its `id`.
+
+## 2.15.0
+
+A signed fetch can sign as a given actor instead of the instance, so an app can
+read a followers-only or direct object the way its local follower or recipient
+would see it (Mastodon serves those only to an actor it authorizes).
+
+### Added
+
+- `SignedFetchInit` (exported from `@oxy.so/federation/node`): `RequestInit`
+  plus an optional `keyId`. `signedFetch(url, accept, { keyId })` signs the
+  request and every re-signed redirect hop with that key instead of
+  `getInstanceKeyId()`; the injected signer must hold it.
+
+### Changed
+
+- An actor-signed request is never retried unsigned: its response, whatever the
+  status, is returned as-is. Instance-signed requests keep the unsigned retry on
+  a 5xx, and none is retried unsigned on a 401/403.
+
+## 2.14.0
+
+An `Add` or `Remove` reaches the app instead of being dropped, so a Mastodon
+pin or unpin (the status added to or removed from the actor's `featured`
+collection) can be applied as it happens.
+
+### Changed
+
+- `createInboundDispatcher` hands `Add` and `Remove` to `onContentActivity`,
+  alongside Create / Announce / Like / Delete / Update. An app whose handler
+  does not know them ignores them, as it ignored them before.
+
+## 2.13.0
+
+An atproto account whose handle does not verify is named by its DID, the same
+way by every Oxy app, instead of each app deciding what Bluesky's
+`handle.invalid` placeholder means.
+
+### Added
+
+- `UNRESOLVED_ATPROTO_HANDLE` (`handle.invalid`) and `isUnresolvedAtprotoHandle`:
+  the AppView's error string for a failed handle verification, which every
+  affected account shares and so never identifies anybody.
+- `atprotoIdentityHandle(handle, did)`: the handle an atproto account is keyed
+  on, which is its DID when the handle is the sentinel.
+- `blueskyHandleFromUsername`: the inverse of `blueskyUsernameFromHandle`.
+- `FederatedActorUpsert.indexable`: Mastodon's opt-in to search engines, set
+  only when the actor states it (absent means it did not, which Mastodon reads
+  as "no"), so an app can keep opted-out accounts out of search engines.
+- `FederatedActorUpsert.movedTo`: the account an actor moved to, read on every
+  refresh rather than only learned from an inbound `Move`.
+
+## 2.12.0
+
+### Changed
+
+- Accept core 7 and contracts 6 alongside the existing compatible runtime versions. Federation exports and wire formats are unchanged.
 
 ## 2.11.0
 

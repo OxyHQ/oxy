@@ -49,7 +49,8 @@ export const appDataValueBodySchema = z
      * array, string, number, boolean, null). `undefined` is not — JSON
      * doesn't carry it.
      */
-    value: z.unknown(),
+    // Keep absence visible to the custom required/JSON validation below.
+    value: z.unknown().optional(),
   })
   .superRefine((body, ctx) => {
     if (!('value' in body)) {

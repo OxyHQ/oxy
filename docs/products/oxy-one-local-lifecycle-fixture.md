@@ -1,15 +1,6 @@
 # Local Oxy One lifecycle fixture
 
-Use the isolated Oxy and Peable draft checkouts with installed dependencies and Bun. Build Peable shared-types and SDK first. The product manifest remains pinned to its public SDK; this fixture exercises the updated SDK in a separate Peable process and communicates normalized observations to Oxy over a local test protocol.
-
-From Peable:
-
-```sh
-cd packages/shared-types
-bun run build
-cd ../sdk
-bun run build
-```
+Use an Oxy checkout and a Peable checkout at `main`, both with installed dependencies, and Bun. Peable's `bun install` builds `@peable.to/contracts`, `shared-types` and `sdk` (its `postinstall`); a Peable tree whose `dist/` predates its source fails the fixture with `Cannot find module '@peable.to/contracts/vocabulary'`. Oxy's `packages/api` and the Peable fixture both run `@peable.to/sdk` 1.0, so the calls the fixture forwards are the ones production makes; the fixture runs in a separate Peable process and communicates normalized observations to Oxy over a local test protocol.
 
 From Oxy `packages/api`, supply explicit local PostgreSQL URLs and the absolute path to the fixture in your Peable checkout:
 

@@ -23,34 +23,40 @@
 
 import type { Response } from 'express';
 import { and, desc, eq, gt } from 'drizzle-orm';
-import { getDb } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
 import { logger } from '../utils/logger';
-import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils';
-import sessionService from '../services/session.service';
+import sessionService, { ActingSessionChangedError } from '../services/session.service';
+import { sessionActorScope } from '../services/sessionActorScope';
 import type { AuthRequest } from '../middleware/auth';
-import { emitSessionUpdate } from '../server';
 
 /**
- * The `device_id` of the session the request itself is authenticated with, or
- * `null` when the token names no resolvable session.
+ * Resolve the bearer session without a cached session snapshot.
  */
-async function currentDeviceIdOf(req: AuthRequest): Promise<string | null> {
-  const token = extractTokenFromRequest(req);
-  if (!token) {
+async function actingSessionOf(req: AuthRequest) {
+  const subjectId = req.user?._id?.toString();
+  const sessionId = req.sessionId;
+  const token = req.oxyToken;
+  if (!subjectId || !sessionId || !token) return null;
+  const result = await sessionService.validateSessionById(sessionId, false, { useCache: false });
+  const session = result?.session;
+  const principalId = session?.operatedByUserId?.toString() ?? session?.userId?.toString();
+  if (
+    !session?.deviceId ||
+    !principalId ||
+    session.userId?.toString() !== subjectId ||
+    token.subjectAccountId !== subjectId ||
+    token.sessionId !== sessionId ||
+    token.principalUserId !== principalId ||
+    (token.applicationId ?? null) !== (session.applicationId ?? null)
+  )
     return null;
-  }
-  const decoded = decodeToken(token);
-  if (!decoded?.sessionId) {
-    return null;
-  }
-  try {
-    const sessionResult = await sessionService.validateSessionById(decoded.sessionId, false);
-    return sessionResult?.session?.deviceId ?? null;
-  } catch (error) {
-    logger.debug('Could not get current session for device identification', { error });
-    return null;
-  }
+  return {
+    sessionId,
+    subjectId,
+    principalId,
+    deviceId: session.deviceId,
+    applicationId: token.applicationId ?? null,
+  };
 }
 
 export class DevicesController {
@@ -65,25 +71,30 @@ export class DevicesController {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const currentDeviceId = await currentDeviceIdOf(req);
+      const acting = await actingSessionOf(req);
+      if (!acting) return res.status(401).json({ error: 'Invalid session' });
 
-      const rows = await getDb()
-        .select({
-          deviceId: sessions.deviceId,
-          deviceName: sessions.deviceName,
-          deviceType: sessions.deviceType,
-          lastActiveAt: sessions.lastActiveAt,
-          createdAt: sessions.createdAt,
-        })
-        .from(sessions)
-        .where(
-          and(
-            eq(sessions.userId, user._id),
-            eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date()),
-          ),
-        )
-        .orderBy(desc(sessions.lastActiveAt));
+      const rows = await sessionService.withActingSession(acting, (tx) =>
+        tx
+          .select({
+            deviceId: sessions.deviceId,
+            deviceName: sessions.deviceName,
+            deviceType: sessions.deviceType,
+            lastActiveAt: sessions.lastActiveAt,
+            createdAt: sessions.createdAt,
+          })
+          .from(sessions)
+          .where(
+            and(
+              sessionActorScope(acting.subjectId, acting.principalId),
+              eq(sessions.isActive, true),
+              gt(sessions.expiresAt, new Date()),
+              // App-bound sessions have no proven shared-device provenance.
+              ...(req.oxyToken?.applicationId ? [eq(sessions.sessionId, acting.sessionId)] : []),
+            ),
+          )
+          .orderBy(desc(sessions.lastActiveAt)),
+      );
 
       interface DeviceEntry {
         id: string;
@@ -117,12 +128,16 @@ export class DevicesController {
           deviceType: row.deviceType || 'unknown',
           lastActive: row.lastActiveAt,
           createdAt: row.createdAt,
-          isCurrent: currentDeviceId ? row.deviceId === currentDeviceId : false,
+          isCurrent: row.deviceId === acting.deviceId,
         });
       }
 
       res.json(Array.from(deviceMap.values()));
     } catch (error) {
+      if (error instanceof ActingSessionChangedError)
+        return res
+          .status(403)
+          .json({ error: 'Acting session changed', code: 'ACTING_SESSION_MISMATCH' });
       logger.error('Get user devices error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -144,10 +159,16 @@ export class DevicesController {
         return res.status(400).json({ error: 'Device ID is required' });
       }
 
-      const currentDeviceId = await currentDeviceIdOf(req);
+      if (req.oxyToken?.applicationId)
+        return res.status(403).json({
+          code: 'third_party_device_access_denied',
+          error: 'An application session cannot revoke other sessions',
+        });
+      const acting = await actingSessionOf(req);
+      if (!acting) return res.status(401).json({ error: 'Invalid session' });
 
       // Prevent removing current device
-      if (currentDeviceId && deviceId === currentDeviceId) {
+      if (deviceId === acting.deviceId) {
         return res.status(400).json({
           error: 'Cannot remove current device',
           message:
@@ -155,44 +176,20 @@ export class DevicesController {
         });
       }
 
-      // Only query and remove sessions belonging to the requesting user on this device
-      const userDeviceSessions = await getDb()
-        .select({ sessionId: sessions.sessionId })
-        .from(sessions)
-        .where(
-          and(
-            eq(sessions.userId, user._id),
-            eq(sessions.deviceId, deviceId),
-            eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date()),
-          ),
-        );
-
-      if (userDeviceSessions.length === 0) {
+      const revoked = await sessionService.deactivateActorSessionsOnDevice(acting, deviceId);
+      if (revoked.length === 0) {
         return res.status(404).json({ error: 'Device not found' });
       }
-
-      // Get sessionIds for the requesting user's sessions on this device
-      const sessionIds = userDeviceSessions.map((row) => row.sessionId);
-
-      // Logout only the requesting user's sessions on this device
-      // Use sessionService to properly deactivate each session
-      for (const sessionId of sessionIds) {
-        await sessionService.deactivateSession(sessionId);
-      }
-
-      // Emit socket notification only for the requesting user
-      emitSessionUpdate(user._id, {
-        type: 'device_removed',
-        deviceId: deviceId,
-        sessionIds: sessionIds,
-      });
 
       res.json({
         success: true,
         message: 'Device removed successfully',
       });
     } catch (error) {
+      if (error instanceof ActingSessionChangedError)
+        return res
+          .status(403)
+          .json({ error: 'Acting session changed', code: 'ACTING_SESSION_MISMATCH' });
       logger.error('Remove device error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }

@@ -392,7 +392,7 @@ describe('switchActive', () => {
 
     const result = await deviceSessionService.switchActive(device, a1);
 
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s1', false);
+    expect(mockValidateSessionById).toHaveBeenCalledWith('s1', false, { throwOnError: true });
     expect(result).toEqual({
       ok: true,
       state: expect.objectContaining({ activeAccountId: a1, revision: before.revision + 1 }),
@@ -443,7 +443,7 @@ describe('getState self-heals a revoked managed active account', () => {
 
     const state = await deviceSessionService.getState(device);
 
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s-org', false);
+    expect(mockValidateSessionById).toHaveBeenCalledWith('s-org', false, { throwOnError: true });
     expect(mockDeactivate).toHaveBeenCalledWith('s-org');
     expect(state.accounts.map((a) => a.accountId)).toEqual([op1]);
     expect(state.activeAccountId).toBe(op1);
@@ -463,7 +463,7 @@ describe('getState self-heals a revoked managed active account', () => {
 
     const state = await deviceSessionService.getState(device);
 
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s-org', false);
+    expect(mockValidateSessionById).toHaveBeenCalledWith('s-org', false, { throwOnError: true });
     expect(mockDeactivate).not.toHaveBeenCalled();
     expect(state.activeAccountId).toBe(org1);
   });

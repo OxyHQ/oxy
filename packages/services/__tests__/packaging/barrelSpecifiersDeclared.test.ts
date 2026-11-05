@@ -32,15 +32,6 @@ const declared = new Set([
 /** Node builtins and self-references are never declared and never should be. */
 const IGNORED_PREFIXES = ['node:', '@oxy.so/services'];
 
-/**
- * Specifiers reached only through a RUNTIME-COMPUTED string
- * (`const m = 'expo-secure-store'; await import(m)`) are invisible to this walk
- * by the same mechanism that makes them invisible to `tsc` and Metro — which is
- * the point of writing them that way. They are listed so the omission is a
- * decision rather than a blind spot.
- */
-const RUNTIME_COMPUTED_SPECIFIERS = new Set(['expo-secure-store']);
-
 function packageNameOf(specifier: string): string | null {
   if (specifier.startsWith('.') || specifier.startsWith('/')) return null;
   if (IGNORED_PREFIXES.some((p) => specifier.startsWith(p))) return null;
@@ -125,12 +116,17 @@ describe('barrel-reachable specifiers are declared', () => {
   });
 
   it('declares every external package the barrel can reach', () => {
-    const undeclared = [...external]
-      .filter((name) => !declared.has(name))
-      .filter((name) => !RUNTIME_COMPUTED_SPECIFIERS.has(name))
-      .sort();
+    const undeclared = [...external].filter((name) => !declared.has(name)).sort();
 
     expect(undeclared).toEqual([]);
+  });
+
+  it('sees expo-secure-store, which it once could not', () => {
+    // Its loads used a runtime-computed specifier (`const m = '…'; import(m)`)
+    // that this walk could not read, while Babel's constant evaluation let Metro
+    // resolve it all along. They are literals now, so the walk sees the package.
+    expect(external.has('expo-secure-store')).toBe(true);
+    expect(declared.has('expo-secure-store')).toBe(true);
   });
 
   it('reaches expo-web-browser, and it is declared', () => {

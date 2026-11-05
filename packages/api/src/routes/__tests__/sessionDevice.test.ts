@@ -189,7 +189,11 @@ async function requestJson(
 ) {
   const address = server.address() as AddressInfo;
   const body = payload === undefined ? '' : JSON.stringify(payload);
-  return new Promise<{ status: number; body: Record<string, unknown> }>((resolve, reject) => {
+  return new Promise<{
+    status: number;
+    body: Record<string, unknown>;
+    headers: http.IncomingHttpHeaders;
+  }>((resolve, reject) => {
     const req = http.request(
       {
         method,
@@ -209,7 +213,11 @@ async function requestJson(
           raw += c;
         });
         res.on('end', () => {
-          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} });
+          resolve({
+            status: res.statusCode ?? 0,
+            body: raw.length ? JSON.parse(raw) : {},
+            headers: res.headers,
+          });
         });
       },
     );
@@ -269,6 +277,103 @@ beforeEach(() => {
   mockReserveAttempt.mockResolvedValue({ locked: false, attempts: 1 });
   mockRecordFailure.mockResolvedValue({ locked: false, attempts: 1 });
   mockClearFailures.mockResolvedValue(undefined);
+});
+
+describe('POST /session/device/context-token-v1', () => {
+  it('requires a holder proof before returning a bound token', async () => {
+    const { deviceId, accountId, secret } = await deviceWithSecret();
+    const spy = jest.spyOn(deviceSessionService, 'resolveHolderContextToken').mockResolvedValue({
+      deviceId,
+      deviceSessionId: 'row',
+      revision: 4,
+      contextId: 'context',
+      actorId: accountId,
+      accountId,
+      sessionId: 'session',
+      accessToken: 'test-bearer',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+    });
+    try {
+      const rejected = await requestJson('POST', '/session/device/context-token-v1', {
+        deviceId,
+        deviceSecret: `${secret}-wrong`,
+      });
+      expect(rejected.status).toBe(401);
+      expect(rejected.body).toEqual({ error: 'invalid_device_secret' });
+      expect(spy).not.toHaveBeenCalled();
+      const accepted = await requestJson(
+        'POST',
+        '/session/device/context-token-v1',
+        { deviceId, deviceSecret: secret },
+        { Authorization: '' },
+      );
+      expect(accepted.status).toBe(200);
+      expect(accepted.headers['cache-control']).toBe('no-store');
+      expect(accepted.body.data).toMatchObject({
+        version: 1,
+        actorId: accountId,
+        accessToken: 'test-bearer',
+      });
+      expect(accepted.body.data).not.toHaveProperty('deviceSecret');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('fails without bearer when binding is unavailable and does not accept pins', async () => {
+    const { deviceId, accountId, secret } = await deviceWithSecret();
+    const spy = jest
+      .spyOn(deviceSessionService, 'resolveHolderContextToken')
+      .mockResolvedValue(null);
+    try {
+      const unavailable = await requestJson('POST', '/session/device/context-token-v1', {
+        deviceId,
+        deviceSecret: secret,
+      });
+      expect(unavailable.status).toBe(409);
+      expect(unavailable.body).toEqual({ error: 'binding_unavailable' });
+      expect(unavailable.headers['cache-control']).toBe('no-store');
+      const pinned = await requestJson('POST', '/session/device/context-token-v1', {
+        deviceId,
+        deviceSecret: secret,
+        accountId,
+      });
+      expect(pinned.status).toBe(400);
+      for (const invalid of ['', null, 3]) {
+        const invalidPin = await requestJson('POST', '/session/device/context-token-v1', {
+          deviceId,
+          deviceSecret: secret,
+          accountId: invalid,
+        });
+        expect(invalidPin.status).toBe(400);
+      }
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('shares the mint lockout and returns 429 before checking a holder', async () => {
+    const { deviceId, secret } = await deviceWithSecret();
+    mockReserveAttempt.mockResolvedValueOnce({ locked: true, retryAfterSeconds: 42, attempts: 21 });
+    const spy = jest.spyOn(deviceSessionService, 'resolveHolderContextToken');
+    try {
+      const response = await requestJson('POST', '/session/device/context-token-v1', {
+        deviceId,
+        deviceSecret: secret,
+      });
+      expect(response.status).toBe(429);
+      expect(response.headers['cache-control']).toBe('no-store');
+      expect(response.body).not.toHaveProperty('data');
+      expect(spy).not.toHaveBeenCalled();
+      expect(mockReserveAttempt).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: 'device-token' }),
+      );
+      expect(mockClearFailures).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 describe('POST /session/device/token — the public deviceSecret mint', () => {

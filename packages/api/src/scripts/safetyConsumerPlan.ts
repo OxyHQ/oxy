@@ -1,11 +1,9 @@
 import { createHash } from 'node:crypto';
 import {
   SAFETY_CONSUMERS,
-  SAFETY_SCOPE,
   safetyWorkloadSubject,
   type SafetyConsumer,
 } from '../config/safetyConsumers';
-import { workloadBindingScopes } from '../utils/applicationScopes';
 export interface SafetyConsumerObservation {
   owner: { id: string; status: string; kind: string; reputation: string; supervised: boolean };
   application: {
@@ -21,7 +19,7 @@ export interface SafetyConsumerObservation {
     applicationId: string;
     provider: string;
     subject: string;
-    scopes: string[];
+    environment: string | null;
     expiresAt: string | null;
   }>;
 }
@@ -53,6 +51,7 @@ export function safetyConsumerPlan(
       (row) =>
         row.applicationId !== target.applicationId ||
         row.provider !== 'aws-iam' ||
+        row.environment !== 'production' ||
         !subjects.includes(row.subject) ||
         row.expiresAt !== null,
     ) ||
@@ -60,30 +59,19 @@ export function safetyConsumerPlan(
   )
     throw new Error('Canonical safety workload binding differs');
   if (stage === 'base' && actions.length)
-    throw new Error('Base policy scope never grants supervised capabilities');
+    throw new Error('Base identity verification never grants supervised capabilities');
   if (
     stage === 'capability' &&
     (!actions.length ||
       actions.some((action) => !(target.candidateActions as readonly string[]).includes(action)))
   )
     throw new Error('The requested action is not a reviewed consumer candidate');
-  if (
-    stage === 'capability' &&
-    (!before.application.scopes.includes(SAFETY_SCOPE) ||
-      before.workloads.some(
-        (row) =>
-          !workloadBindingScopes(row.scopes, before.application.scopes).includes(SAFETY_SCOPE),
-      ))
-  )
-    throw new Error('Provision base scope before reviewing supervised action capabilities');
   const after = {
     owner: before.owner,
     application: {
       ...before.application,
-      scopes:
-        stage === 'base'
-          ? sorted([...before.application.scopes, SAFETY_SCOPE])
-          : [...before.application.scopes],
+      // These are external credential ceilings, not workload authority.
+      scopes: [...before.application.scopes],
       capabilities:
         stage === 'capability'
           ? sorted([
@@ -92,20 +80,9 @@ export function safetyConsumerPlan(
             ])
           : [...before.application.capabilities],
     },
-    workloads: before.workloads.map((row) => ({
-      ...row,
-      scopes:
-        stage === 'base'
-          ? sorted([
-              ...(row.scopes.length
-                ? row.scopes
-                : workloadBindingScopes(row.scopes, before.application.scopes)),
-              SAFETY_SCOPE,
-            ])
-          : [...row.scopes],
-    })),
+    workloads: before.workloads.map((row) => ({ ...row })),
   };
-  const plan = { version: 1, consumer, stage, actions: sorted(actions), before, after };
+  const plan = { version: 2, consumer, stage, actions: sorted(actions), before, after };
   const planSha256 = createHash('sha256').update(JSON.stringify(plan)).digest('hex');
   return { plan, planSha256 };
 }

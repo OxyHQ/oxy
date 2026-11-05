@@ -1071,6 +1071,15 @@ function AuthorizeRequest() {
            retry without losing the verified account and resource context. */
         <div className="w-full">
           <OxyConsentScreen
+            mode={
+              !isMcpOAuth &&
+              application &&
+              (application.isOfficial ||
+                application.isInternal ||
+                ['first_party', 'internal', 'system'].includes(application.type ?? ''))
+                ? 'sign-in'
+                : 'consent'
+            }
             application={{
               name: consentApplication.name,
               iconUrl: consentApplication.icon ? getAvatarUrl(consentApplication.icon) : undefined,

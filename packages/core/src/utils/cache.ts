@@ -57,6 +57,10 @@ export class TTLCache<T> {
   private misses = 0;
 
   private maxEntries: number;
+  /** Registered for the shared expiry sweep (see {@link registerCacheForCleanup}). */
+  private swept = false;
+  /** The sweep generation this cache registered in; {@link stopAllCleanupIntervals} ends it. */
+  private sweptGeneration = -1;
 
   /**
    * Create a new TTL cache
@@ -85,6 +89,7 @@ export class TTLCache<T> {
     if (now >= entry.expiresAt) {
       this.cache.delete(key);
       this.misses++;
+      this.syncSweep();
       return null;
     }
 
@@ -117,7 +122,7 @@ export class TTLCache<T> {
       const oldest = this.cache.keys().next().value;
       if (oldest !== undefined) this.cache.delete(oldest);
     }
-    if (!cleanupInterval && activeCaches.has(this)) updateCleanupInterval();
+    this.syncSweep();
   }
 
   /**
@@ -127,9 +132,7 @@ export class TTLCache<T> {
    */
   delete(key: string): boolean {
     const deleted = this.cache.delete(key);
-    // Only the delete that EMPTIES this cache can let the timer stop; checking
-    // on every delete made bulk invalidation O(deletes x caches).
-    if (deleted && this.cache.size === 0 && activeCaches.has(this)) updateCleanupInterval();
+    if (deleted) this.syncSweep();
     return deleted;
   }
 
@@ -140,7 +143,7 @@ export class TTLCache<T> {
     this.cache.clear();
     this.hits = 0;
     this.misses = 0;
-    if (activeCaches.has(this)) updateCleanupInterval();
+    this.syncSweep();
   }
 
   /**
@@ -155,7 +158,7 @@ export class TTLCache<T> {
         removed++;
       }
     }
-    if (removed > 0 && this.cache.size === 0 && activeCaches.has(this)) updateCleanupInterval();
+    if (removed > 0) this.syncSweep();
     return removed;
   }
 
@@ -170,6 +173,7 @@ export class TTLCache<T> {
 
     if (Date.now() >= entry.expiresAt) {
       this.cache.delete(key);
+      this.syncSweep();
       return false;
     }
 
@@ -191,6 +195,7 @@ export class TTLCache<T> {
         this.cache.delete(key);
       }
     }
+    this.syncSweep();
 
     return validKeys;
   }
@@ -209,8 +214,29 @@ export class TTLCache<T> {
         removed++;
       }
     }
+    if (removed > 0) this.syncSweep();
 
     return removed;
+  }
+
+  /**
+   * Start or stop being swept: a registered cache is held by the shared sweep
+   * ONLY while it has entries to expire. An empty cache is referenced by
+   * nothing global, so a client nobody disposed is collected with its cache.
+   */
+  setSwept(swept: boolean): void {
+    this.swept = swept;
+    this.sweptGeneration = sweepGeneration;
+    this.syncSweep();
+  }
+
+  private syncSweep(): void {
+    if (this.swept && this.sweptGeneration === sweepGeneration && this.cache.size > 0) {
+      sweptCaches.add(this);
+    } else {
+      sweptCaches.delete(this);
+    }
+    updateCleanupInterval();
   }
 
   /**
@@ -255,41 +281,47 @@ export function createCache<T>(ttl: number = 5 * 60 * 1000): TTLCache<T> {
 }
 
 /**
- * Global cache cleanup interval (runs every minute)
- * This helps prevent memory leaks from expired cache entries
+ * The shared expiry sweep: one unref'd interval, running only while some
+ * registered cache holds entries.
+ *
+ * `sweptCaches` holds exactly the registered caches that are NON-EMPTY. A
+ * cache joins when it gains its first entry and leaves when it is emptied — by
+ * the sweep itself once its entries expire — so the module never pins a cache
+ * that has nothing to expire. That is what keeps a short-lived client that was
+ * never disposed (one per request, say) collectable: the most it can be held
+ * for is its entries' TTL.
  */
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
-const activeCaches = new Set<TTLCache<unknown>>();
+const sweptCaches = new Set<TTLCache<unknown>>();
+/** Bumped by {@link stopAllCleanupIntervals}, which ends every registration. */
+let sweepGeneration = 0;
 
 /**
  * Register a cache for automatic cleanup
  * @param cache Cache instance to register
  */
 export function registerCacheForCleanup(cache: TTLCache<unknown>): void {
-  activeCaches.add(cache);
-  updateCleanupInterval();
+  cache.setSwept(true);
 }
 
 /** Empty registered caches need no timer; importing a client must stay inert. */
 function updateCleanupInterval(): void {
-  const hasEntries = [...activeCaches].some((cache) => cache.size() > 0);
-  if (!hasEntries) {
+  if (sweptCaches.size === 0) {
     if (cleanupInterval) clearInterval(cleanupInterval);
     cleanupInterval = null;
     return;
   }
   if (cleanupInterval) return;
   cleanupInterval = setInterval(() => {
-    for (const cache of activeCaches) cache.cleanup();
-    updateCleanupInterval();
+    // `cleanup()` removes an emptied cache from the set as it goes.
+    for (const cache of [...sweptCaches]) cache.cleanup();
   }, 60_000);
   cleanupInterval.unref?.();
 }
 
 /** Unregister a cache without changing its entries or TTL behavior. */
 export function unregisterCacheFromCleanup(cache: TTLCache<unknown>): void {
-  activeCaches.delete(cache);
-  updateCleanupInterval();
+  cache.setSwept(false);
 }
 
 /**
@@ -297,9 +329,15 @@ export function unregisterCacheFromCleanup(cache: TTLCache<unknown>): void {
  * This will clear the interval and unregister all caches
  */
 export function stopAllCleanupIntervals(): void {
+  sweepGeneration += 1;
+  sweptCaches.clear();
   if (cleanupInterval) {
     clearInterval(cleanupInterval);
     cleanupInterval = null;
   }
-  activeCaches.clear();
+}
+
+/** How many caches the shared sweep currently holds (tests). @internal */
+export function sweptCacheCount(): number {
+  return sweptCaches.size;
 }

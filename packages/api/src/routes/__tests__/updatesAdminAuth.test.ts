@@ -30,6 +30,16 @@ jest.mock('../../middleware/serviceToken', () => ({
   verifyServiceToken: (...a: unknown[]) => mockVerify(...a),
 }));
 jest.mock('../../middleware/auth', () => ({
+  // This suite isolates app/domain authorization; live token authority is tested
+  // through real HTTP in middleware/liveServiceAuthority.db.test.ts.
+  serviceAuthMiddleware: (
+    req: { headers: { authorization?: string }; serviceApp?: unknown },
+    _res: unknown,
+    next: () => void,
+  ) => {
+    req.serviceApp = mockVerify(req.headers.authorization?.slice(7)).payload;
+    next();
+  },
   __esModule: true,
   authMiddleware: (...a: unknown[]) => mockAuthMiddleware(...a),
 }));

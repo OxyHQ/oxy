@@ -83,6 +83,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectForgeAuditPolicy } from './forge-audit-policy.mjs';
+import { inspectZodAuditPaths, ZOD_ADVISORY } from './zod-audit-paths.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -107,25 +108,14 @@ const GATED_SEVERITIES = new Set(['high', 'critical']);
  */
 const ACKNOWLEDGED_PACKAGES = [
   {
-    package: 'braces',
-    advisories: ['GHSA-vfj7-8cjw-p6xm'],
-    reachedBy:
-      '@oxy.so/api -> @oxy.so/protocol -> expo-modules-core -> react-native -> Metro -> micromatch; also development tooling',
+    package: 'zod',
+    advisories: [ZOD_ADVISORY],
+    reachedBy: 'Only API atproto OAuth 0.5.13',
     reason:
-      'GHSA-vfj7-8cjw-p6xm has no patched release. Native peers materialize Metro/micromatch ' +
-      'in the production closure, so this is not a dev-only dependency. The inspected protocol ' +
-      'Node export selects platform/crypto.ts (node:crypto), not its native entry; no inspected ' +
-      'API/core/contracts/protocol runtime source imports Metro/micromatch/braces. Tooling ' +
-      'patterns come from repository inputs. This is reachability evidence, not a complete ' +
-      'transitive request-path proof; reject untrusted nested tooling patterns and revisit ' +
-      'on any graph/entrypoint change or upstream fix. See docs/security/issuer-braces-review-2026-10-03.md.',
-  },
-  {
-    package: 'undici',
-    reachedBy: 'release-it (dev)',
-    reason:
-      "release-it's HTTP client, used to talk to GitHub and npm during a release. The advisories " +
-      'are WebSocket and multi-user proxy issues; release-it opens neither.',
+      'Own runtime schemas use patched Zod 4.6.7. Atproto JSON and restored DPoP state are ' +
+      'bounded before the unavoidable Zod 3.25.76 parsers. ' +
+      'The mandatory lock graph guard rejects every other vulnerable version or consumer. ' +
+      'Evidence, limits and removal conditions: docs/security/zod-parser-boundary.md.',
   },
 ];
 
@@ -162,6 +152,12 @@ if (process.env.DEPENDENCY_AUDIT_EMIT_ACKNOWLEDGEMENTS === '1') {
 }
 
 const problems = [];
+const zodPaths = inspectZodAuditPaths(repositoryRoot);
+for (const error of zodPaths.errors) problems.push(`Scoped Zod path policy: ${error}`);
+if (zodPaths.residuals.length === 0)
+  problems.push(
+    'Zod residual acknowledgement is stale: remove it when all reviewed dependencies are patched.',
+  );
 
 /**
  * The audit payload.

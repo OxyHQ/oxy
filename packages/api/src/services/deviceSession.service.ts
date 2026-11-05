@@ -1,9 +1,23 @@
 import * as crypto from 'node:crypto';
 import type { Request } from 'express';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type {
   AccountKind,
   DeviceAccountContext,
+  DeviceContextTokenV1Response,
   DeviceContextRelationship,
   DeviceDirectory,
   DeviceDirectoryProfile,
@@ -14,9 +28,10 @@ import type {
 import { deviceDirectorySchema, isOperatorSwitchTargetKind } from '@oxy.so/contracts';
 import { isUniqueViolation } from '@oxy.so/db';
 import { v7 as uuidv7 } from 'uuid';
-import { getDb, type Database } from '../config/postgres';
+import { getDb, type Database, type Transaction } from '../config/postgres';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
 import { deviceCredentials } from '../db/schema/deviceCredentials';
+import { deviceJoinCodes } from '../db/schema/deviceJoinCodes';
 import { devicePrincipals } from '../db/schema/devicePrincipals';
 import { deviceSessions } from '../db/schema/deviceSessions';
 import { sessions } from '../db/schema/sessions';
@@ -28,6 +43,16 @@ import { sha256Hex, base64UrlEncode, timingSafeStringEqual } from './oauthCode.s
 import { effectivePermissionsForMember } from '../utils/accountRoles';
 import { formatUserNameResponse } from '../utils/displayName';
 import { logger } from '../utils/logger';
+import {
+  classifyHolderBearer,
+  holderContextEvidence,
+  type HolderContextEvidenceResult,
+} from './holderContextEvidence';
+import {
+  ACCESS_TOKEN_VERSION,
+  checkAccessTokenBinding,
+  validateAccessToken,
+} from '../utils/sessionUtils';
 
 /** Number of random bytes in a raw `deviceSecret` (256-bit). */
 const DEVICE_SECRET_BYTES = 32;
@@ -340,6 +365,13 @@ export type ActivateContextResult =
   | { ok: false; reason: 'not_found' }
   | {
       ok: false;
+      reason: 'superseded';
+      accountId: string;
+      changed: boolean;
+      state: DeviceSessionState | null;
+    }
+  | {
+      ok: false;
       reason: 'unauthorized';
       accountId: string;
       directory: DeviceDirectory;
@@ -360,6 +392,96 @@ export type BackgroundMintResult =
 // session) — the cold-boot reload handoff. The route uses it to skip the
 // device-state broadcast when nothing actually changed.
 export type AddAccountResult = { state: DeviceSessionState; changed: boolean };
+
+/** The holder-proven active context, not an authorization grant or graph snapshot. */
+export type HolderContextToken = Omit<DeviceContextTokenV1Response, 'version'>;
+
+/** The common holder/context join used by the existing mint and evidence read. */
+function holderContextBindingQuery(
+  db: Queryable,
+  deviceId: string,
+  rawSecret: string,
+  accessToken?: string,
+) {
+  const personSession = alias(sessions, 'holder_context_person_session');
+  return db
+    .select({
+      // Each expression needs a unique SQL alias: this query is also used as a
+      // subquery and several joined tables have an `id` column.
+      credentialId: sql`${deviceCredentials.id}`.mapWith(deviceCredentials.id).as('credential_id'),
+      deviceSessionId: sql`${deviceSessions.id}`.mapWith(deviceSessions.id).as('device_session_id'),
+      revision: sql`${deviceSessions.revision}`.mapWith(deviceSessions.revision).as('revision'),
+      contextId: sql`${deviceAccountContexts.id}`
+        .mapWith(deviceAccountContexts.id)
+        .as('context_id'),
+      actorId: sql`${devicePrincipals.userId}`.mapWith(devicePrincipals.userId).as('actor_id'),
+      accountId: sql`${deviceAccountContexts.accountId}`
+        .mapWith(deviceAccountContexts.accountId)
+        .as('account_id'),
+      sessionId: sql`${sessions.sessionId}`.mapWith(sessions.sessionId).as('session_id'),
+      personSessionId: sql`${personSession.sessionId}`
+        .mapWith(personSession.sessionId)
+        .as('person_session_id'),
+      operatedByUserId: sql`${sessions.operatedByUserId}`
+        .mapWith(sessions.operatedByUserId)
+        .as('operated_by_user_id'),
+      applicationId: sql`${sessions.applicationId}`
+        .mapWith(sessions.applicationId)
+        .as('application_id'),
+      clientId: sql`${sessions.clientId}`.mapWith(sessions.clientId).as('client_id'),
+      scopes: sql`${sessions.scopes}`.mapWith(sessions.scopes).as('scopes'),
+      sessionExpiresAt: sql`${sessions.expiresAt}`
+        .mapWith(sessions.expiresAt)
+        .as('session_expires_at'),
+      accessToken: sql`${sessions.accessToken}`.mapWith(sessions.accessToken).as('access_token'),
+    })
+    .from(deviceSessions)
+    .innerJoin(deviceCredentials, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
+    .innerJoin(
+      deviceAccountContexts,
+      and(
+        eq(deviceAccountContexts.id, deviceSessions.activeContextId),
+        eq(deviceAccountContexts.deviceSessionId, deviceSessions.id),
+      ),
+    )
+    .innerJoin(
+      devicePrincipals,
+      and(
+        eq(devicePrincipals.id, deviceAccountContexts.principalId),
+        eq(devicePrincipals.deviceSessionId, deviceSessions.id),
+      ),
+    )
+    .innerJoin(sessions, eq(sessions.sessionId, deviceAccountContexts.sessionId))
+    .innerJoin(personSession, eq(personSession.sessionId, devicePrincipals.personalSessionId))
+    .where(
+      and(
+        eq(deviceSessions.deviceId, deviceId),
+        eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
+        eq(deviceSessions.activeAccountId, deviceAccountContexts.accountId),
+        isNull(deviceAccountContexts.revokedAt),
+        isNull(devicePrincipals.revokedAt),
+        eq(sessions.userId, deviceAccountContexts.accountId),
+        eq(sessions.deviceId, deviceId),
+        eq(sessions.deviceSessionId, deviceSessions.id),
+        eq(sessions.deviceContextId, deviceAccountContexts.id),
+        eq(sessions.isActive, true),
+        gt(sessions.expiresAt, sql`now()`),
+        eq(personSession.userId, devicePrincipals.userId),
+        eq(personSession.deviceId, deviceId),
+        eq(personSession.isActive, true),
+        gt(personSession.expiresAt, sql`now()`),
+        or(
+          and(
+            eq(devicePrincipals.userId, deviceAccountContexts.accountId),
+            isNull(sessions.operatedByUserId),
+          ),
+          eq(sessions.operatedByUserId, devicePrincipals.userId),
+        ),
+        accessToken === undefined ? undefined : eq(sessions.accessToken, accessToken),
+      ),
+    )
+    .limit(1);
+}
 
 class DeviceSessionService {
   /** The `device_sessions` row alone, without its principals or contexts. */
@@ -661,7 +783,9 @@ class DeviceSessionService {
     // Only the selected delegated pair is re-checked. Other people may reach
     // the same account through independent sessions and memberships.
     if (!active?.sessionId || isPersonalContext(active)) return projectState(doc);
-    const validated = await sessionService.validateSessionById(active.sessionId, false);
+    const validated = await sessionService.validateSessionById(active.sessionId, false, {
+      throwOnError: true,
+    });
     if (validated) return projectState(doc);
     logger.info('deviceSession.getState: dropping revoked managed active account', {
       deviceId: doc.deviceId,
@@ -839,7 +963,9 @@ class DeviceSessionService {
     // durably pointing the device at an account the caller no longer has
     // authority over (see resolveActiveToken, which does the same check on
     // read but can't undo an already-committed activeAccountId).
-    const validated = await sessionService.validateSessionById(sessionId, false);
+    const validated = await sessionService.validateSessionById(sessionId, false, {
+      throwOnError: true,
+    });
     if (!validated) {
       // A new context or re-authentication may have arrived during validation.
       // Remove only the exact rejected session, never this account globally.
@@ -974,6 +1100,146 @@ class DeviceSessionService {
     )
       return null;
     return token;
+  }
+
+  /**
+   * Resolve a holder-proven active context and its exact bearer at one final
+   * database read. This does not freeze the account graph or authorize a
+   * later request; the usual session and delegation checks still apply.
+   */
+  async resolveHolderContextToken(
+    deviceId: string,
+    rawSecret: string,
+  ): Promise<HolderContextToken | null> {
+    if (!deviceId || !rawSecret) return null;
+    const db = getDb();
+    const readBinding = async (accessToken?: string) => {
+      const [row] = await holderContextBindingQuery(db, deviceId, rawSecret, accessToken);
+      return row ?? null;
+    };
+
+    const before = await readBinding();
+    if (!before) return null;
+    if (
+      !(await sessionService.validateSessionById(before.personSessionId, false, {
+        useCache: false,
+      }))
+    )
+      return null;
+    const token = await this.resolveTokenForSession(before.sessionId);
+    if (!token) return null;
+    const claims = validateAccessToken(token.accessToken);
+    const payload = claims.valid ? claims.payload : undefined;
+    if (!payload) return null;
+    if (
+      payload.ver !== ACCESS_TOKEN_VERSION ||
+      payload.type !== 'access' ||
+      payload.deviceId !== deviceId ||
+      payload.device_session_id !== before.deviceSessionId ||
+      payload.device_context_id !== before.contextId ||
+      payload.userId !== before.accountId ||
+      payload.sub !== before.accountId ||
+      payload.sessionId !== before.sessionId ||
+      payload.sid !== before.sessionId ||
+      payload.act?.sub !== before.actorId ||
+      typeof payload.exp !== 'number' ||
+      !Number.isFinite(payload.exp) ||
+      (payload.azp !== undefined &&
+        (typeof payload.azp !== 'string' || payload.azp.length === 0)) ||
+      (payload.scope !== undefined && typeof payload.scope !== 'string')
+    )
+      return null;
+
+    if (
+      !(await sessionService.validateSessionById(before.personSessionId, false, {
+        useCache: false,
+      }))
+    )
+      return null;
+    if (
+      before.actorId !== before.accountId &&
+      !(await this.verifyDelegation(before.actorId, before.accountId))
+    )
+      return null;
+
+    const after = await readBinding(token.accessToken);
+    if (
+      !after ||
+      after.credentialId !== before.credentialId ||
+      after.deviceSessionId !== before.deviceSessionId ||
+      after.revision !== before.revision ||
+      after.contextId !== before.contextId ||
+      after.actorId !== before.actorId ||
+      after.accountId !== before.accountId ||
+      after.sessionId !== before.sessionId ||
+      after.personSessionId !== before.personSessionId
+    )
+      return null;
+    const checked = checkAccessTokenBinding(payload, {
+      sessionId: after.sessionId,
+      userId: after.accountId,
+      operatedByUserId: after.operatedByUserId,
+      applicationId: after.applicationId,
+      clientId: after.clientId,
+      deviceSessionId: after.deviceSessionId,
+      deviceContextId: after.contextId,
+      scopes: after.scopes,
+    });
+    if (!checked.ok) return null;
+    const expiresAt = new Date(Math.min(payload.exp * 1000, after.sessionExpiresAt.getTime()));
+    if (!Number.isFinite(expiresAt.getTime())) return null;
+    return {
+      deviceId,
+      deviceSessionId: after.deviceSessionId,
+      revision: after.revision,
+      contextId: after.contextId,
+      actorId: after.actorId,
+      accountId: after.accountId,
+      sessionId: after.sessionId,
+      accessToken: token.accessToken,
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  /**
+   * Observe the active holder/context and its exact already-installed bearer.
+   * This does not mint or rotate any credential and is not a permission grant.
+   * The final binding and writer check share one statement and snapshot, even
+   * when no holder/context matches. A later request must still be authorized.
+   * Only a personal context whose principal session is this same validated
+   * session is supported. Delegated and supervised policies need a separate
+   * complete authority contract before they can use this evidence.
+   */
+  async resolveHolderContextEvidence(
+    deviceId: string,
+    rawSecret: string,
+    accessToken: string,
+  ): Promise<HolderContextEvidenceResult> {
+    const validated = await sessionService.validateSession(accessToken, { liveSession: true });
+    if (!validated) return { status: 'invalid_bearer' };
+    const classification = classifyHolderBearer(validated, deviceId);
+    if (classification !== 'valid') return { status: classification };
+
+    const db = getDb();
+    const binding = holderContextBindingQuery(db, deviceId, rawSecret).as('holder_evidence');
+    const [observation] = await db
+      .select({
+        inRecovery: sql<boolean>`pg_catalog.pg_is_in_recovery()`,
+        credentialId: binding.credentialId,
+        deviceSessionId: binding.deviceSessionId,
+        revision: binding.revision,
+        contextId: binding.contextId,
+        actorId: binding.actorId,
+        accountId: binding.accountId,
+        sessionId: binding.sessionId,
+        personSessionId: binding.personSessionId,
+        accessToken: binding.accessToken,
+        sessionExpiresAt: binding.sessionExpiresAt,
+      })
+      .from(sql`(select 1) as holder_evidence_authority`)
+      .leftJoin(binding, sql`true`)
+      .limit(1);
+    return holderContextEvidence(validated, deviceId, accessToken, observation);
   }
 
   async signout(
@@ -1531,21 +1797,32 @@ class DeviceSessionService {
       if (locked.activeContextId === contextId && target.sessionId === sessionId) {
         // Idempotent activation: nothing written, `revision` unmoved, and the
         // route must not broadcast.
-        return { kind: 'unchanged' as const, accountId: target.accountId, sessionId };
+        return {
+          kind: 'unchanged' as const,
+          accountId: target.accountId,
+          sessionId,
+          revision: locked.revision,
+        };
       }
 
       await tx
         .update(deviceAccountContexts)
         .set({ sessionId, lastUsedAt: new Date() })
         .where(eq(deviceAccountContexts.id, contextId));
-      await tx
+      const [updated] = await tx
         .update(deviceSessions)
         .set({
           ...this.activeFieldsFor(target),
           revision: sql`${deviceSessions.revision} + 1`,
         })
-        .where(eq(deviceSessions.id, locked.id));
-      return { kind: 'activated' as const, accountId: target.accountId, sessionId };
+        .where(eq(deviceSessions.id, locked.id))
+        .returning({ revision: deviceSessions.revision });
+      return {
+        kind: 'activated' as const,
+        accountId: target.accountId,
+        sessionId,
+        revision: updated.revision,
+      };
     });
 
     if (strandedSessionId) {
@@ -1561,11 +1838,50 @@ class DeviceSessionService {
 
     if (outcome.kind === 'not_found') return { ok: false, reason: 'not_found' };
 
-    const directory = await this.getDirectory(deviceId);
-    const state = await this.readState(deviceId);
+    const missingDevice = (): ActivateContextResult =>
+      outcome.kind === 'unauthorized'
+        ? { ok: false, reason: 'not_found' }
+        : {
+            ok: false,
+            reason: 'superseded',
+            accountId: outcome.accountId,
+            changed: outcome.kind === 'activated',
+            state: null,
+          };
+    let directory: DeviceDirectory;
+    try {
+      directory = await this.getDirectory(deviceId);
+    } catch (error) {
+      const current = await this.loadDevice(db, deviceId);
+      if (!current || current.id !== device.id) return missingDevice();
+      throw error;
+    }
+    const projected = await this.load(db, deviceId);
+    if (!projected || projected.id !== device.id) return missingDevice();
+    const state = projectState(projected);
     if (outcome.kind === 'unauthorized') {
       return { ok: false, reason: 'unauthorized', accountId: outcome.accountId, directory, state };
     }
+    const superseded = async (): Promise<ActivateContextResult> => {
+      const current = await this.load(db, deviceId);
+      return {
+        ok: false,
+        reason: 'superseded',
+        accountId: outcome.accountId,
+        changed: outcome.kind === 'activated',
+        // A row re-created under the same public deviceId is a different
+        // device and must never be broadcast as this activation's result.
+        state: current?.id === device.id ? projectState(current) : null,
+      };
+    };
+    if (
+      directory.deviceId !== deviceId ||
+      directory.revision !== outcome.revision ||
+      directory.activeContextId !== contextId ||
+      state.deviceId !== deviceId ||
+      state.revision !== outcome.revision
+    )
+      return superseded();
     // Post-COMMIT, so the FK write cannot contend with the lock the transaction
     // held. Only on a real activation: an idempotent one changed no binding, and
     // writing the same values back would invalidate the session cache for
@@ -1574,13 +1890,22 @@ class DeviceSessionService {
     if (outcome.kind === 'activated') {
       await this.bindSessionToContext(deviceId, outcome.sessionId);
     }
+    const activeToken = await this.resolveTokenForSession(outcome.sessionId);
+    const latest = await this.loadDevice(db, deviceId);
+    if (
+      !latest ||
+      latest.id !== device.id ||
+      latest.revision !== outcome.revision ||
+      latest.activeContextId !== contextId
+    )
+      return superseded();
     return {
       ok: true,
       changed: outcome.kind === 'activated',
       accountId: outcome.accountId,
       directory,
       state,
-      activeToken: await this.resolveTokenForSession(outcome.sessionId),
+      activeToken,
     };
   }
 
@@ -1904,40 +2229,41 @@ class DeviceSessionService {
    * is only ever bound to a real device row, never to a phantom device.
    */
   async issueDeviceSecret(deviceId: string): Promise<string | null> {
+    return getDb().transaction((tx) => this.issueDeviceSecretInTransaction(tx, deviceId));
+  }
+
+  /** Issue under the same device-row lock as signout and a join-code claim. */
+  async issueDeviceSecretInTransaction(tx: Transaction, deviceId: string): Promise<string | null> {
     const rawSecret = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
     const secretHash = sha256Hex(rawSecret);
+    const [device] = await tx
+      .select({ id: deviceSessions.id })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, deviceId))
+      .for('update');
+    if (!device) return null;
 
-    const issued = await getDb().transaction(async (tx) => {
-      const [device] = await tx
-        .select({ id: deviceSessions.id })
-        .from(deviceSessions)
-        .where(eq(deviceSessions.deviceId, deviceId))
-        .for('update');
-      if (!device) return false;
+    await tx.insert(deviceCredentials).values({ deviceSessionId: device.id, secretHash });
 
-      await tx.insert(deviceCredentials).values({ deviceSessionId: device.id, secretHash });
-
-      const kept = tx
-        .select({ id: deviceCredentials.id })
-        .from(deviceCredentials)
-        .where(eq(deviceCredentials.deviceSessionId, device.id))
-        .orderBy(
-          desc(deviceCredentials.lastUsedAt),
-          desc(deviceCredentials.createdAt),
-          desc(deviceCredentials.id),
-        )
-        .limit(MAX_DEVICE_CREDENTIALS);
-      await tx
-        .delete(deviceCredentials)
-        .where(
-          and(
-            eq(deviceCredentials.deviceSessionId, device.id),
-            notInArray(deviceCredentials.id, kept),
-          ),
-        );
-      return true;
-    });
-    return issued ? rawSecret : null;
+    const kept = tx
+      .select({ id: deviceCredentials.id })
+      .from(deviceCredentials)
+      .where(eq(deviceCredentials.deviceSessionId, device.id))
+      .orderBy(
+        desc(deviceCredentials.lastUsedAt),
+        desc(deviceCredentials.createdAt),
+        desc(deviceCredentials.id),
+      )
+      .limit(MAX_DEVICE_CREDENTIALS);
+    await tx
+      .delete(deviceCredentials)
+      .where(
+        and(
+          eq(deviceCredentials.deviceSessionId, device.id),
+          notInArray(deviceCredentials.id, kept),
+        ),
+      );
+    return rawSecret;
   }
 
   /**
@@ -2009,6 +2335,8 @@ class DeviceSessionService {
 
   /** Delete every holder credential of a device (sign-out-all). */
   private async revokeHolderCredentials(tx: Queryable, deviceSessionId: string): Promise<void> {
+    // The device row is locked by the caller, as it is for join-code issue and claim.
+    await tx.delete(deviceJoinCodes).where(eq(deviceJoinCodes.deviceSessionId, deviceSessionId));
     await tx
       .delete(deviceCredentials)
       .where(eq(deviceCredentials.deviceSessionId, deviceSessionId));

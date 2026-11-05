@@ -2,8 +2,8 @@
  * Public manifest route tests: the only 400 conditions (missing/invalid required
  * protocol headers), 404 for a client id that resolves to nothing, correct wiring
  * of the parsed request into the manifest service (device key from
- * expo-extra-params, expect-signature), pass-through of the assembled response,
- * and the code-signing-misconfigured → 500 mapping.
+ * expo-extra-params), pass-through of the assembled response, and the
+ * code-signing-misconfigured → 503 mapping (nothing is ever served unsigned).
  *
  * The manifest service is mocked — this file is about the ROUTE. Client-id
  * resolution is not mocked: it is a real credential joined to a real application,
@@ -201,7 +201,7 @@ describe('GET /updates/v1/apps/:clientId/manifest — client id resolution', () 
 });
 
 describe('GET /updates/v1/apps/:clientId/manifest — wiring', () => {
-  test('parses device key + expect-signature and returns the assembled response', async () => {
+  test('parses the device key and returns the assembled response', async () => {
     const { clientId, applicationId } = await registerClient();
     mockBuild.mockResolvedValue({
       status: 200,
@@ -232,10 +232,12 @@ describe('GET /updates/v1/apps/:clientId/manifest — wiring', () => {
         channelName: 'production',
         currentUpdateId: 'cur-1',
         protocolVersion: 1,
-        expectSignature: true,
         deviceKey: 'device-abc',
       }),
     );
+    // Whether the client asked for a signature no longer changes what it gets:
+    // every response is signed (the service signs unconditionally).
+    expect(mockBuild.mock.calls[0][0]).not.toHaveProperty('expectSignature');
   });
 
   test('protocol 0 empty 204 passes through with no body', async () => {
@@ -249,13 +251,12 @@ describe('GET /updates/v1/apps/:clientId/manifest — wiring', () => {
     expect(text).toBe('');
   });
 
-  test('code signing requested but unconfigured → 500', async () => {
+  test('code signing unconfigured → 503, with or without expo-expect-signature', async () => {
     const { clientId } = await registerClient();
     mockBuild.mockRejectedValue(new CodeSigningNotConfiguredError());
-    const { status } = await get(server, `/updates/v1/apps/${clientId}/manifest`, {
-      ...VALID_HEADERS,
-      'expo-expect-signature': 'sig',
-    });
-    expect(status).toBe(500);
+    for (const headers of [VALID_HEADERS, { ...VALID_HEADERS, 'expo-expect-signature': 'sig' }]) {
+      const { status } = await get(server, `/updates/v1/apps/${clientId}/manifest`, headers);
+      expect(status).toBe(503);
+    }
   });
 });

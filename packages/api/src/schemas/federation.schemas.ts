@@ -1,3 +1,4 @@
+import { integerCheck, urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
 import { isAccountIdFormat } from '../utils/validation';
 
@@ -23,8 +24,8 @@ export const MAX_SIGNING_STRING_LENGTH = 4096;
 const keyIdSchema = z
   .string()
   .trim()
-  .url('keyId must be a valid URL')
-  .max(2048, 'keyId is too long')
+  .check(urlCheck('keyId must be a valid URL'))
+  .check(utf16MaxLength(2048, 'keyId is too long'))
   .refine((value) => value.startsWith('https://'), {
     message: 'keyId must be an https URL',
   })
@@ -34,7 +35,11 @@ const keyIdSchema = z
 
 /** A local handle in a `/federation/...:username` path. */
 const usernameParamsSchema = z.object({
-  username: z.string().trim().min(1, 'username is required').max(256),
+  username: z
+    .string()
+    .trim()
+    .check(utf16MinLength(1, 'username is required'))
+    .check(utf16MaxLength(256)),
 });
 
 // GET /federation/public-key/:username
@@ -55,8 +60,8 @@ export const publicKeyQuerySchema = z.object({
     .string()
     .trim()
     .toLowerCase()
-    .min(1, 'domain is required')
-    .max(253, 'domain is too long')
+    .check(utf16MinLength(1, 'domain is required'))
+    .check(utf16MaxLength(253, 'domain is too long'))
     // RFC-1123-ish hostname: labels of [a-z0-9-] separated by dots, at least
     // one dot. Rejects schemes, ports, paths, and userinfo.
     .regex(
@@ -70,10 +75,12 @@ export const signRequestSchema = z.object({
   keyId: keyIdSchema,
   signingString: z
     .string()
-    .min(1, 'signingString is required')
-    .max(
-      MAX_SIGNING_STRING_LENGTH,
-      `signingString must not exceed ${MAX_SIGNING_STRING_LENGTH} characters`,
+    .check(utf16MinLength(1, 'signingString is required'))
+    .check(
+      utf16MaxLength(
+        MAX_SIGNING_STRING_LENGTH,
+        `signingString must not exceed ${MAX_SIGNING_STRING_LENGTH} characters`,
+      ),
     )
     // Not a generic signing oracle: the first signed header MUST be the HTTP
     // request-target pseudo-header, i.e. this is signing an outbound AP request.
@@ -176,13 +183,13 @@ export const federationDomainPurgeSchema = z.object({
   domain: z
     .string()
     .trim()
-    .min(1, 'domain is required')
-    .max(253, 'domain exceeds the maximum DNS name length')
+    .check(utf16MinLength(1, 'domain is required'))
+    .check(utf16MaxLength(253, 'domain exceeds the maximum DNS name length'))
     .refine((value) => !/[/:@\s]/.test(value), {
       message: 'domain must be a bare host (no scheme, port, path or whitespace)',
     }),
   dryRun: z.boolean().default(true),
-  limit: z.number().int().min(1).max(1000).optional(),
+  limit: z.number().check(integerCheck()).min(1).max(1000).optional(),
   /**
    * Continuation cursor from the previous response's `nextCursor`. Progress is
    * driven by this rather than by rows disappearing, because a dry run and a
@@ -207,8 +214,8 @@ export type FederationFollowBody = z.infer<typeof federationFollowSchema>;
 const httpsUri = z
   .string()
   .trim()
-  .min(1)
-  .max(2048)
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(2048))
   .refine((value) => {
     try {
       return new URL(value).protocol === 'https:';
@@ -221,7 +228,7 @@ export const federationMoveSchema = z
   .object({
     oldActorUri: httpsUri,
     targetActorUri: httpsUri,
-    activityId: z.string().trim().min(1).max(2048),
+    activityId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(2048)),
   })
   .strict()
   .refine((value) => value.oldActorUri !== value.targetActorUri, {

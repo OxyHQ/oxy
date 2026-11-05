@@ -1,0 +1,191 @@
+---
+title: Building a backend
+description: The one way an Oxy backend talks to Oxy — one OxyServer, the middleware set, the three permission questions, calls as the person, files and outbound HTTP.
+order: 3
+---
+
+# Building a backend
+
+Every Oxy backend does the same few things the same way. Each section is the
+whole pattern; anything not here (a local auth middleware, a JWKS cache, a
+token cache, an SSRF guard, an env allow-list of user ids) is a copy the SDK
+already owns.
+
+## One client, authenticated as itself
+
+```ts
+// src/oxy.ts — the only module that constructs it.
+import { OxyServer } from '@oxy.so/core/server';
+
+export const oxy = new OxyServer({
+  baseURL: process.env.OXY_API_URL ?? 'https://api.oxy.so',
+  applicationId: process.env.OXY_APPLICATION_ID,
+  serviceIdentity: 'when-anonymous',
+  // A receiver of other Oxy services' calls also names its own audience once:
+  expectedAudience: `oxy-service:${process.env.OXY_APPLICATION_ID}`,
+});
+```
+
+- **Workload identity, no keys.** An Oxy-owned backend proves what it is
+  through the infrastructure (ADR 0026/0049). Never `serviceAuth`, an
+  `OXY_API_KEY`, a client secret or a hand-made `POST /auth/service-token`.
+  See [service tokens](./service-tokens.mdx).
+- **Service tokens are the client's to keep.** It mints, caches and renews
+  them, and a call Oxy answers 401 (a rotated key, a revoked credential) is
+  sent once more with a fresh token. Never mint, cache or replay one yourself.
+- **`serviceIdentity: 'when-anonymous'`** sends session-less reads with the
+  service token: anonymous traffic is charged to the shared NAT address and
+  slowed past 100 requests per 15 minutes.
+- **One per process.** Another Oxy product is reached through
+  `oxy.createServiceClient({ baseURL, audience })` or its `*ForOxyService(oxy)`
+  SDK, never a second `OxyServer`. A different timeout for one call is a
+  call scope (`oxy.withCallOptions({ timeout: 60_000 }).assets.setVisibility(id, 'public')`,
+  also on a `withUser` client; `{ timeout, deadline, retry, signal }`), not
+  another client and not a hand-rolled `Promise.race`.
+
+## Incoming requests
+
+```ts
+import {
+  createOxyAuthMiddleware,
+  createOxyCors,
+  createOxyRateLimit,
+  createOxySecurityHeaders,
+  createOxySocketCors,
+  getRequiredOxyUserId,
+  oxyTrustProxy,
+} from '@oxy.so/core/server';
+
+app.set('trust proxy', oxyTrustProxy);          // the real client behind the ALB / Cloudflare
+app.use(createOxySecurityHeaders());
+app.use(createOxyCors({ appOrigins: ['https://app.example.com'] }));
+app.use(createOxyRateLimit(oxy, { store }));
+app.use('/api', createOxyAuthMiddleware(oxy));  // a user is required
+app.use('/internal', oxy.middleware.service()); // a service token is required
+
+router.get('/me', (req, res) => res.json({ id: getRequiredOxyUserId(req) }));
+
+// Socket.IO: the same origins on both transports, then the same identity.
+const io = new Server(httpServer, { ...createOxySocketCors({ appOrigins }) });
+io.use(oxy.middleware.socket());
+io.on('connection', (socket) => socket.join(`user:${socket.user.id}`));
+```
+
+Read the caller with `getRequiredOxyUserId(req)` / `getOxyUserId(req)`, never
+by re-parsing `Authorization`. Socket rooms come from `socket.user.id`, with an
+ownership check before joining any other room. `createOptionalOxyAuth(oxy)` is
+the optional-user mount.
+
+## Who may do what: three different questions
+
+| Question | Ask | Middleware |
+|---|---|---|
+| Does this person hold one of **my application's** operator keys (`payments.operate`)? | `oxy.appPermissionsFor(req)` — or, in an MCP tool, `oxy.appPermissionsFor(context.request)` | `oxy.middleware.requireAppPermission('payments.operate')` |
+| What may this person do in **Oxy account X** — an organization, store, channel, their own account? | `oxy.accountAccessFor(req, accountId)` | `oxy.middleware.requireAccountAccess('account:update', { param: 'accountId' })` |
+| What may this person do to **application A**, through the account that owns it (`app:read`, `app:update`, `webhooks:update`, `billing:manage`)? | `oxy.applicationAccessFor(req, applicationId)` | `oxy.middleware.requireApplicationAccess('app:read', { param: 'appId' })` |
+
+They are not substitutes: the operator keys are ones your application
+declares and Oxy decides who holds ([application roles](./application-roles.mdx):
+granted per person on a third-party app, held by organization role on one of
+Oxy's own); account
+and application access are the person's membership in Oxy's account graph.
+Each reads Oxy with the request's own verified bearer, so a person acting as
+their organization is answered for themselves. An MCP tool call has no session;
+`appPermissionsFor` takes the call itself and gets the same answer for the
+person who authorized the connector
+([in an MCP tool](./application-roles.mdx#in-an-mcp-tool)) — never keep an
+allow-list of user ids for your MCP admin tools.
+
+```ts
+// A Console-style dashboard over a developer's application:
+const access = await oxy.applicationAccessFor(req, applicationId, { fresh: true });
+if (!access.has('webhooks:update')) throw new OxyAccessError('ACCESS_DENIED', 'Missing webhooks:update');
+// access.ownerAccountId, access.official (Oxy's own application), access.status, access.role, access.permissions
+```
+
+Every outcome is typed (`OxyAccessError.code`) and mapped one way:
+
+| Oxy answered | Code | `accessErrorStatus(error)` |
+|---|---|---|
+| 200 with the caller's access | — (an answer) | — |
+| 401 — the session is gone | `ACCESS_SESSION_REQUIRED` | 401 (404 with `deny: 404`) |
+| 403 / 404 — a definitive no | `ACCESS_DENIED` | 403 (or `deny`) |
+| anything else, or a malformed body | `ACCESS_UNAVAILABLE` | 503 |
+
+Only answers are cached — per session, 30 s (`appPermissionsCacheTtlMs`) —
+never a refusal and never an outage, so a blip can never be remembered as
+"no". Pass `{ fresh: true }` before a write; `oxy.invalidateAppPermissions({ userId })`
+drops a person's cached answers. Gate on `has(permission)`, never on `role`.
+With no person present (a background import), ask with your own token:
+`oxy.accounts.accessFor(accountId, userId)`, never cached.
+
+## As the person behind the request
+
+The `OxyServer` is a process singleton; never `setTokens` or
+`session.setAccessToken` on it. A read that must be answered for the person
+goes through a user client:
+
+```ts
+const accounts = await oxy.withUser(req, (user) => user.accounts.list());
+```
+
+`withUser(req | bearer, fn)` builds an isolated `OxyUserClient` — every
+namespace, bound to that bearer — and disposes it when `fn` settles. It sends
+exactly that bearer on every call (never refreshed, never replaced by the
+service token), caches nothing, and throws `ACCESS_SESSION_REQUIRED` for a
+request with no person (anonymous, or a service token). `oxy.asUser(req)`
+returns the client itself when it must outlive one callback; `dispose()` it
+when the request ends. Never hand-build `new OxyServices()` with a user token.
+
+For work your SERVICE does with the person's proof — a forwarded session, a
+task, a capability ticket — use `oxy.withRequester({ requesterToken | taskId | capabilityTicket })`;
+durable work keeps only a `taskId` from `oxy.agency.createTask(…)`.
+
+## Files
+
+Everything is on `oxy.assets`: uploads (`uploadAppFile`, `uploadAppFileLarge`,
+`uploadUserMedia`, `importAppFile`), reads (`metadataByIds`,
+`linkedDownloadUrls`, `publicUrl`), usage (`references.add` / `remove` /
+`reconcile`), re-hosted remote media (`mediaCache.upload` / `delete`,
+`federatedMedia.upload` / `delete`; a 429's wait is `retryAfterSecondsOf(error)`),
+and `withRequester` for a person's private file. Receive file
+events with `verifyFileEventSignature`, mounted before the body parser. A
+person may attach a file only if `metadataByIds` says it is theirs and
+`active`. No raw HTTP to `/assets` or `cloud.oxy.so`.
+
+## Outbound HTTP
+
+- **Oxy and Oxy products: through `OxyServer`** — its namespaces,
+  `serviceRequest`, or `createServiceClient().fetch`. Never `safeFetch` a
+  first-party host: inside the VPC `api.oxy.so` resolves to a private address,
+  which `safeFetch` refuses by design (its refusal says so).
+- **A caller-chosen URL that may name Oxy itself** (a customer webhook
+  endpoint Oxy subscribes to): `oxy.isFirstPartyServiceUrl(url)` decides the
+  lane — `true` only for this server's own configured API origin, exactly —
+  and `true` goes through
+  `oxy.createServiceClient({ baseURL: oxy.baseURL, audience: 'oxy-api' }).fetch`,
+  everything else through `safeFetch`. Never a hostname list or suffix match of
+  your own; and gate it on whatever makes that caller trusted to point your
+  workload's authority at Oxy (the request carries this server's bearer).
+- **Untrusted or caller-influenced URLs** (customer webhooks, unfurls,
+  federation, media proxies): `safeFetch`, then `readResponseBody` /
+  `readResponseJson` for a capped, deadline-bound body. A URL you already
+  checked with `assertSafePublicUrl` (before caching or queueing it) goes in
+  as `safeFetch(url, { validated: check })`, not a second fetcher; a chain
+  that must never go out in the clear takes `{ requireHttps: true }`, which
+  refuses every non-https hop, redirects included. Single hops (signed
+  fetches that re-sign each redirect) use `redirect: 'manual'`.
+- **Fixed trusted hosts** (an Oxy-minted download URL, a fixed third-party
+  API): plain `fetch` with `AbortSignal.timeout` and a byte cap
+  (`readResponseBody`).
+- Capability tickets: `createLiveCapabilityTicketVerifier({ resolvePublicKey: createOxyJwksKeyResolver({ jwksUrl }), … })`
+  — the resolver is asynchronous and gets the ticket's `kid`; do not decode it
+  yourself.
+
+## Errors
+
+- Answer `{ "error": { "code", "message", "details"? } }` with a snake_case
+  code from the closed list.
+- Map an upstream `OxyApiError` by its `status`; never pass its `message` to
+  a client.
+- An authority outage is 503, never 403: an unavailable answer is not a "no".

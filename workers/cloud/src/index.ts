@@ -25,6 +25,7 @@ import {
   preflightHeaders,
   routeFor,
 } from './policy';
+import { visitorHeaders } from './visitor';
 
 export interface Env {
   /** Oxy Files' bucket. */
@@ -40,6 +41,16 @@ export interface Env {
  * body over 512 MB on this plan; a larger video is ranged from R2 directly.
  */
 export const EDGE_CACHE_MAX_BYTES = 500 * 1024 * 1024;
+
+/**
+ * How long a resolve may take before the visitor is answered 504. Without a
+ * bound, a stalled oxy-api held every image request open until Cloudflare gave
+ * up on the Worker. It stays above the slowest legitimate resolve: a size asked
+ * of an image or video for the first time is rendered on the spot (a video's
+ * poster decode alone may take 30 s, `POSTER_FFMPEG_TIMEOUT_MS` in the API). A
+ * render cut off here still finishes in the API, so the retry is served from it.
+ */
+export const RESOLVE_TIMEOUT_MS = 40_000;
 
 /** Keys this isolate is already filling in the background, so a burst of ranges fills once. */
 const backgroundFills = new Set<string>();
@@ -238,14 +249,17 @@ export function resolverCacheTag(pathname: string): string {
 
 /**
  * `cloud.oxy.so/<fileId>?variant=<v>` → oxy-api `GET /cdn/<fileId>?variant=<v>`.
- * Only `variant` is forwarded, and only `variant` keys the cache.
+ * Only `variant` and the rendition's authoritative ready timestamp (`revision`)
+ * are forwarded and key the cache. A new generation bypasses old browser and
+ * edge redirects without giving unrelated query parameters new cache entries.
  *
  * A redirect is kept in the Cache API for exactly as long as oxy-api's
  * Cache-Control says (an hour: the window in which a just-privatised file stays
  * resolvable, `config/cdn.ts`). NOT through `fetch`'s own edge cache: that path
  * stamps the zone's Browser Cache TTL (four hours) over the API's header, which
  * would quadruple the window. A 404 is never kept, so a file published a moment
- * after a miss resolves at once.
+ * after a miss resolves at once. The visitor's address rides along
+ * (`visitor.ts`), so oxy-api budgets each visitor, not this Worker.
  */
 export async function serveResolver(
   request: Request,
@@ -254,8 +268,25 @@ export async function serveResolver(
   deps: Deps,
 ): Promise<Response> {
   const variant = url.searchParams.get('variant');
+  const revision = url.searchParams.get('revision');
+  if (revision !== null) {
+    const timestamp = new Date(revision);
+    if (
+      !variant ||
+      url.searchParams.getAll('revision').length !== 1 ||
+      revision.length !== 24 ||
+      !Number.isFinite(timestamp.getTime()) ||
+      timestamp.toISOString() !== revision
+    ) {
+      return finalize(
+        new Response(null, { status: 400, headers: { 'cache-control': 'no-store' } }),
+        null,
+      );
+    }
+  }
+  const revisionQs = revision === null ? '' : `&revision=${encodeURIComponent(revision)}`;
   const cacheKey = new Request(
-    `${url.origin}${url.pathname}${variant === null ? '' : `?variant=${encodeURIComponent(variant)}`}`,
+    `${url.origin}${url.pathname}${variant === null ? '' : `?variant=${encodeURIComponent(variant)}`}${revisionQs}`,
     { method: 'GET' },
   );
   const cached = await deps.cache.match(cacheKey);
@@ -267,7 +298,27 @@ export async function serveResolver(
 
   const target = new URL(`/cdn${url.pathname}`, env.API_ORIGIN);
   if (variant !== null) target.searchParams.set('variant', variant);
-  const upstream = await deps.fetch(target.toString(), { method: 'GET', redirect: 'manual' });
+  if (revision !== null) target.searchParams.set('revision', revision);
+  let upstream: Response;
+  try {
+    upstream = await deps.fetch(target.toString(), {
+      method: 'GET',
+      redirect: 'manual',
+      headers: visitorHeaders(request),
+      signal: AbortSignal.timeout(RESOLVE_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // Too slow (504) or unreachable (502): about this moment, not the file, so
+    // never kept, like a refusal or an outage below.
+    const timedOut = error instanceof Error && error.name === 'TimeoutError';
+    return finalize(
+      new Response(null, {
+        status: timedOut ? 504 : 502,
+        headers: { 'cache-control': 'no-store' },
+      }),
+      null,
+    );
+  }
   const headers = new Headers();
   for (const name of ['location', 'cache-control', 'content-type']) {
     const value = upstream.headers.get(name);
@@ -286,6 +337,18 @@ export async function serveResolver(
       deps.waitUntil(deps.cache.put(cacheKey, stored).catch(() => undefined));
     }
     return finalize(redirect, null);
+  }
+  if (upstream.status === 429 || upstream.status >= 500) {
+    // A refusal or an outage says nothing about the file, only about this
+    // moment: no cache, the browser's included, may keep it, and the browser is
+    // told when to ask again. Never kept here either (only redirects are). A
+    // last good redirect is NOT served past its hour instead: the Cache API
+    // drops an entry at its max-age, so serving it later would mean keeping it
+    // longer, which widens the window in which a just-privatised file stays
+    // resolvable (`config/cdn.ts`).
+    headers.set('cache-control', 'no-store');
+    const retryAfter = upstream.headers.get('retry-after');
+    if (retryAfter) headers.set('retry-after', retryAfter);
   }
   const body = request.method === 'HEAD' ? null : upstream.body;
   if (request.method === 'HEAD') await upstream.body?.cancel();

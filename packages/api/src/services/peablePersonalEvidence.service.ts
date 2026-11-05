@@ -1,110 +1,43 @@
+import { and, eq } from 'drizzle-orm';
+import { oxyAccountIdSchema } from '@oxy.so/contracts';
+import type { Peable } from '@peable.to/sdk';
+import { z } from 'zod';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import { getDb } from '../config/postgres';
-import {
-  accessSubscriptionSources,
-  accessProviderPeriods,
-  personalPlanCheckoutIntents,
-} from '../db/schema';
-import { and, eq } from 'drizzle-orm';
+import { accessProviderPeriods, personalPlanCheckoutIntents } from '../db/schema';
 import { reconcileProductAccessFinancialState } from './productAccessPersistence.service';
-import { z } from 'zod';
-import { oxyAccountIdSchema } from '@oxy.so/contracts';
-import type { Peable, BillingPaidInvoice, BillingInvoiceState } from '@peable.to/sdk';
 import {
   recordProductProviderPeriod,
   revokeProductProviderPaidPeriod,
   type ProductProviderPeriodInput,
 } from './productProviderEvidence.service';
 import {
-  validatePersonalInvoiceForAction,
-  type personalFinalInvoiceSchema,
+  peableAmountSchema,
+  peableInstantToIso,
+  peableReference,
+  peableUnixSecondsSchema,
+  readNativeSubscription,
+  type PeableNativeSubscription,
 } from './peablePersonalBilling.service';
-export const peablePaidEvidenceSchema = z
-  .object({
-    invoiceId: z.string().min(1),
-    lineId: z.string().min(1),
-    paymentIntentId: z.string().min(1),
-    providerSubscriptionId: z.string().min(1),
-    providerCustomerId: z.string().min(1),
-    providerPriceId: z.string().min(1),
-    storeId: z.string().min(1),
-    planId: z.string().min(1),
-    livemode: z.boolean(),
-    currency: z.literal('USD'),
-    amountPaid: z.string().regex(/^[1-9][0-9]*$/),
-    netAmount: z
-      .string()
-      .regex(/^(0|[1-9][0-9]*)$/)
-      .nullable(),
-    taxAmount: z
-      .string()
-      .regex(/^(0|[1-9][0-9]*)$/)
-      .nullable(),
-    periodStart: z.string().datetime(),
-    periodEnd: z.string().datetime(),
-    paidAt: z.string().datetime(),
-    observedAt: z.string().datetime(),
-  })
-  .strict();
-export interface PeableInvoiceSource {
-  invoiceId: string;
-  paymentIntentId: string;
-  customerId: string;
-  subscriptionId: string;
-  priceId: string;
-  planId: string;
-  merchantId: string;
-  appId: string;
-  mode: 'live' | 'test';
-  environment: 'production' | 'test' | 'development' | 'staging';
-}
-export interface PeableEvidenceAuthority {
-  /** Authenticated server read through the updated Peable SDK, not browser data. */
-  client: Pick<Peable, 'merchants'> & {
-    billing: Pick<
-      Peable['billing'],
-      'retrievePaidInvoice' | 'retrieveInvoiceState' | 'retrieveSubscription'
-    >;
-  };
-  /** Verified SDK authority; no local fiscal or FX default. */
-  readFinalInvoiceAuthority?: (
-    source: PeableInvoiceSource,
-  ) => Promise<{ source: PeableInvoiceSource; invoice: unknown; method: 'card' | 'faircoin' }>;
-}
-/** The SDK checks the signed envelope using deployment-pinned keys before this
- * consumer checks its exact frozen source. No response-provided key is trusted. */
-export function createPeablePersonalEvidenceAuthority(client: Peable): PeableEvidenceAuthority {
-  return {
-    client,
-    readFinalInvoiceAuthority: async (source) => {
-      const value = await client.billing.retrieveFinalInvoiceAuthority(
-        source.subscriptionId,
-        source.invoiceId,
-      );
-      if (
-        Object.keys(source).some(
-          (key) =>
-            value.source[key as keyof PeableInvoiceSource] !==
-            source[key as keyof PeableInvoiceSource],
-        )
-      )
-        throw new Error('Peable authoritative invoice source differs');
-      return { source: value.source, invoice: value.invoice, method: value.method };
-    },
-  };
-}
+
+/** The native Orbit objects paid-period evidence is read from — over Oxy's own
+ * authenticated workload channel, never from a delivery body or a browser. */
+export type PeableEvidenceClient = Pick<
+  Peable,
+  'merchants' | 'invoices' | 'subscriptions' | 'paymentIntents'
+>;
+
 export interface PeablePersonalPaidContext {
   /** Present only for the immutable initial paid invoice of an owned checkout. */
   checkoutIntentId?: string;
   /** Frozen central catalogue, never provider-reported commercial selection. */
-  amountMinorUnits?: number;
-  interval?: 'month' | 'year';
-  origin?: 'individual' | 'bundle';
+  amountMinorUnits: number;
+  interval: 'month' | 'year';
+  origin: 'individual' | 'bundle';
   accountId: string;
   customerId: string;
   subscriptionId: string;
   priceId: string;
-  planId: string;
   merchantId: string;
   appId: string;
   mode: 'live' | 'test';
@@ -112,106 +45,124 @@ export interface PeablePersonalPaidContext {
   offerId: string;
   offerVersion: number;
 }
+
 async function assertPeableEvidenceOwner(
-  authority: PeableEvidenceAuthority,
+  client: PeableEvidenceClient,
   context: PeablePersonalPaidContext,
 ) {
   billingNamespaceSchema.parse({ mode: context.mode, environment: context.environment });
-  if (!authority.client.merchants?.retrieve)
-    throw new Error('Authenticated Peable merchant read unconfigured');
-  const merchant = await authority.client.merchants.retrieve();
+  const merchant = await client.merchants.retrieve();
   if (
     merchant.id !== context.merchantId ||
-    merchant.oxyAppId !== context.appId ||
+    merchant.oxy_app_id !== context.appId ||
     merchant.environment !== context.environment
   )
     throw new Error('Peable credential owner differs');
 }
-/** Shared trusted context is frozen from an owned checkout/source and reviewed offer,
- * not metadata. Remains closed until real SDK and tax authority are supported. */
+
+/** The native subscription, bound to the persisted context. */
+export async function readOwnedPeableSubscription(
+  client: Pick<Peable, 'subscriptions'>,
+  context: Pick<
+    PeablePersonalPaidContext,
+    'subscriptionId' | 'customerId' | 'priceId' | 'mode' | 'interval'
+  >,
+): Promise<PeableNativeSubscription> {
+  const subscription = readNativeSubscription(
+    await client.subscriptions.retrieve(context.subscriptionId),
+  );
+  if (
+    subscription.id !== context.subscriptionId ||
+    subscription.customerId !== context.customerId ||
+    subscription.priceId !== context.priceId ||
+    subscription.livemode !== (context.mode === 'live') ||
+    subscription.interval !== context.interval ||
+    subscription.trialEnd !== null
+  )
+    throw new Error('Peable current subscription differs');
+  return subscription;
+}
+
+interface PaidInvoiceEvidence {
+  invoiceId: string;
+  lineId: string;
+  priceId: string;
+  paymentIntentId: string;
+  periodStart: number;
+  periodEnd: number;
+  paidAt: number;
+  amountPaid: string;
+}
+
+/** One paid invoice of the context's subscription: the exact approved price,
+ * one line of quantity one, tax-inclusive totals that add up, paid in full. */
+async function readPaidInvoice(
+  client: PeableEvidenceClient,
+  context: PeablePersonalPaidContext,
+  invoiceId: string,
+  now: Date,
+): Promise<PaidInvoiceEvidence | { status: 'unpaid' }> {
+  const invoice = await client.invoices.retrieve(invoiceId);
+  if (
+    invoice.id !== invoiceId ||
+    invoice.livemode !== (context.mode === 'live') ||
+    peableReference(invoice.customer) !== context.customerId ||
+    peableReference(invoice.subscription) !== context.subscriptionId
+  )
+    throw new Error('Peable invoice ownership differs');
+  if (invoice.status !== 'paid') return { status: 'unpaid' };
+  const lines = invoice.lines.data;
+  const line = lines[0];
+  const paymentIntentId = peableReference(invoice.payment_intent);
+  const paidAt = invoice.status_transitions.paid_at;
+  if (
+    lines.length !== 1 ||
+    invoice.lines.has_more ||
+    !line ||
+    line.type !== 'subscription' ||
+    line.proration ||
+    line.quantity !== 1 ||
+    line.price?.id !== context.priceId ||
+    line.subscription !== context.subscriptionId ||
+    !peableUnixSecondsSchema.safeParse(line.period.start).success ||
+    !peableUnixSecondsSchema.safeParse(line.period.end).success ||
+    line.period.end <= line.period.start ||
+    invoice.currency.toUpperCase() !== 'USD' ||
+    invoice.tax === null ||
+    peableAmountSchema.parse(invoice.amount_paid) !== String(context.amountMinorUnits) ||
+    invoice.total !== invoice.amount_paid ||
+    BigInt(invoice.total_excluding_tax) + BigInt(invoice.tax) !== BigInt(invoice.total) ||
+    !paymentIntentId ||
+    paidAt === null ||
+    paidAt * 1000 > now.getTime()
+  )
+    throw new Error('Peable paid invoice differs from the approved offer');
+  return {
+    invoiceId: invoice.id,
+    lineId: line.id,
+    priceId: context.priceId,
+    paymentIntentId,
+    periodStart: line.period.start,
+    periodEnd: line.period.end,
+    paidAt,
+    amountPaid: invoice.amount_paid,
+  };
+}
+
+/** Record one paid period. The context is frozen from an owned checkout or a
+ * persisted source and the reviewed offer, never from metadata or a delivery. */
 export async function reconcilePeablePersonalPaidInvoice(
-  authority: PeableEvidenceAuthority,
+  client: PeableEvidenceClient,
   context: PeablePersonalPaidContext,
   invoiceId: string,
   clock: () => Date = () => new Date(),
 ) {
-  if (!authority.client.billing.retrievePaidInvoice || !authority.readFinalInvoiceAuthority)
-    throw new Error('Authoritative Peable evidence is unconfigured');
-  await assertPeableEvidenceOwner(authority, context);
-  const paid: BillingPaidInvoice = await authority.client.billing.retrievePaidInvoice(
-    context.subscriptionId,
-    invoiceId,
-  );
-  const value = peablePaidEvidenceSchema.parse(paid);
-  const validateTime = () => {
-    const now = clock();
-    if (
-      value.amountPaid !== String(context.amountMinorUnits ?? 2999) ||
-      value.invoiceId !== invoiceId ||
-      value.providerSubscriptionId !== context.subscriptionId ||
-      value.providerCustomerId !== context.customerId ||
-      value.providerPriceId !== context.priceId ||
-      value.storeId !== context.accountId ||
-      value.planId !== context.planId ||
-      value.livemode !== (context.mode === 'live') ||
-      Date.parse(value.observedAt) > now.getTime() ||
-      now.getTime() - Date.parse(value.observedAt) > 60_000 ||
-      Date.parse(value.paidAt) > now.getTime() ||
-      Date.parse(value.periodEnd) <= Date.parse(value.periodStart)
-    )
-      throw new Error('Peable paid period ownership/time differs');
-  };
-  validateTime();
-  const source: PeableInvoiceSource = {
-    invoiceId: value.invoiceId,
-    paymentIntentId: value.paymentIntentId,
-    customerId: context.customerId,
-    subscriptionId: context.subscriptionId,
-    priceId: context.priceId,
-    planId: context.planId,
-    merchantId: context.merchantId,
-    appId: context.appId,
-    mode: context.mode,
-    environment: context.environment,
-  };
-  const authorityResult = await authority.readFinalInvoiceAuthority(Object.freeze({ ...source }));
-  if (
-    !authorityResult.source ||
-    Object.keys(source).some(
-      (k) =>
-        authorityResult.source[k as keyof PeableInvoiceSource] !==
-        source[k as keyof PeableInvoiceSource],
-    )
-  )
-    throw new Error('Peable authoritative invoice source differs');
-  const method = z.enum(['card', 'faircoin']).parse(authorityResult.method);
-  const validateInvoice = () =>
-    validatePersonalInvoiceForAction(
-      authorityResult.invoice,
-      {
-        payerAccountId: context.accountId,
-        beneficiaryAccountId: context.accountId,
-        providerSubscriptionId: context.subscriptionId,
-        offerId: context.offerId,
-        offerVersion: context.offerVersion,
-        periodStart: value.periodStart,
-        periodEnd: value.periodEnd,
-        mode: context.mode,
-        environment: context.environment,
-      },
-      method,
-      clock(),
-      new Date(value.paidAt),
-      context.amountMinorUnits ?? 2999,
-    );
-  const invoice = validateInvoice();
-  if (
-    value.netAmount === null ||
-    value.taxAmount === null ||
-    BigInt(value.netAmount) !== BigInt(invoice.netMinorUnits) ||
-    BigInt(value.taxAmount) !== BigInt(invoice.taxMinorUnits)
-  )
-    throw new Error('Peable authoritative invoice totals differ');
+  await assertPeableEvidenceOwner(client, context);
+  const value = await readPaidInvoice(client, context, invoiceId, clock());
+  if ('status' in value) return { status: 'no_invoice' as const };
+  const periodStart = peableInstantToIso(value.periodStart),
+    periodEnd = peableInstantToIso(value.periodEnd),
+    paidAt = peableInstantToIso(value.paidAt);
   // Replays retain the original immutable initial-checkout attribution. This
   // lookup is local and exact; later subscription invoices never inherit it.
   const initialIntents = await getDb()
@@ -236,6 +187,20 @@ export async function reconcilePeablePersonalPaidInvoice(
     throw new Error('Peable initial checkout attribution differs');
   const checkoutIntentId = context.checkoutIntentId ?? initialIntents[0]?.id;
   const accountId = oxyAccountIdSchema.parse(context.accountId);
+  // Only the paid period is authoritative from the invoice; status and
+  // cancellation come from a fresh read of the subscription itself.
+  const subscription = await readOwnedPeableSubscription(client, context);
+  const subscriptionObservedAt = clock();
+  if (
+    value.periodEnd > subscription.currentPeriodEnd ||
+    (value.periodStart < subscription.currentPeriodStart &&
+      value.periodEnd > subscription.currentPeriodStart)
+  )
+    throw new Error('Peable current subscription differs');
+  const currentPeriod = {
+    start: peableInstantToIso(subscription.currentPeriodStart),
+    end: peableInstantToIso(subscription.currentPeriodEnd),
+  };
   const input: ProductProviderPeriodInput = {
     ...(checkoutIntentId ? { checkoutIntentId } : {}),
     binding: {
@@ -249,55 +214,25 @@ export async function reconcilePeablePersonalPaidInvoice(
       payerAccountId: accountId,
       provider: 'peable',
       providerSubscriptionId: context.subscriptionId,
-      status: 'active',
-      period: { start: value.periodStart, end: value.periodEnd },
-      cancelAtPeriodEnd: false,
+      status: subscription.status,
+      period: currentPeriod,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
     },
     offer: {
       offerId: context.offerId,
       offerVersion: context.offerVersion,
-      origin: context.origin ?? 'bundle',
+      origin: context.origin,
     },
     paidLine: {
       invoiceId: value.invoiceId,
       lineId: value.lineId,
-      priceId: value.providerPriceId,
+      priceId: value.priceId,
       quantity: 1,
-      period: { start: value.periodStart, end: value.periodEnd },
+      period: { start: periodStart, end: periodEnd },
     },
-    event: { id: `peable-read:${value.invoiceId}:${value.lineId}`, createdAt: value.paidAt },
-    providerObservedAt: new Date(value.observedAt),
+    event: { id: `peable-read:${value.invoiceId}:${value.lineId}`, createdAt: paidAt },
+    providerObservedAt: subscriptionObservedAt,
   };
-  // Only paid period is authoritative here. Do not overwrite cancellation/status
-  // from an invoice read: read fresh subscription via the same owned SDK mapping.
-  const subscription = await authority.client.billing.retrieveSubscription(context.subscriptionId);
-  const subscriptionObservedAt = clock();
-  input.providerObservedAt = subscriptionObservedAt;
-  if (
-    subscription.providerSubscriptionId !== context.subscriptionId ||
-    subscription.interval !== (context.interval ?? 'month') ||
-    subscription.trialEndsAt !== null ||
-    subscription.storeId !== context.accountId ||
-    subscription.planId !== context.planId ||
-    subscription.providerCustomerId !== context.customerId ||
-    subscription.providerPriceId !== context.priceId ||
-    subscription.livemode !== (context.mode === 'live') ||
-    !Number.isFinite(Date.parse(subscription.currentPeriodStart)) ||
-    !Number.isFinite(Date.parse(subscription.currentPeriodEnd)) ||
-    Date.parse(subscription.currentPeriodEnd) <= Date.parse(subscription.currentPeriodStart) ||
-    Date.parse(value.periodEnd) > Date.parse(subscription.currentPeriodEnd) ||
-    (Date.parse(value.periodStart) < Date.parse(subscription.currentPeriodStart) &&
-      Date.parse(value.periodEnd) > Date.parse(subscription.currentPeriodStart))
-  )
-    throw new Error('Peable current subscription differs');
-  input.subscription.period = {
-    start: subscription.currentPeriodStart,
-    end: subscription.currentPeriodEnd,
-  };
-  input.subscription.status = subscription.status;
-  input.subscription.cancelAtPeriodEnd = subscription.cancelAtPeriodEnd;
-  validateTime();
-  validateInvoice();
   const result = await recordProductProviderPeriod(input, undefined, {
     verifiedHistoricalPaidEvidence: true,
     quotaWindow:
@@ -314,62 +249,39 @@ export async function reconcilePeablePersonalPaidInvoice(
     providerBinding: input.binding,
     providerObservedAt: subscriptionObservedAt,
     status: subscription.status,
-    period: { start: subscription.currentPeriodStart, end: subscription.currentPeriodEnd },
+    period: currentPeriod,
     cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
   });
   return result;
 }
-export type PersonalInvoiceAuthority = z.infer<typeof personalFinalInvoiceSchema>;
 
-/** Wake-up reconciliation: never grant from webhook amounts/status. The
- * authenticated SDK re-read determines current state even for delayed paid events.
- * Partial refund policy is unselected: report review_required, no proportional grant.
- * Existing paid-period evidence is required before exact-line revocation. */
+/** Reconcile one invoice from authoritative reads: never grant from delivery
+ * amounts or status. Refunds are the invoice payment's own figure — its
+ * `amount_refunded`, the sum of succeeded refunds. Partial refund policy is
+ * unselected: report review_required, no proportional grant. Existing paid
+ * evidence is required before exact-line revocation. */
 export async function reconcilePeablePersonalInvoiceState(
-  authority: PeableEvidenceAuthority,
+  client: PeableEvidenceClient,
   context: PeablePersonalPaidContext,
   invoiceId: string,
   clock: () => Date = () => new Date(),
 ) {
-  if (!authority.client.billing.retrieveInvoiceState)
-    throw new Error('Authoritative Peable invoice state unconfigured');
-  await assertPeableEvidenceOwner(authority, context);
-  const invoiceState: BillingInvoiceState = await authority.client.billing.retrieveInvoiceState(
-    context.subscriptionId,
-    invoiceId,
-  );
-  const value = peablePaidEvidenceSchema
-    .extend({
-      chargeId: z.string().min(1),
-      amountRefunded: z.string().regex(/^(0|[1-9][0-9]*)$/),
-      state: z.enum(['paid', 'fully_refunded', 'partially_refunded']),
-    })
-    .parse(invoiceState);
-  const now = clock().getTime();
-  if (
-    value.amountPaid !== String(context.amountMinorUnits ?? 2999) ||
-    value.invoiceId !== invoiceId ||
-    value.providerSubscriptionId !== context.subscriptionId ||
-    value.providerCustomerId !== context.customerId ||
-    value.providerPriceId !== context.priceId ||
-    value.storeId !== context.accountId ||
-    value.planId !== context.planId ||
-    value.livemode !== (context.mode === 'live') ||
-    Date.parse(value.observedAt) > now ||
-    now - Date.parse(value.observedAt) > 60_000 ||
-    Date.parse(value.paidAt) > now
-  )
-    throw new Error('Peable invoice state ownership/time differs');
-  const refunded = BigInt(value.amountRefunded),
+  await assertPeableEvidenceOwner(client, context);
+  const value = await readPaidInvoice(client, context, invoiceId, clock());
+  if ('status' in value) return { status: 'no_invoice' as const };
+  const payment = await client.paymentIntents.retrieve(value.paymentIntentId);
+  const refunded = BigInt(peableAmountSchema.parse(payment.amount_refunded)),
     paid = BigInt(value.amountPaid);
   if (
-    (value.state === 'paid' && refunded !== BigInt(0)) ||
-    (value.state === 'fully_refunded' && refunded !== paid) ||
-    (value.state === 'partially_refunded' && (refunded <= BigInt(0) || refunded >= paid))
+    payment.id !== value.paymentIntentId ||
+    peableReference(payment.customer) !== context.customerId ||
+    payment.metadata.invoice !== value.invoiceId ||
+    refunded < BigInt(0) ||
+    refunded > paid
   )
-    throw new Error('Peable refund amount differs');
-  if (value.state === 'paid') {
-    if (Date.parse(value.periodEnd) <= now) {
+    throw new Error('Peable invoice payment differs');
+  if (refunded === BigInt(0)) {
+    if (value.periodEnd * 1000 <= clock().getTime()) {
       const [period] = await getDb()
         .select()
         .from(accessProviderPeriods)
@@ -383,7 +295,7 @@ export async function reconcilePeablePersonalInvoiceState(
             eq(accessProviderPeriods.lineId, value.lineId),
           ),
         );
-      if (!period) return reconcilePeablePersonalPaidInvoice(authority, context, invoiceId, clock);
+      if (!period) return reconcilePeablePersonalPaidInvoice(client, context, invoiceId, clock);
       if (
         period.payerAccountId !== context.accountId ||
         period.beneficiaryAccountId !== context.accountId ||
@@ -391,8 +303,8 @@ export async function reconcilePeablePersonalInvoiceState(
         period.priceId !== context.priceId ||
         period.offerId !== context.offerId ||
         period.offerVersion !== context.offerVersion ||
-        period.periodStart.toISOString() !== value.periodStart ||
-        period.periodEnd.toISOString() !== value.periodEnd
+        period.periodStart.getTime() !== value.periodStart * 1000 ||
+        period.periodEnd.getTime() !== value.periodEnd * 1000
       )
         throw new Error('Peable historical paid ownership differs');
       return {
@@ -401,13 +313,15 @@ export async function reconcilePeablePersonalInvoiceState(
         segmentId: period.segmentId,
       };
     }
-    return reconcilePeablePersonalPaidInvoice(authority, context, invoiceId, clock);
+    return reconcilePeablePersonalPaidInvoice(client, context, invoiceId, clock);
   }
-  if (value.state === 'partially_refunded')
+  if (refunded < paid)
     return {
       status: 'review_required' as const,
       reason: 'partial_refund_entitlement_policy_unconfigured' as const,
     };
+  const chargeId = peableReference(payment.latest_charge);
+  if (!chargeId) throw new Error('Peable refunded payment has no charge');
   return revokeProductProviderPaidPeriod({
     binding: {
       providerAccountRef: context.merchantId,
@@ -418,89 +332,30 @@ export async function reconcilePeablePersonalInvoiceState(
     subscriptionId: context.subscriptionId,
     invoiceId: value.invoiceId,
     lineId: value.lineId,
-    priceId: value.providerPriceId,
+    priceId: value.priceId,
     paymentIntentId: value.paymentIntentId,
-    chargeId: value.chargeId,
-    period: { start: value.periodStart, end: value.periodEnd },
-    observedAt: new Date(value.observedAt),
+    chargeId,
+    period: {
+      start: peableInstantToIso(value.periodStart),
+      end: peableInstantToIso(value.periodEnd),
+    },
+    observedAt: clock(),
   });
 }
 
-/** Secrets supplied only by approved server composition. Updated SDK HMAC/timestamp
- * verification is mandatory; verified bytes still carry no payer/plan authority. */
-export function createPeableObservationVerifier(client: Pick<Peable, 'webhooks'>, secret: string) {
-  if (!secret) throw new Error('Peable observation signing is unconfigured');
-  return (rawBody: string, signature: string): unknown =>
-    client.webhooks.constructEvent(rawBody, signature, secret);
-}
-/** Context comes from the server's existing owner-bound
- * checkout/source, never from delivery fields. Replays reread current provider state. */
-export async function handlePeablePersonalObservation(
-  authority: PeableEvidenceAuthority,
+/** A subscription's lifecycle (status, period, scheduled cancellation) from a
+ * fresh read; it never awards rights. */
+export async function reconcilePeablePersonalSubscriptionState(
+  client: PeableEvidenceClient,
   context: PeablePersonalPaidContext,
-  rawBody: string,
-  signature: string,
-  verify: (body: string, signature: string) => unknown | Promise<unknown>,
+  sourceId: string,
   clock: () => Date = () => new Date(),
 ) {
-  if (Buffer.byteLength(rawBody) > 1_048_576) throw new Error('Peable observation body too large');
-  const event = z
-    .object({
-      id: z.string().min(1),
-      object: z.literal('event'),
-      type: z.literal('billing.observation.updated'),
-      created: z.string().datetime(),
-      data: z
-        .object({
-          object: z
-            .object({
-              object: z.literal('billing_observation'),
-              resourceKind: z.enum(['subscription', 'invoice']),
-              resourceId: z.string().min(1),
-              revision: z.number().int().positive(),
-              observedAt: z.string().datetime(),
-            })
-            .strict(),
-        })
-        .strict(),
-    })
-    .strict()
-    .parse(await verify(rawBody, signature));
-  await assertPeableEvidenceOwner(authority, context);
-  const resource = event.data.object;
-  if (resource.resourceKind === 'invoice')
-    return reconcilePeablePersonalInvoiceState(authority, context, resource.resourceId, clock);
-  if (resource.resourceId !== context.subscriptionId)
-    throw new Error('Peable observation subscription differs');
-  const sub = await authority.client.billing.retrieveSubscription(context.subscriptionId);
-  const subscriptionObservedAt = clock();
-  if (
-    sub.providerSubscriptionId !== context.subscriptionId ||
-    sub.providerCustomerId !== context.customerId ||
-    sub.providerPriceId !== context.priceId ||
-    sub.storeId !== context.accountId ||
-    sub.planId !== context.planId ||
-    sub.livemode !== (context.mode === 'live')
-  )
-    throw new Error('Peable observation ownership differs');
-  const [source] = await getDb()
-    .select()
-    .from(accessSubscriptionSources)
-    .where(
-      and(
-        eq(accessSubscriptionSources.provider, 'peable'),
-        eq(accessSubscriptionSources.providerSubscriptionId, context.subscriptionId),
-        eq(accessSubscriptionSources.providerAccountRef, context.merchantId),
-        eq(accessSubscriptionSources.payerAccountId, context.accountId),
-        eq(accessSubscriptionSources.beneficiaryAccountId, context.accountId),
-        eq(accessSubscriptionSources.mode, context.mode),
-        eq(accessSubscriptionSources.environment, context.environment),
-      ),
-    );
-  if (!source) return { status: 'not_recorded' as const };
+  await assertPeableEvidenceOwner(client, context);
+  const subscription = await readOwnedPeableSubscription(client, context);
   return {
     status: await reconcileProductAccessFinancialState({
-      sourceId: source.id,
+      sourceId,
       beneficiaryAccountId: context.accountId,
       payerAccountId: context.accountId,
       provider: 'peable',
@@ -510,16 +365,19 @@ export async function handlePeablePersonalObservation(
         mode: context.mode,
         environment: context.environment,
       },
-      providerObservedAt: subscriptionObservedAt,
-      status: sub.status,
-      period: { start: sub.currentPeriodStart, end: sub.currentPeriodEnd },
-      cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+      providerObservedAt: clock(),
+      status: subscription.status,
+      period: {
+        start: peableInstantToIso(subscription.currentPeriodStart),
+        end: peableInstantToIso(subscription.currentPeriodEnd),
+      },
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
     }),
   };
 }
 
-/** Applied/replayed outcomes complete reconciliation; no_invoice means recovery
- * found no invoice work. Unknown or review outcomes remain retryable. */
+/** Applied/replayed outcomes complete reconciliation; no_invoice and ignored
+ * mean there was no work. Unknown or review outcomes remain retryable. */
 export function assertPeablePersonalReconciliationComplete(result: unknown): void {
   const parsed = z
     .object({
@@ -532,6 +390,7 @@ export function assertPeablePersonalReconciliationComplete(result: unknown): voi
         'updated',
         'stale',
         'no_invoice',
+        'ignored',
       ]),
     })
     .safeParse(result);

@@ -1499,6 +1499,125 @@
       "when": 1792744963846,
       "tag": "0214_messages_thread_id_set_not_null",
       "breakpoints": true
+    },
+    {
+      "idx": 215,
+      "version": "7",
+      "when": 1792749137412,
+      "tag": "0215_workload_environment_preflight",
+      "breakpoints": true
+    },
+    {
+      "idx": 216,
+      "version": "7",
+      "when": 1792780896140,
+      "tag": "0216_rendition_dispatch_lanes",
+      "breakpoints": true
+    },
+    {
+      "idx": 217,
+      "version": "7",
+      "when": 1792783212490,
+      "tag": "0217_first_party_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 218,
+      "version": "7",
+      "when": 1792783240589,
+      "tag": "0218_validate_first_party_task_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 219,
+      "version": "7",
+      "when": 1792927246585,
+      "tag": "0219_retire_noted_workload_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 220,
+      "version": "7",
+      "when": 1792994033212,
+      "tag": "0220_drop_workload_scope_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 221,
+      "version": "7",
+      "when": 1793166917593,
+      "tag": "0221_account_acquisition",
+      "breakpoints": true
+    },
+    {
+      "idx": 222,
+      "version": "7",
+      "when": 1793173576251,
+      "tag": "0222_managed_application_deployments",
+      "breakpoints": true
+    },
+    {
+      "idx": 223,
+      "version": "7",
+      "when": 1793496502548,
+      "tag": "0223_bind_join_code_issuer",
+      "breakpoints": true
+    },
+    {
+      "idx": 224,
+      "version": "7",
+      "when": 1793496502549,
+      "tag": "0224_validate_join_code_issuer",
+      "breakpoints": true
+    },
+    {
+      "idx": 225,
+      "version": "7",
+      "when": 1793626417303,
+      "tag": "0225_application_account_registrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 226,
+      "version": "7",
+      "when": 1793718129529,
+      "tag": "0226_personal_checkout_quote_unix_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 227,
+      "version": "7",
+      "when": 1793718140318,
+      "tag": "0227_drop_personal_checkout_quote_lexemes",
+      "breakpoints": true
+    },
+    {
+      "idx": 228,
+      "version": "7",
+      "when": 1793767654911,
+      "tag": "0228_first_party_operator_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 229,
+      "version": "7",
+      "when": 1793820747379,
+      "tag": "0229_personal_checkout_native_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 230,
+      "version": "7",
+      "when": 1793820766617,
+      "tag": "0230_drop_personal_checkout_quote_and_renewal",
+      "breakpoints": true
+    },
+    {
+      "idx": 231,
+      "version": "7",
+      "when": 1793846878877,
+      "tag": "0231_github_trusted_publishers",
+      "breakpoints": true
     }
   ]
 }

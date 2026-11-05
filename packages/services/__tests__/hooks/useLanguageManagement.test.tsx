@@ -47,3 +47,76 @@ test('does not claim an unsaved selection when persistence fails', async () => {
   });
   expect(result.current.languages).toEqual(['en-US', 'es-ES']);
 });
+
+test('waits for the entry link, gives its supported base locale precedence and persists it', async () => {
+  const storage = createMemoryStorage();
+  await storage.setItem(key, '["fr-FR"]');
+  const screen = renderHook(
+    ({ ready, url }) =>
+      useLanguageManagement({
+        storage,
+        languageKey: key,
+        user: null,
+        entryLinkReady: ready,
+        entryUrl: url,
+      }),
+    { initialProps: { ready: false, url: null as string | null } },
+  );
+  expect(screen.result.current.isLanguageReady).toBe(false);
+  screen.rerender({ ready: true, url: 'https://mention.earth/?lang=es' });
+  await waitFor(() => expect(screen.result.current.isLanguageReady).toBe(true));
+  expect(screen.result.current.currentLanguage).toBe('es-ES');
+  expect(await storage.getItem(key)).toBe('["es-ES"]');
+});
+
+test('ignores an unsupported entry language and retains the saved guest preference', async () => {
+  const storage = createMemoryStorage();
+  await storage.setItem(key, '["fr-FR"]');
+  const screen = renderHook(() =>
+    useLanguageManagement({
+      storage,
+      languageKey: key,
+      user: null,
+      entryUrl: 'mention://compose?lang=zz',
+    }),
+  );
+  await waitFor(() => expect(screen.result.current.isLanguageReady).toBe(true));
+  expect(screen.result.current.currentLanguage).toBe('fr-FR');
+});
+
+test('migrates the app legacy choice only when the SDK has no saved preference', async () => {
+  const storage = createMemoryStorage();
+  await storage.setItem('legacy', '"es-ES"');
+  const options = { storage, languageKey: key, user: null, legacyLanguageKeys: ['legacy'] };
+  const first = renderHook(() => useLanguageManagement(options));
+  await waitFor(() => expect(first.result.current.currentLanguage).toBe('es-ES'));
+  expect(await storage.getItem('legacy')).toBeNull();
+  first.unmount();
+  await storage.setItem('legacy', '"fr-FR"');
+  const second = renderHook(() => useLanguageManagement(options));
+  await waitFor(() => expect(second.result.current.isLanguageReady).toBe(true));
+  expect(second.result.current.currentLanguage).toBe('es-ES');
+});
+
+test.each([undefined, 'https://mention.earth/?lang=fr'])(
+  'recovers malformed stored JSON using legacy or entry preference (%s)',
+  async (entryUrl) => {
+    const storage = createMemoryStorage();
+    await storage.setItem(key, '[broken');
+    await storage.setItem('legacy', '"es-ES"');
+    const { result } = renderHook(() =>
+      useLanguageManagement({
+        storage,
+        languageKey: key,
+        user: null,
+        legacyLanguageKeys: ['legacy'],
+        entryUrl,
+      }),
+    );
+    await waitFor(() => expect(result.current.isLanguageReady).toBe(true));
+    const expected = entryUrl ? 'fr-FR' : 'es-ES';
+    expect(result.current.currentLanguage).toBe(expected);
+    expect(await storage.getItem(key)).toBe(JSON.stringify([expected]));
+    expect(await storage.getItem('legacy')).toBeNull();
+  },
+);

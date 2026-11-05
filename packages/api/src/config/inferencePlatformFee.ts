@@ -1,3 +1,4 @@
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * The platform fee Oxy charges when a customer brings their own provider key
  * (BYOK). Kaana ADR 0002: a BYOK request is exactly `platform_fee_only`.
@@ -40,15 +41,15 @@ import type { PriceSnapshotInput } from '../services/inferenceLedger.service';
 export const platformFeeScheduleSchema = z
   .object({
     /** Identifies this schedule forever; a new fee is a new id. */
-    feeVersionId: z.string().min(1).max(128),
+    feeVersionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     /** First instant (ISO 8601) this schedule applies. */
-    effectiveFrom: z.string().datetime(),
+    effectiveFrom: z.string().check(isoDateTime()),
     currency: z.string().regex(/^[A-Z]{3}$/),
     /** The fee for one request, an exact decimal in `currency`. */
     perRequest: z.string().regex(/^\d{1,18}(\.\d{1,12})?$/),
     /** Who approved it and where, for audit; never read by billing. */
-    approvedBy: z.string().min(1),
-    approvalRef: z.string().min(1),
+    approvedBy: z.string().check(utf16MinLength(1)),
+    approvalRef: z.string().check(utf16MinLength(1)),
   })
   .strict();
 

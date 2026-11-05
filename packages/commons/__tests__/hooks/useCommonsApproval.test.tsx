@@ -100,13 +100,17 @@ describe('useCommonsApproval', () => {
   it('enters the error state when the code cannot be resolved', async () => {
     installServices({
       getCommonsApprovalInfo: jest.fn(async () => {
-        throw new Error('used');
+        throw Object.assign(new Error('Request failed with status code 404'), {
+          status: 404,
+          code: 'NOT_FOUND',
+        });
       }),
     });
     const { result } = renderHook(() => useCommonsApproval('bad', 'reason'));
 
     await waitFor(() => expect(result.current.state).toBe('error'));
-    expect(result.current.errorMessage).toBe('used');
+    // A kind the screen translates, never the transport's English message.
+    expect(result.current.errorKind).toBe('unavailable');
   });
 
   it('errors immediately when no code is supplied', async () => {
@@ -341,7 +345,7 @@ describe('useCommonsApproval', () => {
     const { result } = renderHook(() => useCommonsApproval('code-1', 'reason'));
 
     await waitFor(() => expect(result.current.state).toBe('error'));
-    expect(result.current.errorMessage).toMatch(/could not be resolved/i);
+    expect(result.current.errorKind).toBe('unresolvedApp');
   });
 
   it('reports the approval screen as OPENED so the waiting desktop can show progress', async () => {
@@ -371,7 +375,7 @@ describe('useCommonsApproval', () => {
     const { result } = renderHook(() => useCommonsApproval('code-1', 'reason'));
 
     await waitFor(() => expect(result.current.state).toBe('ready'));
-    expect(result.current.errorMessage).toBeNull();
+    expect(result.current.errorKind).toBeNull();
 
     await act(async () => {
       await result.current.approve();
@@ -391,6 +395,6 @@ describe('useCommonsApproval', () => {
     const { result } = renderHook(() => useCommonsApproval('code-1', 'reason'));
 
     await waitFor(() => expect(result.current.state).toBe('error'));
-    expect(result.current.errorMessage).toMatch(/invalid, already used, or expired/i);
+    expect(result.current.errorKind).toBe('unavailable');
   });
 });

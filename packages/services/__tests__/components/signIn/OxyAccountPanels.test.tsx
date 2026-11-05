@@ -29,7 +29,8 @@ const SESSION: LoginSessionResult = {
 };
 const TICKET = 'T'.repeat(43);
 const BACKUP_CODES = Array.from({ length: 10 }, (_, i) => `abcd${i}-efgh${i}`);
-const apiError = (code: string, status = 401) => Object.assign(new Error(code), { code, status });
+const apiError = (code: string, status = 401, details?: unknown, message = code) =>
+  Object.assign(new Error(message), { code, status, details });
 
 const oxyServices = {
   auth: {
@@ -86,6 +87,8 @@ jest.mock('../../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
     oxyServices,
+    currentLanguage: 'es-ES',
+    campaignAttribution: { utmSource: 'newsletter' },
     handleWebSession,
     logout,
     user,
@@ -196,6 +199,8 @@ describe('creating an account', () => {
       username: 'ada',
       email: 'ada@example.com',
       emailTicket: TICKET,
+      languages: ['es-ES'],
+      campaignAttribution: { utmSource: 'newsletter' },
     });
     expect(handleWebSession).toHaveBeenCalledWith(SESSION);
   });
@@ -208,6 +213,55 @@ describe('creating an account', () => {
     press('signup-username-continue');
     await waitFor(() => expect(alertText()).toBe('That username is taken.'));
     expect(screen.queryByTestId('signup-email')).toBeNull();
+  });
+
+  it('drops spaces from the email as it is typed', async () => {
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    type('signup-username', 'ada');
+    press('signup-username-continue');
+    await screen.findByTestId('signup-email');
+    type('signup-email', 'ada @example.com');
+    expect((screen.getByTestId('signup-email') as HTMLInputElement).value).toBe('ada@example.com');
+  });
+
+  it('drops what a username cannot hold as it is typed', () => {
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+
+    type('signup-username', 'hash saah');
+    expect((screen.getByTestId('signup-username') as HTMLInputElement).value).toBe('hashsaah');
+    expect(screen.getByText('Letters, numbers, - and _. No spaces.')).toBeTruthy();
+  });
+
+  it.each([
+    ['ab', 'Use at least 3 characters.'],
+    ['a--b', /^Use only letters, numbers, - and _/],
+    ['12345', "A username can't be only numbers. Add a letter."],
+    ['admin', 'That username is reserved. Choose another one.'],
+  ])('says why %p is refused, without asking the server', async (name, message) => {
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+
+    type('signup-username', name);
+    press('signup-username-continue');
+    await waitFor(() => expect(alertText()).toMatch(message));
+    expect(oxyServices.auth.checkUsername).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('signup-email')).toBeNull();
+  });
+
+  it('goes back to the username, worded, when the server refuses it', async () => {
+    oxyServices.auth.signUp.mockRejectedValueOnce(
+      apiError('BAD_REQUEST', 400, { field: 'username' }, 'Username cannot be only numbers'),
+    );
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    type('signup-username', 'ada');
+    press('signup-username-continue');
+    await screen.findByTestId('signup-email');
+    type('signup-email', 'ada@example.com');
+    press('signup-email-continue');
+    await screen.findByTestId('email-code');
+    type('email-code', '123456');
+
+    await screen.findByTestId('signup-username');
+    expect(alertText()).toBe("A username can't be only numbers. Add a letter.");
   });
 
   it('goes back to the username when it was taken meanwhile', async () => {
@@ -315,6 +369,11 @@ describe('deleting an account without a key', () => {
     // Nothing is sent before the username is typed.
     press('reauth-send-code');
     expect(alertText()).toBe('Type "ada" to confirm');
+    expect(oxyServices.auth.requestReauthCode).not.toHaveBeenCalled();
+
+    type('delete-account-confirm', 'adaa');
+    press('reauth-send-code');
+    expect(alertText()).toBe('That isn\'t your username. Type "ada" exactly.');
     expect(oxyServices.auth.requestReauthCode).not.toHaveBeenCalled();
 
     type('delete-account-confirm', 'ada');

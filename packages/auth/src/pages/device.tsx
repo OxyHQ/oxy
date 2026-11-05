@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import type { CommonsApprovalInfo } from '@oxy.so/core';
-import type { SwitcherContextRow } from '@oxy.so/core/session';
+import { deviceComparisonCode, type SwitcherContextRow } from '@oxy.so/core/session';
 import { getCommonsApprovalBlockingReason } from '@oxy.so/core';
 import {
   OxyAccountPicker,
@@ -62,9 +62,9 @@ const CODE_PARAM = 'user_code';
  * gesture behind a MANDATORY, un-defaulted acknowledgement, whatever
  * `originVerified` says: that flag is derived from an `Origin` header a
  * non-browser caller can forge, and a CLI sends none, so it only chooses the
- * warning's wording. The page also prints the code itself, so the person can
- * check it against the one their own device shows — the one thing a forged
- * link cannot match.
+ * warning's wording. The page also prints the request's comparison code
+ * (`deviceComparisonCode`, `CE7F-B31F`), so the person can check it against the
+ * one their own device shows — the one thing a forged link cannot match.
  */
 export function DevicePage() {
   const [searchParams] = useSearchParams();
@@ -164,16 +164,13 @@ export function DevicePage() {
           body: '{}',
         },
       );
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(
-          typeof payload?.message === 'string' ? payload.message : t('device.errors.approveFailed'),
-        );
-      }
+      // A refusal or a network failure: the server's `message` is English and
+      // developer-facing, so the page says what to do in the person's language.
+      if (!response.ok) throw new Error();
       setOutcome('approved');
-    } catch (caught) {
+    } catch {
       completingRef.current = false;
-      setError(caught instanceof Error ? caught.message : t('device.errors.approveFailed'));
+      setError(t('device.errors.approveFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -259,8 +256,8 @@ export function DevicePage() {
     <OxyAuthScreen>
       <div className="flex w-full flex-col gap-space-12 rounded-radius-12 border border-border p-space-12 font-bodySmall text-bodySmall">
         <p className="text-muted-foreground">{t('device.codeHint')}</p>
-        <code data-testid="device-code" className="break-all font-mono text-foreground">
-          {code}
+        <code data-testid="device-code" className="font-mono text-foreground">
+          {deviceComparisonCode(code)}
         </code>
         <label className="flex items-start gap-2">
           <input
@@ -281,6 +278,14 @@ export function DevicePage() {
           the centered auth card, exactly as on `/authorize`. */}
       <div className="w-full">
         <OxyConsentScreen
+          mode={
+            application &&
+            (application.isOfficial ||
+              application.isInternal ||
+              ['first_party', 'internal', 'system'].includes(application.type ?? ''))
+              ? 'sign-in'
+              : 'consent'
+          }
           application={{
             name: application.name,
             iconUrl: application.icon ? getAvatarUrl(application.icon) : undefined,

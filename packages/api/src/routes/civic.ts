@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Civic / Commons Routes (Fase 1 — public DNI card; Fase 2 — real-life attestation)
  *
@@ -195,8 +196,7 @@ function throwForCredentialIssueReason(reason: CredentialIssueRejectionReason): 
 
 /** Assert the service credential can open reputation-mutating validation workflows. */
 function assertValidationScope(req: ServiceAuthRequest): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(REQUIRED_VALIDATION_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, REQUIRED_VALIDATION_SCOPE)) {
     throw new ForbiddenError(`Missing required scope: ${REQUIRED_VALIDATION_SCOPE}`);
   }
 }
@@ -271,7 +271,7 @@ function setPublicCardHeaders(res: Response): void {
  */
 router.get(
   '/:userId/card',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
 
     const signed = await buildSignedPublicCard(userId);
@@ -541,7 +541,7 @@ router.delete(
 router.get(
   '/personhood/:userId',
   personhoodReadLimiter,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     // The `isValidObjectId` guard is DELETED, not ported. Its only effect was to
     // answer 404 for an id that is not 24 hex chars, and after the cutover EVERY
@@ -619,7 +619,7 @@ router.post(
 router.get(
   '/credentials/by-record/:recordId/verify',
   credentialVerifyLimiter,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { recordId } = req.params;
     if (typeof recordId !== 'string' || recordId.length === 0) {
       throw new NotFoundError('Credential not found');
@@ -640,7 +640,7 @@ router.get(
 router.get(
   '/credentials/:holderUserId',
   credentialReadLimiter,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { holderUserId } = req.params;
 
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;

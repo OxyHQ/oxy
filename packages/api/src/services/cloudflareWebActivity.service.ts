@@ -1,3 +1,4 @@
+import { integerCheck } from '@oxy.so/contracts';
 /**
  * Keyless web-app activity: oxy-api reads each Cloudflare-hosted Oxy web app's
  * request counts from Cloudflare's own analytics and publishes them into the
@@ -221,7 +222,7 @@ const analyticsSchema = z.object({
             zoneTag: z.string(),
             httpRequestsAdaptiveGroups: z.array(
               z.object({
-                count: z.number().int().nonnegative(),
+                count: z.number().check(integerCheck()).nonnegative(),
                 dimensions: z.object({
                   clientRequestHTTPHost: z.string(),
                   coloCode: z.string().nullable().optional(),

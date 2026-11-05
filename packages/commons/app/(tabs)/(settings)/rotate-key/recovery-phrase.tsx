@@ -7,7 +7,13 @@ import { RecoveryPhraseService } from '@oxy.so/core/crypto';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { useColors } from '@/hooks/useColors';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';
-import { useScreenBottomPad, LoadingState, STATE_MIN_HEIGHT } from '@/components/ui';
+import {
+  Screen,
+  StackHeader,
+  useScreenBottomPad,
+  LoadingState,
+  STATE_MIN_HEIGHT,
+} from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 
@@ -83,7 +89,11 @@ export default function RotateKeyRecoveryPhraseScreen() {
     useCallback(() => {
       if (Platform.OS === 'web') return undefined;
       const onBackPress = (): boolean => {
-        if (!acknowledged) {
+        // Only while the new phrase is ON SCREEN: until then there is nothing
+        // to write down, and nothing is committed before the confirm step, so
+        // leaving is always safe. Blocking it on the loading and error states
+        // left those screens with no way out but the tab bar.
+        if (words && !acknowledged) {
           alert(t('rotateKey.backBlockedTitle'), t('rotateKey.backBlockedMessage'), [
             { text: t('common.ok'), style: 'default' },
           ]);
@@ -93,7 +103,7 @@ export default function RotateKeyRecoveryPhraseScreen() {
       };
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [acknowledged, t]),
+    }, [acknowledged, words, t]),
   );
 
   const handleContinue = useCallback(() => {
@@ -108,12 +118,19 @@ export default function RotateKeyRecoveryPhraseScreen() {
 
   if (deriveError) {
     return (
-      <EmptyState
-        illustration={<Icons.key size="3xl" fill={colors.error} />}
-        title={t('rotateKey.newPhrase.error')}
-        action={{ label: t('rotateKey.newPhrase.retry'), onPress: handleRetry }}
-        minHeight={STATE_MIN_HEIGHT}
-      />
+      <Screen>
+        <StackHeader
+          title={t('rotateKey.title')}
+          onBack={() => router.back()}
+          backAccessibilityLabel={t('common.back')}
+        />
+        <EmptyState
+          illustration={<Icons.key size="3xl" fill={colors.error} />}
+          title={t('rotateKey.newPhrase.error')}
+          action={{ label: t('rotateKey.newPhrase.retry'), onPress: handleRetry }}
+          minHeight={STATE_MIN_HEIGHT}
+        />
+      </Screen>
     );
   }
 

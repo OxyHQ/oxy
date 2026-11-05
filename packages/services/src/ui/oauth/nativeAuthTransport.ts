@@ -87,7 +87,11 @@ export async function startNativeOAuthSignIn(
     if (!redirectUrl.startsWith(prefix) || redirectUrl.includes('#'))
       return { status: 'failed', reason: 'native-callback-invalid' };
     const parameters = new URLSearchParams(redirectUrl.slice(prefix.length));
-    if ([...new URL(options.redirectUri).searchParams.keys()].some((key) => parameters.has(key)))
+    if (
+      Array.from(new URL(options.redirectUri).searchParams, ([key]) => key).some((key) =>
+        parameters.has(key),
+      )
+    )
       return { status: 'failed', reason: 'native-callback-invalid' };
     if (
       ['code', 'state', 'error', 'error_description'].some(

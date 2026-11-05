@@ -15,14 +15,13 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * do not share a UID, so no app can see another's files; everything else goes
  * through the hosts' [OxyDeviceSessionProvider]:
  *
- * - `read` sweeps the hosts in [HOST_AUTHORITIES] order, Commons first, and
- *   returns the first credential it finds. A host reads ITSELF from its own
- *   store instead of calling its own provider.
+ * - `read` checks all visible hosts and returns the first credential in
+ *   [HOST_AUTHORITIES] order if no host failed. A host reads ITSELF from its
+ *   own store instead of calling its own provider.
  * - `write` publishes to EVERY installed host (itself locally, the others
- *   through their providers). It reports success only when every installed
- *   host either confirmed the new credential by read-back or, having refused
- *   it, was cleared: a host left holding an OLDER credential would win the
- *   sweep and hand every app a stale secret.
+ *   through their providers). It reports success when at least one visible host
+ *   confirmed the credential and every other resolved host confirmed either the
+ *   write or a clear. These observations do not freeze concurrent writes.
  * - `clear` drops the credential from every reachable host.
  *
  * An app that is not a host keeps no copy of its own: with no host installed
@@ -83,34 +82,29 @@ class OxyDeviceSessionModule : Module() {
    * store. Every app sweeps the same list in the same order, so they all adopt
    * the same credential.
    *
-   * `unavailable` is sticky across the whole sweep: if ANY source could not be
-   * read and none produced a credential, the answer is `unavailable`, not
-   * `absent`. The pessimistic merge is the point — the optimistic one authorises
-   * a write.
+   * `unavailable` is sticky across the whole sweep, including when another host
+   * is present. Android package visibility can hide a host from resolution
+   * entirely; the manifest queries must include every host authority.
    */
   private fun readShared(): Map<String, String> {
-    var unavailableReason: String? = null
-
-    for (authority in HOST_AUTHORITIES) {
-      val read = if (authority == selfAuthority) OxyDeviceSessionStore.read(context) else callProvider(authority)
-      when (read) {
-        is DeviceSessionRead.Present -> return present(read)
-        is DeviceSessionRead.Unavailable -> unavailableReason = unavailableReason ?: read.reason
-        // Absent, or no provider there at all (not installed, refused, threw) —
-        // neither is evidence about the other sources, so keep looking.
-        else -> Unit
-      }
+    val result = readSharedDeviceSessions(HOST_AUTHORITIES) { authority ->
+      if (authority == selfAuthority) OxyDeviceSessionStore.read(context) else readVisibleHost(authority)
     }
-
-    val reason = unavailableReason
-    return if (reason != null) {
-      mapOf(
+    return when (result) {
+      is DeviceSessionRead.Present -> present(result)
+      is DeviceSessionRead.Unavailable -> mapOf(
         OxyDeviceSessionProvider.KEY_STATUS to OxyDeviceSessionProvider.STATUS_UNAVAILABLE,
-        OxyDeviceSessionProvider.KEY_REASON to reason,
+        OxyDeviceSessionProvider.KEY_REASON to result.reason,
       )
-    } else {
-      mapOf(OxyDeviceSessionProvider.KEY_STATUS to OxyDeviceSessionProvider.STATUS_ABSENT)
+      DeviceSessionRead.Absent -> mapOf(OxyDeviceSessionProvider.KEY_STATUS to OxyDeviceSessionProvider.STATUS_ABSENT)
     }
+  }
+
+  private fun readVisibleHost(authority: String): DeviceSessionRead {
+    return readVisibleDeviceSession(
+      { context.packageManager.resolveContentProvider(authority, 0) != null },
+      { callProvider(authority) },
+    )
   }
 
   /**
@@ -119,40 +113,33 @@ class OxyDeviceSessionModule : Module() {
    * The sweep adopts the FIRST host holding a credential, so a host that kept
    * an older one would shadow this write for every app: they would adopt the
    * stale secret, get a 401, sign in again, publish again, and loop. So a host
-   * that did not confirm the write is cleared, and the write counts only when
-   * at least one host confirmed it and no installed host is left holding
-   * anything else. Hosts that are not installed do not count.
+   * that did not confirm the write is cleared. The write counts only when at
+   * least one host confirmed it and every other resolved host confirmed a write
+   * or clear. Resolve every host first; a resolution exception returns
+   * false without writes. Hosts that are not visible do not count. Resolution
+   * does not freeze the host set or make the subsequent writes atomic.
    */
   private fun publish(deviceId: String, deviceSecret: String): Boolean {
-    var confirmed = 0
-    var stale = false
-    for (authority in HOST_AUTHORITIES) {
-      if (!isInstalled(authority)) continue
-      val ok = if (authority == selfAuthority) {
+    return publishSharedDeviceSessions(HOST_AUTHORITIES, ::isInstalled, { authority ->
+      if (authority == selfAuthority) {
         OxyDeviceSessionStore.write(context, deviceId, deviceSecret)
       } else {
         callWrite(authority, deviceId, deviceSecret)
       }
-      if (ok) {
-        confirmed += 1
-      } else if (!clearHost(authority)) {
-        stale = true
-      }
-    }
-    return confirmed > 0 && !stale
+    }, ::clearHost)
   }
 
   /** Drop the credential from every installed host. Best-effort. */
   private fun clearShared() {
     for (authority in HOST_AUTHORITIES) {
-      if (isInstalled(authority)) clearHost(authority)
+      if (runCatching { isInstalled(authority) }.getOrDefault(false)) clearHost(authority)
     }
   }
 
   /** Whether some app on this device hosts [authority] (and we may see it). */
   private fun isInstalled(authority: String): Boolean =
     authority == selfAuthority ||
-      runCatching { context.packageManager.resolveContentProvider(authority, 0) != null }.getOrDefault(false)
+      (context.packageManager.resolveContentProvider(authority, 0) != null)
 
   /** One host's `write`; false when it refused, threw, or did not confirm. */
   private fun callWrite(authority: String, deviceId: String, deviceSecret: String): Boolean = runCatching {
@@ -184,42 +171,42 @@ class OxyDeviceSessionModule : Module() {
   )
 
   /**
-   * Call one host's `read`. `null` means "nothing to learn from this one" —
-   * the app is not installed, package visibility hid it, the permission was
-   * refused, or the call threw. A provider that answered but could not read its
-   * own store returns [DeviceSessionRead.Unavailable], which the sweep keeps.
+   * Call a host that resolved as installed. Null, refusal and exceptions mean
+   * its content is unknown, never empty.
    */
-  private fun callProvider(authority: String): DeviceSessionRead? = runCatching {
-    val uri = Uri.parse("content://$authority")
-    val bundle: Bundle = context.contentResolver.call(
-      uri,
-      OxyDeviceSessionProvider.METHOD_READ,
-      null,
-      null,
-    ) ?: return@runCatching null
+  private fun callProvider(authority: String): DeviceSessionRead {
+    return readProviderSafely {
+      val uri = Uri.parse("content://$authority")
+      val bundle: Bundle = context.contentResolver.call(
+        uri,
+        OxyDeviceSessionProvider.METHOD_READ,
+        null,
+        null,
+      ) ?: return@readProviderSafely null
 
-    when (bundle.getString(OxyDeviceSessionProvider.KEY_STATUS)) {
-      OxyDeviceSessionProvider.STATUS_PRESENT -> {
-        val deviceId = bundle.getString(OxyDeviceSessionStore.KEY_DEVICE_ID)
-        val deviceSecret = bundle.getString(OxyDeviceSessionStore.KEY_DEVICE_SECRET)
-        if (deviceId.isNullOrEmpty() || deviceSecret.isNullOrEmpty()) {
-          // A `present` verdict with an incomplete payload is a broken peer, not
-          // an empty device.
-          DeviceSessionRead.Unavailable("IncompleteProviderPayload")
-        } else {
-          DeviceSessionRead.Present(deviceId, deviceSecret)
+      when (bundle.getString(OxyDeviceSessionProvider.KEY_STATUS)) {
+        OxyDeviceSessionProvider.STATUS_PRESENT -> {
+          val deviceId = bundle.getString(OxyDeviceSessionStore.KEY_DEVICE_ID)
+          val deviceSecret = bundle.getString(OxyDeviceSessionStore.KEY_DEVICE_SECRET)
+          if (deviceId.isNullOrEmpty() || deviceSecret.isNullOrEmpty()) {
+            // A `present` verdict with an incomplete payload is a broken peer, not
+            // an empty device.
+            DeviceSessionRead.Unavailable("IncompleteProviderPayload")
+          } else {
+            DeviceSessionRead.Present(deviceId, deviceSecret)
+          }
         }
+        OxyDeviceSessionProvider.STATUS_ABSENT -> DeviceSessionRead.Absent
+        OxyDeviceSessionProvider.STATUS_UNAVAILABLE ->
+          DeviceSessionRead.Unavailable(
+            bundle.getString(OxyDeviceSessionProvider.KEY_REASON) ?: "PeerUnavailable",
+          )
+        // A status this build does not know. It said something we do not
+        // understand, so we have learned nothing — never read that as "absent".
+        else -> DeviceSessionRead.Unavailable("UnrecognisedProviderStatus")
       }
-      OxyDeviceSessionProvider.STATUS_ABSENT -> DeviceSessionRead.Absent
-      OxyDeviceSessionProvider.STATUS_UNAVAILABLE ->
-        DeviceSessionRead.Unavailable(
-          bundle.getString(OxyDeviceSessionProvider.KEY_REASON) ?: "PeerUnavailable",
-        )
-      // A status this build does not know. It said something we do not
-      // understand, so we have learned nothing — never read that as "absent".
-      else -> DeviceSessionRead.Unavailable("UnrecognisedProviderStatus")
     }
-  }.getOrNull()
+  }
 
   companion object {
     private const val AUTHORITY_SUFFIX = ".devicesession"

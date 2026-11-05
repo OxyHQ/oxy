@@ -77,7 +77,7 @@ router.get(
     res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });
   }),
 );
-/** No impersonation header: the exact path subject must hold live offline consent. */
+/** Exact beneficiary context: own requester proof or external live offline consent. */
 router.get(
   '/:productId/access/:subjectAccountId/service-grants',
   serviceAuthMiddleware,
@@ -90,7 +90,11 @@ router.get(
       productId: req.params.productId,
       subjectAccountId: req.params.subjectAccountId,
     });
-    const data = await readServiceAuthorizedSubjectProductGrantSnapshot(req.serviceApp, query);
+    const data = await readServiceAuthorizedSubjectProductGrantSnapshot(
+      req.serviceApp,
+      query,
+      req.serviceRequester,
+    );
     res.set('Cache-Control', 'no-store');
     res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });
   }),

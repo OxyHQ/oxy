@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Checkbox } from 'expo-checkbox';
+import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { Icons } from '@/constants/icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
@@ -89,10 +89,6 @@ export function RecoveryPhraseStep({
     Promise.resolve().then(onMissingPhrase);
   }
 
-  const toggleAcknowledged = useCallback(() => {
-    onAcknowledgeChange(!acknowledged);
-  }, [acknowledged, onAcknowledgeChange]);
-
   if (!hasPhrase) {
     return (
       <View style={[styles.container, { backgroundColor, paddingTop: insets.top + 16 }]}>
@@ -166,17 +162,16 @@ export function RecoveryPhraseStep({
 
         {revealed && (
           <>
-            <TouchableOpacity
-              style={styles.hideLink}
+            <Button
+              appearance="plain"
+              tone="accent"
+              leadingIcon={Icons.hidden}
               onPress={onHide}
-              accessibilityRole="button"
               accessibilityLabel={t('auth.recoveryPhrase.hideButton')}
+              style={styles.hideLink}
             >
-              <Icons.hidden size="sm" fill={colors.tint} />
-              <Text style={[styles.hideLinkText, { color: colors.tint }]}>
-                {t('auth.recoveryPhrase.hideButton')}
-              </Text>
-            </TouchableOpacity>
+              {t('auth.recoveryPhrase.hideButton')}
+            </Button>
 
             <Text style={[styles.copyWarning, { color: colors.warning }]}>
               {t('auth.recoveryPhrase.copyWarning')}
@@ -184,26 +179,14 @@ export function RecoveryPhraseStep({
           </>
         )}
 
-        <TouchableOpacity
-          className="flex-row items-start mt-space-8 mb-space-24"
-          onPress={toggleAcknowledged}
-          activeOpacity={0.7}
+        <Checkbox
+          checked={acknowledged}
+          onCheckedChange={onAcknowledgeChange}
           disabled={!revealed}
-          accessibilityRole="checkbox"
+          label={t('auth.recoveryPhrase.confirmCheckbox')}
           accessibilityLabel={t('auth.recoveryPhrase.confirmCheckbox')}
-          accessibilityState={{ checked: acknowledged, disabled: !revealed }}
-        >
-          <Checkbox
-            value={acknowledged}
-            onValueChange={onAcknowledgeChange}
-            color={acknowledged ? colors.tint : undefined}
-            style={styles.checkbox}
-            disabled={!revealed}
-          />
-          <Text style={[styles.checkboxLabel, { color: textColor, opacity: revealed ? 1 : 0.5 }]}>
-            {t('auth.recoveryPhrase.confirmCheckbox')}
-          </Text>
-        </TouchableOpacity>
+          style={styles.acknowledge}
+        />
 
         <Button
           appearance="solid"
@@ -261,16 +244,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   hideLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
+    alignSelf: 'center',
     marginBottom: 4,
-  },
-  hideLinkText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   copyWarning: {
     fontSize: 12,
@@ -279,15 +254,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontStyle: 'italic',
   },
-  checkbox: {
-    width: 22,
-    height: 22,
-    marginRight: 12,
-    marginTop: 2,
-  },
-  checkboxLabel: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
+  acknowledge: {
+    marginTop: 8,
+    marginBottom: 24,
   },
 });

@@ -27,6 +27,8 @@ export function Button({
   loading,
   accessibilityLabel,
   testID,
+  tone,
+  appearance,
 }: {
   children?: React.ReactNode;
   onPress?: () => void;
@@ -34,6 +36,8 @@ export function Button({
   loading?: boolean;
   accessibilityLabel?: string;
   testID?: string;
+  tone?: string;
+  appearance?: string;
   [key: string]: unknown;
 }): React.ReactElement {
   return React.createElement(
@@ -43,6 +47,8 @@ export function Button({
       disabled: disabled || loading,
       'aria-label': accessibilityLabel,
       'data-testid': testID,
+      'data-tone': tone,
+      'data-appearance': appearance,
     },
     children,
   );

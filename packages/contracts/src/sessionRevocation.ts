@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Canonical contract for the session-revocation feed: oxy-api telling every
  * connected Oxy backend that a session stopped being valid.
@@ -82,18 +84,18 @@ export const OXY_SERVICE_EVENTS_FORBIDDEN = 'service_events_forbidden';
  */
 export const oxySessionRevocationEventSchema = z.object({
   /** The session that ended; absent for a revocation of every session of `userId`. */
-  sessionId: z.string().min(1).max(256).optional(),
+  sessionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)).optional(),
   /** The account the session (or sessions) spoke as. */
-  userId: z.string().min(1).max(256),
+  userId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
   /** Publisher's epoch-ms timestamp. Diagnostic only. */
-  at: z.number().int().nonnegative(),
+  at: z.number().check(integerCheck()).nonnegative(),
 });
 
 export type OxySessionRevocationEvent = z.infer<typeof oxySessionRevocationEventSchema>;
 
 /** The heartbeat payload. */
 export const oxyServiceEventsHeartbeatSchema = z.object({
-  at: z.number().int().nonnegative(),
+  at: z.number().check(integerCheck()).nonnegative(),
 });
 
 export type OxyServiceEventsHeartbeat = z.infer<typeof oxyServiceEventsHeartbeatSchema>;

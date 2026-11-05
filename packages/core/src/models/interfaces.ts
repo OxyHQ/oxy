@@ -778,6 +778,9 @@ export interface ServiceLinkedDownloadUrl {
   mime: string;
   size: number;
   sha256: string;
+  /** Current file visibility when the URL was minted. Missing on older API deployments;
+   * callers protecting private-only content must refuse absence, never assume private. */
+  visibility?: FileVisibility;
 }
 
 /**
@@ -792,6 +795,16 @@ export type AssetLiveStatus = 'active' | 'trash' | 'blocked';
  * lost rather than as a broken image, and replace or remove what used it.
  */
 export type AssetStatus = AssetLiveStatus | 'lost';
+
+export interface AssetPublicUrlOptions {
+  /**
+   * The requested rendition's authoritative ready timestamp (for HLS,
+   * ServiceAssetMetadata.hlsReadyAt). Identifies a completed generation across
+   * browser and CDN caches. Never supply the current time or a random value.
+   * Requires a variant and the public CDN form (no expiresIn).
+   */
+  revision?: string;
+}
 
 export interface ServiceAssetMetadata {
   id: string;
@@ -812,15 +825,35 @@ export interface ServiceAssetMetadata {
   /**
    * When the adaptive HLS ladder for this asset finished transcoding.
    *
-   * ABSENT when there is none. Transcoding runs after the upload call returns
-   * and per-rendition failures are swallowed, so a video may get its ladder
-   * minutes later or never. The `?variant=hls_master` URL is derivable from the
+   * ABSENT when there is none or hlsRejectedReadyAt rejects its geometry.
+   * Transcoding runs after the upload call returns, so a video may get its
+   * complete ladder minutes later or remain without one after a failed job.
+   * The `?variant=hls_master` URL is derivable from the
    * `id` alone, which is exactly the trap: a consumer that builds it without
    * this field hands the player a URL that 403s until the ladder exists, and
    * the player pays a failed request before falling back — once per video, per
    * play. Treat absence as "no adaptive stream, play the progressive original".
+   * Pass a present value to `assets.publicUrl(id, 'hls_master', undefined,
+   * { revision: hlsReadyAt })`: regeneration changes this timestamp, so a
+   * browser cannot reuse a previous generation's resolver redirect.
    */
   hlsReadyAt?: string;
+  /**
+   * Exact ready timestamp of a legacy HLS generation whose encoded geometry
+   * disagrees with the original, when that original is known H.264 MP4 with
+   * AAC audio. Mutually exclusive with hlsReadyAt. Play the original URL;
+   * never send progressive bytes to an HLS decoder.
+   *
+   * A persisted consumer may clear this file's observed readiness stamp when
+   * it is no newer than the rejected timestamp (or leave absence absent).
+   * Guard the write by file/row identity AND equality with the observed stamp;
+   * preserve newer generations and concurrent replacements. An older revision
+   * URL still resolves the current generation, not historical bytes.
+   * Absence of this field is not a
+   * rejection: unknown codecs/geometry and compatible legacy ladders retain
+   * their existing behavior. No variant storage details are disclosed.
+   */
+  hlsRejectedReadyAt?: string;
   /**
    * The Oxy user who owns the file (`null` for a system-owned file such as the
    * federated media cache). PRESENT ONLY for Oxy's own applications (service
@@ -1006,6 +1039,31 @@ export interface ServiceUserMediaFile {
   size: number;
   mime: string;
   visibility: FileVisibility;
+}
+
+/** `POST /assets/service/cache`: the file now in the federation media cache. */
+export interface ServiceMediaCacheUpload {
+  file: { id: string };
+}
+
+/** `POST /assets/service/federation`: durable federated media, owned by the federated user. */
+export interface ServiceFederatedMediaUpload {
+  file: ServiceUserMediaFile;
+  /** The owner already held these bytes from this application: the existing file, maybe shared. */
+  deduplicated: boolean;
+}
+
+/**
+ * Oxy's answer for one id of `assets.federatedMedia.delete`: `deleted` (this
+ * call removed it), `not_found` (nothing to delete), `in_use` (kept: another
+ * account holds the same bytes) or `forbidden` (not federated media this
+ * application uploaded; left untouched).
+ */
+export type ServiceFederatedMediaDeleteResult = 'deleted' | 'not_found' | 'in_use' | 'forbidden';
+
+export interface ServiceFederatedMediaDeletion {
+  id: string;
+  result: ServiceFederatedMediaDeleteResult;
 }
 
 /**

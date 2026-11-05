@@ -164,3 +164,33 @@ describe('with no signing key configured', () => {
     expect(verifyServiceToken(devToken)).toEqual({ ok: false, reason: 'invalid' });
   });
 });
+
+describe('authority provenance', () => {
+  const workload = {
+    authority: 'first_party',
+    credentialId: `wl_${'a'.repeat(24)}`,
+    tier: 'internal',
+    scopes: undefined,
+  };
+  it('accepts a scope-free workload and preserves its receiver audience', () => {
+    const audience = 'oxy-service:012345678901234567890123' as const;
+    const token = signServiceTokenEd25519(claims({ ...workload, aud: audience }));
+    const verified = verifyServiceToken(token, audience);
+    expect(verified).toMatchObject({ ok: true, payload: { authority: 'first_party', audience } });
+    if (verified.ok) expect(verified.payload).not.toHaveProperty('scopes');
+    expect(verifyServiceToken(token)).toMatchObject({ ok: false });
+  });
+  it.each([
+    ['scope-bearing workload', { ...workload, scopes: ['user:read'] }],
+    ['empty scope-bearing workload', { ...workload, scopes: [] }],
+    ['credential promoted to own', { ...workload, credentialId: 'credential-id' }],
+    ['non-internal tier', { ...workload, tier: 'standard' }],
+    ['multiple audiences', { ...workload, aud: ['oxy-api', 'kaana.ai'] }],
+    ['unknown authority', { authority: 'trusted' }],
+    ['external without scopes', { authority: 'external', scopes: undefined }],
+  ])('rejects %s', (_, override) => {
+    expect(verifyServiceToken(signServiceTokenEd25519(claims(override)))).toMatchObject({
+      ok: false,
+    });
+  });
+});

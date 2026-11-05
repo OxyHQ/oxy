@@ -93,8 +93,8 @@ export default function RecoverIdentityScreen() {
   const handleEnterPhrase = useCallback(() => {
     void persistOnboardingFlow('import');
     // The existing import flow restores from the 12-word phrase. Importing the
-    // SAME identity is the sanctioned path; a different phrase triggers the
-    // import guard's "different identity" confirmation.
+    // SAME identity is the sanctioned path; a different phrase is refused there,
+    // on the import screen, with the key this phone held (`recovery.differentIdentity`).
     router.push('/(auth)/import-identity');
   }, [router]);
 

@@ -10,9 +10,14 @@
  * adopted the gate (required: an app states its own baseline). `--hot-tables`
  * lists the tables read on (nearly) every request (may be empty). Exits 1 with
  * every problem listed; see `migrate/lockGate.ts` for the rules.
+ *
+ * It also holds the folder itself to `migrate/journalGate.ts`: every migration
+ * after the baseline has the next number, a `when` newer than the one before,
+ * its SQL file, and a snapshot chained to the previous one.
  */
 
 import { resolve } from 'node:path';
+import { migrationJournalProblems } from '../migrate/journalGate';
 import { checkMigrationLocks } from '../migrate/lockGate';
 
 function flag(argv: readonly string[], name: string): string | undefined {
@@ -34,14 +39,19 @@ function main(argv: readonly string[]): number {
     .map((table) => table.trim())
     .filter((table) => table.length > 0);
 
-  const { checked, problems } = checkMigrationLocks({ migrationsFolder: folder, after, hotTables });
+  const journalProblems = migrationJournalProblems(folder, after);
+  const locks = checkMigrationLocks({ migrationsFolder: folder, after, hotTables });
+  const problems = [...journalProblems, ...locks.problems];
+  const { checked } = locks;
   if (problems.length > 0) {
-    console.error(`Migration lock check failed (${problems.length}):`);
+    console.error(`Migration check failed (${problems.length}):`);
     for (const problem of problems) console.error(`  - ${problem}`);
-    console.error(
-      '\nEvery migration keeps its locks short (oxy MIGRATION-CONTRACT.md). A reviewed ' +
-        'exception says why in its own file: -- oxy:lock-review=<reason>',
-    );
+    if (locks.problems.length > 0) {
+      console.error(
+        '\nEvery migration keeps its locks short (oxy MIGRATION-CONTRACT.md). A reviewed ' +
+          'exception says why in its own file: -- oxy:lock-review=<reason>',
+      );
+    }
     return 1;
   }
   console.log(`Migration lock check passed (${checked} migration(s) after ${after} checked).`);

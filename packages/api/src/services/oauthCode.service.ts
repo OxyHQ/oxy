@@ -91,6 +91,8 @@ export interface IssueCodeOptions {
   codeChallenge?: string;
   codeChallengeMethod?: 'S256';
   scopes?: string[];
+  /** Set by the authenticated finalizer, never by the client. */
+  authority?: 'first_party' | 'external';
   /** DeviceSession id from the authorizing bearer JWT. */
   deviceId?: string;
   /**
@@ -148,6 +150,7 @@ export async function issueAuthCode(options: IssueCodeOptions): Promise<IssueCod
     codeChallenge: options.codeChallenge ?? null,
     codeChallengeMethod: options.codeChallenge ? 'S256' : null,
     scopes: options.scopes ?? [],
+    authority: options.authority ?? 'external',
     deviceId: options.deviceId ?? null,
     operatedByUserId: options.operatedByUserId ?? null,
     authMethodId: options.authMethod?.authMethodId ?? null,
@@ -186,6 +189,7 @@ const EXCHANGE_COLUMNS = {
   redirectUri: authCodes.redirectUri,
   codeChallenge: authCodes.codeChallenge,
   scopes: authCodes.scopes,
+  authority: authCodes.authority,
   deviceId: authCodes.deviceId,
   operatedByUserId: authCodes.operatedByUserId,
   authMethodId: authCodes.authMethodId,

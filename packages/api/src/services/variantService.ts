@@ -40,12 +40,14 @@ import {
   upsertVariant,
 } from './fileRepository';
 import { playlistSiblingKey } from './hlsPlaylist';
+import { LARGE_UPLOAD_MAX_BYTES } from '../utils/fileContentPolicy';
 import { isSvgType } from '../utils/svgSanitizer';
 import { isIconContainer, largestIconFrame } from '../utils/icoImage';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { variantStorageRoot, videoStorageRoots } from '../utils/variant-storage-roots';
 import { getCdnInvalidationQueue } from './cdnInvalidation';
+import { NotFoundError } from '../utils/error';
 import {
   hasCurrentVideoRenditions,
   videoDisplayDimensions,
@@ -335,6 +337,38 @@ function posterProtocolWhitelist(inputUrl: string): string {
   return inputUrl.startsWith('http://') ? 'http,tcp' : 'https,tls,tcp';
 }
 
+/** Local sources are seekable but cannot open nested files or network URLs. */
+function videoInput(source: string): { args: string[]; inputFilePath?: string } {
+  if (/^https?:\/\//.test(source)) {
+    return { args: ['-protocol_whitelist', posterProtocolWhitelist(source), '-i', source] };
+  }
+  return {
+    args: ['-protocol_whitelist', 'fd', '-fd', '3', '-i', 'fd:'],
+    inputFilePath: source,
+  };
+}
+
+function videoProcessError(
+  operation: string,
+  run: Awaited<ReturnType<typeof runFfmpeg>>,
+  localSource: boolean,
+): Error {
+  // Remote tails can begin halfway through a signed URL. Local descriptor
+  // reads never use our signed URLs; still scrub URLs supplied inside media.
+  const detail = localSource
+    ? run.stderrTail
+        .replace(/https?:\/\/[^\s"'<>]+/g, '[URL]')
+        .replace(/(X-Amz-[\w-]+|token|credential|signature)=[^\s&]+/gi, '$1=[REDACTED]')
+    : '';
+  return new Error(
+    `${operation} failed (code ${run.code}, signal ${run.signal}, timedOut ${run.timedOut}, overflowed ${run.overflowed})${detail ? `: ${detail}` : ''}`,
+  );
+}
+
+const VIDEO_SOURCE_DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+const VIDEO_PROBE_TIMEOUT_MS = 30_000;
+const VIDEO_PROBE_MAX_BYTES = 1024 * 1024;
+
 export interface VariantConfigWithType extends VariantConfig {
   type: string;
 }
@@ -570,6 +604,13 @@ export class VariantService {
         throw new Error('File not found');
       }
 
+      const isVideo = file.mime.startsWith('video/');
+      if (isVideo && file.status !== 'active') return;
+      if (isVideo && !reencode && hasCurrentVideoRenditions(file)) {
+        await this.shareVariantsWithTwins(file, { variantless: false, outdatedVideosOnly: true });
+        return;
+      }
+
       logger.info('Starting variant generation', {
         fileId,
         mime: file.mime,
@@ -581,7 +622,12 @@ export class VariantService {
       // row's visibility needs gives them to this row without re-encoding.
       const existingFile = reencode
         ? null
-        : await findVariantTwin(file.sha256, file.id, spellingOf(file));
+        : await findVariantTwin(
+            file.sha256,
+            file.id,
+            spellingOf(file),
+            isVideo ? VIDEO_RENDITION_PROFILE : undefined,
+          );
 
       if (
         existingFile &&
@@ -591,6 +637,8 @@ export class VariantService {
         sameRenditionProfile(file, existingFile)
       ) {
         await this.copyVariantSet(existingFile, file);
+        if (isVideo)
+          await this.shareVariantsWithTwins(file, { variantless: false, outdatedVideosOnly: true });
         logger.info('Reused existing variants for duplicate content', {
           fileId,
           sourceFileId: existingFile.id,
@@ -633,7 +681,10 @@ export class VariantService {
         variantCount: file.variants.length,
       });
 
-      await this.shareVariantsWithTwins(file, { variantless: !reencode });
+      await this.shareVariantsWithTwins(file, {
+        variantless: !reencode && !isVideo,
+        outdatedVideosOnly: isVideo && !reencode,
+      });
     } catch (error) {
       logger.error('Error generating variants:', error);
       throw error;
@@ -696,13 +747,14 @@ export class VariantService {
    * Hand a freshly generated rendition set to the other live rows for the same
    * bytes that need the same spelling. After an upload (`variantless`) that is
    * the owners who uploaded the same content while this generation was running
-   * and have none yet, whose own queued jobs then find the set already there;
-   * after a re-encode it is every such twin (see `generateVariants`).
+   * and have none yet, whose own queued jobs then find the set already there.
+   * Video jobs also upgrade legacy twins; current twins remain untouched unless
+   * an explicit re-encode replaces every such twin (see `generateVariants`).
    * Best-effort: a twin that misses out generates (or copies) on its own job.
    */
   private async shareVariantsWithTwins(
     file: FileRecord,
-    twins: { variantless: boolean },
+    twins: { variantless: boolean; outdatedVideosOnly?: boolean },
   ): Promise<void> {
     if (file.variants.length === 0) return;
     try {
@@ -713,6 +765,7 @@ export class VariantService {
         twins,
       )) {
         if (!sameRenditionProfile(twin, file)) continue;
+        if (twins.outdatedVideosOnly && hasCurrentVideoRenditions(twin)) continue;
         await this.copyVariantSet(file, twin);
       }
     } catch (error) {
@@ -767,7 +820,7 @@ export class VariantService {
           file.storageKey,
           MEDIA_SOURCE_URL_TTL_SECONDS,
         );
-        const probed = await this.extractVideoMetadataFromUrl(videoUrl);
+        const probed = await this.probeVideoMetadata(videoUrl);
         if (typeof probed.duration === 'number' && probed.duration > 0) {
           durationSec = probed.duration;
         }
@@ -803,7 +856,7 @@ export class VariantService {
         file.storageKey,
         MEDIA_SOURCE_URL_TTL_SECONDS,
       );
-      const probed = await this.extractVideoMetadataFromUrl(videoUrl);
+      const probed = await this.probeVideoMetadata(videoUrl);
       const width = typeof probed.width === 'number' && probed.width > 0 ? probed.width : undefined;
       const height =
         typeof probed.height === 'number' && probed.height > 0 ? probed.height : undefined;
@@ -944,88 +997,88 @@ export class VariantService {
    */
   private async generateVideoVariants(file: FileRecord): Promise<void> {
     await assertPhysicalStoragePathSupported(await meteredOwnerId(file), 'generateVideoVariants');
-    const videoUrl = await this.s3Service.getPresignedDownloadUrl(
-      file.storageKey,
-      MEDIA_SOURCE_URL_TTL_SECONDS,
-    );
-    const metadata = await this.extractVideoMetadataFromUrl(videoUrl);
-    if (!metadata.width || !metadata.height) throw new Error(`Cannot probe video ${file.id}`);
-    const rungs = videoRungs({ width: metadata.width, height: metadata.height });
-    // A generation never overwrites playable objects, even when a retry fails halfway.
-    const profile = `${VIDEO_RENDITION_PROFILE}/${randomUUID()}`;
-    const storageRoots = videoStorageRoots(
-      file,
-      file.variants.map((variant) => variant.key),
-    );
-    const root =
-      storageRoots[0] ??
-      variantStorageRoot(
-        this.generateVariantKey(file.sha256, 'hls_master', 'm3u8', spellingOf(file), profile),
-        file.sha256,
+    // One bounded original acquisition per background generation. On-demand
+    // poster requests retain their bounded remote range-read path.
+    const sourceDirectory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'oxy-video-source-'));
+    const source = path.join(sourceDirectory, 'original');
+    try {
+      await this.s3Service.downloadFile(file.storageKey, source, {
+        maxBytes: LARGE_UPLOAD_MAX_BYTES,
+        // Shared EC2 disk: a live guard, not a per-task quota or reservation
+        // for every existing encoder output. Recheck during the download.
+        minFreeBytes: 2 * 1024 ** 3,
+        timeoutMs: VIDEO_SOURCE_DOWNLOAD_TIMEOUT_MS,
+      });
+      const metadata = await this.probeVideoMetadata(source);
+      if (!metadata.width || !metadata.height) throw new Error(`Cannot probe video ${file.id}`);
+      const rungs = videoRungs({ width: metadata.width, height: metadata.height });
+      // A generation never overwrites playable objects, even when a retry fails halfway.
+      const profile = `${VIDEO_RENDITION_PROFILE}/${randomUUID()}`;
+      const storageRoots = videoStorageRoots(
+        file,
+        file.variants.map((variant) => variant.key),
       );
-    if (!root) throw new Error(`Cannot resolve video storage root for ${file.id}`);
-    if (storageRoots.length === 0) {
-      // Even an upload that fails before publication must follow deletion/visibility policy.
-      await rememberVideoStorageRoot(file.id, root);
-      storageRoots.push(root);
-    }
-    const variants: NewFileVariant[] = [];
-    const posterTime = Math.min(1, (metadata.duration || 60) * 0.1);
-    variants.push(
-      await this.generatePosterFrame(
-        file.storageKey,
-        file.sha256,
-        posterTime,
-        spellingOf(file),
-        metadata,
-        profile,
-        root,
-      ),
-    );
-    for (const rung of rungs) {
-      variants.push(
-        await this.generateVideoVariant(
-          videoUrl,
+      const root =
+        storageRoots[0] ??
+        variantStorageRoot(
+          this.generateVariantKey(file.sha256, 'hls_master', 'm3u8', spellingOf(file), profile),
           file.sha256,
-          rung,
+        );
+      if (!root) throw new Error(`Cannot resolve video storage root for ${file.id}`);
+      if (storageRoots.length === 0) {
+        // Even an upload that fails before publication must follow deletion/visibility policy.
+        await rememberVideoStorageRoot(file.id, root);
+        storageRoots.push(root);
+      }
+      const variants: NewFileVariant[] = [];
+      const posterTime = Math.min(1, (metadata.duration || 60) * 0.1);
+      variants.push(
+        await this.generatePosterFrame(
+          file.storageKey,
+          file.sha256,
+          posterTime,
+          spellingOf(file),
+          metadata,
+          profile,
+          root,
+          source,
+        ),
+      );
+      variants.push(
+        ...(await this.generateVideoRenditions(
+          source,
+          file.sha256,
+          rungs,
           spellingOf(file),
           profile,
           root,
-        ),
+        )),
       );
-    }
-    variants.push(
-      ...(await this.generateHLSStream(
-        videoUrl,
-        file.sha256,
-        rungs,
-        spellingOf(file),
+      file.metadata = {
+        ...file.metadata,
+        video: {
+          ...metadata,
+          storageRoots: videoStorageRoots(file, [
+            ...storageRoots,
+            ...variants.map((variant) => variant.key),
+          ]),
+        },
+      };
+      applyCanonicalMediaMetadata(file, {
+        width: metadata.width,
+        height: metadata.height,
+        durationSec: metadata.duration,
+      });
+      // Nothing is visible until every rendition, segment and playlist is uploaded.
+      await this.commitVariants(file, variants, true);
+      logger.info('Video rendition set generated', {
+        fileId: file.id,
         profile,
-        root,
-      )),
-    );
-    file.metadata = {
-      ...file.metadata,
-      video: {
-        ...metadata,
-        storageRoots: videoStorageRoots(file, [
-          ...storageRoots,
-          ...variants.map((variant) => variant.key),
-        ]),
-      },
-    };
-    applyCanonicalMediaMetadata(file, {
-      width: metadata.width,
-      height: metadata.height,
-      durationSec: metadata.duration,
-    });
-    // Nothing is visible until every rendition, segment and playlist is uploaded.
-    await this.commitVariants(file, variants, true);
-    logger.info('Video rendition set generated', {
-      fileId: file.id,
-      profile,
-      variantCount: variants.length,
-    });
+        variantCount: variants.length,
+      });
+    } finally {
+      await fs.promises.rm(sourceDirectory, { recursive: true, force: true });
+    }
   }
 
   /**
@@ -1518,7 +1571,7 @@ export class VariantService {
   /**
    * Generate poster frame (thumbnail) from video
    * Maintains the video's exact aspect ratio (vertical videos stay vertical)
-   * Uses S3 presigned URL directly with FFmpeg - no temp files, production-ready
+   * Background generation reuses its local original; on-demand reads stay remote.
    */
   private async generatePosterFrame(
     videoStorageKey: string,
@@ -1528,251 +1581,109 @@ export class VariantService {
     metadata?: { width?: number; height?: number },
     profile?: string,
     root?: string,
+    localSourcePath?: string,
   ): Promise<NewFileVariant> {
     const posterKey = this.generateVariantKey(sha256, 'poster', 'jpg', visibility, profile, root);
-
-    // Get S3 presigned URL for the video (FFmpeg supports HTTP input)
-    const videoUrl = await this.s3Service.getPresignedDownloadUrl(
-      videoStorageKey,
-      MEDIA_SOURCE_URL_TTL_SECONDS,
-    );
-
-    // Extract metadata if not provided (using S3 URL)
-    if (!metadata?.width || !metadata.height) {
-      metadata = await this.extractVideoMetadataFromUrl(videoUrl);
-    }
-
+    const source =
+      localSourcePath ??
+      (await this.s3Service.getPresignedDownloadUrl(videoStorageKey, MEDIA_SOURCE_URL_TTL_SECONDS));
+    if (!metadata?.width || !metadata.height) metadata = await this.probeVideoMetadata(source);
     const videoWidth = metadata.width || 1920;
     const videoHeight = metadata.height || 1080;
-    const aspectRatio = videoWidth / videoHeight;
     const scale = Math.min(1, 1920 / videoWidth, 1920 / videoHeight);
-    const scaleFilter = videoScaleFilter({
-      width: Math.max(1, Math.round(videoWidth * scale)),
-      height: Math.max(1, Math.round(videoHeight * scale)),
-    });
-
-    return new Promise((resolve, reject) => {
-      // Generate poster with scaling to max 1920px while maintaining exact aspect ratio
-      // Stream output directly to stdout (memory) - no temp files
-      const args = [
-        // Global options must precede `-i`. `-nostdin` so a decode can never
-        // block waiting on a stdin that will never be written, and the protocol
-        // whitelist so a crafted container cannot make ffmpeg open a local file
-        // or an unrelated network target (see `posterProtocolWhitelist`).
+    const input = videoInput(source);
+    const chunks: Buffer[] = [];
+    const run = await runFfmpeg(
+      ffmpegPath,
+      [
         '-loglevel',
         'error',
         '-nostdin',
-        '-protocol_whitelist',
-        posterProtocolWhitelist(videoUrl),
-        '-i',
-        videoUrl, // Use S3 presigned URL directly
+        ...input.args,
         '-ss',
-        timeSeconds.toString(),
+        String(timeSeconds),
         '-vframes',
         '1',
         '-vf',
-        scaleFilter,
+        videoScaleFilter({
+          width: Math.max(1, Math.round(videoWidth * scale)),
+          height: Math.max(1, Math.round(videoHeight * scale)),
+        }),
         '-q:v',
         '2',
         '-f',
-        'image2pipe', // Output to pipe
+        'image2pipe',
         '-vcodec',
-        'mjpeg', // JPEG format for pipe
-        'pipe:1', // Output to stdout
-      ];
-
-      // Only verify absolute paths — a bare `ffmpeg` command is resolved via PATH at spawn time.
-      if (path.isAbsolute(ffmpegPath) && !fs.existsSync(ffmpegPath)) {
-        reject(
-          new Error(
-            `FFmpeg binary not found at path: ${ffmpegPath}. Please install ffmpeg-static or ensure system ffmpeg is available.`,
-          ),
-        );
-        return;
-      }
-
-      logger.debug('Spawning ffmpeg process for poster from S3', {
-        path: ffmpegPath,
-        videoUrl: videoUrl.substring(0, 50) + '...',
+        'mjpeg',
+        'pipe:1',
+      ],
+      {
+        timeoutMs: POSTER_FFMPEG_TIMEOUT_MS,
+        maxStdoutBytes: POSTER_MAX_OUTPUT_BYTES,
+        inputFilePath: input.inputFilePath,
+        onStdout: (chunk) => chunks.push(chunk),
+      },
+    );
+    if (run.overflowed)
+      throw new Error('Poster generation aborted: output exceeded the maximum allowed size');
+    if (run.code !== 0)
+      throw videoProcessError('Poster generation', run, Boolean(input.inputFilePath));
+    const optimized = await sharp(Buffer.concat(chunks)).jpeg({ quality: 85 }).toBuffer();
+    await this.s3Service.uploadBuffer(posterKey, optimized, {
+      contentType: 'image/jpeg',
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+    });
+    const imageMetadata = await sharp(optimized).metadata();
+    return {
+      type: 'poster',
+      key: posterKey,
+      width: imageMetadata.width || videoWidth,
+      height: imageMetadata.height || videoHeight,
+      readyAt: new Date(),
+      size: optimized.length,
+      metadata: {
+        type: 'poster',
+        position: `${timeSeconds}s`,
+        format: 'jpg',
+        originalAspectRatio: videoWidth / videoHeight,
         videoWidth,
         videoHeight,
-        aspectRatio,
-        scaleFilter,
-      });
-
-      // Node kills the process itself once the wall-clock ceiling elapses; the
-      // `close` handler below sees a null exit code and a signal.
-      const ffmpegProcess = spawn(ffmpegPath, args, {
-        timeout: POSTER_FFMPEG_TIMEOUT_MS,
-        killSignal: 'SIGKILL',
-      });
-
-      let stderr = '';
-      const stdoutChunks: Buffer[] = [];
-      let stdoutBytes = 0;
-      let outputOverflowed = false;
-
-      ffmpegProcess.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      ffmpegProcess.stdout.on('data', (data: Buffer) => {
-        if (outputOverflowed) {
-          return;
-        }
-        stdoutBytes += data.length;
-        if (stdoutBytes > POSTER_MAX_OUTPUT_BYTES) {
-          // Stop buffering and tear the decode down; `close` reports the reason.
-          outputOverflowed = true;
-          stdoutChunks.length = 0;
-          ffmpegProcess.kill('SIGKILL');
-          return;
-        }
-        stdoutChunks.push(data);
-      });
-
-      ffmpegProcess.on('close', async (code, signal) => {
-        if (outputOverflowed) {
-          logger.error('Poster generation exceeded the output cap', {
-            maxOutputBytes: POSTER_MAX_OUTPUT_BYTES,
-          });
-          reject(new Error('Poster generation aborted: output exceeded the maximum allowed size'));
-          return;
-        }
-
-        if (code !== 0) {
-          // The LAST bytes, not the first: ffmpeg's fixed version/build-config
-          // banner alone fills 500 characters, so `.substring(0, N)` always
-          // logged the banner and never the fatal error that follows it.
-          logger.error('Poster generation failed', { code, signal, stderr: stderr.slice(-500) });
-          if (code === null) {
-            reject(
-              new Error(
-                `Poster generation aborted after ${POSTER_FFMPEG_TIMEOUT_MS}ms (signal ${String(signal)})`,
-              ),
-            );
-            return;
-          }
-          reject(new Error(`Poster generation failed with code ${code}: ${stderr.slice(-200)}`));
-          return;
-        }
-
-        try {
-          // Get poster from stdout (no temp file needed)
-          const posterBuffer = Buffer.concat(stdoutChunks);
-
-          // Optimize poster with Sharp (no resize, just optimize)
-          const optimized = await sharp(posterBuffer).jpeg({ quality: 85 }).toBuffer();
-
-          // Upload to S3
-          await this.s3Service.uploadBuffer(posterKey, optimized, {
-            contentType: 'image/jpeg',
-            cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-          });
-
-          const imageMetadata = await sharp(optimized).metadata();
-          resolve({
-            type: 'poster',
-            key: posterKey,
-            width: imageMetadata.width || videoWidth,
-            height: imageMetadata.height || videoHeight,
-            readyAt: new Date(),
-            size: optimized.length,
-            metadata: {
-              type: 'poster',
-              position: `${timeSeconds}s`,
-              format: 'jpg',
-              originalAspectRatio: aspectRatio,
-              videoWidth,
-              videoHeight,
-            },
-          });
-        } catch (error) {
-          reject(error);
-        }
-      });
-
-      ffmpegProcess.on('error', (err) => {
-        reject(new Error(`Poster generation failed: ${err.message}`));
-      });
-    });
+      },
+    };
   }
 
   /**
-   * Extract video metadata from S3 URL (for presigned URLs)
+   * Probe a bounded remote or descriptor-only local video source.
    */
-  private async extractVideoMetadataFromUrl(videoUrl: string): Promise<VideoProbeMetadata> {
-    try {
-      // Validate URL to prevent command injection
-      this.validateMediaPath(videoUrl);
-
-      // Use spawn for better cross-platform compatibility
-      return new Promise((resolve) => {
-        const args = [
-          '-v',
-          'quiet',
-          '-print_format',
-          'json',
-          '-show_format',
-          '-show_streams',
-          videoUrl,
-        ];
-
-        const ffprobeProcess = spawn(ffprobePath, args);
-        let stdout = '';
-        let stderr = '';
-
-        ffprobeProcess.stdout.on('data', (data) => {
-          stdout += data.toString();
-        });
-
-        ffprobeProcess.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-
-        ffprobeProcess.on('close', (code) => {
-          if (code !== 0) {
-            logger.warn('FFprobe failed from URL', {
-              code,
-              stderr: stderr.replaceAll(videoUrl, '[source]'),
-            });
-            resolve({});
-            return;
-          }
-
-          try {
-            const metadata = JSON.parse(stdout) as FFprobeMetadata;
-
-            const videoStream = metadata.streams?.find((s) => s.codec_type === 'video');
-            const audioStream = metadata.streams?.find((s) => s.codec_type === 'audio');
-
-            resolve({
-              duration: metadata.format?.duration
-                ? Number.parseFloat(metadata.format.duration)
-                : undefined,
-              ...videoDisplayDimensions(videoStream ?? {}),
-              bitrate: metadata.format?.bit_rate
-                ? Number.parseInt(metadata.format.bit_rate)
-                : undefined,
-              fps: videoStream?.r_frame_rate ? this.parseFps(videoStream.r_frame_rate) : undefined,
-              codec: videoStream?.codec_name,
-              audioCodec: audioStream?.codec_name,
-            });
-          } catch (error) {
-            logger.warn('Error parsing FFprobe output from URL', { error });
-            resolve({});
-          }
-        });
-
-        ffprobeProcess.on('error', (err) => {
-          logger.warn('FFprobe process error from URL', { error: err });
-          resolve({});
-        });
-      });
-    } catch (error) {
-      logger.warn('Error extracting video metadata from URL, using defaults', { error });
-      return {};
+  private async probeVideoMetadata(source: string): Promise<VideoProbeMetadata> {
+    this.validateMediaPath(source);
+    const input = videoInput(source);
+    const chunks: Buffer[] = [];
+    const run = await runFfmpeg(
+      ffprobePath,
+      ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', ...input.args],
+      {
+        timeoutMs: VIDEO_PROBE_TIMEOUT_MS,
+        maxStdoutBytes: VIDEO_PROBE_MAX_BYTES,
+        inputFilePath: input.inputFilePath,
+        onStdout: (chunk) => chunks.push(chunk),
+      },
+    );
+    if (run.code !== 0 || run.overflowed) {
+      throw videoProcessError('Video probe', run, Boolean(input.inputFilePath));
     }
+    const metadata = JSON.parse(Buffer.concat(chunks).toString()) as FFprobeMetadata;
+    const videoStream = metadata.streams?.find((stream) => stream.codec_type === 'video');
+    if (!videoStream) throw new Error('Source contains no video stream');
+    const audioStream = metadata.streams?.find((stream) => stream.codec_type === 'audio');
+    return {
+      duration: metadata.format?.duration ? Number.parseFloat(metadata.format.duration) : undefined,
+      ...videoDisplayDimensions(videoStream),
+      bitrate: metadata.format?.bit_rate ? Number.parseInt(metadata.format.bit_rate) : undefined,
+      fps: videoStream.r_frame_rate ? this.parseFps(videoStream.r_frame_rate) : undefined,
+      codec: videoStream.codec_name,
+      audioCodec: audioStream?.codec_name,
+    };
   }
 
   /**
@@ -1780,7 +1691,7 @@ export class VariantService {
    * Writes a seekable temporary MP4 so faststart can place its index first, then streams the upload.
    */
   private async generateVideoVariant(
-    videoUrl: string,
+    source: string,
     sha256: string,
     rung: VideoRung,
     visibility: FileVisibility,
@@ -1789,70 +1700,95 @@ export class VariantService {
   ): Promise<NewFileVariant> {
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'oxy-video-'));
     try {
-      const outputPath = path.join(tempDir, 'video.mp4');
-      const run = await runFfmpeg(
-        ffmpegPath,
-        [
-          '-i',
-          videoUrl,
-          '-map',
-          '0:v:0',
-          '-map',
-          '0:a:0?',
-          '-c:v',
-          'libx264',
-          '-c:a',
-          'aac',
-          '-b:v',
-          rung.bitrate,
-          '-preset',
-          rung.preset,
-          '-crf',
-          '23',
-          '-pix_fmt',
-          'yuv420p',
-          '-vf',
-          videoScaleFilter(rung),
-          '-movflags',
-          '+faststart',
-          '-avoid_negative_ts',
-          'make_zero',
-          '-y',
-          outputPath,
-        ],
-        { timeoutMs: VIDEO_TRANSCODE_TIMEOUT_MS },
+      return await this.encodeAndUploadVideoVariant(
+        source,
+        path.join(tempDir, 'video.mp4'),
+        sha256,
+        rung,
+        visibility,
+        profile,
+        root,
       );
-      if (run.code !== 0)
-        throw new Error(
-          `Video ${rung.type} failed: ${run.stderrTail.replaceAll(videoUrl, '[source]')}`,
-        );
-      const key = this.generateVariantKey(sha256, rung.type, 'mp4', visibility, profile, root);
-      await this.s3Service.uploadFile(key, outputPath, {
-        contentType: 'video/mp4',
-        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-      });
-      const stat = await fs.promises.stat(outputPath);
-      return {
-        type: rung.type,
-        key,
-        width: rung.width,
-        height: rung.height,
-        readyAt: new Date(),
-        size: stat.size,
-        metadata: {
-          bitrate: rung.bitrate,
-          format: 'mp4',
-          encodingProfile: VIDEO_RENDITION_PROFILE,
-        },
-      };
     } finally {
       await fs.promises.rm(tempDir, { recursive: true, force: true });
     }
   }
 
-  /** Encode sequentially to bound CPU; publish segments before playlists and master last. */
-  private async generateHLSStream(
-    videoUrl: string,
+  /** Encode once; the caller owns the local MP4 until HLS remuxing or upload completes. */
+  private async encodeAndUploadVideoVariant(
+    source: string,
+    outputPath: string,
+    sha256: string,
+    rung: VideoRung,
+    visibility: FileVisibility,
+    profile: string,
+    root?: string,
+  ): Promise<NewFileVariant> {
+    const input = videoInput(source);
+    const run = await runFfmpeg(
+      ffmpegPath,
+      [
+        '-nostdin',
+        ...input.args,
+        '-map',
+        '0:v:0',
+        '-map',
+        '0:a:0?',
+        '-c:v',
+        'libx264',
+        '-c:a',
+        'aac',
+        '-b:v',
+        rung.bitrate,
+        '-preset',
+        rung.preset,
+        '-crf',
+        '23',
+        '-pix_fmt',
+        'yuv420p',
+        '-vf',
+        videoScaleFilter(rung),
+        '-sc_threshold',
+        '0',
+        '-flags',
+        '+cgop',
+        '-force_key_frames',
+        `expr:gte(t,n_forced*${VIDEO_SEGMENT_SECONDS})`,
+        '-movflags',
+        '+faststart',
+        '-avoid_negative_ts',
+        'make_zero',
+        '-y',
+        outputPath,
+      ],
+      { timeoutMs: VIDEO_TRANSCODE_TIMEOUT_MS, inputFilePath: input.inputFilePath },
+    );
+    if (run.code !== 0)
+      throw videoProcessError(`Video ${rung.type}`, run, Boolean(input.inputFilePath));
+    const key = this.generateVariantKey(sha256, rung.type, 'mp4', visibility, profile, root);
+    await this.s3Service.uploadFile(key, outputPath, {
+      contentType: 'video/mp4',
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+    });
+    const stat = await fs.promises.stat(outputPath);
+    return {
+      type: rung.type,
+      key,
+      width: rung.width,
+      height: rung.height,
+      readyAt: new Date(),
+      size: stat.size,
+      metadata: {
+        bitrate: rung.bitrate,
+        format: 'mp4',
+        encodingProfile: VIDEO_RENDITION_PROFILE,
+      },
+    };
+  }
+
+  /** Encode each rung once, remux its MP4 to HLS, and publish the master last. */
+  private async generateVideoRenditions(
+    source: string,
     sha256: string,
     rungs: VideoRung[],
     visibility: FileVisibility,
@@ -1864,36 +1800,30 @@ export class VariantService {
     const masterRenditions: Array<{ resolution: string; bitrate: string; playlist: string }> = [];
     try {
       for (const rung of rungs) {
+        const encodedPath = path.join(tempDir, `video_${rung.type}.mp4`);
+        variants.push(
+          await this.encodeAndUploadVideoVariant(
+            source,
+            encodedPath,
+            sha256,
+            rung,
+            visibility,
+            profile,
+            root,
+          ),
+        );
         const outputPath = path.join(tempDir, `stream_${rung.type}.m3u8`);
         const run = await runFfmpeg(
           ffmpegPath,
           [
             '-i',
-            videoUrl,
+            encodedPath,
             '-map',
             '0:v:0',
             '-map',
             '0:a:0?',
-            '-c:v',
-            'libx264',
-            '-c:a',
-            'aac',
-            '-b:v',
-            rung.bitrate,
-            '-preset',
-            rung.preset,
-            '-crf',
-            '23',
-            '-pix_fmt',
-            'yuv420p',
-            '-vf',
-            videoScaleFilter(rung),
-            '-sc_threshold',
-            '0',
-            '-flags',
-            '+cgop',
-            '-force_key_frames',
-            `expr:gte(t,n_forced*${VIDEO_SEGMENT_SECONDS})`,
+            '-c',
+            'copy',
             '-f',
             'hls',
             '-hls_time',
@@ -1911,10 +1841,8 @@ export class VariantService {
           ],
           { timeoutMs: VIDEO_TRANSCODE_TIMEOUT_MS },
         );
-        if (run.code !== 0)
-          throw new Error(
-            `Video HLS ${rung.type} failed: ${run.stderrTail.replaceAll(videoUrl, '[source]')}`,
-          );
+        if (run.code !== 0) throw new Error(`Video HLS ${rung.type} failed: ${run.stderrTail}`);
+        await fs.promises.unlink(encodedPath);
         const playlist = await fs.promises.readFile(outputPath);
         const key = this.generateVariantKey(
           sha256,
@@ -2181,18 +2109,18 @@ export class VariantService {
 
     if (!this.isVideoMp4Rendition(variantType))
       throw new Error(`Unsupported video mp4 rendition: ${variantType}`);
-    const videoUrl = await this.s3Service.getPresignedDownloadUrl(
+    const source = await this.s3Service.getPresignedDownloadUrl(
       file.storageKey,
       MEDIA_SOURCE_URL_TTL_SECONDS,
     );
-    const metadata = await this.extractVideoMetadataFromUrl(videoUrl);
+    const metadata = await this.probeVideoMetadata(source);
     if (!metadata.width || !metadata.height) throw new Error(`Cannot probe video ${file.id}`);
     const rung = videoRungs({ width: metadata.width, height: metadata.height }).find(
       (candidate) => candidate.type === variantType,
     );
     if (!rung) throw new Error(`Variant ${variantType} exceeds source resolution`);
     const variant = await this.generateVideoVariant(
-      videoUrl,
+      source,
       file.sha256,
       rung,
       spellingOf(file),
@@ -2215,11 +2143,11 @@ export class VariantService {
     // Generate poster frame directly from S3 - no temp files
     try {
       // Get S3 presigned URL and extract metadata
-      const videoUrl = await this.s3Service.getPresignedDownloadUrl(
+      const source = await this.s3Service.getPresignedDownloadUrl(
         file.storageKey,
         MEDIA_SOURCE_URL_TTL_SECONDS,
       );
-      const metadata = await this.extractVideoMetadataFromUrl(videoUrl);
+      const metadata = await this.probeVideoMetadata(source);
       const posterTime = Math.min(1, (metadata.duration || 60) * 0.1);
 
       // Generate poster frame with exact video aspect ratio (streams directly from S3)
@@ -2316,10 +2244,10 @@ export class VariantService {
     // Map variantType to config
     const config = this.imageVariants.find((v) => v.type === variantType);
     if (!config) {
-      throw new Error(`Unsupported image variant: ${variantType}`);
+      throw new NotFoundError(`Unsupported image variant: ${variantType}`);
     }
     if (file.size > IMAGE_VARIANT_MAX_SOURCE_BYTES) {
-      throw new Error(`Image too large for renditions: ${file.size} bytes`);
+      throw new NotFoundError(`Image too large for renditions: ${file.size} bytes`);
     }
 
     const { source } = await renderableImageSource(
@@ -2358,7 +2286,7 @@ export class VariantService {
 
     const config = this.imageVariants.find((v) => v.type === variantType);
     if (!config) {
-      throw new Error(`Unsupported video image variant: ${variantType}`);
+      throw new NotFoundError(`Unsupported video image variant: ${variantType}`);
     }
 
     const poster = await this.ensureVideoPoster(file);

@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 import { z } from 'zod';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry carries the whole policy.
@@ -15,6 +16,6 @@ export type { AccountNamePolicy } from './client/accountName';
 export const accountTitleSchema = z
   .string()
   .trim()
-  .min(1)
-  .max(ACCOUNT_TITLE_MAX_LENGTH)
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(ACCOUNT_TITLE_MAX_LENGTH))
   .refine(isPlainTextTitle, 'Name must be plain text');

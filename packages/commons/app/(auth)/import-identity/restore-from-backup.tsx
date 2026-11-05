@@ -12,6 +12,7 @@ import {
 } from '@oxy.so/core/crypto';
 import { handleHttpError } from '@oxy.so/core';
 import { alert } from '@oxy.so/bloom/surfaces';
+import { readPastedPhrase, WRONG_WORD_COUNT_KEY } from '@/lib/recovery-phrase/paste';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
 import { KeyboardAwareScrollViewWrapper } from '@/components/ui';
@@ -76,12 +77,18 @@ export default function RestoreFromBackupScreen() {
     setError(null);
   }, []);
 
-  const handlePaste = useCallback((text: string) => {
-    const words = text.trim().toLowerCase().split(/\s+/);
-    if (words.length === RECOVERY_PHRASE_LENGTH || words.length === 24) {
-      setPhraseWords(words.slice(0, RECOVERY_PHRASE_LENGTH));
-    }
-  }, []);
+  const handlePaste = useCallback(
+    (text: string) => {
+      const pasted = readPastedPhrase(text);
+      if (pasted.ok) {
+        setPhraseWords(pasted.words);
+        setError(null);
+      } else {
+        setError(t(WRONG_WORD_COUNT_KEY, { count: pasted.count }));
+      }
+    },
+    [setError, t],
+  );
 
   /**
    * Restore and sign in. Resolves `'needs-overwrite'` when a DIFFERENT identity

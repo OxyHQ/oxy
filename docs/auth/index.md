@@ -9,6 +9,14 @@ written before the thing they planned existed. Some promised sign-in-once
 behaviour while others documented, correctly, that a new origin starts signed
 out. This page exists so there is one place that is answerable for being right.
 
+## Own products and external connections
+
+[First-party platform access](./first-party-platform-access.md) is the canonical
+integration rule: own Oxy apps do not request scopes, consent or per-app agent
+access levels. External account connections remain OAuth-scoped and revocable.
+[ADR 0049](../adr/0049-first-party-platform-authority.md) and its migration
+tracker distinguish the accepted contract from deployed behavior.
+
 ## The model in five nouns
 
 An **identity** is a cryptographic human identity controlled by its owner's root key, held in Commons ([ADR 0024](../adr/0024-one-oxy-account-root-holders.md)); an account without a key has no identity root and signs in by email ([ADR 0030](../adr/0030-email-code-password-authenticator.md)).
@@ -29,11 +37,14 @@ the five distinct meanings of "sign out":
 | Device session, device-first transport | [device-session.md](./device-session.md) | shipped |
 | Principals, contexts, the directory | [principals-and-account-contexts.md](./principals-and-account-contexts.md) | shipped |
 | Tokens and credentials (v2 claims) | [tokens-and-credentials.md](./tokens-and-credentials.md) | shipped |
+| Opt-in live session-row validation and rollout | [live-session-authority.md](./live-session-authority.md) | opt-in |
+| Published client compatibility during rollout | [published-client-compatibility.md](./published-client-compatibility.md) | published tarballs checked; UI adoption gate |
+| Own service requester context and durable tasks | [first-party-tasks.md](./first-party-tasks.md) | deployed; [fleet cutover verified](./workload-v1-retirement.md) |
 | Third-party integration | [integration-guide.md](./integration-guide.md) | shipped |
 | The IdP's own shape | [README.md](./README.md) | shipped |
 | The native cross-app device credential | [../SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § Cold boot | built, not verified on a device |
 | The account switcher on the directory | [principals-and-account-contexts.md](./principals-and-account-contexts.md) | shipped |
-| Application roles: app-declared permissions, granted in Oxy, read by the app's backend | [application-roles.md](./application-roles.md) | built, not deployed |
+| Application roles: app-declared permissions, held by org role (Oxy's own apps, ADR 0056) or granted in Oxy (third-party), read by the app's backend | [application-roles.md](./application-roles.md) | built, not deployed |
 | App assertions: which Oxy app a request comes from (ADR 0045) | [app-assertions.md](./app-assertions.md) | built, not deployed; needs the operator inputs listed there |
 
 ## Why it is shaped this way

@@ -83,6 +83,7 @@ import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { RiShakeHandsLine } from '@oxy.so/bloom/icons/RiShakeHandsLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
+import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { RiShieldStarFill } from '@oxy.so/bloom/icons/RiShieldStarFill';
 import { RiShieldUserLine } from '@oxy.so/bloom/icons/RiShieldUserLine';
 import { RiSmartphoneLine } from '@oxy.so/bloom/icons/RiSmartphoneLine';
@@ -118,6 +119,7 @@ export const Icons = {
   checkCircle: RiCheckboxCircleLine,
   closeCircle: RiCloseCircleLine,
   offline: RiWifiLine,
+  notification: RiNotification3Line,
   pending: RiTimeLine,
   expired: RiTimerLine,
   bullet: RiCheckboxBlankCircleLine,

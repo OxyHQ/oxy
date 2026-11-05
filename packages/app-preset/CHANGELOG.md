@@ -1,5 +1,134 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.0.0
+
+### Breaking
+
+- The preset derives the store build number from the app's `version`, always (`withOxyReleaseVersion`): Android `versionCode` and iOS `buildNumber` are `major * 1_000_000 + minor * 1_000 + patch` (1.2.3 → 1002003). An app config that still sets `android.versionCode` or `ios.buildNumber` now fails to load, and so does a `version` that is not `MAJOR.MINOR.PATCH`: remove both fields. Every new version gets a strictly higher build number, which Google Play requires, and a native release is exactly a version bump (`version` is already the OTA boundary).
+
+## 5.3.1
+
+### Fixed
+
+- `staticHydrationBoundary` supports `@expo/router-server` 58.0.18–58.0.21, the renderer Expo 58.0.23 and expo-router 58.0.30 install. From 58.0.18 the CLI passes the renderer the route it matched and its params, and expo-router no longer exports `getRouteInfoForLocation`. The adapter reads the route with `getRouteInfoForMatchedRoute` and keys loader data by the route's own search params, as Expo's renderer does. 58.0.14–58.0.16 keep the location-based path. 58.0.17, a halfway renderer, stays refused. Before, an app on Expo 58.0.23 with the adapter enabled could not export.
+
+## 5.3.0
+
+### Changed
+
+- The static-hydration document assembly parses with `parse5` 8 (was 7.3.0). parse5 8 is published ESM-only and is loaded with `require`, so the preset now declares Node `>=20.19.0`, the first release that loads an ES module from `require` without a flag (Expo SDK 58 already requires it).
+
+## 5.2.0
+
+### Security
+
+- Ships the Oxy Updates code-signing certificate,
+  `certs/oxy-updates-code-signing.pem` (RSA 2048, CN=Oxy Updates Code Signing,
+  SHA-256 `E9:1D:40:E6:…:39:DA:81`, valid to 2036-10-24). Every OTA-enabled
+  binary built with this preset verifies manifest signatures.
+- `withOxyUpdates` now FAILS CLOSED, as its README already said: the default
+  `codeSigning` is `'require'` (it was `'auto'`, which only warned and produced
+  a binary that accepts unsigned manifests for its whole lifetime). A
+  certificate file that is not a PEM certificate, or an unknown `codeSigning`
+  value, is refused. `'auto'` and `false` remain for local development builds,
+  explicitly.
+
+## 5.1.0
+
+### Fixed
+
+- Metro answers an OPTIONAL require (`try { require('x') }`, an `import()` in a
+  `try`) that lands on a native package Expo autolinking does not link with
+  "not found", which is what the probe sees on a clean install. Commons 1.3.0
+  crashed on launch from a checkout whose bun store kept a stale hoisted
+  `node_modules/.bun/node_modules/@expo/ui` (57.0.17, in no lockfile):
+  expo-router's `@expo/ui/jetpack-compose` probe found it and SDK 57 JS ran
+  against an SDK 58 binary that never linked it. Static imports are unchanged
+  (warned about once). `metro/linked-native-packages.js`.
+- A RELEASE bundle (Metro `dev: false`, or NODE_ENV=production) refuses a
+  workspace package's `dist/` that was not built from the checkout's `src/`.
+  The same 1.3.0 build bundled a five-day-old `packages/contracts/dist` (Zod 3
+  era) whose module scope called `innerType()` against Zod 4, and a core from
+  before the commit's own KeyManager changes. A package opts in with
+  `"oxySourceStamp": "dist"` and runs `metro/source-stamp.js` last in its
+  build (core, contracts, protocol, telemetry and expo-splash do); the check is
+  by content, so a checkout round trip that only changes mtimes passes. A
+  package that does not opt in is only warned about, by mtime.
+  `metro/fresh-workspace-builds.js`.
+
+## 5.0.0
+
+### Breaking
+
+- `plugin/withOxyAndroidRelease` is removed; listing it throws with the fix.
+  Release signing moved to `@oxy.so/services/plugins/withOxySharedPermissions`
+  (services 13.4.0), which every Oxy Android app applies, directly or through
+  this preset, and it now FAILS CLOSED: a release build is always signed by
+  `signingConfigs.release` from the `OXY_UPLOAD_*` Gradle properties (new:
+  `OXY_UPLOAD_STORE_PASSWORD_FILE` / `OXY_UPLOAD_KEY_PASSWORD_FILE`, and the key
+  password defaults to the store's), and `oxyVerifyReleaseSigning` fails every
+  release variant whose certificate is not the ecosystem one. A debug-signed
+  Mention release, built without the properties, had taken ownership of
+  `so.oxy.permission.IDENTITY` / `DEVICE_SESSION` on a phone, and every correctly
+  signed Oxy app then failed with `INSTALL_FAILED_DUPLICATE_PERMISSION`. Debug
+  builds are unchanged unless `OXY_UPLOAD_SIGN_DEBUG=true` opts them in. Delete
+  the entry (and any app-local signing plugin).
+- The `@oxy.so/services` peer floor is `>=13.4.0`, and the preset refuses an
+  older Services: it would declare the permissions without release signing.
+
+### Changed
+
+- `['@oxy.so/app-preset', {}]` applies the R8 `-optimize` ProGuard swap that
+  `withOxyAndroidRelease` did (a no-op on Expo SDK 58, whose template already
+  uses it).
+
+## 4.1.0
+
+### Fixed
+
+- `import … from 'react-native'` on native no longer loses every name
+  NativeWind's `react-native-css/components` shim does not list. React Native
+  0.88 added `AssetRegistry`, which Expo SDK 58's `expo-asset` imports from
+  `'react-native'`; the shim lacked it, every `useFonts` failed with
+  `Cannot read property 'getAssetByID' of undefined`, and Android release builds
+  stayed on a blank screen. Metro now resolves that import to
+  `metro/react-native.js`: the shim's own getters unchanged, plus a forwarding
+  getter for each remaining name of React Native's index. No `node_modules`
+  patch is needed (upstream: nativewind/react-native-css#506, #504).
+
+### Added
+
+- `withCompleteReactNative(config, projectRoot)` from `@oxy.so/app-preset/metro`,
+  the same fix for an app that still composes `withNativeWind` itself. Apply it
+  last.
+
+## 4.0.0
+
+### Breaking
+
+- The Babel config no longer adds `babel-plugin-module-resolver`. `@/` resolves
+  from the app's `tsconfig.json` paths instead (`"@/*": ["./*"]`), which Metro
+  reads by default. An app that imports `@/…` without that path breaks, and its
+  Jest config needs `"^@/(.*)$": "<rootDir>/$1"` in `moduleNameMapper`.
+
+### Changed
+
+- In development the Babel config is exactly `babel-preset-expo`. Expo SDK 58's
+  oxc transformer, Noxcturnal, runs only when the Babel config resolves to the
+  bare Expo preset, and any extra plugin or option sends every file back to Babel.
+  The explicit `react-native-worklets/plugin` and `unstable_transformImportMeta`
+  are gone because `babel-preset-expo` 58 does both itself. The build-id inliner
+  now runs in production only; development already used a constant id.
+- The config plugin turns on `experiments.noxcturnalTransformWorker` in
+  development (`NODE_ENV !== 'production'`). Production builds stay on Babel:
+  Noxcturnal keeps the requires of dead platform branches, which pulled
+  `@livekit/react-native` into Mention's web bundle (+6.8% JS). Pass
+  `noxcturnal: false` to opt out; an app that sets the experiment keeps its value.
+  Measured in Mention with `noxcturnal` 0.1.9: cold Android dev bundle 55.5 s →
+  26.0 s, and web 92.9 s → 56.2 s. `noxcturnal` 0.1.5 (`@expo/metro-config`
+  58.0.15) fails on TS generic arrows in `.ts` files, so take `expo` 58.0.19 or
+  later.
+
 ## 3.6.1
 
 - Match Expo's development web root when `staticHydrationBoundary` is enabled.

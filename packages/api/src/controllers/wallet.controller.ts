@@ -1,3 +1,4 @@
+import { utf16MinLength } from '@oxy.so/contracts';
 import type { Response } from 'express';
 import { and, count, desc, eq, getTableColumns, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -25,23 +26,23 @@ import { TRANSACTION } from '../utils/constants';
 // =============================================================================
 
 const TRANSFER_SCHEMA = z.object({
-  fromUserId: z.string().min(1, 'From user ID is required'),
-  toUserId: z.string().min(1, 'To user ID is required'),
+  fromUserId: z.string().check(utf16MinLength(1, 'From user ID is required')),
+  toUserId: z.string().check(utf16MinLength(1, 'To user ID is required')),
   amount: z.number().positive('Amount must be positive'),
   description: z.string().optional(),
 });
 
 const WITHDRAWAL_SCHEMA = z.object({
-  userId: z.string().min(1, 'User ID is required'),
+  userId: z.string().check(utf16MinLength(1, 'User ID is required')),
   amount: z.number().positive('Amount must be positive'),
-  address: z.string().min(1, 'Address is required'),
+  address: z.string().check(utf16MinLength(1, 'Address is required')),
 });
 
 const PURCHASE_SCHEMA = z.object({
-  userId: z.string().min(1, 'User ID is required'),
+  userId: z.string().check(utf16MinLength(1, 'User ID is required')),
   amount: z.number().positive('Amount must be positive'),
-  itemId: z.string().min(1, 'Item ID is required'),
-  itemType: z.string().min(1, 'Item type is required'),
+  itemId: z.string().check(utf16MinLength(1, 'Item ID is required')),
+  itemType: z.string().check(utf16MinLength(1, 'Item type is required')),
   description: z.string().optional(),
 });
 
@@ -483,7 +484,7 @@ export const transferFunds = async (req: AuthRequest, res: Response): Promise<vo
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new BadRequestError('Invalid transfer data', { errors: error.errors });
+      throw new BadRequestError('Invalid transfer data', { errors: error.issues });
     }
     if (
       error instanceof UnauthorizedError ||
@@ -557,7 +558,7 @@ export const processPurchase = async (req: AuthRequest, res: Response): Promise<
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new BadRequestError('Invalid purchase data', { errors: error.errors });
+      throw new BadRequestError('Invalid purchase data', { errors: error.issues });
     }
     if (
       error instanceof UnauthorizedError ||
@@ -640,7 +641,7 @@ export const requestWithdrawal = async (req: AuthRequest, res: Response): Promis
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      throw new BadRequestError('Invalid withdrawal data', { errors: error.errors });
+      throw new BadRequestError('Invalid withdrawal data', { errors: error.issues });
     }
     if (
       error instanceof UnauthorizedError ||

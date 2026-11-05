@@ -201,7 +201,16 @@ export const REPO_WIDE_TESTS = [
 export const EXTRA_INPUTS = {
   // The identity-derivation test checks core against the vectors the Commons
   // native host is built from.
-  'packages/core': ['packages/commons/modules/oxy-identity-host/vectors.json'],
+  'packages/core': [
+    'packages/commons/modules/oxy-identity-host/vectors.json',
+    // Every build of a stamped package ends by writing its source stamp with
+    // app-preset's writer (`oxySourceStamp`, app-preset metro/source-stamp.js).
+    'packages/app-preset/metro/source-stamp.js',
+  ],
+  'packages/contracts': ['packages/app-preset/metro/source-stamp.js'],
+  'packages/protocol': ['packages/app-preset/metro/source-stamp.js'],
+  'packages/telemetry': ['packages/app-preset/metro/source-stamp.js'],
+  'packages/expo-splash': ['packages/app-preset/metro/source-stamp.js'],
 };
 
 /** Documentation that nothing in the suite reads. Everything else outside a workspace runs. */

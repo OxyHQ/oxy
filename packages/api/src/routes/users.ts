@@ -1,3 +1,5 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
+import type { NamedRouteParams } from '../types/routeParams';
 /**
  * User Routes
  *
@@ -63,7 +65,7 @@ import { buildExportBundle } from '../services/identityExport.service';
 import { SIGN_IN_ERROR_CODES, exportBundleSchema } from '@oxy.so/contracts';
 
 // Types
-interface AuthRequest extends Request {
+interface AuthRequest extends Request<NamedRouteParams> {
   user?: {
     id: string;
   };
@@ -122,7 +124,11 @@ async function assertDiscoverableTargetUser(userId: string): Promise<void> {
  * Resolves the userId parameter (account id or publicKey) to the account id and
  * stores it back in req.params.userId.
  */
-const resolveUserId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+const resolveUserId = async (
+  req: Request<NamedRouteParams>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { userId } = req.params;
 
@@ -646,7 +652,7 @@ router.post(
   '/by-ids',
   optionalUserOrServiceAuth,
   validate({ body: usersByIdsBodySchema }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { ids } = req.body as { ids: string[] };
 
     const users = await userService.getUsersByIds(ids);
@@ -779,11 +785,12 @@ router.get(
   '/me/graph',
   optionalUserOrServiceAuth,
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
-    // This endpoint returns private relationship data (blocks/restrictions), so
-    // only a user session may select its viewer. Service delegation is limited
-    // to public personalization and must not turn X-Oxy-User-Id into access to
-    // another user's private graph.
-    const viewerId = req.serviceApp ? undefined : resolveViewerId(req);
+    // Personal sessions and verified own requester context select their exact
+    // account. An external service header never selects a private graph.
+    const viewerId =
+      req.serviceApp && req.serviceApp.authority !== 'first_party'
+        ? undefined
+        : resolveViewerId(req);
 
     // Anonymous / no-user-context callers have no graph. Short-circuit with the
     // empty graph and never touch the cache (its keys are strictly per-viewer).
@@ -869,7 +876,7 @@ router.get(
   resolveUserId,
   validatePagination,
   validateFollowGraphSort,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const { limit, offset } = req.query as FollowGraphQuery;
     const sort = readFollowGraphSort(req);
@@ -911,7 +918,7 @@ router.get(
 router.get(
   '/:userId/moderators',
   resolveUserId,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     await assertDiscoverableTargetUser(userId);
     const moderators = await userService.getCommunityModerators(userId);
@@ -935,7 +942,7 @@ router.get(
   resolveUserId,
   validatePagination,
   validateFollowGraphSort,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const { limit, offset } = req.query as FollowGraphQuery;
     const sort = readFollowGraphSort(req);
@@ -1206,7 +1213,7 @@ router.post(
   '/search',
   optionalUserOrServiceAuth,
   validate({ body: searchUsersBodySchema }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     await usersController.searchUsers(req, res, () => {});
   }),
 );
@@ -1577,8 +1584,7 @@ router.put(
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
     // Scope gate — only service tokens explicitly granted `federation:write`
     // may create or update federated/agent/automated users.
-    const scopes = req.serviceApp?.scopes ?? [];
-    if (!scopes.includes('federation:write')) {
+    if (!hasServiceAuthority(req.serviceApp, 'federation:write')) {
       throw new ForbiddenError('Missing required scope: federation:write');
     }
 

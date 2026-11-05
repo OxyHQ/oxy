@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
@@ -7,7 +7,9 @@ import { Badge } from '@oxy.so/bloom/badge';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { fullWidthControl } from '@/constants/styles';
 import { Button } from '@oxy.so/bloom/button';
-import { View, StyleSheet, TextInput, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
+import { Chip } from '@oxy.so/bloom/chip';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import {
@@ -300,17 +302,16 @@ export default function NodeScreen() {
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.endpointLabel')}
           </Text>
-          <TextInput
+          <TextFieldInput
+            label={t('civic.nodes.form.endpointLabel')}
             value={endpoint}
             onChangeText={setEndpoint}
-            editable={!registerBusy}
+            disabled={registerBusy}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
             placeholder={t('civic.nodes.form.endpointPlaceholder')}
-            placeholderTextColor={colors.textSecondary}
             accessibilityLabel={t('civic.nodes.form.endpointLabel')}
-            style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
           <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
             {endpoint.trim().length > 0 && !endpointValid
@@ -323,16 +324,15 @@ export default function NodeScreen() {
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.publicKeyLabel')}
           </Text>
-          <TextInput
+          <TextFieldInput
+            label={t('civic.nodes.form.publicKeyLabel')}
             value={publicKey}
             onChangeText={setPublicKey}
-            editable={!registerBusy}
+            disabled={registerBusy}
             autoCapitalize="none"
             autoCorrect={false}
             placeholder={t('civic.nodes.form.publicKeyPlaceholder')}
-            placeholderTextColor={colors.textSecondary}
             accessibilityLabel={t('civic.nodes.form.publicKeyLabel')}
-            style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
           <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>
             {publicKey.trim().length > 0 && !publicKeyValid
@@ -347,24 +347,14 @@ export default function NodeScreen() {
           {(['pull', 'push'] as const).map((option) => {
             const selected = option === mode;
             return (
-              <TouchableOpacity
+              <Chip
                 key={option}
-                onPress={() => setMode(option)}
+                checked={selected}
                 disabled={registerBusy}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                style={[
-                  styles.modeChip,
-                  { borderColor: selected ? colors.tint : colors.border },
-                  selected && { backgroundColor: colors.primarySubtle },
-                ]}
+                onCheckedChange={() => setMode(option)}
               >
-                <Text
-                  style={[styles.modeChipText, { color: selected ? colors.tint : colors.text }]}
-                >
-                  {t(`civic.nodes.form.mode${option === 'pull' ? 'Pull' : 'Push'}`)}
-                </Text>
-              </TouchableOpacity>
+                {t(`civic.nodes.form.mode${option === 'pull' ? 'Pull' : 'Push'}`)}
+              </Chip>
             );
           })}
         </View>
@@ -654,14 +644,6 @@ const styles = StyleSheet.create({
   fieldHint: {
     fontSize: 13,
     lineHeight: 18,
-  },
-  input: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth,
-    fontSize: 15,
   },
   modeChip: {
     flex: 1,

@@ -2,6 +2,134 @@
 
 ## Unreleased
 
+### Added (OTA updates publish from GitHub Actions with no stored secret)
+
+GitHub trusted publishing (ADR 0057). An application trusts the GitHub
+repositories allowed to publish its OTA updates, each pinned to the repository's
+name AND numeric id, an exact ref (default `refs/heads/main`) and optionally one
+workflow file (migration `0231_github_trusted_publishers`). Oxy's own
+applications declare them in code (`trustedPublishers` in
+`seedOxyApplicationsSpecs.ts`, 18 apps declared; the seed makes the stored set
+exactly the declaration); a third-party application manages them at
+`GET|POST /applications/:appId/trusted-publishers` and
+`DELETE /applications/:appId/trusted-publishers/:publisherId` under the
+credential permissions, and writes to an Oxy application's are refused
+`409 FIRST_PARTY_TRUSTED_PUBLISHERS_IN_CODE`. A job then exchanges its GitHub
+Actions OIDC token at `POST /auth/service-token/github-actions`
+(`{ clientId, token }`): RS256 against GitHub's JWKS, exact issuer, `aud` this
+API's origin, `push`/`workflow_dispatch` only. The answer is the credential
+path's five-minute service token with exactly `updates:publish` and
+`credentialId: tp_<publisher id>`; the live resolver re-reads the publisher, its
+application and owner on every request, so deleting a publisher stops its tokens
+at once.
+
+### Fixed (a known external account resolves without asking its source again)
+
+`POST /federation/identities/resolve` re-fetched the source actor on every call,
+even for a handle Oxy already held, and answered 404 whenever that fetch failed.
+bird.makeup answers 404 for a freshly mirrored account on most requests, so an X
+account Oxy had just created (`elctrixr@x.com`, 2026-11-04) was "not found" by
+Mention's search on most later tries, each taking 1–4 s. A known handle is now
+answered from the registry, as profile reads already were, and its source is
+re-verified in the background once a day old. An `actorUri`, an unknown handle, an
+Instagram account (its Meta proof is decided at fetch time) and a never-verified
+legacy row still fetch. A failed discovery through bird.makeup is no longer
+remembered as an unresolvable handle: that 404 says nothing about the account, and
+remembering it made the profile page answer "not found" for five minutes.
+
+### Added (an MCP resource server asks which of its own permissions the person holds)
+
+`POST /auth/mcp/oauth/app-permissions` (service credential, body `{ token }`)
+answers `roles/me`'s contract, `{ applicationId, userId, permissions }`, for the
+person behind a live MCP access token. `roles/me` needs a session and an MCP
+request has none, so a website could only decide who gets its admin MCP tools
+from an `OXY_ADMIN_USER_IDS` allow-list. The proof is introspection's: the token
+must be for a resource the calling application registered (`401 invalid_grant`
+otherwise), the application is that one — there is no parameter to name
+another — and the person is the token's `sub`, whichever member account the
+connection is acting as. What the person holds comes from the same resolver as
+`roles/me` — `resolveApplicationPermissions`, now the one function both routes
+call — so the two answers cannot diverge. Read live; `Cache-Control: no-store`.
+No new scope. `OxyServer.appPermissionsFor(context.request)` (`@oxy.so/core`)
+reads it.
+
+### Changed (Oxy's own applications hold operator keys by role — ADR 0056)
+
+A first-party application declares its operator keys in the first-party registry
+(`operatorPermissions` in `src/scripts/seedOxyApplicationsSpecs.ts`), each naming
+the owning account's roles that hold it, and `seed-oxy-applications.ts` applies
+it: new keys declared, keys whose roles changed retired and declared again, keys
+missing from code retired, every per-person grant on the application revoked.
+`GET /applications/:appId/roles/me` (`permissionsHeldBy`) answers live grants
+plus the keys the person's effective role over the owning account holds.
+`PUT /roles/permissions` and `POST /roles/grants` on an application whose type is
+not `third_party` answer `409 FIRST_PARTY_ROLES_IN_CODE`; third-party
+applications are unchanged. `GET /roles/permissions` items carry
+`heldByAccountRoles`. Migration `0228` adds
+`application_role_permissions.held_by_account_roles` (pre-deploy, additive).
+GoWay, CrowdSource, the website, Syra, Mercaria and Homiio declare their keys,
+held by the owning organization's owners and admins.
+
+### Changed (Oxy One billing speaks `@peable.to/sdk` 1.0)
+
+The personal billing services call Peable through SDK 1.0's generated methods
+(`(…pathParams, params?, options?)`): `billing.cancelAtPeriodEnd(id, {}, { idempotencyKey })`
+and `billing.retrieveCheckoutOperation(idempotencyKey, identity)`, with the
+recovered source still compared field by field against the frozen checkout. An
+observation is the SDK's verified `WebhookEvent`: `constructEvent` already
+checks the signature, the timestamp window and the `billing.observation.updated`
+payload, so the local re-parse — strict about an envelope that had gained
+`livemode`, `api_version` and `request`, and therefore refusing every real
+delivery — is gone. The unused `createPeablePersonalBilling` wrapper is removed.
+The SDK now retries network failures, 5xx and 429 twice under the same
+`Idempotency-Key` and bounds each attempt at 80 s.
+
+### Added (`GET /accounts/:id` says what the caller may do: `callerAccess`)
+
+`GET /accounts/:id` — and the `PATCH` and `move` answers that return the same
+node — carries `callerAccess: { role, permissions, status: 'active', source }`,
+the caller's EFFECTIVE access in the `AccountAccessGrant` contract shape: the
+answer `requireAccountPermission` itself gates on. `callerMembership` could not
+say it for `self` (a person's own account, or an autonomous account operating
+itself): no membership row exists there, so it is `null` and a client reading
+`callerMembership.permissions` concluded that an owner could do nothing.
+`OxyServer.accountAccessFor` (`@oxy.so/core` 7.17.0) reads this field. Lists and
+trees are unchanged.
+
+### Fixed (an unknown Bluesky account is discovered by its handle)
+
+Discovering an external account by handle only tried WebFinger, which Bluesky
+does not speak, so a Bluesky account Oxy had never stored could not be found:
+`GET /profiles/username/frenteamplio.info@bsky.social` answered 404 and
+`POST /federation/identities/resolve` found nothing, while a known one resolved.
+A `<local>@bsky.social` handle now resolves to its DID through the AppView's
+`com.atproto.identity.resolveHandle`, and the identity is accepted only when the
+profile fetched by that DID names the same account back. `normalizeExternalHandle`
+also accepts a bare atproto handle (`frenteamplio.info`, `alice.bsky.social`), and
+the identity resolve accepts a DID in `handle`.
+
+### Changed (people search ranks by relevance; `GET /profiles/search` takes `type` and `kind`)
+
+`GET /profiles/search`, `GET /search` and `POST /users/search` ordered their
+matches native-first and then by reputation alone, so a query for `nate` put
+`notasdenate` and `nateiserntest` above the account named exactly `nate`, and
+remote actors that matched only in their bio above `natehill@…`. All three now
+apply one order (`peopleSearchOrder(term)`, `utils/profileQuery.ts`), before
+paging: relevance tier (exact username or federated handle, username prefix,
+exact name, name or name-word prefix, substring of username or name, anything
+else such as the description), then native before federated WITHIN a tier,
+reputation, the shorter username, and `id`. A federated actor whose handle IS
+the query therefore outranks a local account that only contains it. `POST
+/users/search` had no ORDER BY at all; its five rows are now the five best. The
+match set and the gates are unchanged, and no index is needed: the tier is
+computed over the already-matched rows (measured +7 ms on 3,333 matches).
+
+`GET /profiles/search` also accepts `type` (`local`, `federated`, `agent`,
+`automated`) and `kind` (`personal`, `organization`, …): only rows whose own
+`type` / `kind` equals the value, counted in `total`; an unknown value is a
+400. `type=local` is "Oxy accounts only" (a messaging app's new-chat picker)
+and skips remote fediverse discovery.
+
 ### Fixed (an upload's cleanup can no longer delete the object of a row being committed)
 
 A large upload or import that failed (`fileUploadSession.fail`,

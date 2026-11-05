@@ -1,13 +1,15 @@
+import { integerCheck } from '../numberChecks';
+import { isoDateTime, utf16MaxLength, utf16MinLength } from '../stringChecks';
 import { z } from 'zod';
 import { inferenceErrorSchema } from './errors';
 
-const inboxTextSchema = z.string().trim().min(1).max(20_000);
-const inboxMessageIdSchema = z.string().min(1).max(128);
+const inboxTextSchema = z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(20_000));
+const inboxMessageIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
 const DAILY_BRIEF_MIN_WINDOW_MS = 23 * 60 * 60 * 1_000;
 const DAILY_BRIEF_MAX_WINDOW_MS = 25 * 60 * 60 * 1_000;
 const inboxUtcTimestampSchema = z
   .string()
-  .datetime({ offset: false })
+  .check(isoDateTime({ offset: false }))
   .refine((value) => value.endsWith('Z'), 'Timestamp must use the UTC Z suffix');
 
 export const inboxComposeRequestSchema = z.discriminatedUnion('operation', [
@@ -41,7 +43,7 @@ export const inboxDailyBriefRequestSchema = z.object({
   startAt: inboxUtcTimestampSchema,
   endAt: inboxUtcTimestampSchema,
   /** BCP 47 tag of the language the brief is written in; English when absent. */
-  locale: z.string().regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/).max(35).optional(),
+  locale: z.string().regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/).check(utf16MaxLength(35)).optional(),
 }).strict().superRefine((value, context) => {
   const durationMs = Date.parse(value.endAt) - Date.parse(value.startAt);
   if (!Number.isFinite(durationMs) || durationMs <= 0) {
@@ -60,22 +62,22 @@ export const inboxDailyBriefRequestSchema = z.object({
     });
   }
 });
-export const inboxNaturalSearchRequestSchema = z.object({ query: z.string().trim().min(1).max(512) }).strict();
+export const inboxNaturalSearchRequestSchema = z.object({ query: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(512)) }).strict();
 export const inboxMessageInferenceParamsSchema = z.object({ messageId: inboxMessageIdSchema }).strict();
 
 export const inboxInferenceTextResponseSchema = z.object({
   schemaVersion: z.literal(1),
-  requestId: z.string().min(1).max(128),
-  generationId: z.string().min(1).max(128).optional(),
-  text: z.string().max(40_000),
+  requestId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  generationId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
+  text: z.string().check(utf16MaxLength(40_000)),
 }).strict();
 
 export const inboxNaturalSearchResponseSchema = z.object({
   query: z.object({
-    q: z.string().max(512).optional(),
-    from: z.string().max(320).optional(),
-    to: z.string().max(320).optional(),
-    subject: z.string().max(512).optional(),
+    q: z.string().check(utf16MaxLength(512)).optional(),
+    from: z.string().check(utf16MaxLength(320)).optional(),
+    to: z.string().check(utf16MaxLength(320)).optional(),
+    subject: z.string().check(utf16MaxLength(512)).optional(),
     hasAttachment: z.boolean().optional(),
     starred: z.boolean().optional(),
     unread: z.boolean().optional(),
@@ -83,7 +85,7 @@ export const inboxNaturalSearchResponseSchema = z.object({
     before: z.string().date().optional(),
     mailbox: z.enum(['inbox', 'sent', 'drafts', 'trash', 'spam', 'archive']).optional(),
   }).strict(),
-  interpretation: z.string().max(1000),
+  interpretation: z.string().check(utf16MaxLength(1000)),
 }).strict();
 
 /** Where the brief puts a message: it asks something of the owner, it is today's news, or it is still unread from before. */
@@ -97,53 +99,53 @@ export const INBOX_DAILY_BRIEF_SECTIONS = ['needs_you', 'today', 'earlier'] as c
  */
 export const inboxDailyBriefResponseSchema = z.object({
   schemaVersion: z.literal(1),
-  requestId: z.string().min(1).max(128),
-  generationId: z.string().min(1).max(128).optional(),
-  summary: z.string().max(400),
+  requestId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  generationId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
+  summary: z.string().check(utf16MaxLength(400)),
   /** Returned only when the caller opts in with `?includeActions=true`. */
   actions: z.array(z.object({
-    label: z.string().trim().min(1).max(40),
-    prompt: z.string().trim().min(1).max(600),
+    label: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(40)),
+    prompt: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(600)),
     messageIds: z.array(inboxMessageIdSchema).min(1).max(10),
   }).strict()).min(2).max(5).optional(),
   counts: z.object({
-    received: z.number().int().nonnegative(),
-    unread: z.number().int().nonnegative(),
-    starred: z.number().int().nonnegative(),
-    earlierUnread: z.number().int().nonnegative(),
+    received: z.number().check(integerCheck()).nonnegative(),
+    unread: z.number().check(integerCheck()).nonnegative(),
+    starred: z.number().check(integerCheck()).nonnegative(),
+    earlierUnread: z.number().check(integerCheck()).nonnegative(),
   }).strict(),
   items: z.array(z.object({
     messageId: inboxMessageIdSchema,
     section: z.enum(INBOX_DAILY_BRIEF_SECTIONS),
-    note: z.string().max(200),
-    from: z.object({ name: z.string().max(998).nullable(), address: z.string().max(320) }).strict(),
-    subject: z.string().max(998),
-    receivedAt: z.string().datetime(),
+    note: z.string().check(utf16MaxLength(200)),
+    from: z.object({ name: z.string().check(utf16MaxLength(998)).nullable(), address: z.string().check(utf16MaxLength(320)) }).strict(),
+    subject: z.string().check(utf16MaxLength(998)),
+    receivedAt: z.string().check(isoDateTime()),
     unread: z.boolean(),
     hasAttachments: z.boolean(),
   }).strict()).max(20),
 }).strict();
 
 export const inboxSmartRepliesResponseSchema = z.object({
-  replies: z.array(z.string().trim().min(1).max(500)).max(3),
+  replies: z.array(z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(500))).max(3),
 }).strict();
 
 export const inboxThreadSummaryResponseSchema = z.object({
-  summary: z.string().max(4000),
-  keyPoints: z.array(z.string().max(1000)).max(12),
+  summary: z.string().check(utf16MaxLength(4000)),
+  keyPoints: z.array(z.string().check(utf16MaxLength(1000))).max(12),
   actionItems: z.array(z.object({
-    text: z.string().max(1000),
-    owner: z.string().max(320).nullable(),
-    deadline: z.string().max(128).nullable(),
+    text: z.string().check(utf16MaxLength(1000)),
+    owner: z.string().check(utf16MaxLength(320)).nullable(),
+    deadline: z.string().check(utf16MaxLength(128)).nullable(),
   }).strict()).max(12),
 }).strict();
 
 export const inboxInferenceStreamEventSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('delta'), text: z.string().min(1).max(16_384) }).strict(),
+  z.object({ type: z.literal('delta'), text: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16_384)) }).strict(),
   z.object({
     type: z.literal('done'),
-    requestId: z.string().min(1).max(128),
-    generationId: z.string().min(1).max(128).optional(),
+    requestId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    generationId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   }).strict(),
   z.object({ type: z.literal('error'), error: inferenceErrorSchema }).strict(),
 ]);

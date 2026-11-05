@@ -1,9 +1,7 @@
-import { oxyAccountIdSchema } from '@oxy.so/contracts';
-import { createPeablePersonalCheckoutProvider } from './peablePersonalCheckout.service';
-import { createPublicKey } from 'node:crypto';
+import { integerCheck, safeNumberCheck, urlCheck } from '@oxy.so/contracts';
 import { readFile } from 'node:fs/promises';
 import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm';
-import { Peable } from '@peable.to/sdk';
+import type { Peable, PeableOxyHost, WebhookEvent } from '@peable.to/sdk';
 import { z } from 'zod';
 import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
 import { getDb } from '../config/postgres';
@@ -13,76 +11,94 @@ import {
   personalPlanCheckoutIntents,
 } from '../db/schema';
 import { logger } from '../utils/logger';
-import { peablePersonalManagementConfigurationSchema } from './peablePersonalManagement.service';
 import {
-  createPeableObservationVerifier,
-  createPeablePersonalEvidenceAuthority,
+  assertPeableBillingWorkloadConfiguration,
+  assertPeableBillingMerchant,
+  createPeableBillingClient,
+} from './peableBillingWorkload.service';
+import {
+  createPeablePersonalCheckoutProvider,
+  PEABLE_CUSTOMER_ACCOUNT_KEY,
+} from './peablePersonalCheckout.service';
+import {
+  peablePersonalManagementConfigurationSchema,
+  stopPeablePersonalManagement,
+} from './peablePersonalManagement.service';
+import {
   assertPeablePersonalReconciliationComplete,
-  handlePeablePersonalObservation,
   reconcilePeablePersonalInvoiceState,
+  reconcilePeablePersonalSubscriptionState,
   type PeablePersonalPaidContext,
 } from './peablePersonalEvidence.service';
 import {
+  peableInstantToIso,
+  peableReference,
+  readNativeSubscription,
+} from './peablePersonalBilling.service';
+import {
   closePersonalPlanCheckoutFromProvider,
-  startPersonalPlanCheckout,
   personalCheckoutSnapshotFromIntent,
   resumePersonalPlanCheckout,
   type PersonalCheckoutProvider,
 } from './personalPlanCheckout.service';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 
-const pinnedKeysSchema = z
-  .record(z.string().min(1), z.string().min(1))
-  .refine((keys) => Object.keys(keys).length > 0);
 export const peablePersonalRuntimeConfigurationSchema = peablePersonalManagementConfigurationSchema
   .extend({
-    invoiceIssuer: z
-      .object({ legalName: z.literal('Oxy Platforms, Inc.'), id: z.string().min(1) })
-      .strict(),
-    sellerId: z.string().min(1),
-    invoiceAuthorityKeys: pinnedKeysSchema,
-    taxQuoteAuthorityKeys: pinnedKeysSchema,
     purchasesEnabled: z.boolean(),
     checkout: z
       .object({
         returnUrl: z
           .string()
-          .url()
+          .check(urlCheck())
           .refine((value) => new URL(value).protocol === 'https:'),
-        taxRemitterId: z.string().min(1),
-        /** Reviewed Peable evidence references, not client country/IP guesses. */
-        customerLocationEvidence: z.record(z.string().min(1), z.string().min(1)),
       })
       .strict()
       .optional(),
-    observationsEnabled: z.boolean(),
+    eventsEnabled: z.boolean(),
     recoveryEnabled: z.boolean(),
-    recoveryIntervalMilliseconds: z.number().int().min(60_000).max(86_400_000),
+    recoveryIntervalMilliseconds: z.number().check(integerCheck()).min(60_000).max(86_400_000),
   })
   .strict()
   .refine(
     (value) => !value.purchasesEnabled || !!value.checkout,
-    'Purchases require fiscal/customer-location configuration',
+    'Purchases require a checkout return URL',
   );
 type RuntimeConfiguration = z.infer<typeof peablePersonalRuntimeConfigurationSchema>;
+
+/** The Peable events this runtime acts on. Each only says WHICH object to
+ * re-read; nothing in a delivery body is ever applied. */
+export const PEABLE_PERSONAL_EVENT_TYPES = [
+  'checkout.session.completed',
+  'checkout.session.expired',
+  'checkout.session.async_payment_succeeded',
+  'checkout.session.async_payment_failed',
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'customer.subscription.paused',
+  'customer.subscription.resumed',
+  'invoice.paid',
+  'invoice.payment_failed',
+  'invoice.voided',
+  'invoice.marked_uncollectible',
+  'charge.refunded',
+  'refund.created',
+  'refund.updated',
+  'refund.failed',
+] as const;
+
+const ignored = { status: 'ignored' as const };
 
 export function createPeablePersonalRuntime(
   client: Peable,
   rawConfiguration: RuntimeConfiguration,
-  observationSecret?: string,
+  webhookSecret?: string,
   dependencies: { checkoutProvider?: PersonalCheckoutProvider; clock?: () => Date } = {},
 ) {
   const configuration = peablePersonalRuntimeConfigurationSchema.parse(rawConfiguration);
-  for (const keys of [configuration.invoiceAuthorityKeys, configuration.taxQuoteAuthorityKeys]) {
-    for (const value of Object.values(keys)) {
-      if (createPublicKey(value).asymmetricKeyType !== 'ed25519')
-        throw new Error('Peable authority key must be Ed25519');
-    }
-  }
-  if (configuration.observationsEnabled && !observationSecret)
-    throw new Error('Peable observation verification unconfigured');
-  if (configuration.purchasesEnabled && !configuration.checkout)
-    throw new Error('Peable purchase fiscal/customer-location configuration missing');
+  if (configuration.eventsEnabled && !webhookSecret)
+    throw new Error('Peable event verification unconfigured');
   for (const offer of configuration.offers) {
     if (
       offer.kind === 'existing_product'
@@ -92,6 +108,8 @@ export function createPeablePersonalRuntime(
     )
       throw new Error('Reviewed product price required; Oxy One remains USD 29.99');
   }
+  const clock = dependencies.clock ?? (() => new Date());
+  const namespace = configuration.namespace;
   const checkoutProvider =
     configuration.purchasesEnabled && configuration.checkout
       ? createPeablePersonalCheckoutProvider(
@@ -99,61 +117,67 @@ export function createPeablePersonalRuntime(
           {
             merchantId: configuration.merchantId,
             applicationId: configuration.applicationId,
-            namespace: configuration.namespace,
-            sellerId: configuration.sellerId,
-            invoiceIssuerId: configuration.invoiceIssuer.id,
-            taxRemitterId: configuration.checkout.taxRemitterId,
+            namespace,
             returnUrl: configuration.checkout.returnUrl,
-            offers: configuration.offers
-              .map((offer) => ({
-                ...offer,
-                priceId: offer.providerPriceId,
-                amountMinorUnits:
-                  offer.kind === 'existing_product'
-                    ? z.number().int().positive().safe().parse(offer.amountMinorUnits)
-                    : 2999,
-                currency: 'USD' as const,
-                interval: offer.interval ?? 'month',
-                trial: 'none' as const,
-              }))
-              .map(({ providerPriceId: _providerPriceId, kind: _kind, ...offer }) => offer),
+            offers: configuration.offers.map((offer) => ({
+              offerId: offer.offerId,
+              offerVersion: offer.offerVersion,
+              priceId: offer.providerPriceId,
+              amountMinorUnits:
+                offer.kind === 'existing_product'
+                  ? z
+                      .number()
+                      .check(integerCheck())
+                      .positive()
+                      .check(safeNumberCheck())
+                      .parse(offer.amountMinorUnits)
+                  : 2999,
+              currency: 'USD' as const,
+              interval: offer.interval ?? 'month',
+              trial: 'none' as const,
+            })),
           },
-          dependencies.clock,
-          {
-            purchasesEnabled: true,
-            async resolveCustomerLocationEvidence(subjectAccountId) {
-              const id = configuration.checkout?.customerLocationEvidence[subjectAccountId];
-              if (!id) throw new Error('Peable trusted customer location unavailable');
-              return { customerLocationEvidenceId: id };
-            },
-          },
+          clock,
+          { purchasesEnabled: true },
         )
       : process.env.NODE_ENV === 'test'
         ? dependencies.checkoutProvider
         : undefined;
-  const sdkAuthority = createPeablePersonalEvidenceAuthority(client);
-  const authority = {
-    ...sdkAuthority,
-    readFinalInvoiceAuthority: async (
-      source: Parameters<NonNullable<typeof sdkAuthority.readFinalInvoiceAuthority>>[0],
-    ) => {
-      if (!sdkAuthority.readFinalInvoiceAuthority)
-        throw new Error('Peable invoice authority unconfigured');
-      const result = await sdkAuthority.readFinalInvoiceAuthority(source);
-      z.object({
-        sellerId: z.literal(configuration.sellerId),
-        invoiceIssuerId: z.literal(configuration.invoiceIssuer.id),
-      }).parse(result.invoice);
-      return result;
-    },
+
+  const mappingFor = (priceId: string) => {
+    const mappings = configuration.offers.filter((value) => value.providerPriceId === priceId);
+    if (mappings.length !== 1) throw new Error('Peable personal offer mapping unavailable');
+    return mappings[0];
   };
-  const verify =
-    configuration.observationsEnabled && observationSecret
-      ? createPeableObservationVerifier(client, observationSecret)
-      : undefined;
+  /** The customer is Oxy's only if it carries this account's key. */
+  const assertCustomerAccount = async (customerId: string, accountId: string) => {
+    const customer = await client.customers.retrieve(customerId);
+    if (
+      'deleted' in customer ||
+      customer.id !== customerId ||
+      customer.metadata[PEABLE_CUSTOMER_ACCOUNT_KEY] !== accountId
+    )
+      throw new Error('Peable customer account differs');
+  };
+
+  async function sourceBySubscription(subscriptionId: string) {
+    const [source] = await getDb()
+      .select({ id: accessSubscriptionSources.id })
+      .from(accessSubscriptionSources)
+      .where(
+        and(
+          eq(accessSubscriptionSources.provider, 'peable'),
+          eq(accessSubscriptionSources.providerSubscriptionId, subscriptionId),
+          eq(accessSubscriptionSources.providerAccountRef, configuration.merchantId),
+          eq(accessSubscriptionSources.mode, namespace.mode),
+          eq(accessSubscriptionSources.environment, namespace.environment),
+        ),
+      );
+    return source?.id;
+  }
 
   async function loadContext(sourceId: string): Promise<PeablePersonalPaidContext> {
-    await assertBillingDatabaseNamespace(getDb(), configuration.namespace);
+    await assertBillingDatabaseNamespace(getDb(), namespace);
     const [source] = await getDb()
       .select()
       .from(accessSubscriptionSources)
@@ -162,38 +186,32 @@ export function createPeablePersonalRuntime(
           eq(accessSubscriptionSources.id, sourceId),
           eq(accessSubscriptionSources.provider, 'peable'),
           eq(accessSubscriptionSources.providerAccountRef, configuration.merchantId),
-          eq(accessSubscriptionSources.mode, configuration.namespace.mode),
-          eq(accessSubscriptionSources.environment, configuration.namespace.environment),
+          eq(accessSubscriptionSources.mode, namespace.mode),
+          eq(accessSubscriptionSources.environment, namespace.environment),
         ),
       );
     if (!source || source.payerAccountId !== source.beneficiaryAccountId)
       throw new Error('Peable personal source unavailable');
-    const subscription = await client.billing.retrieveSubscription(source.providerSubscriptionId);
-    const mappings = configuration.offers.filter(
-      (value) =>
-        value.planId === subscription.planId &&
-        value.providerPriceId === subscription.providerPriceId,
+    const subscription = readNativeSubscription(
+      await client.subscriptions.retrieve(source.providerSubscriptionId),
     );
+    const mapping = mappingFor(subscription.priceId);
     if (
-      mappings.length !== 1 ||
-      subscription.storeId !== source.payerAccountId ||
-      subscription.providerSubscriptionId !== source.providerSubscriptionId ||
-      subscription.livemode !== (configuration.namespace.mode === 'live') ||
-      subscription.interval !== (mappings[0]?.interval ?? 'month') ||
-      subscription.trialEndsAt !== null
+      subscription.id !== source.providerSubscriptionId ||
+      subscription.livemode !== (namespace.mode === 'live') ||
+      subscription.interval !== (mapping.interval ?? 'month') ||
+      subscription.trialEnd !== null
     )
       throw new Error('Peable personal source binding differs');
-    const mapping = mappings[0];
+    await assertCustomerAccount(subscription.customerId, source.payerAccountId);
+    const origin = mapping.kind === 'existing_product' ? 'individual' : 'bundle';
     const segments = await getDb()
       .select()
       .from(accessOfferSegments)
       .where(
         and(
           eq(accessOfferSegments.subscriptionId, source.id),
-          eq(
-            accessOfferSegments.origin,
-            mapping.kind === 'existing_product' ? 'individual' : 'bundle',
-          ),
+          eq(accessOfferSegments.origin, origin),
           eq(accessOfferSegments.offerId, mapping.offerId),
           eq(accessOfferSegments.offerVersion, mapping.offerVersion),
         ),
@@ -204,7 +222,7 @@ export function createPeablePersonalRuntime(
       (value) =>
         value.provider === 'peable' &&
         value.kind === (mapping.kind ?? 'oxy_one') &&
-        value.offerKind === (mapping.kind === 'existing_product' ? 'individual' : 'bundle') &&
+        value.offerKind === origin &&
         value.providerAccountId === configuration.merchantId &&
         value.mode === source.mode &&
         value.environment === source.environment &&
@@ -219,13 +237,12 @@ export function createPeablePersonalRuntime(
     if (prices.length !== 1) throw new Error('Peable personal price authority unavailable');
     return {
       accountId: source.payerAccountId,
-      customerId: subscription.providerCustomerId,
+      customerId: subscription.customerId,
       subscriptionId: source.providerSubscriptionId,
       priceId: mapping.providerPriceId,
-      planId: mapping.planId,
       merchantId: configuration.merchantId,
       appId: configuration.applicationId,
-      ...configuration.namespace,
+      ...namespace,
       offerId: mapping.offerId,
       offerVersion: mapping.offerVersion,
       amountMinorUnits: prices[0].amountMinorUnits,
@@ -233,233 +250,269 @@ export function createPeablePersonalRuntime(
       origin: prices[0].offerKind,
     };
   }
-  return {
-    configuration,
-    management: { configuration, client },
-    authority,
-    checkoutProvider,
-    async renew(accountId: string, sourceId: string, idempotencyKey: string) {
-      if (!checkoutProvider)
-        return { state: 'unconfigured' as const, reason: 'provider_unconfigured' as const };
-      const context = await loadContext(sourceId);
-      if (context.accountId !== accountId) throw new Error('Renewal payer differs');
-      const catalogue = await loadProductBillingCatalogue();
-      const offer = catalogue.offers.find(
-        (value) => value.id === context.offerId && value.version === context.offerVersion,
+
+  async function intentWhere(condition: ReturnType<typeof eq>) {
+    const [intent] = await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(
+        and(
+          condition,
+          eq(personalPlanCheckoutIntents.priceProvider, 'peable'),
+          eq(personalPlanCheckoutIntents.providerAccountRef, configuration.merchantId),
+          eq(personalPlanCheckoutIntents.mode, namespace.mode),
+          eq(personalPlanCheckoutIntents.environment, namespace.environment),
+        ),
       );
-      if (!offer) throw new Error('Renewal offer unavailable');
-      const productId = offer.kind === 'individual' ? offer.benefits[0]?.productId : undefined;
-      return startPersonalPlanCheckout(
-        accountId,
-        {
-          expectedSubjectAccountId: oxyAccountIdSchema.parse(accountId),
-          offerId: context.offerId,
-          offerVersion: context.offerVersion,
-          idempotencyKey,
-        },
-        { catalogue, provider: checkoutProvider, productId, renewalSourceId: sourceId },
-      );
-    },
-    async recoverCheckout(intentId: string) {
-      if (!configuration.recoveryEnabled) throw new Error('Peable recovery disabled');
-      await assertBillingDatabaseNamespace(getDb(), configuration.namespace);
-      const [intent] = await getDb()
-        .select()
-        .from(personalPlanCheckoutIntents)
-        .where(
-          and(
-            eq(personalPlanCheckoutIntents.id, intentId),
-            eq(personalPlanCheckoutIntents.priceProvider, 'peable'),
-            eq(personalPlanCheckoutIntents.providerAccountRef, configuration.merchantId),
-            eq(personalPlanCheckoutIntents.mode, configuration.namespace.mode),
-            eq(personalPlanCheckoutIntents.environment, configuration.namespace.environment),
-          ),
-        );
-      if (!intent) throw new Error('Peable checkout intent unavailable');
-      if (intent.state === 'closed' || intent.state === 'fulfilled')
-        return { status: 'no_invoice' as const };
-      if (!intent.providerSessionId) {
-        const frozen = personalCheckoutSnapshotFromIntent(intent);
-        if (frozen && client.billing.retrieveCheckoutOperation) {
-          const input = {
-            idempotencyKey: `personal-checkout:${intent.id}`,
-            providerCustomerId: frozen.customerId,
-            providerPriceId: frozen.priceId,
-            storeId: frozen.subjectAccountId,
-            planId: frozen.planId,
-          };
-          const recovered = await client.billing.retrieveCheckoutOperation(input);
-          const expected = {
-            ...input,
-            taxQuoteId: frozen.taxQuote.quote.id,
-            merchantId: frozen.merchantId,
-            appId: frozen.applicationId,
-            mode: frozen.mode,
-            environment: frozen.environment,
-          };
-          if (recovered.state === 'succeeded') {
-            if (
-              Object.entries(expected).some(
-                ([key, value]) => recovered.source[key as keyof typeof recovered.source] !== value,
-              )
-            )
-              throw new Error('Recovered checkout operation differs from frozen authority');
-            const session = z
-              .object({
-                id: z.string().min(1).max(160),
-                expiresAt: z.string().datetime(),
-                url: z.string().url().startsWith('https://').optional(),
-              })
-              .parse(recovered.checkout);
-            await getDb()
-              .update(personalPlanCheckoutIntents)
-              .set({
-                providerSessionId: session.id,
-                providerSessionExpiresAt: new Date(session.expiresAt),
-                checkoutUrl: session.url ?? null,
-                state: 'pending',
-              })
-              .where(
-                and(
-                  eq(personalPlanCheckoutIntents.id, intent.id),
-                  isNull(personalPlanCheckoutIntents.providerSessionId),
-                  eq(personalPlanCheckoutIntents.taxQuoteRef, frozen.taxQuote.quote.id),
-                  inArray(personalPlanCheckoutIntents.state, ['reserved', 'pending']),
-                ),
-              );
-            return { status: 'checkout_pending' as const };
-          }
-        }
-        if (checkoutProvider)
-          await resumePersonalPlanCheckout(intent.id, {
-            provider: checkoutProvider,
-            now: dependencies.clock?.(),
-          });
-        return { status: 'checkout_pending' as const };
-      }
-      const snapshot = personalCheckoutSnapshotFromIntent(intent);
-      if (
-        !snapshot ||
-        snapshot.applicationId !== configuration.applicationId ||
-        snapshot.merchantId !== configuration.merchantId ||
-        snapshot.mode !== configuration.namespace.mode ||
-        snapshot.environment !== configuration.namespace.environment ||
-        snapshot.taxQuote.source.storeId !== intent.subjectAccountId ||
-        snapshot.taxQuote.source.planId !== snapshot.planId
-      )
-        throw new Error('Peable checkout snapshot unavailable or differs');
-      const merchant = await client.merchants.retrieve();
-      if (
-        merchant.id !== configuration.merchantId ||
-        merchant.oxyAppId !== configuration.applicationId ||
-        merchant.environment !== configuration.namespace.environment
-      )
-        throw new Error('Peable checkout credential owner differs');
-      const session = await client.billing.retrieveCheckout(intent.providerSessionId);
-      if (
-        session.id !== intent.providerSessionId ||
-        session.storeId !== snapshot.subjectAccountId ||
-        session.planId !== snapshot.planId ||
-        session.providerCustomerId !== snapshot.customerId ||
-        session.providerPriceId !== snapshot.priceId
-      )
-        throw new Error('Peable checkout observation binding differs');
-      if (session.status === 'expired') {
-        if (session.subscription !== null) return { status: 'checkout_pending' as const };
-        await closePersonalPlanCheckoutFromProvider({
-          intentId: intent.id,
-          subjectAccountId: intent.subjectAccountId,
-          providerSessionId: intent.providerSessionId,
-          providerAccountRef: configuration.merchantId,
-          ...configuration.namespace,
-          reason: 'expired',
+    return intent;
+  }
+
+  /** The subscription a completed session started: the engine stamps the
+   * session on it, and it must be this customer's. */
+  async function subscriptionForSession(sessionId: string, customerId: string) {
+    const found = await client.subscriptions.search({
+      query: `metadata['checkout_session']:'${sessionId}'`,
+      limit: 2,
+    });
+    if (found.has_more || found.data.length > 1)
+      throw new Error('Peable checkout subscription is ambiguous');
+    if (!found.data[0]) return undefined;
+    const subscription = readNativeSubscription(found.data[0]);
+    if (subscription.checkoutSessionId !== sessionId || subscription.customerId !== customerId)
+      throw new Error('Peable checkout subscription binding differs');
+    return subscription;
+  }
+
+  async function recoverCheckout(intentId: string) {
+    if (!configuration.recoveryEnabled && !configuration.eventsEnabled)
+      throw new Error('Peable recovery disabled');
+    await assertBillingDatabaseNamespace(getDb(), namespace);
+    const intent = await intentWhere(eq(personalPlanCheckoutIntents.id, intentId));
+    if (!intent) throw new Error('Peable checkout intent unavailable');
+    if (intent.state === 'closed' || intent.state === 'fulfilled')
+      return { status: 'no_invoice' as const };
+    const snapshot = personalCheckoutSnapshotFromIntent(intent);
+    if (!intent.providerSessionId) {
+      // A crash after Peable created the session but before Oxy stored it:
+      // adopt the session this intent made rather than opening a second one.
+      if (snapshot) {
+        const sessions = await client.checkout.sessions.list({
+          customer: snapshot.customerId,
+          limit: 100,
         });
-        return { status: 'no_invoice' as const };
+        const own = sessions.data.filter((session) => session.client_reference_id === intent.id);
+        if (own.length > 1) throw new Error('Peable checkout sessions are ambiguous');
+        const session = own[0];
+        if (session?.url) {
+          await getDb()
+            .update(personalPlanCheckoutIntents)
+            .set({
+              providerSessionId: session.id,
+              providerSessionExpiresAt: new Date(peableInstantToIso(session.expires_at)),
+              checkoutUrl: session.url,
+              state: 'pending',
+            })
+            .where(
+              and(
+                eq(personalPlanCheckoutIntents.id, intent.id),
+                isNull(personalPlanCheckoutIntents.providerSessionId),
+                inArray(personalPlanCheckoutIntents.state, ['reserved', 'pending']),
+              ),
+            );
+          return { status: 'checkout_pending' as const };
+        }
       }
-      const subscription = session.subscription;
-      if (session.status !== 'complete' || !subscription || !session.initialInvoiceId)
-        return { status: 'checkout_pending' as const };
-      if (
-        subscription.storeId !== snapshot.subjectAccountId ||
-        subscription.planId !== snapshot.planId ||
-        subscription.providerCustomerId !== snapshot.customerId ||
-        subscription.providerPriceId !== snapshot.priceId ||
-        subscription.livemode !== (snapshot.mode === 'live') ||
-        subscription.interval !== intent.billingInterval ||
-        subscription.trialEndsAt !== null
-      )
-        throw new Error('Peable checkout subscription binding differs');
-      const context: PeablePersonalPaidContext = {
+      if (checkoutProvider)
+        await resumePersonalPlanCheckout(intent.id, { provider: checkoutProvider, now: clock() });
+      return { status: 'checkout_pending' as const };
+    }
+    if (
+      !snapshot ||
+      snapshot.applicationId !== configuration.applicationId ||
+      snapshot.merchantId !== configuration.merchantId ||
+      snapshot.mode !== namespace.mode ||
+      snapshot.environment !== namespace.environment
+    )
+      throw new Error('Peable checkout snapshot unavailable or differs');
+    await assertPeableBillingMerchant(client, configuration);
+    const session = await client.checkout.sessions.retrieve(intent.providerSessionId);
+    if (
+      session.id !== intent.providerSessionId ||
+      session.mode !== 'subscription' ||
+      session.client_reference_id !== intent.id ||
+      peableReference(session.customer) !== snapshot.customerId
+    )
+      throw new Error('Peable checkout session binding differs');
+    if (session.status === 'open') return { status: 'checkout_pending' as const };
+    const subscription = await subscriptionForSession(session.id, snapshot.customerId);
+    if (session.status === 'expired') {
+      if (subscription) return { status: 'checkout_pending' as const };
+      await closePersonalPlanCheckoutFromProvider({
+        intentId: intent.id,
+        subjectAccountId: intent.subjectAccountId,
+        providerSessionId: intent.providerSessionId,
+        providerAccountRef: configuration.merchantId,
+        ...namespace,
+        reason: 'expired',
+      });
+      return { status: 'no_invoice' as const };
+    }
+    if (!subscription) return { status: 'checkout_pending' as const };
+    if (
+      subscription.priceId !== snapshot.priceId ||
+      subscription.livemode !== (namespace.mode === 'live') ||
+      subscription.interval !== intent.billingInterval ||
+      subscription.trialEnd !== null
+    )
+      throw new Error('Peable checkout subscription binding differs');
+    // The checkout owns its immutable first invoice; the latest invoice may
+    // already be a renewal when a delayed completion is recovered.
+    const invoices = await client.invoices.list({ subscription: subscription.id, limit: 100 });
+    const initial = invoices.data.filter(
+      (invoice) => invoice.billing_reason === 'subscription_create',
+    );
+    if (initial.length !== 1) throw new Error('Peable initial invoice unavailable');
+    return reconcilePeablePersonalInvoiceState(
+      client,
+      {
         accountId: snapshot.subjectAccountId,
         customerId: snapshot.customerId,
-        subscriptionId: subscription.providerSubscriptionId,
+        subscriptionId: subscription.id,
         priceId: snapshot.priceId,
-        planId: snapshot.planId,
         merchantId: snapshot.merchantId,
         appId: snapshot.applicationId,
-        ...configuration.namespace,
+        ...namespace,
         offerId: snapshot.offerId,
         offerVersion: snapshot.offerVersion,
         checkoutIntentId: intent.id,
         amountMinorUnits: intent.amountMinorUnits,
         interval: intent.billingInterval,
         origin: intent.offerKind,
-      };
-      // The checkout owns its immutable first invoice. latestInvoiceId may already
-      // name a renewal when a delayed checkout callback is recovered.
-      const scopedAuthority = {
-        ...authority,
-        readFinalInvoiceAuthority: async (
-          source: Parameters<typeof authority.readFinalInvoiceAuthority>[0],
-        ) => {
-          const final = await authority.readFinalInvoiceAuthority(source);
-          const invoice = z
-            .object({
-              taxQuoteId: z.literal(snapshot.taxQuote.quote.id),
-              sellerId: z.literal(snapshot.taxQuote.quote.sellerId),
-              invoiceIssuerId: z.literal(snapshot.taxQuote.quote.invoiceIssuerId),
-              customerLocationEvidenceId: z.literal(
-                snapshot.taxQuote.quote.customerLocationEvidenceId,
-              ),
-              taxRateEvidenceId: z.literal(snapshot.taxQuote.quote.taxRateEvidenceId),
-              currency: z.literal('USD'),
-              grossMinorUnits: z.literal(intent.amountMinorUnits),
-              netMinorUnits: z.literal(snapshot.taxQuote.quote.netMinorUnits),
-              taxMinorUnits: z.literal(snapshot.taxQuote.quote.taxMinorUnits),
-              taxTreatment: z.literal('inclusive'),
-            })
-            .parse(final.invoice);
-          if (!invoice.taxQuoteId) throw new Error('Peable initial invoice authority unavailable');
-          return final;
-        },
-      };
-      return reconcilePeablePersonalInvoiceState(
-        scopedAuthority,
-        context,
-        session.initialInvoiceId,
-        dependencies.clock,
-      );
-    },
-    async observe(sourceId: string, rawBody: string, signature: string) {
-      if (!verify) throw new Error('Peable observations disabled');
-      // Authenticate before source lookup or any owned SDK read. The handler
-      // verifies again before interpreting bytes; only persisted context grants.
-      verify(rawBody, signature);
-      const context = await loadContext(sourceId);
-      return handlePeablePersonalObservation(authority, context, rawBody, signature, verify);
+      },
+      initial[0].id,
+      clock,
+    );
+  }
+
+  /** A subscription Oxy has no source for yet is either one its checkout is
+   * still recording, or not Oxy's. */
+  async function recoverUnrecordedSubscription(subscriptionId: string) {
+    const subscription = readNativeSubscription(
+      await client.subscriptions.retrieve(subscriptionId),
+    );
+    if (!subscription.checkoutSessionId) return ignored;
+    const intent = await intentWhere(
+      eq(personalPlanCheckoutIntents.providerSessionId, subscription.checkoutSessionId),
+    );
+    if (!intent) return ignored;
+    return recoverCheckout(intent.id);
+  }
+
+  async function reconcileInvoice(invoiceId: string) {
+    const invoice = await client.invoices.retrieve(invoiceId);
+    const subscriptionId = peableReference(invoice.subscription);
+    if (!subscriptionId) return ignored;
+    const sourceId = await sourceBySubscription(subscriptionId);
+    if (!sourceId) return recoverUnrecordedSubscription(subscriptionId);
+    return reconcilePeablePersonalInvoiceState(
+      client,
+      await loadContext(sourceId),
+      invoiceId,
+      clock,
+    );
+  }
+
+  async function handleEvent(event: WebhookEvent) {
+    await assertBillingDatabaseNamespace(getDb(), namespace);
+    if (event.livemode !== (namespace.mode === 'live'))
+      throw new Error('Peable event mode differs');
+    const object = event.data.object as { id?: unknown; client_reference_id?: unknown };
+    const objectId = typeof object.id === 'string' ? object.id : undefined;
+    if (!objectId) return ignored;
+    switch (event.type) {
+      case 'checkout.session.completed':
+      case 'checkout.session.expired':
+      case 'checkout.session.async_payment_succeeded':
+      case 'checkout.session.async_payment_failed': {
+        const intent =
+          (await intentWhere(eq(personalPlanCheckoutIntents.providerSessionId, objectId))) ??
+          (typeof object.client_reference_id === 'string'
+            ? await intentWhere(eq(personalPlanCheckoutIntents.id, object.client_reference_id))
+            : undefined);
+        // Never trust the reference alone: the session read inside the
+        // recovery must name this intent and its customer.
+        return intent ? recoverCheckout(intent.id) : ignored;
+      }
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted':
+      case 'customer.subscription.paused':
+      case 'customer.subscription.resumed': {
+        const sourceId = await sourceBySubscription(objectId);
+        if (!sourceId) return recoverUnrecordedSubscription(objectId);
+        return reconcilePeablePersonalSubscriptionState(
+          client,
+          await loadContext(sourceId),
+          sourceId,
+          clock,
+        );
+      }
+      case 'invoice.paid':
+      case 'invoice.payment_failed':
+      case 'invoice.voided':
+      case 'invoice.marked_uncollectible':
+        return reconcileInvoice(objectId);
+      case 'charge.refunded':
+      case 'refund.created':
+      case 'refund.updated':
+      case 'refund.failed': {
+        const paymentIntentId = peableReference(
+          (event.data.object as { payment_intent?: string | { id: string } | null }).payment_intent,
+        );
+        if (!paymentIntentId) return ignored;
+        const payment = await client.paymentIntents.retrieve(paymentIntentId);
+        const invoiceId = payment.metadata.invoice;
+        return invoiceId ? reconcileInvoice(invoiceId) : ignored;
+      }
+      default:
+        return ignored;
+    }
+  }
+
+  return {
+    configuration,
+    management: { configuration, client },
+    checkoutProvider,
+    recoverCheckout,
+    /** One signed delivery. The SDK verifies the signature and the timestamp
+     * window before anything is read; the event then only names objects. */
+    async receive(rawBody: string, signature: string) {
+      if (!configuration.eventsEnabled || !webhookSecret) throw new Error('Peable events disabled');
+      if (Buffer.byteLength(rawBody) > 1_048_576) throw new Error('Peable event body too large');
+      const event = client.webhooks.constructEvent(rawBody, signature, webhookSecret);
+      return handleEvent(event);
     },
     async recover(sourceId: string) {
       if (!configuration.recoveryEnabled) throw new Error('Peable recovery disabled');
       const context = await loadContext(sourceId);
-      const subscription = await client.billing.retrieveSubscription(context.subscriptionId);
-      if (!subscription.latestInvoiceId) return { status: 'no_invoice' as const };
-      return reconcilePeablePersonalInvoiceState(authority, context, subscription.latestInvoiceId);
+      const subscription = readNativeSubscription(
+        await client.subscriptions.retrieve(context.subscriptionId),
+      );
+      if (!subscription.latestInvoiceId)
+        return reconcilePeablePersonalSubscriptionState(client, context, sourceId, clock);
+      return reconcilePeablePersonalInvoiceState(
+        client,
+        context,
+        subscription.latestInvoiceId,
+        clock,
+      );
     },
   };
 }
 
 type PeablePersonalRuntime = ReturnType<typeof createPeablePersonalRuntime>;
 let runtime: PeablePersonalRuntime | undefined;
+let disposeRuntimeClient: (() => void) | undefined;
 let recoveryTimer: ReturnType<typeof setInterval> | undefined;
 interface PeablePersonalRecoverySummary {
   scanned: number;
@@ -474,38 +527,34 @@ export function getPeablePersonalRuntime() {
   return runtime;
 }
 
-export async function initializePeablePersonalRuntime(dependencies: { client?: Peable } = {}) {
+export async function initializePeablePersonalRuntime(
+  dependencies: { client?: Peable; oxy?: PeableOxyHost } = {},
+) {
   if (process.env.OXY_ONE_PEABLE_RUNTIME_ENABLED !== 'true') return;
   if (runtime) return;
+  assertPeableBillingWorkloadConfiguration(!!dependencies.client || !!dependencies.oxy);
   const path = process.env.OXY_ONE_PEABLE_RUNTIME_FILE;
-  const publicKey = process.env.OXY_ONE_PEABLE_PUBLIC_KEY,
-    secret = process.env.OXY_ONE_PEABLE_SECRET;
-  if (!path || !publicKey || !secret) throw new Error('Peable personal runtime unconfigured');
+  if (!path) throw new Error('Peable personal runtime unconfigured');
   const configuration = peablePersonalRuntimeConfigurationSchema.parse(
     JSON.parse(await readFile(path, 'utf8')),
   );
   await assertBillingDatabaseNamespace(getDb(), configuration.namespace);
-  const client =
-    dependencies.client ??
-    new Peable({
-      publicKey,
-      secret,
-      invoiceAuthorityKeys: configuration.invoiceAuthorityKeys,
-      taxQuoteAuthorityKeys: configuration.taxQuoteAuthorityKeys,
-    });
-  const created = createPeablePersonalRuntime(
-    client,
-    configuration,
-    process.env.OXY_ONE_PEABLE_OBSERVATION_SECRET,
-  );
-  const merchant = await client.merchants.retrieve();
-  if (
-    merchant.id !== configuration.merchantId ||
-    merchant.oxyAppId !== configuration.applicationId ||
-    merchant.environment !== configuration.namespace.environment
-  )
-    throw new Error('Peable personal credential owner differs');
-  runtime = created;
+  const owned = dependencies.client ? undefined : createPeableBillingClient(dependencies.oxy);
+  const client = dependencies.client ?? owned?.client;
+  if (!client) throw new Error('Peable billing workload unavailable');
+  try {
+    const created = createPeablePersonalRuntime(
+      client,
+      configuration,
+      process.env.OXY_ONE_PEABLE_WEBHOOK_SECRET,
+    );
+    await assertPeableBillingMerchant(client, configuration);
+    runtime = created;
+    disposeRuntimeClient = owned?.dispose;
+  } catch (error) {
+    owned?.dispose();
+    throw error;
+  }
   if (configuration.recoveryEnabled) {
     recoveryTimer = setInterval(() => {
       if (recoveryInFlight) return;
@@ -514,6 +563,38 @@ export async function initializePeablePersonalRuntime(dependencies: { client?: P
       });
     }, configuration.recoveryIntervalMilliseconds);
     recoveryTimer.unref();
+  }
+}
+
+let startRetryTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * The boot entry. A runtime that cannot start — Peable unreachable, the
+ * workload's merchant readback refused, a bad file — must not keep the identity
+ * API from serving: every Oxy app calls it fail-closed, and Peable's outage would
+ * otherwise become Oxy's on the next task start. Purchases stay unavailable (no
+ * checkout provider, so every catalogue answers `purchase: unavailable`) and the
+ * start is retried until it succeeds; each failure is logged at error level.
+ */
+export async function startPeablePersonalRuntime(
+  options: {
+    retryMilliseconds?: number;
+    dependencies?: Parameters<typeof initializePeablePersonalRuntime>[0];
+  } = {},
+): Promise<void> {
+  const retryMilliseconds = options.retryMilliseconds ?? 60_000;
+  try {
+    await initializePeablePersonalRuntime(options.dependencies);
+  } catch (error) {
+    logger.error('Peable personal runtime failed to start; purchases unavailable, retrying', {
+      error: error instanceof Error ? error.message : String(error),
+      retryMilliseconds,
+    });
+    if (startRetryTimer) clearTimeout(startRetryTimer);
+    startRetryTimer = setTimeout(() => {
+      startRetryTimer = undefined;
+      void startPeablePersonalRuntime(options);
+    }, retryMilliseconds);
+    startRetryTimer.unref();
   }
 }
 
@@ -589,10 +670,15 @@ export async function recoverPeablePersonalSources(): Promise<PeablePersonalReco
   return summary;
 }
 export async function stopPeablePersonalRuntime() {
+  if (startRetryTimer) clearTimeout(startRetryTimer);
+  startRetryTimer = undefined;
   if (recoveryTimer) clearInterval(recoveryTimer);
   recoveryTimer = undefined;
   await recoveryInFlight;
   runtime = undefined;
+  disposeRuntimeClient?.();
+  disposeRuntimeClient = undefined;
+  await stopPeablePersonalManagement();
   recoveryCursor = undefined;
   checkoutRecoveryCursor = undefined;
 }

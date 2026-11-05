@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Oxy Updates (self-hosted expo-updates protocol) — publish/admin API contracts.
  *
@@ -54,15 +56,15 @@ export const sha256HexSchema = z
  */
 export const channelNameSchema = z
   .string()
-  .min(1)
-  .max(100)
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(100))
   .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/, 'channel name must be a URL-safe slug');
 
 /** A runtime version string (expo-updates `runtimeVersion`, e.g. an appVersion). */
-export const runtimeVersionSchema = z.string().min(1).max(255);
+export const runtimeVersionSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(255));
 
 /** A rollout percentage: 0 rolls out to nobody, 100 to everybody. */
-export const rolloutPercentSchema = z.number().int().min(0).max(100);
+export const rolloutPercentSchema = z.number().check(integerCheck()).min(0).max(100);
 
 /* -------------------------------------------------------------------------- */
 /*  Assets: init + complete                                                   */
@@ -75,8 +77,8 @@ export const rolloutPercentSchema = z.number().int().min(0).max(100);
  */
 export const assetInitItemSchema = z.object({
   sha256: sha256HexSchema,
-  contentType: z.string().min(1).max(255),
-  size: z.number().int().positive(),
+  contentType: z.string().check(utf16MinLength(1)).check(utf16MaxLength(255)),
+  size: z.number().check(integerCheck()).positive(),
 });
 export type AssetInitItem = z.infer<typeof assetInitItemSchema>;
 
@@ -86,7 +88,7 @@ export type AssetInitItem = z.infer<typeof assetInitItemSchema>;
  * already hold (content-addressed dedup — unchanged assets are never re-uploaded).
  */
 export const assetInitRequestSchema = z.object({
-  applicationId: z.string().min(1),
+  applicationId: z.string().check(utf16MinLength(1)),
   assets: z.array(assetInitItemSchema).min(1).max(2000),
 });
 export type AssetInitRequest = z.infer<typeof assetInitRequestSchema>;
@@ -128,7 +130,7 @@ export type AssetInitResponse = z.infer<typeof assetInitResponseSchema>;
  * `uploaded`; an object that is absent or size-mismatched is rejected.
  */
 export const assetCompleteRequestSchema = z.object({
-  applicationId: z.string().min(1),
+  applicationId: z.string().check(utf16MinLength(1)),
   sha256s: z.array(sha256HexSchema).min(1).max(2000),
 });
 export type AssetCompleteRequest = z.infer<typeof assetCompleteRequestSchema>;
@@ -137,7 +139,7 @@ export type AssetCompleteRequest = z.infer<typeof assetCompleteRequestSchema>;
 export const assetCompleteResultItemSchema = z.object({
   sha256: sha256HexSchema,
   status: updateAssetStatusSchema,
-  size: z.number().int().nonnegative(),
+  size: z.number().check(integerCheck()).nonnegative(),
 });
 export type AssetCompleteResultItem = z.infer<typeof assetCompleteResultItemSchema>;
 
@@ -158,8 +160,8 @@ export type AssetCompleteResponse = z.infer<typeof assetCompleteResponseSchema>;
 export const updateAssetRefSchema = z.object({
   sha256: sha256HexSchema,
   /** expo-export asset key (md5 basename) — how app code references the asset. */
-  key: z.string().min(1),
-  contentType: z.string().min(1),
+  key: z.string().check(utf16MinLength(1)),
+  contentType: z.string().check(utf16MinLength(1)),
   /** Suggested file extension including the leading dot (e.g. `.js`, `.png`). */
   fileExtension: z.string().optional(),
 });
@@ -172,7 +174,7 @@ export type UpdateAssetRef = z.infer<typeof updateAssetRefSchema>;
  * MUST carry `expoClient` so `Constants.expoConfig` works after an OTA update.
  */
 export const createUpdateRequestSchema = z.object({
-  applicationId: z.string().min(1),
+  applicationId: z.string().check(utf16MinLength(1)),
   channel: channelNameSchema,
   runtimeVersion: runtimeVersionSchema,
   platform: updatePlatformSchema,
@@ -190,11 +192,11 @@ export const createUpdateRequestSchema = z.object({
   /** Initial rollout percentage (default 100 — full rollout). */
   rolloutPercent: rolloutPercentSchema.optional(),
   /** Git commit the bundle was built from (audit / console display). */
-  gitCommit: z.string().max(100).optional(),
+  gitCommit: z.string().check(utf16MaxLength(100)).optional(),
   /** Git branch the bundle was built from (audit / console display). */
-  gitBranch: z.string().max(200).optional(),
+  gitBranch: z.string().check(utf16MaxLength(200)).optional(),
   /** Human-readable publish message (console display). */
-  message: z.string().max(500).optional(),
+  message: z.string().check(utf16MaxLength(500)).optional(),
 });
 export type CreateUpdateRequest = z.infer<typeof createUpdateRequestSchema>;
 
@@ -303,7 +305,7 @@ export type UpdateListResponse = z.infer<typeof updateListResponseSchema>;
  * update (if any) becomes head again. Nothing is deleted.
  */
 export const rollbackRequestSchema = z.object({
-  applicationId: z.string().min(1),
+  applicationId: z.string().check(utf16MinLength(1)),
   runtimeVersion: runtimeVersionSchema,
   platform: updatePlatformSchema,
 });
@@ -315,7 +317,7 @@ export type RollbackRequest = z.infer<typeof rollbackRequestSchema>;
  * fall back to the update embedded in their binary.
  */
 export const rollbackToEmbeddedRequestSchema = z.object({
-  applicationId: z.string().min(1),
+  applicationId: z.string().check(utf16MinLength(1)),
   runtimeVersion: runtimeVersionSchema,
   platform: updatePlatformSchema,
 });
@@ -327,8 +329,8 @@ export type RollbackToEmbeddedRequest = z.infer<typeof rollbackToEmbeddedRequest
  * UUID) pointing at the SAME assets. `toChannel` defaults to the path channel.
  */
 export const promoteRequestSchema = z.object({
-  applicationId: z.string().min(1),
-  updateId: z.string().min(1),
+  applicationId: z.string().check(utf16MinLength(1)),
+  updateId: z.string().check(utf16MinLength(1)),
   /** Target channel to promote into. Defaults to the path `:channel`. */
   toChannel: channelNameSchema.optional(),
   /** Rollout percentage for the promoted update (default 100). */
@@ -338,7 +340,7 @@ export type PromoteRequest = z.infer<typeof promoteRequestSchema>;
 
 /** `PATCH /updates/v1/updates/:updateId` request — adjust a rollout in place. */
 export const updateRolloutPatchSchema = z.object({
-  applicationId: z.string().min(1),
+  applicationId: z.string().check(utf16MinLength(1)),
   rolloutPercent: rolloutPercentSchema,
 });
 export type UpdateRolloutPatch = z.infer<typeof updateRolloutPatchSchema>;

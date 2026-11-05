@@ -10,6 +10,9 @@ A helper earns a place only if it is **all three** of:
 2. pure and dependency-free,
 3. something no repo could reasonably want a different version of.
 
+An explicit ecosystem decision can also establish a common pure contract before
+three identical copies exist, as with the cursor-cycle guard in `./paging`.
+
 The third clause does most of the work. An audit of eight Oxy repos found
 plenty of duplication that fails it and is deliberately **not** here:
 
@@ -35,6 +38,7 @@ the rest in.
 ```ts
 import { likeContains }      from '@oxy.so/utils/sql';
 import { resolvePageLimit }  from '@oxy.so/utils/paging';
+import { nextUnvisitedCursor } from '@oxy.so/utils/cursor';
 import { escapeRegExp }      from '@oxy.so/utils/text';
 import { calendarDaysBetween } from '@oxy.so/utils/date';
 import { withImageVariant }    from '@oxy.so/utils/image';
@@ -56,10 +60,20 @@ pattern.
 
 `resolvePageLimit`, `resolvePageOffset`, `resolvePageNumber`, `offsetForPage`.
 
+`nextUnvisitedCursor(next, pageParams)` returns the next cursor, or `undefined`
+for an absent or already visited cursor. It is also available from `./cursor`
+for Metro consumers that do not need the page-window helpers. Callers retain
+their own has-more and retry policies.
+
 Seven helpers in five repos plus **46 inline clamps**, none agreeing on
 degenerate input. The guarantee: no input — missing, malformed or hostile —
 yields an unbounded query or a `NaN`. Bounds are arguments, not a registry: a
 lane's page size belongs next to the lane.
+
+### `./cursor` — lightweight cursor progression
+
+Exports `nextUnvisitedCursor` without loading the page-window helpers in Metro.
+The same function remains available from `./paging` and the root.
 
 ### `./text` — small pure helpers
 
@@ -106,8 +120,11 @@ what satisfies clause 3:
 - **A code `Intl` cannot format** (FAIR, anything not three letters) renders
   amount, no-break space, code: `1.234,56 FAIR`. No symbol is invented.
 - **Never throws** — a malformed locale, code or amount degrades to readable
-  text. Minor-unit helpers return `null` rather than guess a precision or
-  exceed `Number.MAX_SAFE_INTEGER` (≈ 90 million FAIR).
+  text. Minor-unit helpers return `null` rather than guess a precision;
+  `toMinorUnits` also rejects unsafe integer results. `fromMinorUnits` accepts
+  bigint amounts above that range, rounding to a number for display, and
+  returns `null` if the scaled result is not finite. Keep the bigint for exact
+  ledger arithmetic.
 
 ```ts
 formatMoney(1234.56, 'EUR', 'en-US');                  // '€1,234.56'

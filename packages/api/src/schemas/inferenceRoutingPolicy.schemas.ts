@@ -1,3 +1,4 @@
+import { integerCheck, safeNumberCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * Request shapes for the routing policy control plane (issue #972, workstream 6).
  *
@@ -55,7 +56,7 @@ import {
 const MAX_LIST_CONTROL_ENTRIES = 64;
 
 /** Bounds the id space of a licence, matching the catalogue's own column. */
-const licenseIdSchema = z.string().min(1).max(128);
+const licenseIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
 
 export const routingPolicyControlsBody = z
   .object({
@@ -116,7 +117,7 @@ export const routingPolicyControlsBody = z
 export type RoutingPolicyControlsBody = z.infer<typeof routingPolicyControlsBody>;
 
 /** An Oxy row id, in the one shape every id in this database takes. */
-const rowIdSchema = z.string().min(1).max(64);
+const rowIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(64));
 
 export const routingPolicyParams = z.object({ policyId: rowIdSchema }).strict();
 export const routingPolicyAccountParams = z.object({ accountId: rowIdSchema }).strict();
@@ -130,13 +131,13 @@ export const routingPolicyApplicationParams = z.object({ applicationId: rowIdSch
 export const routingPolicyVersionParams = z
   .object({
     policyId: rowIdSchema,
-    policyVersion: z.coerce.number().int().positive().safe(),
+    policyVersion: z.coerce.number().check(integerCheck()).positive().check(safeNumberCheck()),
   })
   .strict();
 
 /** How many route-switch notices one page returns. */
 export const routeSwitchQuery = z
-  .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
+  .object({ limit: z.coerce.number().check(integerCheck()).min(1).max(200).default(50) })
   .strict();
 
 /**
@@ -156,7 +157,12 @@ export const emptyBodySchema = z.object({}).strict();
  * whole set is written each time; `null` clears a limit. The same rules as the
  * table's CHECKs, so a caller gets a 400 rather than a constraint error.
  */
-const applicationLimit = z.number().int().min(1).max(MAX_APPLICATION_INFERENCE_LIMIT).nullable();
+const applicationLimit = z
+  .number()
+  .check(integerCheck())
+  .min(1)
+  .max(MAX_APPLICATION_INFERENCE_LIMIT)
+  .nullable();
 
 export const applicationInferenceLimitsBody = z
   .object({

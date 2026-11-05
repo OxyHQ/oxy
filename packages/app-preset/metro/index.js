@@ -25,7 +25,8 @@
  * @param {boolean} [options.dropConsole=false] Strip console calls from the
  *   production web bundle. Hermes native bundles do not use Metro's minifier.
  * @param {string} [options.svgTransformerPath] Resolved SVG transformer path.
- *   When set, `svg` moves from asset extensions to source extensions.
+ *   When set, `svg` moves from asset extensions to source extensions. A custom
+ *   Babel transformer keeps every file on Babel, so the app loses Noxcturnal.
  * @param {Record<string,string>} [options.extraNodeModules={}] Extra aliases.
  * @param {string[]} [options.extraWatchFolders=[]] Additional watch roots.
  * @param {string} [options.workspaceRoot] The install root Metro watches and
@@ -48,6 +49,8 @@ const path = require('node:path');
 const { resolveOxyBuildId } = require('../build-id');
 const { requireFromProject } = require('../plugin/requireFromProject');
 const { withStaticHydrationBoundary } = require('./static-hydration/resolver');
+const { withLinkedNativePackagesOnly } = require('./linked-native-packages');
+const { withFreshWorkspaceBuilds } = require('./fresh-workspace-builds');
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -136,7 +139,8 @@ function createOxyMetroConfig(projectRoot, options = {}) {
   const monorepoRoot = workspaceRoot ? path.resolve(workspaceRoot) : findWorkspaceRoot(projectRoot);
   const config = getDefaultConfig(projectRoot);
 
-  // The preset's Babel plugin inlines this id into every module, but Metro's
+  // In a production build the preset's Babel plugin inlines this id into every
+  // module (development uses a constant id and no plugin), but Metro's
   // transform cache key does not cover it: without the id in `cacheVersion`, a
   // cached SDK module would keep an old build's id. Published so the Babel
   // workers Metro forks resolve the same value.
@@ -262,11 +266,123 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     },
   };
 
-  return withNativeWind(config, {
+  return withNativeWind(withReactNativeCssSingleInstance(config, projectRoot), {
     input: cssInput,
     inlineRem: 16,
     inlineVariables: false,
   });
+}
+
+/** Keep CSS injection and consumers on one runtime, including NativeWind redirects.
+ * Its ESM and CommonJS builds have separate root-variable registries. NativeWind
+ * injects through require(), so native imports must select the same export.
+ * Preserve react-native conditions: some component adapters require native code.
+ */
+function cssRuntimeContext(context, moduleName, platform, projectRoot) {
+  if (
+    platform === 'web' ||
+    platform == null ||
+    !(moduleName === 'react-native-css' || moduleName.startsWith('react-native-css/'))
+  )
+    return context;
+  const conditions = (values = []) =>
+    values.filter((value) => value !== 'import' && value !== 'source');
+  return {
+    ...context,
+    originModulePath: path.join(projectRoot, 'package.json'),
+    isESMImport: false,
+    unstable_conditionNames: conditions(context.unstable_conditionNames),
+    unstable_conditionsByPlatform: Object.fromEntries(
+      Object.entries(context.unstable_conditionsByPlatform ?? {}).map(([key, values]) => [
+        key,
+        conditions(values),
+      ]),
+    ),
+  };
+}
+
+function withReactNativeCssSingleInstance(config, projectRoot = config.projectRoot) {
+  const parentResolveRequest = config.resolver.resolveRequest;
+  config.resolver.resolveRequest = (context, moduleName, platform) =>
+    (parentResolveRequest ?? context.resolveRequest)(
+      cssRuntimeContext(context, moduleName, platform, projectRoot),
+      moduleName,
+      platform,
+    );
+  return config;
+}
+
+const COMPLETE_REACT_NATIVE = path.join(__dirname, 'react-native.js');
+/** Both spellings: Metro reports real paths, and the preset may sit behind a symlink. */
+const COMPLETE_REACT_NATIVE_PATHS = new Set([
+  COMPLETE_REACT_NATIVE,
+  fs.realpathSync(COMPLETE_REACT_NATIVE),
+]);
+/** `react-native-css/components`' entry, by any of the conditions Metro may pick. */
+const CSS_COMPONENTS_ENTRY =
+  /[/\\]react-native-css[/\\](?:dist[/\\](?:commonjs|module)[/\\]components[/\\]index\.cjs|src[/\\]components[/\\]index\.cts)$/;
+
+/**
+ * Wraps a NativeWind Metro config so that wherever NativeWind sends
+ * `react-native` to `react-native-css/components`, the import gets
+ * `./react-native.js` instead: that shim with every name of React Native's
+ * index it lacks (React Native 0.88's `AssetRegistry`, which `expo-asset`
+ * reads) forwarded to React Native. Every name the shim defines keeps its own
+ * getter, so `className` behaves exactly as NativeWind makes it.
+ *
+ * Narrow on purpose: only a request for exactly `react-native` that NativeWind
+ * resolved to the shim's entry is touched. Web (NativeWind leaves
+ * `react-native-web` imports alone at this level), deep `react-native/…`
+ * imports and every other module resolve as before.
+ *
+ * Apply it LAST, over every other resolver (NativeWind's, worklets' Bundle
+ * Mode, an app's own): it has to see the final resolution, and the completed
+ * module's own two imports must reach no redirect beneath it. They go straight
+ * to Metro's resolver (NativeWind's redirect would point the module at itself,
+ * worklets' at a module that requires it back) and resolve from the project,
+ * which sees both packages under any linker; the preset depends on neither.
+ *
+ * @param {import('metro-config').MetroConfig} config The finished config, NativeWind applied.
+ * @param {string} [projectRoot=config.projectRoot] The app package.
+ * @returns {import('metro-config').MetroConfig} `config`, its resolver wrapped.
+ */
+function withCompleteReactNative(config, projectRoot = config.projectRoot) {
+  const parentResolveRequest = config.resolver.resolveRequest;
+  const projectOrigin = path.join(projectRoot, 'package.json');
+
+  config.resolver.resolveRequest = (context, moduleName, platform) => {
+    if (
+      COMPLETE_REACT_NATIVE_PATHS.has(context.originModulePath) &&
+      (moduleName === 'react-native' || moduleName === 'react-native-css/components')
+    ) {
+      return context.resolveRequest(
+        cssRuntimeContext(
+          { ...context, originModulePath: projectOrigin },
+          moduleName,
+          platform,
+          projectRoot,
+        ),
+        moduleName,
+        platform,
+      );
+    }
+
+    const resolution = (parentResolveRequest ?? context.resolveRequest)(
+      context,
+      moduleName,
+      platform,
+    );
+    if (
+      moduleName === 'react-native' &&
+      resolution?.type === 'sourceFile' &&
+      CSS_COMPONENTS_ENTRY.test(resolution.filePath)
+    ) {
+      return { type: 'sourceFile', filePath: COMPLETE_REACT_NATIVE };
+    }
+    return resolution;
+  };
+
+  return config;
 }
 
 /**
@@ -298,8 +414,9 @@ function withBloomSingleInstance(nativeWindConfig, projectRoot) {
 
 /**
  * Wraps the finished config for react-native-worklets' Bundle Mode. Applied
- * LAST, so worklets' resolver sees every request first and hands the rest to
- * the Bloom and NativeWind resolvers underneath.
+ * after Bloom's and NativeWind's resolvers, so worklets' resolver sees every
+ * request before them and hands the rest down; only
+ * {@link withCompleteReactNative} sits above it.
  */
 function withWorkletsBundleMode(config, projectRoot) {
   let bundleMode;
@@ -319,11 +436,28 @@ function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
   const nativeWindConfig = createOxyMetroConfig(projectRoot, options);
   let config = withBloomSingleInstance(nativeWindConfig, projectRoot);
   if (staticHydrationBoundary) config = withStaticHydrationBoundary(config, projectRoot);
-  return workletsBundleMode ? withWorkletsBundleMode(config, projectRoot) : config;
+  if (workletsBundleMode) config = withWorkletsBundleMode(config, projectRoot);
+  // Sees every resolution but the complete-react-native module's own two
+  // imports: an optional probe for a native package autolinking does not link
+  // is answered "not found" (see the module header for the launch crash).
+  config = withLinkedNativePackagesOnly(config, projectRoot);
+  // A production bundle never ships a workspace package's build output that is
+  // older than its sources (the same launch crash, second cause).
+  config = withFreshWorkspaceBuilds(
+    config,
+    options.workspaceRoot ? path.resolve(options.workspaceRoot) : findWorkspaceRoot(projectRoot),
+  );
+  // Outermost, so it sees the final resolution and its own module's imports
+  // reach no redirect beneath it.
+  return withCompleteReactNative(config, projectRoot);
 }
 
 module.exports = {
   createOxyMetroConfig: createOxyMetroConfigWithBloom,
   findWorkspaceRoot,
   withBloomSingleInstance,
+  withReactNativeCssSingleInstance,
+  withCompleteReactNative,
+  withLinkedNativePackagesOnly,
+  withFreshWorkspaceBuilds,
 };

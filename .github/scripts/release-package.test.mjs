@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -281,3 +282,300 @@ test('a dependency that is not a workspace: spec is left to the other checks', (
     [],
   );
 });
+
+/** Run the real tarball inspector with a registry that contains no versions. */
+function inspectPlannedPeer(
+  t,
+  {
+    coreVersion = '6.17.0',
+    order = ['@oxy.so/core', '@oxy.so/services'],
+    dependencies = {},
+    peerRange = '^6.16.0',
+    registryError = 'E404',
+  } = {},
+) {
+  const root = mkdtempSync(join(tmpdir(), 'release-planned-peer-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const directory of ['packages/core', 'packages/services', 'staging/package', 'bin'])
+    mkdirSync(join(root, directory), { recursive: true });
+  const json = (path, value) => writeFileSync(join(root, path), JSON.stringify(value));
+  json('package.json', {
+    private: true,
+    workspaces: {
+      packages: ['packages/*'],
+      catalog: { '@oxy.so/core': '^6.16.0' },
+    },
+  });
+  json('packages/core/package.json', { name: '@oxy.so/core', version: coreVersion });
+  const services = {
+    name: '@oxy.so/services',
+    version: '12.14.0',
+    dependencies,
+    devDependencies: { '@oxy.so/core': 'workspace:*' },
+    peerDependencies: { '@oxy.so/core': 'catalog:' },
+  };
+  json('packages/services/package.json', services);
+  const planned = plan(workspacePackages(root), { published: () => false, latest: () => null });
+  assert.deepEqual(
+    planned.release.map(({ name }) => name),
+    ['@oxy.so/core', '@oxy.so/services'],
+  );
+  json('staging/package/package.json', {
+    ...services,
+    devDependencies: { '@oxy.so/core': coreVersion },
+    peerDependencies: { '@oxy.so/core': peerRange },
+  });
+  const tarball = join(root, 'services.tgz');
+  execFileSync('tar', ['-czf', tarball, '-C', join(root, 'staging'), 'package']);
+  const calls = join(root, 'registry-calls.jsonl');
+  writeFileSync(
+    join(root, 'bin/npm'),
+    `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + '\\n');
+console.error(${JSON.stringify(registryError)});
+process.exit(1);
+`,
+    { mode: 0o755 },
+  );
+  const result = spawnSync('node', [tool, 'inspect', tarball, 'packages/services', ...order], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}` },
+  });
+  return {
+    ...result,
+    registryCalls: existsSync(calls)
+      ? readFileSync(calls, 'utf8').trim().split('\n').map(JSON.parse)
+      : [],
+  };
+}
+
+test('catalog peer ^6.16.0 accepts core 6.17.0 published earlier in the actual workspace release order', (t) => {
+  const result = inspectPlannedPeer(t);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /every check passed/);
+  assert.deepEqual(result.registryCalls, []);
+});
+
+test('a same-batch core version outside the peer range still fails an empty registry', (t) => {
+  const result = inspectPlannedPeer(t, { coreVersion: '7.0.0' });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /@oxy\.so\/core@\^6\.16\.0, which nothing on the registry satisfies/);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('a prerelease does not satisfy a stable peer range merely because it is planned first', (t) => {
+  const result = inspectPlannedPeer(t, { coreVersion: '6.17.0-beta.1' });
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('a matching candidate planned later is not a published-first dependency', (t) => {
+  const result = inspectPlannedPeer(t, { order: ['@oxy.so/services', '@oxy.so/core'] });
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('an inspected package absent from the ordered plan cannot exempt same-name candidates', (t) => {
+  const result = inspectPlannedPeer(t, { order: ['@oxy.so/core'] });
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('unrelated missing external dependencies are still refused', (t) => {
+  const result = inspectPlannedPeer(t, { dependencies: { 'missing-external': '^1.0.0' } });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(
+    result.stderr,
+    /missing-external@\^1\.0\.0, which nothing on the registry satisfies/,
+  );
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('matching peer range does not exempt an incompatible dependency range of the same name', (t) => {
+  const result = inspectPlannedPeer(t, { dependencies: { '@oxy.so/core': '^7.0.0' } });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /@oxy\.so\/core@\^7\.0\.0, which nothing on the registry satisfies/);
+  assert.equal(result.registryCalls.length, 1);
+});
+
+test('external registry errors fail closed rather than being accepted as a planned match', (t) => {
+  const result = inspectPlannedPeer(t, {
+    dependencies: { 'missing-external': '^1.0.0' },
+    registryError: 'E503',
+  });
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /npm view missing-external@\^1\.0\.0 version failed: E503/);
+});
+
+for (const peerRange of ['latest', 'bad range', 'npm:other@^1', 'file:../x']) {
+  test(`planned version cannot exempt non-semver spec ${peerRange} from registry validation`, (t) => {
+    const result = inspectPlannedPeer(t, { peerRange });
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.registryCalls.length, 1);
+  });
+}
+
+test('plan and published remain usable from a sparse helper checkout without inspector dependencies', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'release-no-runtime-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sparseTool = join(root, 'release-package.mjs');
+  writeFileSync(sparseTool, readFileSync(tool));
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ private: true }));
+  mkdirSync(join(root, 'bin'));
+  writeFileSync(
+    join(root, 'bin/npm'),
+    '#!/usr/bin/env node\nconsole.log(JSON.stringify("1.0.0"));\n',
+    { mode: 0o755 },
+  );
+  const options = {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}` },
+  };
+  assert.deepEqual(JSON.parse(execFileSync('node', [sparseTool, 'plan'], options)), {
+    release: [],
+    build: [],
+  });
+  assert.equal(
+    spawnSync('node', [sparseTool, 'published', '@example/package', '1.0.0'], options).status,
+    0,
+  );
+});
+
+for (const scenario of [
+  'identical',
+  'absent',
+  'different',
+  'missing-integrity',
+  'wrong-version',
+  'forbidden',
+  'unavailable',
+]) {
+  test(`publish-time registry recheck fails closed: ${scenario}`, (t) => {
+    const root = mkdtempSync(join(tmpdir(), 'release-recheck-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    mkdirSync(join(root, 'bin'));
+    const bytes = Buffer.from('trusted artifact bytes');
+    const tarball = join(root, 'package.tgz');
+    writeFileSync(tarball, bytes);
+    const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+    const metadata = {
+      name: '@example/package',
+      version: scenario === 'wrong-version' ? '2.0.0' : '1.0.0',
+      dist:
+        scenario === 'missing-integrity'
+          ? {}
+          : { integrity: scenario === 'different' ? 'sha512-other' : integrity },
+    };
+    const error = { absent: 'E404', forbidden: 'E403', unavailable: 'E503' }[scenario];
+    const calls = join(root, 'calls.json');
+    writeFileSync(
+      join(root, 'bin/npm'),
+      `#!/usr/bin/env node
+require('node:fs').writeFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)));
+${error ? `console.error(${JSON.stringify(error)}); process.exit(1);` : `console.log(${JSON.stringify(JSON.stringify(metadata))});`}
+`,
+      { mode: 0o755 },
+    );
+    // Sparse helper checkout has no inspector dependencies or repository hooks.
+    const sparseTool = join(root, 'release-package.mjs');
+    writeFileSync(sparseTool, readFileSync(tool));
+    const result = spawnSync(
+      'node',
+      [sparseTool, 'publish-status', '@example/package', '1.0.0', tarball],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}` },
+      },
+    );
+    assert.equal(
+      result.status,
+      scenario === 'identical' ? 0 : scenario === 'absent' ? 1 : 2,
+      result.stderr,
+    );
+    assert.deepEqual(JSON.parse(readFileSync(calls, 'utf8')), [
+      'view',
+      '@example/package@1.0.0',
+      '--json',
+      '--prefer-online',
+      '--userconfig',
+      '/dev/null',
+    ]);
+  });
+}
+
+for (const scenario of ['identical', 'absent', 'different', 'forbidden', 'publish-forbidden']) {
+  test(`actual publish workflow shell handles ${scenario} without hiding failures`, (t) => {
+    const root = mkdtempSync(join(tmpdir(), 'release-shell-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    mkdirSync(join(root, 'bin'));
+    const workflow = readFileSync(new URL('../workflows/npm-release.yml', import.meta.url), 'utf8');
+    const block = workflow
+      .split('      - name: publish the trusted tarballs, dependencies first\n')[1]
+      .split('        run: |\n')[1]
+      .split('\n      # Also when')[0];
+    const shell = block
+      .split('\n')
+      .map((line) => line.replace(/^ {10}/, ''))
+      .join('\n');
+    const bytes = Buffer.from('trusted artifact bytes');
+    writeFileSync(join(root, 'package.tgz'), bytes);
+    const packageLine = JSON.stringify({
+      name: '@example/package',
+      version: '1.0.0',
+      tag: 'latest',
+      tarball: 'package.tgz',
+    });
+    writeFileSync(join(root, 'release.jsonl'), `${packageLine}\n`);
+    writeFileSync(
+      join(root, 'SHA512SUMS'),
+      ['package.tgz', 'release.jsonl']
+        .map(
+          (file) =>
+            `${createHash('sha512')
+              .update(readFileSync(join(root, file)))
+              .digest('hex')}  ${file}\n`,
+        )
+        .join(''),
+    );
+    const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+    const metadata = {
+      name: '@example/package',
+      version: '1.0.0',
+      dist: { integrity: scenario === 'different' ? 'sha512-other' : integrity },
+    };
+    const calls = join(root, 'calls.jsonl');
+    writeFileSync(
+      join(root, 'bin/npm'),
+      `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2))+'\\n');
+if(process.argv[2]==='publish') { ${scenario === 'publish-forbidden' ? "console.error('E403');process.exit(1);" : 'process.exit(0);'} }
+${scenario === 'forbidden' ? "console.error('E403');process.exit(1);" : scenario === 'absent' || scenario === 'publish-forbidden' ? "console.error('E404');process.exit(1);" : `console.log(${JSON.stringify(JSON.stringify(metadata))});`}
+`,
+      { mode: 0o755 },
+    );
+    const result = spawnSync('bash', ['-euo', 'pipefail', '-c', shell], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${join(root, 'bin')}:${process.env.PATH}`,
+        RUNNER_TEMP: root,
+        RELEASE_PACKAGE: tool,
+      },
+    });
+    assert.equal(
+      result.status,
+      scenario === 'identical' || scenario === 'absent' ? 0 : 1,
+      result.stderr,
+    );
+    const commands = readFileSync(calls, 'utf8').trim().split('\n').map(JSON.parse);
+    assert.equal(
+      commands.filter((args) => args[0] === 'publish').length,
+      scenario === 'absent' || scenario === 'publish-forbidden' ? 1 : 0,
+    );
+    assert.equal(existsSync(join(root, 'published.jsonl')), scenario === 'absent');
+  });
+}

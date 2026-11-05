@@ -62,13 +62,17 @@ class FakeRedis extends EventEmitter {
 
 const broker = new Broker();
 const mockPublisher = new FakeRedis(broker);
-jest.mock('../../config/redis', () => ({ getRedisClient: () => mockPublisher }));
+jest.mock('../../config/redis', () => ({
+  ...jest.requireActual('../../config/redis'),
+  getRedisClient: () => mockPublisher,
+}));
 
 import sessionCache from '../sessionCache';
 import { publishSessionRevocation, startServiceEvents } from '../serviceEvents';
 
 function namespace() {
   return {
+    sockets: new Map(),
     use: jest.fn(),
     on: jest.fn(),
     local: { emit: jest.fn(), disconnectSockets: jest.fn() },
@@ -101,6 +105,11 @@ describe('the Valkey relay between oxy-api tasks', () => {
     await flush();
 
     for (const ns of [a, b]) {
+      expect(
+        ns.local.emit.mock.calls
+          .filter(([event]) => event === OXY_SESSION_REVOKED_EVENT)
+          .map(([, value]) => value.at),
+      ).toEqual([1, 2]);
       expect(ns.local.emit).toHaveBeenCalledWith(OXY_SESSION_REVOKED_EVENT, {
         sessionId: 's-1',
         userId: 'u-1',

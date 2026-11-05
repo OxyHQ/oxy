@@ -182,6 +182,7 @@ interface ServiceClaims {
   ownerAccountId?: string;
   scopes?: string[];
   tier?: string;
+  authority?: string;
   environment?: string;
   iss?: string;
   aud?: string | string[];
@@ -397,13 +398,16 @@ describe('POST /auth/service-token — the trust gate and the Peable carve-out',
     expect(res.status).toBe(403);
   });
 
-  it('leaves a TRUSTED application unaffected by the carve-out, and marks it internal', async () => {
+  it('keeps a credential of a trusted application on external authority', async () => {
     const client = await serviceClient({ scopes: ['user:read'] });
 
     const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
 
     expect(res.status).toBe(200);
-    expect(decodeServiceJwt((res.body.data as { token: string }).token).tier).toBe('internal');
+    expect(decodeServiceJwt((res.body.data as { token: string }).token)).toMatchObject({
+      authority: 'external',
+      tier: 'external',
+    });
   });
 });
 

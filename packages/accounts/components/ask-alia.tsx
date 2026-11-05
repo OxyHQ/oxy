@@ -4,7 +4,7 @@ import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { AliaAskProvider, useAskAgent, type AliaAsk } from '@alia.onl/sdk/ask';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { useColors } from '@/hooks/useColors';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -53,7 +53,7 @@ export function AskAlia({ showLabel = false }: AskAliaProps) {
   const { t } = useTranslation();
   const colors = useColors();
   const { ask } = useAskAgent();
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   return (
     <TouchableOpacity

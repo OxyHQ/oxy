@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { logger } from '@oxy.so/core';
 import { subscribeToNotificationResponses } from '@oxy.so/services/notifications';
+import { PUSH_SOURCE } from '@/lib/commons-signin/approval-return';
 import {
   authRequestCodeFromPush,
   claimAuthRequestCode,
@@ -59,7 +60,7 @@ export function useAuthRequestNotifications(enabled: boolean): void {
       const code = authRequestCodeFromPush(data);
       if (!code || !claimAuthRequestCode(code)) return;
       // ONLY the code travels to the route — no payload strings, ever.
-      router.push({ pathname: '/approve', params: { code } });
+      router.push({ pathname: '/approve', params: { code, source: PUSH_SOURCE } });
     })
       .then((off) => {
         if (cancelled) {

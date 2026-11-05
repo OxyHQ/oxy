@@ -9,6 +9,19 @@
  */
 
 const MS_PER_DAY = 86_400_000;
+const DAYS_PER_400_YEARS = 146_097;
+
+function utcCalendarDay(date: Date): number {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  // Date.UTC interprets years 0-99 as 1900-1999. The Gregorian calendar
+  // repeats every 400 years, so shift those years before constructing UTC.
+  if (year >= 0 && year <= 99) {
+    return Date.UTC(year + 400, month, day) - DAYS_PER_400_YEARS * MS_PER_DAY;
+  }
+  return Date.UTC(year, month, day);
+}
 
 /**
  * Whole calendar days from `from` to `to` in LOCAL time: `0` for the same day,
@@ -49,7 +62,7 @@ const MS_PER_DAY = 86_400_000;
  * row's render. Callers that must distinguish it check `Number.isNaN`.
  */
 export function calendarDaysBetween(from: Date, to: Date): number {
-  const start = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
-  const end = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate());
+  const start = utcCalendarDay(from);
+  const end = utcCalendarDay(to);
   return Math.round((end - start) / MS_PER_DAY);
 }

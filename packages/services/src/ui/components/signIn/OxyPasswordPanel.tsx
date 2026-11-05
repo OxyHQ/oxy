@@ -92,7 +92,7 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
       totpEnabled={totpEnabled}
       submitLabel={t('signInSecurity.password.save')}
       validate={() => {
-        if (password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH) {
+        if (password.length < PASSWORD_MIN_LENGTH) {
           return t('signInSecurity.password.tooShort', { min: PASSWORD_MIN_LENGTH });
         }
         return password === repeat ? null : t('signInSecurity.password.mismatch');
@@ -117,6 +117,7 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
         error={null}
         autoComplete="new-password"
         secureTextEntry
+        maxLength={PASSWORD_MAX_LENGTH}
         testID="password-new"
       />
       <AccountFlowField
@@ -127,6 +128,7 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
         error={null}
         autoComplete="new-password"
         secureTextEntry
+        maxLength={PASSWORD_MAX_LENGTH}
         autoFocus={false}
         testID="password-repeat"
       />

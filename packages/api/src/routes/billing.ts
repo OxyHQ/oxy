@@ -1,11 +1,14 @@
+import { utf16MinLength } from '@oxy.so/contracts';
 import {
-  productSubscriptionRenewalRequestSchema,
+  productSubscriptionPortalRequestSchema,
+  productSubscriptionPortalResponseSchema,
   productPlanCheckoutRequestSchema,
   productPlanCatalogueSchema,
 } from '@oxy.so/contracts';
 import {
   cancelStoredPeablePersonalSource,
   loadPeablePersonalManagement,
+  openPeablePersonalPortal,
 } from '../services/peablePersonalManagement.service';
 import {
   assertPersistedBillingNamespace,
@@ -32,7 +35,10 @@ import { z } from 'zod';
 import { getDb } from '../config/postgres';
 import { addCredits } from '../db/credits';
 import { billingCreditGrants } from '../db/schema/billingCreditGrants';
-import { billingSubscriptions } from '../db/schema/billingSubscriptions';
+import {
+  BILLING_SUBSCRIPTION_STATUSES,
+  billingSubscriptions,
+} from '../db/schema/billingSubscriptions';
 import {
   billingTransactions,
   creditPurchaseIdempotencyPredicate,
@@ -130,6 +136,20 @@ async function assertProductSourceEvidence(
 
 /** The statuses that count as "the user has a live subscription right now". */
 const LIVE_SUBSCRIPTION_STATUSES = ['active', 'trialing'] as const;
+
+/**
+ * Stripe's subscription status as one this mirror stores. Stripe types the
+ * field as an open enum (a status it adds later still type-checks), and a value
+ * the mirror cannot represent is refused rather than written: the webhook fails,
+ * Stripe retries, and the new status is mapped deliberately.
+ */
+function mirroredSubscriptionStatus(
+  status: Stripe.Subscription.Status,
+): (typeof BILLING_SUBSCRIPTION_STATUSES)[number] {
+  const known = BILLING_SUBSCRIPTION_STATUSES.find((value) => value === status);
+  if (!known) throw new Error(`Stripe subscription status ${status} has no mirror`);
+  return known;
+}
 
 const INVALID_REDIRECT_RESPONSE = {
   error: 'INVALID_REDIRECT_URL',
@@ -285,7 +305,7 @@ router.post(
       const session = await (await getBillingStripe()).checkout.sessions.create(
         {
           customer: customerId,
-          payment_method_types: ['card'],
+          allowed_payment_method_types: ['card'],
           line_items: [
             {
               price_data: {
@@ -350,25 +370,30 @@ router.post(
   },
 );
 
+/** Open the payment provider's customer portal for one named source.
+ * Payment methods, invoices and the plan itself, under the provider's own rules.
+ * @response 200 productSubscriptionPortalResponseSchema A short-lived portal URL.
+ */
 router.post(
-  '/product-subscriptions/renew',
+  '/product-subscriptions/portal',
   authMiddleware,
-  validate({ body: productSubscriptionRenewalRequestSchema }),
+  validate({ body: productSubscriptionPortalRequestSchema }),
   async (req: AuthRequest, res: Response) => {
     const subject = req.user?._id?.toString();
-    const input = productSubscriptionRenewalRequestSchema.parse(req.body);
+    const input = productSubscriptionPortalRequestSchema.parse(req.body);
     res.set('Cache-Control', 'no-store');
     if (!subject || subject !== input.expectedSubjectAccountId)
       return res.status(403).json({ error: 'SUBJECT_CHANGED' });
-    const runtime = getPeablePersonalRuntime();
-    if (!runtime?.checkoutProvider)
-      return res.json({ state: 'unconfigured', reason: 'provider_unconfigured' });
     try {
-      return res.json(await runtime.renew(subject, input.sourceId, input.idempotencyKey));
+      return res.json(
+        productSubscriptionPortalResponseSchema.parse(
+          await openPeablePersonalPortal(subject, input.sourceId),
+        ),
+      );
     } catch (error) {
       if (error instanceof ApiError)
         return res.status(error.statusCode).json({ error: error.code });
-      return res.status(409).json({ error: 'RENEWAL_UNAVAILABLE' });
+      return res.status(503).json({ error: 'PORTAL_UNAVAILABLE' });
     }
   },
 );
@@ -503,16 +528,14 @@ router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, re
           status: source.status,
           period: { start: source.periodStart.toISOString(), end: source.periodEnd.toISOString() },
           cancelAtPeriodEnd: source.cancelAtPeriodEnd,
-          canRenew:
+          canManage:
             source.provider === 'peable' &&
-            source.providerSubscriptionId.startsWith('sub_fair') &&
             source.payerAccountId === userId &&
             source.beneficiaryAccountId === userId &&
-            !source.cancelAtPeriodEnd &&
-            ['active', 'past_due', 'unpaid'].includes(source.status) &&
-            source.periodEnd.getTime() - now <= 7 * 86_400_000 &&
-            !!getPeablePersonalRuntime()?.checkoutProvider &&
-            source.providerAccountRef === getPeablePersonalRuntime()?.configuration.merchantId,
+            !!peableManagement &&
+            source.providerAccountRef === peableManagement.configuration.merchantId &&
+            source.mode === namespace.mode &&
+            source.environment === namespace.environment,
           canCancel:
             source.payerAccountId === userId &&
             (source.provider === 'stripe' ||
@@ -675,7 +698,7 @@ router.post(
           environment: namespace.environment,
         },
         providerObservedAt: observed,
-        status: updated.status,
+        status: mirroredSubscriptionStatus(updated.status),
         period: {
           start: new Date(item.current_period_start * 1000).toISOString(),
           end: new Date(item.current_period_end * 1000).toISOString(),
@@ -736,7 +759,7 @@ router.post(
       const session = await (await getBillingStripe()).checkout.sessions.create(
         {
           customer: customerId,
-          payment_method_types: ['card'],
+          allowed_payment_method_types: ['card'],
           line_items: [{ price: plan.stripePriceId, quantity: 1 }],
           mode: 'subscription',
           success_url: successUrl,
@@ -1310,7 +1333,12 @@ async function syncSubscriptionFromProvider(
     throw new Error('Provider lifecycle attribution or items differ');
   const processor = await subscriptionProcessorBinding(subscription.livemode, event?.account);
   const [, providerAccountRef, mode, environment] = z
-    .tuple([z.literal('stripe'), z.string().min(1), z.enum(['live', 'test']), z.string().min(1)])
+    .tuple([
+      z.literal('stripe'),
+      z.string().check(utf16MinLength(1)),
+      z.enum(['live', 'test']),
+      z.string().check(utf16MinLength(1)),
+    ])
     .parse(JSON.parse(processor));
   const productSources = await getDb()
     .select()
@@ -1341,7 +1369,7 @@ async function syncSubscriptionFromProvider(
         ...billingNamespaceSchema.parse({ mode, environment }),
       },
       providerObservedAt: readStartedAt,
-      status: subscription.status,
+      status: mirroredSubscriptionStatus(subscription.status),
       period: {
         start: new Date(subscriptionItem.current_period_start * 1000).toISOString(),
         end: new Date(subscriptionItem.current_period_end * 1000).toISOString(),
@@ -1352,7 +1380,7 @@ async function syncSubscriptionFromProvider(
   const priceId = subscriptionItem.price.id;
   const plan = SUBSCRIPTION_PLANS.find((p) => p.stripePriceId === priceId);
   const lifecycle = {
-    status: subscription.status,
+    status: mirroredSubscriptionStatus(subscription.status),
     currentPeriodStart: new Date(subscriptionItem.current_period_start * 1000),
     currentPeriodEnd: new Date(subscriptionItem.current_period_end * 1000),
     cancelAtPeriodEnd: subscription.cancel_at_period_end,

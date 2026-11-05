@@ -39,6 +39,8 @@ internal object OxyCallerPolicy {
     "to.peable.app.dev",
     "so.oxy.atlas",
     "so.oxy.atlas.dev",
+    "so.oxy.dropsea",
+    "so.oxy.dropsea.dev",
     "to.goway.app",
     "to.goway.app.dev",
     "so.oxy.move",

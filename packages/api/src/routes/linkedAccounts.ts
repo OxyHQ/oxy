@@ -14,8 +14,8 @@
  * - `POST /complete` (user session) turns the code into the link — only for the
  *   user who started the flow; anyone else burns it.
  * - `GET /` and `DELETE /:id` (user session) — list and revoke.
- * - `GET /by-user/:userId` (service token with the privileged
- *   `linked-accounts:read`) — for the first-party migration service.
+ * - `GET /by-user/:userId` requires an own workload and requester proof for
+ *   that account. Historical scoped workload tokens are refused.
  * - `GET /atproto/client-metadata.json` (public) — the atproto OAuth client_id.
  */
 
@@ -50,7 +50,6 @@ import {
 } from '../utils/error';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
-import type { ApplicationScope } from '../utils/applicationScopes';
 import {
   markChallengeVerified,
   readChallengeReturn,
@@ -88,13 +87,6 @@ import {
 
 const router = Router();
 
-/**
- * The scope `GET /by-user/:userId` requires. Typed `ApplicationScope` so a
- * rename of the vocabulary entry breaks this line instead of leaving the route
- * checking for a string no token can carry.
- */
-const LINKED_ACCOUNTS_READ_SCOPE: ApplicationScope = 'linked-accounts:read';
-
 const startLimiter = rateLimit({
   prefix: 'rl:linked-accounts:start:',
   windowMs: 60 * 1000,
@@ -128,10 +120,10 @@ router.get(
   serviceReadLimiter,
   validate({ params: linkedAccountUserIdParams }),
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-    if (!req.serviceApp?.scopes.includes(LINKED_ACCOUNTS_READ_SCOPE)) {
-      throw new ForbiddenError(`Missing required scope: ${LINKED_ACCOUNTS_READ_SCOPE}`);
-    }
     const { userId } = req.params as { userId: string };
+    const service = req.serviceApp;
+    if (service?.authority !== 'first_party' || req.serviceRequester?.subjectAccountId !== userId)
+      throw new ForbiddenError('A verified workload requester for this account is required.');
     const linkedAccounts = await listLinkedAccountsForService(userId);
     sendSuccess(res, serviceLinkedAccountListResponseSchema.parse({ userId, linkedAccounts }));
   }),

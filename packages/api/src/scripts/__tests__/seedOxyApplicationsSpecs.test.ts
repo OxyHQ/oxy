@@ -37,16 +37,30 @@ import {
   type ApplicationScope,
 } from '../../utils/applicationScopes';
 import { isTrustedApplication } from '../../utils/trustedApplication';
+import { isAccountRole } from '../../utils/accountRoles';
+import {
+  GITHUB_REPOSITORY_PATTERN,
+  GITHUB_WORKFLOW_PATTERN,
+} from '../../db/schema/githubTrustedPublishers';
+import {
+  APPLICATION_PERMISSION_DESCRIPTION_MAX_LENGTH,
+  APPLICATION_PERMISSIONS_MAX_DECLARED,
+  isApplicationPermissionKey,
+} from '@oxy.so/contracts';
 import { CLARITY_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenceEconomicPolicy';
 import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
 import { computeSeedApplicationPlan } from '../seedOxyApplicationsPlan';
 import {
+  OXY_CENTRAL_BILLING_APPLICATION_ID,
+  OXY_CENTRAL_BILLING_SPEC,
   OXY_PROFILE_REGISTRAR_APPLICATION_ID,
   OXY_PROFILE_REGISTRAR_SPEC,
   requiresPublicSeedCredential,
   ALIA_APPLICATION_SCOPES,
   ALIA_APPLICATION_ID,
   ALIA_OWNER_ACCOUNT_USERNAME,
+  ASTRO_APPLICATION_ID,
+  DROPSEA_APPLICATION_ID,
   CLARITY_APPLICATION_ID,
   CLARITY_BACKEND_APPLICATION_ID,
   HOMIIO_APPLICATION_ID,
@@ -57,6 +71,7 @@ import {
   GOWAY_APPLICATION_ID,
   MEDIA_WORKER_APPLICATION_ID,
   SEED_APPS,
+  OTA_PUBLISH_WORKFLOW,
   seedApplicationLookupIdentity,
   type SeedAppSpec,
 } from '../seedOxyApplicationsSpecs';
@@ -112,8 +127,12 @@ describe('the canonical official-application registry', () => {
       publicClient: false,
     });
     expect(requiresPublicSeedCredential(OXY_PROFILE_REGISTRAR_SPEC)).toBe(false);
-    // The two machine-only applications: this registrar and Clarity's backend.
-    const machineOnly = [OXY_PROFILE_REGISTRAR_SPEC, specNamed('Clarity Backend')];
+    // Machine identities never acquire public sign-in credentials.
+    const machineOnly = [
+      OXY_CENTRAL_BILLING_SPEC,
+      OXY_PROFILE_REGISTRAR_SPEC,
+      specNamed('Clarity Backend'),
+    ];
     expect(SEED_APPS.filter((spec) => !requiresPublicSeedCredential(spec))).toEqual(machineOnly);
     expect(
       SEED_APPS.filter((spec) => !machineOnly.includes(spec)).every(requiresPublicSeedCredential),
@@ -122,6 +141,22 @@ describe('the canonical official-application registry', () => {
       kind: 'id',
       id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
     });
+  });
+
+  it('keeps central billing separate from Inbox without sign-in or external grants', () => {
+    expect(OXY_CENTRAL_BILLING_SPEC).toMatchObject({
+      id: OXY_CENTRAL_BILLING_APPLICATION_ID,
+      type: 'internal',
+      redirectUris: [],
+      scopes: [],
+      publicClient: false,
+    });
+    expect(OXY_CENTRAL_BILLING_APPLICATION_ID).not.toBe(specNamed('Oxy Inbox').id);
+    expect(seedApplicationLookupIdentity(OXY_CENTRAL_BILLING_SPEC, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: OXY_CENTRAL_BILLING_APPLICATION_ID,
+    });
+    expect(requiresPublicSeedCredential(OXY_CENTRAL_BILLING_SPEC)).toBe(false);
   });
 
   it("pins Clarity's client by id under the clarity project, beside its backend", () => {
@@ -206,6 +241,49 @@ describe('the canonical official-application registry', () => {
     });
     expect(seededPrincipal(nilo)).toEqual({ type: 'first_party', isInternal: false });
     expect(nilo.capabilities).toEqual(['catalog:noted']);
+  });
+
+  it('registers Astro by exact identity as a native public sign-in client with no authority beyond the session', () => {
+    const astro = specNamed('Astro');
+    expect(astro).toMatchObject({
+      id: ASTRO_APPLICATION_ID,
+      websiteUrl: 'https://astro.oxy.so',
+      redirectUris: [],
+      type: 'first_party',
+      scopes: ['user:read'],
+    });
+    expect(astro.webOrigins).toBeUndefined();
+    expect(astro.capabilities).toBeUndefined();
+    expect(requiresPublicSeedCredential(astro)).toBe(true);
+    expect(SEED_APPS.filter((spec) => spec.id === ASTRO_APPLICATION_ID)).toHaveLength(1);
+    expect(ASTRO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    expect(seedApplicationLookupIdentity(astro, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: ASTRO_APPLICATION_ID,
+    });
+    expect(seededPrincipal(astro)).toEqual({ type: 'first_party', isInternal: false });
+  });
+
+  it('registers Dropsea by exact identity as a web sign-in client at dropsea.net with no authority beyond the session', () => {
+    const dropsea = specNamed('Dropsea');
+    expect(dropsea).toMatchObject({
+      id: DROPSEA_APPLICATION_ID,
+      websiteUrl: 'https://dropsea.net',
+      webOrigins: ['https://dropsea.net'],
+      redirectUris: ['https://dropsea.net'],
+      type: 'first_party',
+      scopes: ['user:read'],
+    });
+    expect(dropsea.capabilities).toBeUndefined();
+    expect(dropsea.legacyNames).toBeUndefined();
+    expect(requiresPublicSeedCredential(dropsea)).toBe(true);
+    expect(SEED_APPS.filter((spec) => spec.id === DROPSEA_APPLICATION_ID)).toHaveLength(1);
+    expect(DROPSEA_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    expect(seedApplicationLookupIdentity(dropsea, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: DROPSEA_APPLICATION_ID,
+    });
+    expect(seededPrincipal(dropsea)).toEqual({ type: 'first_party', isInternal: false });
   });
 
   it('pins a separate media worker with no sign-in redirects or write grants', () => {
@@ -884,6 +962,136 @@ describe('the canonical official-application registry', () => {
 
     it('the scope vocabulary the specs are checked against is non-empty', () => {
       expect(APPLICATION_SCOPES.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+it('registers the OxyOS transport without claiming browser recognition or backend authority', () => {
+  const spec = specNamed('OxyOS');
+  expect(requiresPublicSeedCredential(spec)).toBe(true);
+  expect(spec.redirectUris).toEqual(['tauri://localhost']);
+  expect(spec.webOrigins ?? []).toEqual([]);
+  expect(spec.scopes).toEqual([]);
+  expect(spec.capabilities ?? []).toEqual([]);
+  expect(spec.type).toBe('first_party');
+});
+
+it('registers the native Authenticator client without backend or external app permissions', () => {
+  const spec = specNamed('Authenticator by Oxy');
+  expect(requiresPublicSeedCredential(spec)).toBe(true);
+  expect(spec.redirectUris).toEqual(['oxyauthenticator://']);
+  expect(spec.webOrigins ?? []).toEqual([]);
+  expect(spec.scopes).toEqual([]);
+  expect(spec.capabilities ?? []).toEqual([]);
+  expect(spec.type).toBe('first_party');
+});
+
+describe('operator permissions (ADR 0056)', () => {
+  const declaring = SEED_APPS.filter((spec) => (spec.operatorPermissions ?? []).length > 0);
+
+  it('every key is a valid application key, unique per application, described within bounds, held by the owner', () => {
+    for (const spec of declaring) {
+      const keys = (spec.operatorPermissions ?? []).map((permission) => permission.key);
+      expect(new Set(keys).size).toBe(keys.length);
+      for (const permission of spec.operatorPermissions ?? []) {
+        expect(isApplicationPermissionKey(permission.key)).toBe(true);
+        expect(permission.description.trim().length).toBeGreaterThan(0);
+        expect(permission.description.length).toBeLessThanOrEqual(
+          APPLICATION_PERMISSION_DESCRIPTION_MAX_LENGTH,
+        );
+        expect(permission.heldBy).toContain('owner');
+        expect(permission.heldBy.every((role) => isAccountRole(role))).toBe(true);
+        expect(new Set(permission.heldBy).size).toBe(permission.heldBy.length);
+      }
+      expect(keys.length).toBeLessThanOrEqual(APPLICATION_PERMISSIONS_MAX_DECLARED);
+    }
+  });
+
+  it('declares exactly the keys each application’s backend checks', () => {
+    const byApp = Object.fromEntries(
+      declaring.map((spec) => [
+        spec.name,
+        (spec.operatorPermissions ?? []).map((permission) => permission.key).sort(),
+      ]),
+    );
+    expect(byApp).toEqual({
+      CrowdSource: [
+        'trust_safety.appeals',
+        'trust_safety.evidence',
+        'trust_safety.policy',
+        'trust_safety.security',
+      ],
+      GoWay: ['capture.pilot', 'moderation.operate'],
+      Homiio: ['homiio.scraper.operate'],
+      Mercaria: [
+        'analytics.operate',
+        'catalog.operate',
+        'guest.operate',
+        'payments.operate',
+        'procurement.operate',
+        'referrals.operate',
+        'retail.operate',
+      ],
+      'Oxy Website': ['website.content.manage'],
+      Syra: ['compliance.review'],
+    });
+  });
+});
+
+describe('trusted publishers (ADR 0057)', () => {
+  const declaring = SEED_APPS.filter((spec) => (spec.trustedPublishers ?? []).length > 0);
+
+  it('every rule is a well-formed, unique, main-only rule of an OxyHQ repository', () => {
+    for (const spec of declaring) {
+      const rules = spec.trustedPublishers ?? [];
+      const keys = rules.map((rule) => `${rule.repositoryId}:${rule.ref}:${rule.workflow}`);
+      expect(new Set(keys).size).toBe(keys.length);
+      for (const rule of rules) {
+        expect(rule.repository).toMatch(new RegExp(GITHUB_REPOSITORY_PATTERN));
+        expect(rule.repository.startsWith('OxyHQ/')).toBe(true);
+        expect(rule.repositoryId).toMatch(/^[1-9][0-9]{0,19}$/);
+        expect(rule.ref).toBe('refs/heads/main');
+        expect(rule.workflow).toMatch(new RegExp(GITHUB_WORKFLOW_PATTERN));
+        expect(rule.workflow).toBe(OTA_PUBLISH_WORKFLOW);
+      }
+    }
+  });
+
+  it('one repository name never carries two numeric ids', () => {
+    const idByRepository = new Map<string, string>();
+    for (const rule of declaring.flatMap((spec) => spec.trustedPublishers ?? [])) {
+      const known = idByRepository.get(rule.repository.toLowerCase());
+      if (known !== undefined) expect(rule.repositoryId).toBe(known);
+      idByRepository.set(rule.repository.toLowerCase(), rule.repositoryId);
+    }
+  });
+
+  it('declares exactly the app repositories that publish OTA updates', () => {
+    const byApp = Object.fromEntries(
+      declaring.map((spec) => [
+        spec.name,
+        (spec.trustedPublishers ?? []).map((rule) => `${rule.repository}#${rule.repositoryId}`),
+      ]),
+    );
+    expect(byApp).toEqual({
+      'Oxy Accounts': ['OxyHQ/oxy#973881060'],
+      'Oxy Inbox': ['OxyHQ/Inbox#1329784826'],
+      Mention: ['OxyHQ/Mention#899773466'],
+      Homiio: ['OxyHQ/Homiio#950615787'],
+      Clarity: ['OxyHQ/Clarity#1201755585'],
+      Allo: ['OxyHQ/Allo#1097863886'],
+      Alia: ['OxyHQ/Alia#1134050651'],
+      Syra: ['OxyHQ/Syra#1110776513'],
+      Peable: ['OxyHQ/Peable#1265522443'],
+      Noted: ['OxyHQ/Noted#1275785015'],
+      'Commons by Oxy': ['OxyHQ/oxy#973881060'],
+      Mercaria: ['OxyHQ/Mercaria#1275951600'],
+      'Oxy Move': ['OxyHQ/Move#1387757667'],
+      GoWay: ['OxyHQ/GoWay#1365041993'],
+      Nilo: ['OxyHQ/Nilo#1249024747'],
+      Willo: ['OxyHQ/Willo#1368626201'],
+      Atlas: ['OxyHQ/Atlas#1328114802'],
+      CrowdSource: ['OxyHQ/CrowdSource#1315214837'],
     });
   });
 });

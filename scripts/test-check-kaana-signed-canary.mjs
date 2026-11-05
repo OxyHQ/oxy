@@ -295,8 +295,8 @@ try {
   mutate(
     driftedGenerationIdContract,
     'packages/contracts/src/inference/identifiers.ts',
-    'export const generationIdSchema = z.string().min(1).max(128);',
-    'export const generationIdSchema = z.string().min(1).max(256);',
+    'export const generationIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));',
+    'export const generationIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(256));',
   );
   verdict(driftedGenerationIdContract, 1);
 
@@ -305,8 +305,8 @@ try {
   mutate(
     driftedRequestIdContract,
     'packages/contracts/src/inference/identifiers.ts',
-    'export const requestIdSchema = z.string().min(1).max(128);',
-    'export const requestIdSchema = z.string().min(1).max(256);',
+    'export const requestIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));',
+    'export const requestIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(256));',
   );
   verdict(driftedRequestIdContract, 1);
 
@@ -315,8 +315,8 @@ try {
   mutate(
     driftedTimestampContract,
     'packages/contracts/src/inference/identifiers.ts',
-    'export const inferenceTimestampSchema = z.string().datetime();',
-    'export const inferenceTimestampSchema = z.string().datetime({ offset: true });',
+    'export const inferenceTimestampSchema = z.string().check(isoDateTime());',
+    'export const inferenceTimestampSchema = z.string().check(isoDateTime({ offset: true }));',
   );
   verdict(driftedTimestampContract, 1);
 

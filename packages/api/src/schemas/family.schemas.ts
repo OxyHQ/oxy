@@ -1,19 +1,20 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
 
 /** Route params with :id (the family id). */
 export const familyIdRouteParams = z.object({
-  id: z.string().trim().min(1),
+  id: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Route params with :id and :memberId (a `family_members` row id). */
 export const familyMemberParams = z.object({
-  id: z.string().trim().min(1),
-  memberId: z.string().trim().min(1),
+  id: z.string().trim().check(utf16MinLength(1)),
+  memberId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** POST /families — create a family. `name` is an optional display name. */
 export const createFamilySchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
+  name: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)).optional(),
 });
 
 /**
@@ -23,5 +24,5 @@ export const createFamilySchema = z.object({
  * (there is no transfer-ownership endpoint in this pass).
  */
 export const inviteFamilyMemberSchema = z.object({
-  usernameOrEmail: z.string().trim().min(1),
+  usernameOrEmail: z.string().trim().check(utf16MinLength(1)),
 });

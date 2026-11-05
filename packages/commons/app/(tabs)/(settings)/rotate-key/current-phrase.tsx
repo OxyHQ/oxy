@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { RecoveryPhraseService } from '@oxy.so/core/crypto';
+import { readPastedPhrase, WRONG_WORD_COUNT_KEY } from '@/lib/recovery-phrase/paste';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
 import { KeyboardAwareScrollViewWrapper, StackHeader } from '@/components/ui';
@@ -35,12 +36,18 @@ export default function RotateKeyCurrentPhraseScreen() {
     setError(null);
   }, []);
 
-  const handlePaste = useCallback((text: string) => {
-    const words = text.trim().toLowerCase().split(/\s+/);
-    if (words.length === RECOVERY_PHRASE_LENGTH || words.length === 24) {
-      setPhraseWords(words.slice(0, RECOVERY_PHRASE_LENGTH));
-    }
-  }, []);
+  const handlePaste = useCallback(
+    (text: string) => {
+      const pasted = readPastedPhrase(text);
+      if (pasted.ok) {
+        setPhraseWords(pasted.words);
+        setError(null);
+      } else {
+        setError(t(WRONG_WORD_COUNT_KEY, { count: pasted.count }));
+      }
+    },
+    [setError, t],
+  );
 
   const handleContinue = useCallback(() => {
     const phrase = phraseWords.join(' ');

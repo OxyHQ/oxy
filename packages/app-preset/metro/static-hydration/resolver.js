@@ -4,9 +4,11 @@ const { requireFromProject } = require('../../plugin/requireFromProject');
 /** Opt-in compatibility adapter for Expo's static document/app render boundary. */
 function withStaticHydrationBoundary(config, projectRoot) {
   const { version } = requireFromProject('@expo/router-server/package.json', projectRoot);
-  if (!/^58\.0\.(14|15|16)$/.test(version)) {
+  // 58.0.17 stays out: its renderer is a halfway step (the matched route with
+  // the old loader key) that was not reviewed.
+  if (!/^58\.0\.(14|15|16|18|19|20|21)$/.test(version)) {
     throw new Error(
-      `[@oxy.so/app-preset] staticHydrationBoundary supports @expo/router-server 58.0.14–58.0.16; found ${version}. Review the upstream renderer before extending this range.`,
+      `[@oxy.so/app-preset] staticHydrationBoundary supports @expo/router-server 58.0.14–58.0.16 and 58.0.18–58.0.21; found ${version}. Review the upstream renderer before extending this range.`,
     );
   }
   const adapter = path.join(__dirname, 'renderer.js');

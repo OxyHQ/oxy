@@ -12,7 +12,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
-import { Image as ExpoImage } from 'expo-image';
+import { ExpoImage } from '../../components/ExpoImage';
 import Ionicons from '../../icons/Ionicons';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import type { FileMetadata } from '@oxy.so/core';

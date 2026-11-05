@@ -1,3 +1,6 @@
+import { OFFLINE_ERROR_CODES } from './apiErrorMessage';
+import { isSessionChangedError } from './sessionChangedError';
+
 /**
  * What a failed follow read or write leaves behind: a stable CODE, never text.
  *
@@ -32,8 +35,6 @@ export type FollowErrorCode =
 /** The codes that name the caller's action rather than a cause. */
 export type FollowActionErrorCode = 'read_failed' | 'update_failed' | 'mode_failed';
 
-const OFFLINE_CODES = new Set(['NETWORK_ERROR', 'CONNECTION_FAILED', 'TIMEOUT']);
-
 /**
  * The code for whatever a follow request rejected with.
  *
@@ -43,11 +44,12 @@ const OFFLINE_CODES = new Set(['NETWORK_ERROR', 'CONNECTION_FAILED', 'TIMEOUT'])
  * Anything the cause does not explain falls back to the caller's `action`.
  */
 export function toFollowErrorCode(error: unknown, action: FollowActionErrorCode): FollowErrorCode {
+  if (isSessionChangedError(error)) return action;
   const { status, code } = (error && typeof error === 'object' ? error : {}) as {
     status?: unknown;
     code?: unknown;
   };
-  if (typeof code === 'string' && OFFLINE_CODES.has(code)) return 'offline';
+  if (typeof code === 'string' && OFFLINE_ERROR_CODES.has(code)) return 'offline';
   if (status === 401) return 'signed_out';
   if (status === 403) return 'forbidden';
   if (status === 404) return 'not_found';

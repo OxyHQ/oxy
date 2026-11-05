@@ -1,5 +1,5 @@
 import { parseIdPayload } from '@oxy.so/core/civic';
-import { parseIdentityLinkQrPayload } from '@oxy.so/contracts';
+import { parseIdentityLinkQrPayload } from '@oxy.so/contracts/client';
 
 /**
  * Cold-start deep-link normalizer — expo-router's sanctioned `+native-intent`

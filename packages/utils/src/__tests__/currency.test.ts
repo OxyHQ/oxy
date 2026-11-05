@@ -302,6 +302,17 @@ describe('toMinorUnits / fromMinorUnits', () => {
     expect(fromMinorUnits(BigInt(42), 'JPY')).toBe(42);
   });
 
+  it('returns null when a bigint amount overflows after scaling', () => {
+    const large = BigInt(10) ** BigInt(310);
+    expect(fromMinorUnits(large, 'JPY')).toBeNull();
+    expect(fromMinorUnits(-large, 'JPY')).toBeNull();
+    // The currency precision is applied before checking the resulting number.
+    expect(fromMinorUnits(large, 'EUR')).toBe(1e308);
+    expect(fromMinorUnits(large * BigInt(10), 'EUR')).toBeNull();
+    // Bigints above the safe integer range remain supported as rounded numbers.
+    expect(fromMinorUnits(BigInt('9007199254740993'), 'JPY')).toBe(9007199254740992);
+  });
+
   it('refuses a fractional minor unit or an unknown precision', () => {
     expect(fromMinorUnits(12.5, 'EUR')).toBeNull();
     expect(fromMinorUnits(Number.NaN, 'EUR')).toBeNull();
@@ -346,6 +357,16 @@ describe('convertAmount — rates are injected, never fetched or fabricated', ()
 
   it('returns the same currency untouched, even with no rates at all', () => {
     expect(convertAmount(12.345, 'EUR', 'EUR', { base: 'USD', rates: {} })).toBe(12.345);
+  });
+
+  it('refuses overflow instead of returning an infinite amount', () => {
+    const tinyRate = { base: 'USD', rates: { EUR: Number.MIN_VALUE } };
+    expect(convertAmount(1, 'EUR', 'USD', tinyRate)).toBeNull();
+
+    // The first division can overflow even if the mathematical final result
+    // is representable. Do not present a fabricated value in that case either.
+    const equalRates = { base: 'USD', rates: { EUR: 0.5, GBP: 0.5 } };
+    expect(convertAmount(Number.MAX_VALUE, 'EUR', 'GBP', equalRates)).toBeNull();
   });
 
   it('returns null instead of assuming a rate of 1', () => {

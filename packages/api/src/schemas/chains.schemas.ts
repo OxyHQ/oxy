@@ -1,3 +1,4 @@
+import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
 import { isAccountIdFormat } from '../utils/validation';
 
@@ -41,10 +42,15 @@ export const appendChainRecordSchema = z.object({
   collection: z
     .string()
     .trim()
-    .min(3)
-    .max(128)
+    .check(utf16MinLength(3))
+    .check(utf16MaxLength(128))
     .regex(NSID_PATTERN, 'collection must be a dotted NSID, e.g. app.mention.feed.post'),
-  rkey: z.string().trim().min(1).max(512).regex(RKEY_PATTERN, 'rkey must be url-safe'),
+  rkey: z
+    .string()
+    .trim()
+    .check(utf16MinLength(1))
+    .check(utf16MaxLength(512))
+    .regex(RKEY_PATTERN, 'rkey must be url-safe'),
   /**
    * The lexicon payload, passed through untouched. Oxy does not know any app's
    * lexicon and deliberately does not validate its shape — that is the app's
@@ -64,7 +70,7 @@ export type AppendChainRecordBody = z.infer<typeof appendChainRecordSchema>;
 const commaList = z
   .string()
   .trim()
-  .min(1)
+  .check(utf16MinLength(1))
   .transform((raw) =>
     raw
       .split(',')
@@ -82,11 +88,21 @@ const commaList = z
  * published nothing".
  */
 export const readChainRecordsQuerySchema = z.object({
-  authors: commaList.pipe(z.array(z.string().min(1)).min(1).max(300)),
-  collections: commaList.pipe(z.array(z.string().min(1)).min(1).max(32)),
+  authors: commaList.pipe(
+    z
+      .array(z.string().check(utf16MinLength(1)))
+      .min(1)
+      .max(300),
+  ),
+  collections: commaList.pipe(
+    z
+      .array(z.string().check(utf16MinLength(1)))
+      .min(1)
+      .max(32),
+  ),
   /** Opaque cursor from a previous page. Never constructed by the caller. */
-  since: z.string().trim().min(1).optional(),
-  limit: z.coerce.number().int().positive().max(500).optional(),
+  since: z.string().trim().check(utf16MinLength(1)).optional(),
+  limit: z.coerce.number().check(integerCheck()).positive().max(500).optional(),
 });
 
 export type ReadChainRecordsQuery = z.infer<typeof readChainRecordsQuerySchema>;

@@ -7,25 +7,25 @@
  * that bundles the SDK (~120 KB before compression, evaluated at startup). The
  * checks here give the client the same answers in plain TypeScript.
  *
- * Every check mirrors one Zod 3 schema in this package, and
+ * Every check mirrors one Zod 4 schema in this package, and
  * `__tests__/clientChecks.parity.test.ts` runs both over the same inputs and
  * requires the same verdict, the same output and the same failing path. The
- * rules follow Zod 3 exactly:
+ * rules follow Zod 4 exactly:
  *
  *   string(...rules)      a string; `trim`/`toLowerCase` rewrite it, the other
  *                         rules test it, in the order given
- *   number(...rules)      a number that is not NaN (Infinity passes, as in Zod)
+ *   number(...rules)      a finite number
  *   literal(v) / oneOf    `===` one value / one of a fixed set of strings
  *   optional(c)           `undefined` (or an absent key) passes; `null` does not
  *   nullable(c)           `null` passes and is kept
  *   withDefault(c, v)     `undefined` becomes `v`, which is then checked
- *   array(c, ...rules)    the size rules first, then every element in order
+ *   array(c, ...rules)    upper bounds before elements, lower bounds afterwards
  *   object(shape)         unknown keys are DROPPED (Zod's default "strip")
  *   strictObject(shape)   unknown keys FAIL (`.strict()`)
  *   looseObject(shape)    unknown keys are KEPT (`.passthrough()`)
  *   refine(c, test)       a further condition, run once `c` passes
  *   transform(c, f)       `f` rewrites the value once `c` passes
- *   union / discriminatedUnion   as Zod 3 reports them
+ *   union / discriminatedUnion   as Zod 4 reports them
  *
  * A failure carries the first issue Zod would report and whether Zod would have
  * stopped there (`fatal`: the type was wrong) or kept checking (`fatal: false`:
@@ -39,17 +39,15 @@
 /** Where in the value a check failed. */
 export type CheckPath = (string | number)[];
 
-/** Zod 3's issue codes, for the ones these checks can report. */
+/** Zod 4's issue codes, for the ones these checks can report. */
 export type CheckIssueCode =
   | 'invalid_type'
-  | 'invalid_literal'
-  | 'invalid_enum_value'
-  | 'invalid_string'
+  | 'invalid_value'
+  | 'invalid_format'
   | 'too_small'
   | 'too_big'
   | 'unrecognized_keys'
   | 'invalid_union'
-  | 'invalid_union_discriminator'
   | 'custom';
 
 /**
@@ -89,14 +87,15 @@ function fail(path: CheckPath, problem: Problem, fatal: boolean): CheckResult<ne
 function describe(input: unknown): string {
   if (input === null) return 'null';
   if (Array.isArray(input)) return 'array';
-  if (typeof input === 'number' && Number.isNaN(input)) return 'nan';
+  if (typeof input === 'number' && Number.isNaN(input)) return 'NaN';
+  if (typeof input === 'number' && !Number.isFinite(input)) return String(input);
   return typeof input;
 }
 
 /** Zod's wording for a value of the wrong type. */
 function wrongType(path: CheckPath, expected: string, input: unknown): CheckResult<never> {
   const received = describe(input);
-  const message = input === undefined ? 'Required' : `Expected ${expected}, received ${received}`;
+  const message = `Invalid input: expected ${expected}, received ${received === 'object' ? 'Object' : received}`;
   return fail(path, { code: 'invalid_type', message, expected, received }, true);
 }
 
@@ -127,7 +126,7 @@ export function minLength(min: number, message?: string): StringRule {
   return {
     test: (value) => value.length >= min,
     code: 'too_small',
-    message: message ?? `String must contain at least ${min} character(s)`,
+    message: message ?? `Too small: expected string to have >=${min} characters`,
   };
 }
 
@@ -135,7 +134,7 @@ export function maxLength(max: number, message?: string): StringRule {
   return {
     test: (value) => value.length <= max,
     code: 'too_big',
-    message: message ?? `String must contain at most ${max} character(s)`,
+    message: message ?? `Too big: expected string to have <=${max} characters`,
   };
 }
 
@@ -145,24 +144,24 @@ export function pattern(regex: RegExp, message?: string): StringRule {
       regex.lastIndex = 0;
       return regex.test(value);
     },
-    code: 'invalid_string',
-    message: message ?? 'Invalid',
+    code: 'invalid_format',
+    message: message ?? `Invalid string: must match pattern ${regex}`,
   };
 }
 
 export function startsWith(prefix: string): StringRule {
   return {
     test: (value) => value.startsWith(prefix),
-    code: 'invalid_string',
-    message: `Invalid input: must start with "${prefix}"`,
+    code: 'invalid_format',
+    message: `Invalid string: must start with "${prefix}"`,
   };
 }
 
-/** Zod 3's `.email()`. */
+/** Zod 4's `.email()`. */
 const EMAIL = /^(?!\.)(?!.*\.\.)([A-Z0-9_'+\-.]*)[A-Z0-9_+-]@([A-Z0-9][A-Z0-9-]*\.)+[A-Z]{2,}$/i;
-export const email: StringRule = pattern(EMAIL, 'Invalid email');
+export const email: StringRule = pattern(EMAIL, 'Invalid email address');
 
-/** Zod 3's `.url()`: anything `new URL()` accepts. */
+/** The contract's URL check validates with `new URL()` and preserves the original value. */
 export const url: StringRule = {
   test: (value) => {
     try {
@@ -172,16 +171,16 @@ export const url: StringRule = {
       return false;
     }
   },
-  code: 'invalid_string',
-  message: 'Invalid url',
+  code: 'invalid_format',
+  message: 'Invalid URL',
 };
 
-/** Zod 3's `.datetime()`: ISO 8601 in UTC (`Z`), any sub-second precision, leap days checked. */
+/** Zod 4's `.datetime()`: ISO 8601 in UTC (`Z`), any sub-second precision, leap days checked. */
 const DATETIME = new RegExp(
   '^((\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-((0[13578]|1[02])-(0[1-9]|[12]\\d|3[01])|(0[469]|11)-(0[1-9]|[12]\\d|30)|(02)-(0[1-9]|1\\d|2[0-8])))' +
     'T([01]\\d|2[0-3]):[0-5]\\d(:[0-5]\\d(\\.\\d+)?)?(Z)$',
 );
-export const datetime: StringRule = pattern(DATETIME, 'Invalid datetime');
+export const datetime: StringRule = pattern(DATETIME, 'Invalid ISO datetime');
 
 export function string(...rules: StringRule[]): Check<string> {
   return (input, path) => {
@@ -190,7 +189,7 @@ export function string(...rules: StringRule[]): Check<string> {
     let firstFailure: Problem | null = null;
     for (const rule of rules) {
       if ('rewrite' in rule) value = rule.rewrite(value);
-      else if (firstFailure === null && !rule.test(value)) {
+      if ('test' in rule && firstFailure === null && !rule.test(value)) {
         firstFailure = { code: rule.code, message: rule.message };
       }
     }
@@ -205,43 +204,44 @@ export function string(...rules: StringRule[]): Check<string> {
 /** A test on a number; `undefined` when it passes, else Zod's issue. */
 export type NumberRule = (value: number) => Problem | undefined;
 
-/** Zod's `.int()` — reported, as Zod does, as an `invalid_type` that does not stop the parse. */
+/** Integer validation, separate from the contract's optional safe bounds. */
 export const int: NumberRule = (value) =>
   Number.isInteger(value)
     ? undefined
     : {
         code: 'invalid_type',
-        message: 'Expected integer, received float',
-        expected: 'integer',
-        received: 'float',
+        message: 'Invalid input: expected int, received number',
+        expected: 'int',
+        received: 'number',
       };
 
 export function atLeast(min: number): NumberRule {
   return (value) =>
     value >= min
       ? undefined
-      : { code: 'too_small', message: `Number must be greater than or equal to ${min}` };
+      : { code: 'too_small', message: `Too small: expected number to be >=${min}` };
 }
 
 export function atMost(max: number): NumberRule {
   return (value) =>
     value <= max
       ? undefined
-      : { code: 'too_big', message: `Number must be less than or equal to ${max}` };
+      : { code: 'too_big', message: `Too big: expected number to be <=${max}` };
 }
 
 /** Zod's `.positive()`. */
 export const positive: NumberRule = (value) =>
-  value > 0 ? undefined : { code: 'too_small', message: 'Number must be greater than 0' };
+  value > 0 ? undefined : { code: 'too_small', message: 'Too small: expected number to be >0' };
 /** Zod's `.nonnegative()` (and `.min(0)`). */
 export const nonnegative: NumberRule = atLeast(0);
-/** Zod's `.safe()`: both bounds, low first. */
+/** The contract's explicit safe-number bounds. */
 export const safe: NumberRule = (value) =>
   atLeast(Number.MIN_SAFE_INTEGER)(value) ?? atMost(Number.MAX_SAFE_INTEGER)(value);
 
 export function number(...rules: NumberRule[]): Check<number> {
   return (input, path) => {
-    if (typeof input !== 'number' || Number.isNaN(input)) return wrongType(path, 'number', input);
+    if (typeof input !== 'number' || !Number.isFinite(input))
+      return wrongType(path, 'number', input);
     for (const rule of rules) {
       const problem = rule(input);
       if (problem) return fail(path, problem, false);
@@ -260,8 +260,8 @@ export function literal<const T extends string | number | boolean>(expected: T):
       : fail(
           path,
           {
-            code: 'invalid_literal',
-            message: `Invalid literal value, expected ${JSON.stringify(expected)}`,
+            code: 'invalid_value',
+            message: `Invalid input: expected ${JSON.stringify(expected)}`,
           },
           true,
         );
@@ -270,14 +270,16 @@ export function literal<const T extends string | number | boolean>(expected: T):
 /** One of a fixed set of strings — Zod's `z.enum`. */
 export function oneOf<const T extends readonly [string, ...string[]]>(values: T): Check<T[number]> {
   return (input, path) => {
-    if (typeof input !== 'string') return wrongType(path, listValues(values), input);
-    return values.includes(input)
+    return typeof input === 'string' && values.includes(input)
       ? ok(input as T[number])
       : fail(
           path,
           {
-            code: 'invalid_enum_value',
-            message: `Invalid enum value. Expected ${listValues(values)}, received '${input}'`,
+            code: 'invalid_value',
+            message:
+              values.length === 1
+                ? `Invalid input: expected ${JSON.stringify(values[0])}`
+                : `Invalid option: expected one of ${values.map((value) => JSON.stringify(value)).join('|')}`,
           },
           true,
         );
@@ -341,7 +343,7 @@ export function branded<T extends B, B>(inner: Check<B>): Check<T> {
 }
 
 /**
- * The issues of a container, as Zod 3 orders them: the first one is reported,
+ * The issues of a container, as Zod 4 orders them: the first one is reported,
  * and the container is fatal when any part of it was.
  */
 class Failures {
@@ -376,7 +378,7 @@ export function minItems(min: number): ArrayRule {
   return {
     test: (length) => length >= min,
     code: 'too_small',
-    message: `Array must contain at least ${min} element(s)`,
+    message: `Too small: expected array to have >=${min} items`,
   };
 }
 
@@ -384,16 +386,15 @@ export function maxItems(max: number): ArrayRule {
   return {
     test: (length) => length <= max,
     code: 'too_big',
-    message: `Array must contain at most ${max} element(s)`,
+    message: `Too big: expected array to have <=${max} items`,
   };
 }
 
 /** Zod's `.length(n)`: `too_big` or `too_small`, by which side it missed. */
 export function exactItems(count: number): ArrayRule[] {
-  const message = `Array must contain exactly ${count} element(s)`;
   return [
-    { test: (length) => length <= count, code: 'too_big', message },
-    { test: (length) => length >= count, code: 'too_small', message },
+    { ...maxItems(count), message: `Too big: expected array to have exactly ${count} items` },
+    { ...minItems(count), message: `Too small: expected array to have exactly ${count} items` },
   ];
 }
 
@@ -401,15 +402,20 @@ export function array<T>(inner: Check<T>, ...rules: (ArrayRule | ArrayRule[])[])
   const sizeRules = rules.flat();
   return (input, path) => {
     if (!Array.isArray(input)) return wrongType(path, 'array', input);
-    // Zod reports the size before any element, then every element in order.
+    // Oversized collections abort before walking any element. Lower bounds
+    // are checked after elements, matching the patched Zod parser.
     const size = sizeRules.find((rule) => !rule.test(input.length));
-    const failures = new Failures(size ? { path, code: size.code, message: size.message } : null);
+    if (size?.code === 'too_big')
+      return fail(path, { code: size.code, message: size.message }, true);
+    const failures = new Failures(null);
     const out: T[] = [];
     for (let index = 0; index < input.length; index++) {
       const checked = inner(input[index], [...path, index]);
       if (checked.ok) out.push(checked.value);
       else failures.add(checked);
     }
+    if (size)
+      failures.add({ issue: { path, code: size.code, message: size.message }, fatal: false });
     return failures.result() ?? ok(out);
   };
 }
@@ -427,7 +433,7 @@ type OptionalKeys<S extends Shape> = {
 }[keyof S];
 type RequiredKeys<S extends Shape> = Exclude<keyof S, OptionalKeys<S>>;
 
-/** What Zod 3 infers for `z.object(shape)`: keys that admit `undefined` become optional. */
+/** What Zod 4 infers for `z.object(shape)`: keys that admit `undefined` become optional. */
 export type ShapeOutput<S extends Shape> = Flatten<
   { [K in RequiredKeys<S>]: CheckOutput<S[K]> } & { [K in OptionalKeys<S>]?: CheckOutput<S[K]> }
 >;
@@ -459,7 +465,7 @@ function objectWith<S extends Shape, T>(shape: S, unknownKeys: UnknownKeys): Che
         }
       }
       if (unknownKeys === 'strict' && unknown.length > 0) {
-        const message = `Unrecognized key(s) in object: ${listValues(unknown, ', ')}`;
+        const message = `Unrecognized key${unknown.length === 1 ? '' : 's'}: ${unknown.map((key) => JSON.stringify(key)).join(', ')}`;
         failures.add({ issue: { path, code: 'unrecognized_keys', message }, fatal: false });
       }
     }
@@ -486,7 +492,7 @@ export function looseObject<S extends Shape>(
 
 /** Any object, every value kept — Zod's `z.record(z.unknown())`. */
 export const unknownRecord: Check<Record<string, unknown>> = (input, path) => {
-  if (!isRecord(input)) return wrongType(path, 'object', input);
+  if (!isRecord(input)) return wrongType(path, 'record', input);
   const out: Record<string, unknown> = {};
   for (const key in input) if (key !== '__proto__') out[key] = input[key];
   return ok(out);
@@ -496,22 +502,24 @@ export const unknownRecord: Check<Record<string, unknown>> = (input, path) => {
 /*  Unions                                                                    */
 /* -------------------------------------------------------------------------- */
 
-/** The first option that passes; else Zod 3's report (the first option that only failed a rule). */
+/** The first passing option, or the sole non-aborted option's issue; otherwise a union issue. */
 export function union<const C extends readonly Check<unknown>[]>(
   ...options: C
 ): Check<CheckOutput<C[number]>> {
   return (input, path) => {
-    let ruleFailure: CheckResult<never> | null = null;
+    const ruleFailures: CheckResult<never>[] = [];
     for (const option of options) {
       const checked = option(input, path);
       if (checked.ok) return checked as CheckResult<CheckOutput<C[number]>>;
-      if (!checked.fatal) ruleFailure ??= checked;
+      if (!checked.fatal) ruleFailures.push(checked);
     }
-    return ruleFailure ?? fail(path, { code: 'invalid_union', message: 'Invalid input' }, true);
+    return ruleFailures.length === 1
+      ? ruleFailures[0]
+      : fail(path, { code: 'invalid_union', message: 'Invalid input' }, true);
   };
 }
 
-/** Zod 3's `z.discriminatedUnion(key, options)`, with the options keyed by their tag. */
+/** Zod 4's `z.discriminatedUnion(key, options)`, with the options keyed by their tag. */
 export function discriminatedUnion<K extends string, M extends Record<string, Check<unknown>>>(
   key: K,
   options: M,
@@ -525,7 +533,7 @@ export function discriminatedUnion<K extends string, M extends Record<string, Ch
         : undefined;
     if (!option) {
       const message = `Invalid discriminator value. Expected ${listValues(Object.keys(options))}`;
-      return fail([...path, key], { code: 'invalid_union_discriminator', message }, true);
+      return fail([...path, key], { code: 'invalid_union', message }, true);
     }
     return option(input, path) as CheckResult<CheckOutput<M[keyof M]>>;
   };

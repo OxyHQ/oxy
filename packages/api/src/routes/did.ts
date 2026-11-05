@@ -70,7 +70,7 @@ router.get('/.well-known/did.json', (_req: Request, res: Response) => {
 });
 
 // Per-user DID document.
-router.get('/u/:userId/did.json', async (req: Request, res: Response) => {
+router.get('/u/:userId/did.json', async (req, res) => {
   try {
     const { userId } = req.params;
     const db = getDb();

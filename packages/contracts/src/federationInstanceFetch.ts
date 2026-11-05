@@ -1,3 +1,4 @@
+import { urlCheck, utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Wire contract for `POST /federation/instance-fetch/sign`: Oxy's INSTANCE
  * actor signs one ActivityPub GET for a first-party service, so the service can
@@ -25,7 +26,11 @@ export const INSTANCE_FETCH_MAX_URL_LENGTH = 2048;
 export const instanceFetchSignRequestSchema = z
   .object({
     /** The absolute public `https://` URL the caller is about to GET. */
-    url: z.string().trim().min(1).max(INSTANCE_FETCH_MAX_URL_LENGTH),
+    url: z
+      .string()
+      .trim()
+      .check(utf16MinLength(1))
+      .check(utf16MaxLength(INSTANCE_FETCH_MAX_URL_LENGTH)),
   })
   .strict();
 
@@ -34,13 +39,13 @@ export type InstanceFetchSignRequest = z.infer<typeof instanceFetchSignRequestSc
 export const instanceFetchSignResponseSchema = z
   .object({
     /** The instance actor's key, e.g. `https://oxy.so/ap/users/instance#main-key`. */
-    keyId: z.string().url(),
+    keyId: z.string().check(urlCheck()),
     /** Send all three on the GET, as they are. */
     headers: z
       .object({
-        Host: z.string().min(1),
-        Date: z.string().min(1),
-        Signature: z.string().min(1),
+        Host: z.string().check(utf16MinLength(1)),
+        Date: z.string().check(utf16MinLength(1)),
+        Signature: z.string().check(utf16MinLength(1)),
       })
       .strict(),
   })

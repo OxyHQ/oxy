@@ -44,7 +44,8 @@ export const SDK_MEMORY_ONLY_ROOTS: ReadonlyArray<string> = [
 ];
 
 export interface PersistFilters {
-  shouldDehydrateQuery: (query: Query) => boolean;
+  /** The queries this cache keeps, whatever their state; only successful ones are written. */
+  persistsQuery: (query: Query) => boolean;
   shouldDehydrateMutation: (mutation: Mutation) => boolean;
 }
 
@@ -54,7 +55,7 @@ interface PersistedBlob {
   clientState: DehydratedState;
 }
 
-export function rootOf(query: Query): string | null {
+export function rootOf(query: Pick<Query, 'queryKey'>): string | null {
   const head = query.queryKey[0];
   return typeof head === 'string' ? head : null;
 }
@@ -64,7 +65,11 @@ export function snapshot(queryClient: QueryClient, filters: PersistFilters): str
   const blob: PersistedBlob = {
     buster: getOxyBuildId(),
     timestamp: Date.now(),
-    clientState: dehydrate(queryClient, filters),
+    clientState: dehydrate(queryClient, {
+      shouldDehydrateQuery: (query) =>
+        query.state.status === 'success' && filters.persistsQuery(query),
+      shouldDehydrateMutation: filters.shouldDehydrateMutation,
+    }),
   };
   return JSON.stringify(blob);
 }
@@ -78,6 +83,11 @@ export function hydrateSnapshot(
   queryClient: QueryClient,
   raw: string | null,
   maxAge: number,
+  options?: {
+    shouldRestoreQuery?: (query: DehydratedState['queries'][number]) => boolean;
+    shouldRestoreMutation?: (mutation: DehydratedState['mutations'][number]) => boolean;
+    restoreMutations?: boolean;
+  },
 ): boolean {
   if (!raw) return false;
   let blob: PersistedBlob;
@@ -95,15 +105,25 @@ export function hydrateSnapshot(
   }
   const sameBuild = blob.buster === getOxyBuildId();
   hydrate(queryClient, {
-    queries: sameBuild ? blob.clientState.queries : [],
-    mutations: blob.clientState.mutations ?? [],
+    queries: sameBuild
+      ? (blob.clientState.queries ?? []).filter(
+          (query) => options?.shouldRestoreQuery?.(query) ?? true,
+        )
+      : [],
+    mutations:
+      options?.restoreMutations === false
+        ? []
+        : (blob.clientState.mutations ?? []).filter(
+            (mutation) => options?.shouldRestoreMutation?.(mutation) ?? true,
+          ),
   });
   return true;
 }
 
 /**
- * Write the filtered cache on every change, at most once per `throttleMs`.
- * `write` receives the serialized snapshot; `flush()` writes now.
+ * Write the filtered cache whenever one of its queries or any mutation changes,
+ * at most once per `throttleMs`. Activity in queries it does not keep (feeds,
+ * search) never serializes it. `write` receives the snapshot; `flush()` writes now.
  */
 export function subscribeSnapshots(
   queryClient: QueryClient,
@@ -120,7 +140,9 @@ export function subscribeSnapshots(
   const schedule = () => {
     if (!timer) timer = setTimeout(flush, throttleMs);
   };
-  const offQueries = queryClient.getQueryCache().subscribe(schedule);
+  const offQueries = queryClient.getQueryCache().subscribe((event) => {
+    if (filters.persistsQuery(event.query)) schedule();
+  });
   const offMutations = queryClient.getMutationCache().subscribe(schedule);
   return {
     flush,

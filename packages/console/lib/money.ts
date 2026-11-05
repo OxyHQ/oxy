@@ -241,10 +241,3 @@ export function formatBasisPoints(bps: number): string {
 export function formatCount(value: number, locale: string = 'en-US'): string {
   return value.toLocaleString(locale);
 }
-
-/** Large counts in a stat card that must fit a narrow tile: 6.6M, 2.1M. */
-export function formatCompactCount(value: number, locale: string = 'en-US'): string {
-  return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(
-    value,
-  );
-}

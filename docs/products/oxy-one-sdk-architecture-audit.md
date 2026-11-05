@@ -1,5 +1,10 @@
 # Oxy One SDK architecture audit
 
+> **Superseded 2026-11-04.** Every `client.billing.*` call audited below was Peable's
+> Stripe-Billing proxy, which Peable retired. Oxy's personal-plan runtime now reads
+> and writes native Orbit objects only — see `oxy-one-launch-readiness.md`
+> ("Native Orbit billing") and ADR 0046 "As built". This audit is kept as history.
+
 Audit of Oxy26b496cb and Peabled99603e plus the typed SDK adoption corrections in this delta. No production, publication, deployment or provider calls.
 
 The intended layering is Website/Accounts → Oxy SDK → Oxy billing API → Peable SDK → Peable gateway → internal provider adapter. The new One server paths contain no direct fetch, axios, raw Peable URL or downstream Stripe invocation. Existing unrelated Stripe billing remains separate; One catalogue mappings reject Stripe and legacy invoice mapping excludes One. SDK-owned HTTP transport and gateway-owned Stripe adapters are expected platform boundaries.

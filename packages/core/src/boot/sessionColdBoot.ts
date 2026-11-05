@@ -92,6 +92,23 @@ export interface RunSessionColdBootOptions {
   onSignedOut?: (reason: SignedOutReason) => void | Promise<void>;
   onStepError?: (id: string, error: unknown) => void;
   /**
+   * Invoked when the server answered this holder's OWN device credential with a
+   * verdict — `invalid_device_secret` or `no_active_session` — rather than the
+   * mint failing to reach it (offline, transient, an unsaved secret). The later
+   * recovery lanes still run and may yet restore a session; when none does, the
+   * boot ends in {@link onSignedOut}. A caller that already showed the session
+   * from its cache reads this to tell "the server ended it" from "the server
+   * could not be asked".
+   */
+  onHolderRejected?: () => void;
+  /**
+   * Skip the pure-local `warm-token-plant` step, so a session is restored only
+   * by a server answer. For a caller that has already painted the session from
+   * its own cache: a still-valid persisted token proves nothing about whether
+   * the session was revoked since, and the mint does.
+   */
+  requireServerVerdict?: boolean;
+  /**
    * HARD overall deadline (ms) for the whole ordered step chain, forwarded to
    * {@link runColdBoot}. Defense-in-depth so a single non-settling network step
    * (a black-hole network that neither connects nor rejects) can NEVER hang the
@@ -214,6 +231,7 @@ export async function runSessionColdBoot(
   //    `deviceSecret`.
   steps.push({
     id: 'warm-token-plant',
+    enabled: () => opts.requireServerVerdict !== true,
     run: async () => {
       if (
         identityBinding === null &&
@@ -301,6 +319,7 @@ export async function runSessionColdBoot(
             },
           };
         case 'invalid-secret': {
+          opts.onHolderRejected?.();
           if (
             identityBinding === null &&
             store.setAutomaticIdentitySignInSuppressed &&
@@ -321,6 +340,7 @@ export async function runSessionColdBoot(
           return { kind: 'skip' };
         }
         case 'no-session':
+          opts.onHolderRejected?.();
           rejectedLocalHolder = identityBinding === null;
           // Device known, no live session — authoritative signed-out. Keep the
           // secret (the device may sign in again).

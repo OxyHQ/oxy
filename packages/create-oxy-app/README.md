@@ -46,8 +46,8 @@ All Expo config comes from **`@oxy.so/app-preset`** — the config plugin,
 bases — so apps track the ecosystem with a version bump instead of copy-pasting.
 
 The frontend ships the canonical provider stack
-(`GestureHandlerRootView → KeyboardProvider → SafeAreaProvider →
-BloomThemeProvider → OxyProvider → ImageResolver → LocaleProvider`) with the root
+(`GestureHandlerRootView → SafeAreaProvider → BloomThemeProvider → OxyProvider →
+ImageResolver → LocaleProvider`; OxyProvider mounts the one `KeyboardProvider`) with the root
 `Stack` as the sole `(auth)`↔`(app)` authority, keyed on the device-first
 session.
 

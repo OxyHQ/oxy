@@ -1,6 +1,7 @@
 import { OXY_USER_INVALIDATION_CHANNEL, oxyUserInvalidationEventSchema } from '@oxy.so/contracts';
 import type Redis from 'ioredis';
 
+import { duplicateRedisSubscriber } from '../config/redis';
 import { logger } from './logger';
 import userCache from './userCache';
 
@@ -10,10 +11,10 @@ const LOG_COMPONENT = 'UserCacheInvalidationSubscriber';
  * Subscribe to cross-instance identity invalidation events so every ECS task
  * drops its in-memory user row when a peer writes, without re-publishing.
  *
- * Uses a dedicated `duplicate()` — the main client must stay publish-capable.
+ * Uses a dedicated subscriber connection (`duplicateRedisSubscriber`).
  */
 export function startUserCacheInvalidationSubscriber(redis: Redis): { stop: () => Promise<void> } {
-  const subscriber = redis.duplicate();
+  const subscriber = duplicateRedisSubscriber(redis);
 
   subscriber.on('message', (channel, raw) => {
     if (channel !== OXY_USER_INVALIDATION_CHANNEL) return;

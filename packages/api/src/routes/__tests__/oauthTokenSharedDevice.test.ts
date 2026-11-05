@@ -165,7 +165,7 @@ async function officialApp(): Promise<string> {
 async function join(clientId: string, deviceId: string, userId: string) {
   mockExchangeAuthCode.mockResolvedValueOnce({
     ok: true,
-    code: { userId, deviceId, operatedByUserId: null, scopes: [] },
+    code: { userId, deviceId, operatedByUserId: null, scopes: [], authority: 'first_party' },
   });
   const res = await post(
     '/auth/oauth/token',

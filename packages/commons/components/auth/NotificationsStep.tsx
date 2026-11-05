@@ -3,10 +3,14 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
+import { Icons } from '@/constants/icons';
+import { useTranslation } from '@/lib/i18n';
 
 interface NotificationsStepProps {
   error: string | null;
   onRequestNotifications: () => void;
+  /** Finish onboarding without asking for the permission. */
+  onSkip: () => void;
   isRequestingNotifications: boolean;
   isSigningIn: boolean;
   backgroundColor: string;
@@ -14,11 +18,15 @@ interface NotificationsStepProps {
 }
 
 /**
- * Notifications step component for requesting push notification permissions
+ * The last onboarding step: ask for the notification permission, which is what
+ * lets "Sign in with Oxy" on another device reach this phone as a push. Asking
+ * is optional; "Not now" finishes onboarding without the system prompt, and a
+ * sign-in can always be approved by scanning its QR code instead.
  */
 export function NotificationsStep({
   error,
   onRequestNotifications,
+  onSkip,
   isRequestingNotifications,
   isSigningIn,
   backgroundColor,
@@ -26,6 +34,8 @@ export function NotificationsStep({
 }: NotificationsStepProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const busy = isRequestingNotifications || isSigningIn;
 
   const containerStyle = useMemo(
     () => [styles.container, { backgroundColor, paddingTop: insets.top }],
@@ -41,13 +51,13 @@ export function NotificationsStep({
     <View style={containerStyle}>
       <View className="flex-1 p-space-24 pt-space-60 justify-center">
         <View className="items-center mb-space-32">
-          <Text style={styles.notificationIcon}>🔔</Text>
+          <Icons.notification size="3xl" fill={textColor} />
         </View>
 
-        <Text style={titleStyle}>Receive push notifications</Text>
-        <Text style={subtitleStyle}>
-          Don&apos;t miss messages from friends, transaction alerts, and feature updates.
+        <Text style={titleStyle} accessibilityRole="header">
+          {t('auth.notificationsStep.title')}
         </Text>
+        <Text style={subtitleStyle}>{t('auth.notificationsStep.subtitle')}</Text>
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
@@ -55,11 +65,14 @@ export function NotificationsStep({
           appearance="solid"
           tone="accent"
           onPress={onRequestNotifications}
-          disabled={isRequestingNotifications || isSigningIn}
-          loading={isRequestingNotifications || isSigningIn}
+          disabled={busy}
+          loading={busy}
           className="mt-space-32"
         >
-          Enable notifications
+          {t('auth.notificationsStep.enable')}
+        </Button>
+        <Button appearance="subtle" onPress={onSkip} disabled={busy} className="mt-space-8">
+          {t('auth.notificationsStep.notNow')}
         </Button>
       </View>
     </View>
@@ -87,8 +100,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
-  },
-  notificationIcon: {
-    fontSize: 64,
   },
 });

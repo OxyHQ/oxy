@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "12.12.0",
+  "version": "14.3.8",
   "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -46,6 +46,30 @@
         "default": "./lib/commonjs/ui/client.js"
       },
       "default": "./lib/module/ui/client.js"
+    },
+    "./runtime": {
+      "react-native": "./src/runtime.ts",
+      "import": {
+        "types": "./lib/typescript/module/runtime.d.ts",
+        "default": "./lib/module/runtime.js"
+      },
+      "require": {
+        "types": "./lib/typescript/commonjs/runtime.d.ts",
+        "default": "./lib/commonjs/runtime.js"
+      },
+      "default": "./lib/module/runtime.js"
+    },
+    "./organization-draft": {
+      "react-native": "./src/ui/utils/organizationDraft.ts",
+      "import": {
+        "types": "./lib/typescript/module/ui/utils/organizationDraft.d.ts",
+        "default": "./lib/module/ui/utils/organizationDraft.js"
+      },
+      "require": {
+        "types": "./lib/typescript/commonjs/ui/utils/organizationDraft.d.ts",
+        "default": "./lib/commonjs/ui/utils/organizationDraft.js"
+      },
+      "default": "./lib/module/ui/utils/organizationDraft.js"
     },
     "./ui/server": {
       "react-native": "./src/ui/server.ts",
@@ -107,6 +131,7 @@
     "android/build.gradle",
     "android/src",
     "ios/OxyIdentityModule.swift",
+    "ios/OxyAssetFilesModule.swift",
     "ios/OxyIdentity.podspec",
     "plugins",
     "expo-module.config.json"
@@ -140,6 +165,7 @@
     "verify:package": "node scripts/verify-package.mjs",
     "generate:icon-fonts": "node scripts/generate-icon-font-subsets.mjs",
     "check:icon-fonts": "node scripts/check-icon-font-subsets.mjs",
+    "check:compat-expo-54": "bun compat/expo-54/check.mjs",
     "build:js": "bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun run copy-assets",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
@@ -147,37 +173,34 @@
     "copy-assets": "copyfiles -u 1 \"src/assets/**/*\" lib/commonjs/assets && copyfiles -u 1 \"src/assets/**/*\" lib/module/assets",
     "copy-dts": "copyfiles -u 1 \"src/**/*.d.ts\" lib/typescript",
     "delete-debug-view": "rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true",
-    "delete-dts.js": "find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete"
+    "delete-dts.js": "find ./lib/commonjs ./lib/module \\( -name '*.d.js*' -o -name '*.d.ts' \\) -delete"
   },
   "dependencies": {
     "@oxy.so/contracts": "workspace:^",
     "color": "^5.0.3",
-    "@peable.to/sdk": "0.4.1"
+    "@peable.to/sdk": "3.0.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.1",
-    "@commitlint/config-conventional": "^21.2.0",
     "@expo/app-integrity": "catalog:",
-    "@expo/vector-icons": "^15.0.3",
+    "@expo/vector-icons": "^15.1.1",
     "@oxy.so/core": "workspace:*",
-    "@react-native-async-storage/async-storage": "^2.0.0",
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native-community/netinfo": "^12.0.1",
-    "@react-native/babel-preset": "^0.88.0",
-    "@release-it/conventional-changelog": "^12.0.2",
+    "@react-native/babel-preset": "^0.88.1",
     "@tanstack/query-async-storage-persister": "catalog:",
     "@tanstack/query-sync-storage-persister": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-query-persist-client": "catalog:",
-    "@testing-library/jest-dom": "^6.4.2",
-    "@testing-library/react": "^16.3.2",
+    "@testing-library/react": "^16.3.3",
     "@types/color": "^4.2.1",
     "@types/jest": "^30.0.0",
-    "@types/node": "^20.19.43",
+    "@types/node": "catalog:",
     "@types/react": "*",
     "@oxy.so/bloom": "catalog:",
     "copyfiles": "^2.4.1",
     "expo-clipboard": "catalog:",
     "expo-constants": "catalog:",
+    "expo-crypto": "catalog:",
     "expo-file-system": "catalog:",
     "expo-haptics": "catalog:",
     "expo-image": "catalog:",
@@ -187,15 +210,13 @@
     "expo-modules-core": "catalog:",
     "expo-secure-store": "catalog:",
     "expo-web-browser": "catalog:",
-    "husky": "^4.3.8",
-    "jest": "^30.5.1",
-    "lint-staged": "^15.2.4",
+    "jest": "^30.5.2",
     "nativewind": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",
-    "react-native-builder-bob": "^0.43.0",
-    "react-native-css": "^3.0.6",
+    "react-native-builder-bob": "^0.44.1",
+    "react-native-css": "catalog:",
     "react-native-gesture-handler": "catalog:",
     "react-native-keyboard-controller": "catalog:",
     "react-native-qrcode-svg": "catalog:",
@@ -203,19 +224,20 @@
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
     "socket.io-client": "catalog:",
-    "ts-jest": "^29.4.12",
-    "typescript": "^5.9.2",
+    "ts-jest": "^29.4.15",
+    "typescript": "catalog:",
     "zustand": "catalog:",
     "expo-video": "catalog:"
   },
   "//@oxy.so/bloom": "Bloom 11.1.0 adds the shared grouped sections, usage card, subscription plans, frame appearance and overlay navigation APIs used by this SDK. First-party Bloom peers remain open above this tested minimum.",
-  "//@oxy.so/core": "Core 6.13.0 supplies the `accounts.settings.*` strings (picture, categories) the account settings speak in every language; 6.12.0 supplies `fileManagement.contentLost` and the `lost` file status a lost file is listed with; 6.11.0 supplies the `follow.errors.*` strings the follow error codes are worded with; 6.4.0 the `follow.*` strings the follow buttons read for every verb and language; 6.1.0 the `oxy.auth.email.{startChange,change,remove}` and `oxy.auth.password.remove` the sign-in & security panels call. Keep one Core instance per app; raise this floor with the root catalogue when new runtime APIs are required.",
+  "//@oxy.so/core": "Core 7.13.0 supplies the `usernamePolicy.*`, `actionErrors.*` and `signin.errors.{network,invalidInput,server}` strings every username field and failure toast is worded with; 7.9.1 fences ordinary authenticated HTTP requests across session changes during auth preflight, which organization claim and creation require; 7.9.0 supplies `deviceComparisonCode`, the short code `OxyDeviceSignIn` prints; 7.8.0 supplies the device sign-in request's `approvalUrl` and the `signin.device.*` strings `OxyDeviceSignIn` shows; 7.7.0 supplies the bounded native asset file adapter and phase progress installed by OxyProvider; 7.6.0 forwards guest locale and first-touch campaign metadata through signup; 7.3.0 supplies `users.lookupMany`, with which the account members screen fails (and retries) a profile read whose chunk failed instead of caching those members as handle-less; 7.2.0 supplies `assets.cachedUrl`, with which `useFileDownloadUrl` answers an already-resolved URL in its first render; 6.16.0 supplies `requireServerVerdict` and `onHolderRejected`, with which the cold boot checks a session it painted from the cache; 6.13.0 supplies the `accounts.settings.*` strings (picture, categories) the account settings speak in every language; 6.12.0 supplies `fileManagement.contentLost` and the `lost` file status a lost file is listed with; 6.11.0 supplies the `follow.errors.*` strings the follow error codes are worded with; 6.4.0 the `follow.*` strings the follow buttons read for every verb and language; 6.1.0 the `oxy.auth.email.{startChange,change,remove}` and `oxy.auth.password.remove` the sign-in & security panels call. Keep one Core instance per app; raise this floor with the root catalogue when new runtime APIs are required.",
+  "//react-native": "React Native 0.81 to 0.88, React 19.1+ and Expo SDK 54 to 58. The floors are the Expo SDK 54 stack (react-native 0.81.6, react 19.1.4, react-native-web 0.21.4, expo 54.0.38 and the module versions its bundledNativeModules.json pins), which compat/expo-54 installs as an external consumer and checks on every CI run (`bun check.mjs`): every peer here admits that stack, services' published src typechecks against its types, and <OxyProvider> mounts and settles its cold boot on iOS (React Native 0.81), web (react-native-web 0.21) and react-native-macos 0.81 with the native modules macOS lacks absent. Astro, Oxy's browser, runs react-native-macos 0.81 (0.83 is its latest release), which is why the floor is not 0.85. The SDK 56 floors these replaced were the versions current when the ranges were first written, not measurements.",
   "peerDependencies": {
-    "@expo/app-integrity": ">=56.0.0 <59.0.0",
+    "@expo/app-integrity": ">=0.1.10 <59.0.0",
     "@expo/vector-icons": "^15.0.3",
     "@oxy.so/bloom": ">=11.1.0",
     "@oxy.so/core": "catalog:",
-    "@react-native-async-storage/async-storage": "^2.0.0",
+    "@react-native-async-storage/async-storage": ">=2.0.0 <4.0.0",
     "@react-native-community/netinfo": ">=11.4.1 <13.0.0",
     "@tanstack/query-async-storage-persister": "catalog:",
     "@tanstack/query-sync-storage-persister": "catalog:",
@@ -223,31 +245,33 @@
     "@tanstack/react-query-persist-client": "catalog:",
     "@types/react": "<20.0.0",
     "@types/react-native": "<1.0.0",
-    "expo": ">=56.0.0 <59.0.0",
-    "expo-clipboard": ">=56.0.0 <59.0.0",
-    "expo-constants": ">=56.0.0 <59.0.0",
-    "expo-document-picker": ">=56.0.0 <59.0.0",
-    "expo-file-system": ">=56.0.0 <59.0.0",
-    "expo-haptics": ">=56.0.0 <59.0.0",
+    "expo": ">=54.0.0 <59.0.0",
+    "expo-clipboard": ">=8.0.0 <59.0.0",
+    "expo-constants": ">=18.0.0 <59.0.0",
+    "expo-crypto": ">=15.0.0 <59.0.0",
+    "expo-document-picker": ">=14.0.0 <59.0.0",
+    "expo-file-system": ">=19.0.0 <59.0.0",
+    "expo-haptics": ">=15.0.0 <59.0.0",
     "expo-image": ">=2.0.0 <59.0.0",
-    "expo-image-manipulator": ">=56.0.0 <59.0.0",
-    "expo-image-picker": ">=56.0.0 <59.0.0",
-    "expo-linear-gradient": ">=56.0.0 <59.0.0",
+    "expo-image-manipulator": ">=14.0.0 <59.0.0",
+    "expo-image-picker": ">=17.0.0 <59.0.0",
+    "expo-linear-gradient": ">=15.0.0 <59.0.0",
     "expo-modules-core": "<59.0.0",
-    "expo-notifications": ">=56.0.0 <59.0.0",
-    "expo-web-browser": ">=56.0.0 <59.0.0",
+    "expo-notifications": ">=0.32.0 <59.0.0",
+    "expo-secure-store": ">=15.0.0 <59.0.0",
+    "expo-web-browser": ">=15.0.0 <59.0.0",
     "nativewind": ">=5.0.0-preview.3 <6.0.0",
     "react-native-css": "^3.0.6 || 3.1.0-rc.0",
     "react": ">=18.0.0 <20.0.0",
-    "react-native": ">=0.85.0 <0.89.0",
-    "react-native-gesture-handler": ">=2.31.1 <4.0.0",
-    "react-native-keyboard-controller": ">=1.21.0 <2.0.0",
+    "react-native": ">=0.81.0 <0.89.0",
+    "react-native-gesture-handler": ">=2.28.0 <4.0.0",
+    "react-native-keyboard-controller": ">=1.18.5 <2.0.0",
     "react-native-qrcode-svg": "catalog:",
-    "react-native-reanimated": ">=4.3.0 <5.0.0",
-    "react-native-safe-area-context": ">=5.7.0 <6.0.0",
-    "react-native-svg": ">=15.15.0 <16.0.0",
+    "react-native-reanimated": ">=4.1.0 <5.0.0",
+    "react-native-safe-area-context": ">=5.6.0 <6.0.0",
+    "react-native-svg": ">=15.12.1 <16.0.0",
     "zustand": "^5.0.0",
-    "expo-video": ">=57.0.0 <59.0.0"
+    "expo-video": ">=3.0.0 <59.0.0"
   },
   "peerDependenciesMeta": {
     "nativewind": {
@@ -260,9 +284,6 @@
       "optional": true
     },
     "@types/react": {
-      "optional": true
-    },
-    "react-native-keyboard-controller": {
       "optional": true
     },
     "expo": {

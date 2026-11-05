@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import type { PaymentColors } from './types';
 
 export const createPaymentStyles = (colors: PaymentColors) =>
@@ -225,7 +226,7 @@ export const createPaymentStyles = (colors: PaymentColors) =>
       marginBottom: 8,
     },
     peableBalanceBox: {
-      backgroundColor: `${colors.primary}22`,
+      backgroundColor: withAlpha(colors.primary, 0.13),
       borderRadius: 12,
       padding: 8,
       marginTop: 8,
@@ -327,7 +328,7 @@ export const createPaymentStyles = (colors: PaymentColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       alignSelf: 'center',
-      backgroundColor: `${colors.primary}11`,
+      backgroundColor: withAlpha(colors.primary, 0.07),
       borderRadius: 16,
       paddingHorizontal: 16,
       paddingVertical: 8,

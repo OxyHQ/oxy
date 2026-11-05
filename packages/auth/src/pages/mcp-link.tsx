@@ -79,11 +79,8 @@ export function McpLinkPage() {
         const body = await response.json().catch(() => null);
         if (!response.ok) {
           setRequest(null);
-          setError(
-            typeof body?.error_description === 'string'
-              ? body.error_description
-              : t('mcpLink.errors.loadFailed'),
-          );
+          // `error_description` is English and developer-facing.
+          setError(t('mcpLink.errors.loadFailed'));
           return;
         }
         const parsed = mcpLinkIntentFromBody(body);
@@ -139,13 +136,8 @@ export function McpLinkPage() {
         },
         body: JSON.stringify({ intent }),
       });
-      const body = await response.json().catch(() => null);
       if (!response.ok) {
-        setError(
-          typeof body?.error_description === 'string'
-            ? body.error_description
-            : t('mcpLink.errors.approveFailed'),
-        );
+        setError(t('mcpLink.errors.approveFailed'));
         return;
       }
       setLinked(true);

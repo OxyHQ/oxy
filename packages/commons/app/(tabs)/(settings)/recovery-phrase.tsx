@@ -10,7 +10,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { Screen, StackHeader, Section, STATE_MIN_HEIGHT } from '@/components/ui';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useColors } from '@/hooks/useColors';
-import { authenticate, canUseBiometrics, getErrorMessage } from '@/lib/biometricAuth';
+import { authenticate, hasLocalConfirmation, getErrorMessage } from '@/lib/biometricAuth';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -18,7 +18,9 @@ import { useTranslation } from '@/lib/i18n';
  *
  * Re-reveals the 12-word phrase that was captured (best-effort) at identity
  * creation/import and persisted in a dedicated, device-only keychain slot
- * ({@link KeyManager.getRecoveryMnemonic}). Gated behind the device biometric /
+ * ({@link KeyManager.getRecoveryMnemonicForCurrentIdentity}, which returns it only
+ * when it derives the key on this device: a phrase a key rotation replaced is
+ * never shown as the recovery phrase). Gated behind the device biometric /
  * passcode when biometrics are available.
  *
  * The phrase is loaded ONLY after the gate passes and is never persisted to any
@@ -43,11 +45,10 @@ export default function RecoveryPhraseScreen() {
   const reveal = useCallback(async () => {
     setState({ kind: 'authenticating' });
 
-    // Biometric/passcode gate when biometrics are available. A device WITHOUT
-    // enrolled biometrics is already unlocked (the device-only keychain read
-    // below only succeeds while the device is unlocked), so we don't lock those
-    // users out of their own phrase.
-    const canUse = await canUseBiometrics();
+    // Biometric/screen-lock gate whenever the device has either. A device with
+    // NO screen lock has nothing to ask for; it is open to whoever holds it, so
+    // the phrase is not locked away from its own owner there.
+    const canUse = await hasLocalConfirmation();
     if (canUse) {
       const auth = await authenticate(t('settings.recoveryPhrase.biometricReason'));
       if (!auth.success) {
@@ -57,7 +58,7 @@ export default function RecoveryPhraseScreen() {
     }
 
     try {
-      const mnemonic = await KeyManager.getRecoveryMnemonic();
+      const mnemonic = await KeyManager.getRecoveryMnemonicForCurrentIdentity();
       if (!mnemonic) {
         setState({ kind: 'notStored' });
         return;

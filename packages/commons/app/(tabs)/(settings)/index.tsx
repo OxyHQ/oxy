@@ -1,13 +1,14 @@
-import React, { useCallback } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useCallback } from 'react';
+import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { useOxy } from '@oxy.so/services';
-import { Screen, StackHeader } from '@/components/ui';
+import { Screen, StackHeader, SettingsListItem } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
+import { useNotificationOffer } from '@/hooks/notifications/useNotificationOffer';
 
 /**
  * Settings tab — identity & vault management.
@@ -23,6 +24,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const { t } = useTranslation();
   const { showBottomSheet } = useOxy();
+  const notifications = useNotificationOffer();
 
   const handleBackupRecovery = useCallback(() => {
     router.push('/(tabs)/(settings)/backup-recovery');
@@ -56,14 +58,11 @@ export default function SettingsScreen() {
   }, [showBottomSheet]);
 
   return (
-    // Bloom's SettingsListGroup owns its own 16pt horizontal gutter, so the
-    // Screen column runs flush (no SCREEN_PADDING) — otherwise the cards would be
-    // double-inset (22 + 16). Non-grouped content (the header) is padded to align
-    // with Bloom's section titles.
-    <Screen contentStyle={styles.flush} gap={16}>
-      <View style={styles.header}>
-        <StackHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
-      </View>
+    // The Screen's one gutter (Bloom's screen-margin) insets the cards, their
+    // section labels and the banner alike. The StackHeader is lifted into the
+    // Screen's header: a real page title, and nothing scrolls under the clock.
+    <Screen gap={16}>
+      <StackHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
 
       {/* No device backup on this device (OxyHQ/oxy#1388): stays until the user
           confirms they saved the recovery phrase. */}
@@ -84,6 +83,25 @@ export default function SettingsScreen() {
           onPress={handleRotateKey}
         />
       </SettingsListGroup>
+
+      {/* Notifications: the one setting a sign-in request needs to reach this
+          phone. Asks when Commons never has; otherwise opens the system
+          settings, the only place an answered permission can change. */}
+      {notifications.snapshot?.supported ? (
+        <SettingsListGroup title={t('notificationSettings.section')}>
+          <SettingsListItem
+            icon={<Icons.notification size="md" fill={colors.text} />}
+            title={t('notificationSettings.title')}
+            description={
+              notifications.snapshot.granted
+                ? t('notificationSettings.on')
+                : t('notificationSettings.off')
+            }
+            onPress={() => void notifications.pressSettingsRow()}
+            testID="settings-notifications"
+          />
+        </SettingsListGroup>
+      ) : null}
 
       {/* Trust & verification — Fase 3 personhood + Fase 4 credentials */}
       <SettingsListGroup title={t('civic.personhood.settingsSection')}>
@@ -127,7 +145,4 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flush: { paddingHorizontal: 0 },
-  header: { paddingHorizontal: 20, marginBottom: 16 },
-});
+const styles = StyleSheet.create({});

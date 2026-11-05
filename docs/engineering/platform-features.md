@@ -16,6 +16,8 @@
 
 **Bot accounts carry a 3D avatar `character`** (`users.character`, `avatarCharacterSchema` in `@oxy.so/contracts`): generated at `POST /accounts` (`avatarCharacterFor(username)`) unless the caller names one, replaced with `PATCH /accounts/:id`, emitted on the user DTOs for `kind: 'bot'` ONLY (`userIdentityFields`). `isAgent` is `kind === 'bot'`; `type: 'agent'` is the federation-resolve actor flavour, a different thing.
 
+The public projection must carry `character` through both `publicUserColumns` and `toPublicUserView`, including self reads that reuse it. On 2026-10-31, two real bot profiles had stored characters but returned no character publicly because only the SELECT contained it. `profilesCharacter.test.ts` exercises database → projection → serializer → username/resolve/search HTTP plus public/self/batch reads; malformed payloads, old NULLs and non-bots remain without a character. Never synthesize a look on the read path to hide missing data.
+
 **Production "Oxy" team workspace:** `_id 6a2f9d8989b795cfdfac350f`, slug `oxy`, owned by user `oxy` (`_id 69b2d3df5d12f58c9800d651`, username `oxy`, email `hello@oxy.so` — DISTINCT from human `nateus`/`nate@oxy.so`). All 12 official Applications assigned to it. Migration `scripts/migrate-workspaces.ts` ran (idempotent).
 
 ## Oxy Trust — Reputation System (#217 + #219, 2026-06-16)
@@ -89,16 +91,18 @@ All limiters use `rate-limit-redis` with a shared ioredis client. The factory `r
 **Prefixes in use:**
 - `rl:general:` — global limiter (1000 / 15min)
 - `rl:idp:service:` — IdP worker server-to-server READ budget (`/session/validate/*`, 20000 / 15min prod)
+- `rl:cdn:` — the public by-id resolver behind `cloud.oxy.so/<id>` (`/cdn/*`, per visitor, 20000 / 15min prod). `isCdnResolverPath` exempts it from `rl:general` and `slowDown`; the Worker names the visitor with Cloudflare's same-zone `x-real-ip` (`workers/cloud/src/visitor.ts`), so `oxyTrustProxy` reads the visitor, not the Worker
+- `rl:service:credential:` — a verified service credential, keyed `<appId>:<surface>` (`serviceBudgetKey`, 60000 / 15min prod per surface). The surfaces (`ServiceWorkloadSurface` in `security.ts`) are `api`, `auth` (introspection), `federation-signing` and `federation-lookup`, so one kind of an app's traffic cannot starve another. The two federation surfaces are counted under `rl:federation:service:` at the `/federation` mount instead, with the same key (hashed address for anything without a service credential)
 - `rl:auth:` — broad auth routes (`authRateLimiter`, 300 / 15min)
 - `rl:user:` — user routes (`userRateLimiter`, 200 / 15min)
 - `rl:auth:challenge:`, `rl:auth:verify:`, `rl:auth:refresh:`, `rl:auth:lookup:`, `rl:auth:session-claim:`, `rl:auth:oauth-authorize:`, `rl:auth:oauth-consent:`, `rl:auth:oauth-token:`, `rl:auth:login:`, `rl:auth:client-lookup:`
-- `rl:auth:service-token:` (keyed on the presented `apiKey`, 30 / 5min), `rl:auth:service-token-address:` (per-address flood ceiling, 600 / 5min), `rl:auth:service-token-workload:` — the service-token mint. `isServiceTokenMintPath` exempts it from `rl:general`, `rl:auth` and `slowDown`, because every service mints from the cluster's one NAT address with no bearer yet
+- `rl:auth:service-token:` (keyed on the presented `apiKey`, 30 / 5min), `rl:auth:service-token-address:` (per-address flood ceiling, 600 / 5min), `rl:auth:service-token-workload:`, `rl:auth:service-token-github-actions:` (per hashed address, 120 / 5min, ADR 0057) — the service-token mint. `isServiceTokenMintPath` exempts it from `rl:general`, `rl:auth` and `slowDown`, because every service mints from the cluster's one NAT address with no bearer yet
 - `rl:inference:catalogue:` (per address, anonymous/public viewers) and `rl:inference:catalogue:service:` (per `appId:credentialId`); likewise `rl:inference:reporting:*` / `rl:inference:routing:*` with `service-*` twins — an application credential skips the address bucket for its own (`utils/serviceRateLimitKey.ts`)
 - `rl:session:device-token:` — the zero-cookie device-secret mint (`POST /session/device/token`, `packages/api/src/routes/sessionDevice.ts`)
 - `rl:apps:authorized:read:`, `rl:apps:authorized:revoke:` — connected-apps (`AppGrant`) surface; `rl:auth:grants:read:`, `rl:auth:grants:revoke:` — OAuth grant management
 - `rl:contacts:discover:` (200 hashes/request, 5 req/min/user)
 - `rl:social-auth:`
-- `rl:email:inbound:`, `rl:email:proxy:`
+- `rl:email:inbound:` (+ `rl:email:inbound:rcpt:`), `rl:email:proxy:` — the inbound webhook is verified and charged to its own budgets before the global limiters, which skip it (`isEmailInboundWebhookPath`)
 - `rl:userdata:write:`
 - `rl:reputation:read:`, `rl:reputation:award:`, `rl:reputation:admin:`, `rl:reputation:dispute:`
 - `rl:auth:session-approve-info:`, `rl:auth:session-authorize-signed:` — Commons QR handoff endpoints
@@ -121,6 +125,8 @@ All limiters use `rate-limit-redis` with a shared ioredis client. The factory `r
 
 **Search by pasted profile URL.** Pasting an `x.com`, `instagram.com`, or `bsky.app` profile link into search now finds the account we hold under its federated handle (`nasa@x.com`) — previously unreachable by substring match, since we store the bridged identity, not the URL. `peopleSearchMatch` (`packages/api/src/utils/profileQuery.ts`) is the ONE chokepoint `/search`, `/profiles/search`, and `POST /users/search` all funnel through: when the pasted text parses as a network profile URL (via `federatedUsernameFromUpstreamUrl`, the SAME `FederationNetwork.storedUsername` rule the ingest path uses — never a second parsing rule, which is exactly how the Bluesky `.bsky.social`-suffix-dropping case would have silently diverged from ingest), the exact match REPLACES the fuzzy match rather than joining it, and a URL that parses but matches nobody returns zero rows rather than falling back to a fuzzy search. The URL is parsed only, never fetched — fetching a user-supplied URL from a search endpoint would be an SSRF surface for no benefit.
 
+**People search ranking and filters.** `peopleSearchOrder(term)` (`packages/api/src/utils/profileQuery.ts`) is the ONE order `/profiles/search`, `/search` and `POST /users/search` apply, before `OFFSET`/`LIMIT`: relevance tier (`PEOPLE_SEARCH_TIERS`: exact username or federated handle local part, username prefix, exact name, name or name-word prefix, substring of username or name, anything else — description, location, a linked alias), then native before federated within a tier, reputation, shorter username, `id`. Relevance outranks origin on purpose: `nate@mstdn.social` beats `notasdenate` for `nate`, while `nate` (local) still beats `nate@mstdn.social`. The tier only orders the rows `peopleSearchMatch` admitted, so it needs no index. `GET /profiles/search?type=local` (or any `users.type`) and `&kind=personal` (any `users.kind`) narrow to the row's own values — both already on every result, so a filter reveals nothing new — and `type` other than `federated` skips remote discovery.
+
 **Blocked-domain platform-data purge.** `POST /federation/domain-purge` (service auth, under the `/federation` mount's existing `federationServiceLimiter`) removes the federated identities and mirrored media Oxy holds for a blocked domain — the platform-side counterpart to an app's own content purge. Safe by default (`dryRun` defaults `true`) and doubly gated for a real deletion: the caller must pass `dryRun:false` AND the deployment needs `FEDERATION_DOMAIN_PURGE_ENABLED=true` set, else 409 — arming the endpoint is an operator decision on THIS deployment, independent of whatever calls it. Bounded and resumable (`limit` actors per call, default 200; response carries `done`/`nextCursor`/`remaining`); a repeated or already-completed purge is a no-op. A caller only ever deletes files it recorded itself (`req.serviceApp.appId` from the service credential, never the request body) — a user row shared with another application is archived, not deleted, and the response names the apps that kept it. Driven today by Mention's `run-blocked-domain-purge.yml` ECS one-shot (in-VPC, `main`-only — see `~/Oxy/Mention/AGENTS.md`).
 
 ## Oxy Updates — self-hosted OTA (api + ship + console)
@@ -131,7 +137,7 @@ Self-hosted `expo-updates`-protocol OTA server, namespaced entirely under `/upda
 - **Admin surface** (`packages/api/src/routes/updatesAdmin.ts`): channel/publish/rollback management, gated by the `Application`/role permission system (not a separate auth scheme).
 - **Models** (`packages/api/src/models/`): `AppUpdate`, `UpdateAsset`, `UpdateChannel`.
 - **Services** (`packages/api/src/services/updates/`): `manifest.service.ts`, `publish.service.ts`, `signing.service.ts` (code-signing; throws `CodeSigningNotConfiguredError` when keys aren't set up — see the keygen script), `assetKeys.ts`.
-- **Publishing CLI:** `@oxy.so/ship` (`packages/ship`, bin `oxy-ship`) parses an `expo export` output, hashes assets, and publishes to a channel via the admin API — see `packages/ship/README.md`.
+- **Publishing CLI:** `@oxy.so/ship` (`packages/ship`, bin `oxy-ship`) parses an `expo export` output, hashes assets, and publishes to a channel via the admin API — see `packages/ship/README.md` It authenticates only by GitHub trusted publishing (`POST /auth/service-token/github-actions`, ADR 0057): no stored secret.
 - **Console UI:** per-app Updates tab at `packages/console/src/routes/_layout/apps/$appId/updates.tsx` (+ `components/apps/updates-section.tsx`).
 
 **General limiter threshold** (commit `641cea67`): raised 150 → **1000 / 15min**. The 150 ceiling was below a single authenticated user's normal traffic (feed scroll + socket fallback polling + profile loads + device-secret token mints). Per-endpoint limiters (`authRateLimiter` 300, `userRateLimiter` 200, `checkLimiter` 10/min, etc.) remain the relevant defense-in-depth. **Do NOT lower the general limiter below 1000 without measuring real production traffic.**
@@ -341,3 +347,38 @@ indexed edge owner, but must sort the eligible set instead of using the old
 chronological covering index. Regression evidence: `user.service.followGraphSort.test.ts`
 (reversed timestamps, replaced edge ids, re-follow, all sort aliases and three
 list directions) and `user.service.graph.pg.test.ts` (pagination and visibility).
+
+
+### Existing local bot characters
+
+`packages/api/src/scripts/backfill-local-bot-characters.ts` repairs accounts that
+predate character seeding: `kind = bot`, character NULL, no federation actor URI,
+non-federated type, and non-archived status. This includes local automated bots;
+`type` and `kind` are independent. It preserves every stored character and never
+assigns a generated identity to a remote account. Seeds use the existing
+`avatarCharacterFor(username)` creation policy.
+
+Dry-run is a read-only transaction with a five-second statement limit and emits
+the complete candidate inventory and SHA-256. Apply requires that exact hash,
+locks candidates, compares the inventory again, and repeats eligibility plus
+username in every conditional write. A stale review aborts the transaction.
+Locks wait at most five seconds; statements at most fifteen. Configured Redis
+must answer before writes; the normal identity invalidation runs after commit
+and an ordered PING drains queued DEL/PUBLISH before process teardown. Without
+Redis the report explicitly says local-only; it does not claim a broadcast.
+
+Run dry-run in the deployed API environment and review its inventory before
+`--apply --expected-hash=<sha256>`. The test suite uses its own migrated database
+because this operation intentionally inventories all eligible accounts. Tests
+cover existing/remote/archived/human exclusions, canonical seeds, idempotence,
+concurrent character choice, lazy Redis readiness, command draining and failed
+Redis before writes. Applying is an operational step, not a migration side effect.
+
+For a reviewed one-shot before deployment, run
+`node packages/api/scripts/prepare-local-bot-character-backfill.mjs --out=.local/avatar-backfill`.
+It transpiles only that script, emits a SHA-checked gzip payload and an ECS command
+array that imports the deployed image's existing `dist` dependencies. It performs
+no service call, writes no container file and duplicates no repair logic. The
+command budget is 6 KB, reserving 2 KB of ECS's 8 KB overrides limit. The same
+generator accepts `--apply --expected-hash=<reviewed-inventory-hash>`; task launch
+and inventory review remain separate operational actions.

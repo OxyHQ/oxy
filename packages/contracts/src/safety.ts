@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
 import { z } from 'zod';
 import { accountActorChainSchema } from './accountSubject';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
@@ -6,6 +8,7 @@ import {
   PURCHASE_APPROVAL_STATUSES,
   SAFETY_POLICY_VERSION,
   SUPERVISED_ACTIONS,
+  SUPERVISION_CHANGED_EVENT,
   SUPERVISION_CONSENT_VERSION,
   SUPERVISION_INVITATION_STATUSES,
   SUPERVISION_STATUSES,
@@ -18,6 +21,7 @@ export {
   PURCHASE_APPROVAL_STATUSES,
   SAFETY_POLICY_VERSION,
   SUPERVISED_ACTIONS,
+  SUPERVISION_CHANGED_EVENT,
   SUPERVISION_CONSENT_VERSION,
   SUPERVISION_INVITATION_STATUSES,
   SUPERVISION_STATUSES,
@@ -25,7 +29,7 @@ export {
 
 /** The requester is authenticated by the bearer; applications cannot submit viewer IDs. */
 export const profileAccessInputSchema = z
-  .object({ subjectAccountId: z.string().min(1).max(128) })
+  .object({ subjectAccountId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)) })
   .strict();
 export const profileAccessDecisionSchema = z
   .object({
@@ -52,8 +56,8 @@ export const SAFETY_DECISION_REASONS = [
   'unrated_content',
   'approval_required',
 ] as const;
-const accountId = z.string().min(1).max(128);
-const resourceId = z.string().trim().min(1).max(256);
+const accountId = z.string().check(utf16MinLength(1)).check(utf16MaxLength(128));
+const resourceId = z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256));
 const uniqueIds = (max: number, min = 1) =>
   z
     .array(accountId)
@@ -217,6 +221,30 @@ export const deliveryAccessBatchInputSchema = messageBatch(deliveryAccessInputSc
 export const messageAccessBatchResponseSchema = contentAccessBatchResponseSchema;
 export type MessageAccessBatchInput = z.infer<typeof messageAccessBatchInputSchema>;
 export type DeliveryAccessBatchInput = z.infer<typeof deliveryAccessBatchInputSchema>;
+/**
+ * May `actorAccountId`'s activity notify `recipientAccountId`? A reviewed
+ * background consumer asks before a socket emit or push, with no human proof:
+ * the decision covers blocks in either direction, availability and supervised
+ * contact approval, and discloses nothing else.
+ */
+export const notificationAccessInputSchema = z
+  .object({ resourceId, actorAccountId: accountId, recipientAccountId: accountId })
+  .strict();
+export const notificationAccessBatchInputSchema = z
+  .object({
+    items: z
+      .array(notificationAccessInputSchema)
+      .min(1)
+      .max(100)
+      .refine(
+        (items) => new Set(items.map((item) => item.resourceId)).size === items.length,
+        'Resource IDs must be unique',
+      ),
+  })
+  .strict();
+export const notificationAccessBatchResponseSchema = contentAccessBatchResponseSchema;
+export type NotificationAccessInput = z.infer<typeof notificationAccessInputSchema>;
+export type NotificationAccessBatchInput = z.infer<typeof notificationAccessBatchInputSchema>;
 /** Live socket-recipient proof; a request ID correlates the result and never identifies an account. */
 export const messagingSessionsInputSchema = z
   .object({
@@ -225,7 +253,7 @@ export const messagingSessionsInputSchema = z
         z
           .object({
             requestId: resourceId,
-            accessToken: z.string().min(1).max(16384),
+            accessToken: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)),
           })
           .strict(),
       )
@@ -256,8 +284,20 @@ export const messagingSessionsResponseSchema = z
   .strict();
 export type MessagingSessionsInput = z.infer<typeof messagingSessionsInputSchema>;
 export const safetyRequesterSchema = z.union([
-  z.object({ accessToken: z.string().min(1).max(16384).nullable() }).strict(),
-  z.object({ connectionToken: z.string().min(1).max(16384) }).strict(),
+  z
+    .object({
+      accessToken: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)).nullable(),
+    })
+    .strict(),
+  z
+    .object({ connectionToken: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)) })
+    .strict(),
+  z
+    .object({ capabilityTicket: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)) })
+    .strict(),
+  z
+    .object({ requesterContext: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)) })
+    .strict(),
 ]);
 export type SafetyRequester = z.infer<typeof safetyRequesterSchema>;
 export type ProfileAccessBatchInput = z.infer<typeof profileAccessBatchInputSchema>;
@@ -274,7 +314,7 @@ export const supervisionSchema = z
     status: z.enum(SUPERVISION_STATUSES),
     policyVersion: z.literal(SAFETY_POLICY_VERSION),
     consentVersion: z.literal(SUPERVISION_CONSENT_VERSION),
-    createdAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
   })
   .strict();
 export const supervisionInvitationSchema = z
@@ -283,16 +323,16 @@ export const supervisionInvitationSchema = z
     childAccountId: accountId,
     guardianAccountId: accountId,
     status: z.enum(SUPERVISION_INVITATION_STATUSES),
-    expiresAt: z.string().datetime(),
+    expiresAt: z.string().check(isoDateTime()),
     consentVersion: z.literal(SUPERVISION_CONSENT_VERSION),
-    createdAt: z.string().datetime(),
+    createdAt: z.string().check(isoDateTime()),
   })
   .strict();
 export const supervisionContactSchema = z
   .object({
     childAccountId: accountId,
     contactAccountId: accountId,
-    approvedAt: z.string().datetime(),
+    approvedAt: z.string().check(isoDateTime()),
   })
   .strict();
 export const supervisionStateSchema = z
@@ -312,14 +352,14 @@ export type SupervisionState = z.infer<typeof supervisionStateSchema>;
 export type SupervisionContactsResponse = z.infer<typeof supervisionContactsResponseSchema>;
 
 const fingerprint = z.string().regex(/^[a-f0-9]{64}$/);
-const minorUnits = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const minorUnits = z.number().check(integerCheck()).nonnegative().max(Number.MAX_SAFE_INTEGER);
 export const purchaseApprovalLineSchema = z
   .object({
     itemReference: resourceId,
-    title: z.string().trim().min(1).max(300),
-    optionsText: z.string().trim().max(300),
+    title: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(300)),
+    optionsText: z.string().trim().check(utf16MaxLength(300)),
     merchantAccountId: accountId,
-    quantity: z.number().int().min(1).max(1000000),
+    quantity: z.number().check(integerCheck()).min(1).max(1000000),
     unitAmountMinor: minorUnits,
     lineAmountMinor: minorUnits,
   })
@@ -329,7 +369,7 @@ const purchaseEffectsObject = z
     operationId: resourceId,
     resourceId,
     cartFingerprint: fingerprint,
-    summary: z.string().trim().min(1).max(300),
+    summary: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(300)),
     merchantAccountIds: z
       .array(accountId)
       .min(1)
@@ -342,13 +382,13 @@ const purchaseEffectsObject = z
     discountMinor: minorUnits,
     roundingAdjustmentMinor: z
       .number()
-      .int()
+      .check(integerCheck())
       .min(-Number.MAX_SAFE_INTEGER)
       .max(Number.MAX_SAFE_INTEGER),
     paymentFingerprint: fingerprint,
     amountMinor: minorUnits,
     currency: z.string().regex(/^[A-Z]{3}$/),
-    expiresAt: z.string().datetime(),
+    expiresAt: z.string().check(isoDateTime()),
   })
   .strict();
 function validatePurchaseEvidence(
@@ -397,8 +437,8 @@ const purchaseApprovalFields = {
   childAccountId: accountId,
   applicationId: accountId,
   status: z.enum(PURCHASE_APPROVAL_STATUSES),
-  createdAt: z.string().datetime(),
-  receiptReference: z.string().max(512).nullable(),
+  createdAt: z.string().check(isoDateTime()),
+  receiptReference: z.string().check(utf16MaxLength(512)).nullable(),
 };
 export const purchaseApprovalSchema = purchaseEffectsObject
   .extend(purchaseApprovalFields)
@@ -425,7 +465,7 @@ export const confirmPurchaseSchema = z
   .object({
     approvalId: accountId,
     operationId: resourceId,
-    receiptReference: z.string().trim().min(1).max(512),
+    receiptReference: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(512)),
   })
   .strict();
 export const cancelPurchaseSchema = confirmPurchaseSchema.omit({ receiptReference: true });
@@ -469,7 +509,7 @@ export const supervisionReviewInputSchema = z
     childAccountId: accountId,
     action: z.enum(['end', 'transfer']),
     guardianAccountId: accountId.optional(),
-    evidenceReference: z.string().trim().min(1).max(2048),
+    evidenceReference: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(2048)),
     reauth: reauthProofSchema,
   })
   .strict();
@@ -485,7 +525,7 @@ export type PurchaseReviewInput = z.infer<typeof purchaseReviewInputSchema>;
 export const safetySessionInputSchema = z
   .object({
     sessionId: accountId,
-    accessToken: z.string().min(1).max(16384),
+    accessToken: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)),
     action: z.enum(SUPERVISED_ACTIONS),
   })
   .strict();
@@ -493,8 +533,8 @@ export const safetySessionValidationSchema = z
   .object({
     valid: z.literal(true),
     sessionId: accountId,
-    expiresAt: z.string().datetime(),
-    lastActivity: z.string().datetime(),
+    expiresAt: z.string().check(isoDateTime()),
+    lastActivity: z.string().check(isoDateTime()),
     user: userResponseSchema,
     actor: accountActorChainSchema,
   })
@@ -505,7 +545,9 @@ export const safetyPersonSchema = z
   .object({ accountId, username: z.string().nullable(), displayName: z.string().nullable() })
   .strict();
 export const safetyPeopleInputSchema = z.union([
-  z.object({ query: z.string().trim().min(2).max(100) }).strict(),
+  z
+    .object({ query: z.string().trim().check(utf16MinLength(2)).check(utf16MaxLength(100)) })
+    .strict(),
   z.object({ accountIds: uniqueIds(100) }).strict(),
 ]);
 export const safetyPeopleResponseSchema = z
@@ -527,8 +569,8 @@ export const safetyOrganizationIdentitySchema = z
 export const safetyOrganizationsInputSchema = z.union([
   z
     .object({
-      query: z.string().trim().min(1).max(100),
-      limit: z.number().int().min(1).max(20).optional(),
+      query: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)),
+      limit: z.number().check(integerCheck()).min(1).max(20).optional(),
     })
     .strict(),
   z.object({ ids: uniqueIds(100) }).strict(),

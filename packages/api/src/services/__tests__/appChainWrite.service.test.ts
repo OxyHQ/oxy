@@ -247,3 +247,27 @@ describe('appendAppRecord', () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+it('own requester context bypasses app consent only for its exact chain account', async () => {
+  const appId = await application(['app.own.']);
+  const userId = await account();
+  const otherId = await account();
+  const base = {
+    appId,
+    oxyUserId: userId,
+    collection: 'app.own.posts',
+    rkey: 'record',
+    record: { title: 'hello' },
+    requester: { authority: 'first_party' as const, applicationId: appId, accountId: userId },
+  };
+  expect((await appendAppRecord(base)).ok).toBe(true);
+  await authorize(appId, otherId);
+  expect(await appendAppRecord({ ...base, oxyUserId: otherId })).toMatchObject({
+    ok: false,
+    reason: 'subject_forbidden',
+  });
+  expect(await appendAppRecord({ ...base, collection: 'app.other.posts' })).toMatchObject({
+    ok: false,
+    reason: 'namespace_forbidden',
+  });
+});

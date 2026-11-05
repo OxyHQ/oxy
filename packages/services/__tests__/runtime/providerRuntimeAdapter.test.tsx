@@ -9,7 +9,7 @@
  * look exactly like the isolation working.
  */
 
-import React from 'react';
+import type React from 'react';
 import { render, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -19,7 +19,9 @@ jest.mock('../../src/ui/utils/isWebBrowser', () => ({
 }));
 
 import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
-import { OxyRuntimeMissingError, useActiveAccount, useOxyRuntime } from '../../src/ui/runtime';
+import { OxyRuntimeMissingError, useOxyRuntime } from '../../src/runtime';
+import type { OxyRuntime } from '../../src/runtime';
+import { useActiveAccount } from '../../src/ui/runtime';
 
 interface Counters {
   wide: number;
@@ -84,6 +86,30 @@ describe('the provider hands out one stable runtime', () => {
       return null;
     };
     expect(() => render(<Bare />)).toThrow(OxyRuntimeMissingError);
+  });
+
+  it('observes each account transition on its own provider, even within one React batch', () => {
+    const first = { seen: [] as unknown[] };
+    const second = { seen: [] as unknown[] };
+    const firstView = renderProvider(<RuntimeCapture sink={first} />);
+    const secondView = renderProvider(<RuntimeCapture sink={second} />);
+    const firstRuntime = first.seen[0] as OxyRuntime;
+    const secondRuntime = second.seen[0] as OxyRuntime;
+    expect(firstRuntime).not.toBe(secondRuntime);
+    const subjects: Array<string | null> = [];
+    const unsubscribe = firstRuntime.subscribe(() => {
+      subjects.push(firstRuntime.getSnapshot().account?.id ?? null);
+    });
+    act(() => {
+      firstRuntime.setAccount({ id: 'ana', username: 'ana' } as never);
+      firstRuntime.setAccount({ id: 'bo', username: 'bo' } as never);
+      firstRuntime.setAccount({ id: 'ana', username: 'ana' } as never);
+    });
+    expect(subjects).toEqual(['ana', 'bo', 'ana']);
+    expect(secondRuntime.getSnapshot().account).toBeNull();
+    unsubscribe();
+    firstView.unmount();
+    secondView.unmount();
   });
 });
 

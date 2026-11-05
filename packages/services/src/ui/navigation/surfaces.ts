@@ -5,7 +5,7 @@ import {
   type PresentOptions,
   type SurfaceControls,
 } from '@oxy.so/bloom/surfaces';
-import { loadScreens, screensReady, type RouteName } from './routes';
+import type { RouteName } from './routes';
 import {
   getSurfaceConfig,
   type SurfaceProps,
@@ -167,14 +167,8 @@ function presentInternal<K extends RouteName>(
       bloomOpts,
     );
 
-  // Never mount a partially-loaded frame. The root entry takes the sync path;
-  // `ui` and `ui/client` preload at provider startup, normally before the first press.
-  const result = screensReady()
-    ? open()
-    : loadScreens().then(() => {
-        if (navStack.store.getState().closing) return undefined;
-        return open();
-      });
+  // Open immediately so the surface can handle dismissal while its screen loads.
+  const result = open();
 
   const instance: SurfaceInstance<K> = {
     route,

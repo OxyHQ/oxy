@@ -15,7 +15,8 @@ describe('approved Oxy One terms from website /one', () => {
     expect(getOnePlans(audience, mode).map((plan) => plan.monthlyPrice)).toEqual(amounts);
   });
   test('annual amounts round each billable line; displayed monthly amount is not recharged', () => {
-    const pro = getOnePlans('personal').find((plan) => plan.name === 'Pro')!;
+    const pro = getOnePlans('personal').find((plan) => plan.name === 'Pro');
+    if (!pro) throw new Error('Expected published Pro plan');
     expect(onePlanQuote(pro, 'annual', undefined)).toMatchObject({
       totalAnnual: 28790,
       totalMonthly: 2399,
@@ -24,7 +25,8 @@ describe('approved Oxy One terms from website /one', () => {
   });
   test('family allowance is shared, never multiplied by its six members', () => {
     expect(OXY_ONE_FAMILY_MEMBERS).toBe(6);
-    const pro = getOnePlans('personal', 'family').find((plan) => plan.name === 'Pro')!;
+    const pro = getOnePlans('personal', 'family').find((plan) => plan.name === 'Pro');
+    if (!pro) throw new Error('Expected published Pro plan');
     expect(onePlanQuote(pro, 'monthly', 6)).toMatchObject({
       totalMonthly: 4900,
       storageGB: 200,
@@ -32,7 +34,8 @@ describe('approved Oxy One terms from website /one', () => {
     });
   });
   test('business adds per-seat price, storage and credits', () => {
-    const pro = getOnePlans('business').find((plan) => plan.name === 'Pro')!;
+    const pro = getOnePlans('business').find((plan) => plan.name === 'Pro');
+    if (!pro) throw new Error('Expected published Pro plan');
     expect(onePlanQuote(pro, 'monthly', 3)).toMatchObject({
       totalMonthly: 15699,
       storageGB: 130,

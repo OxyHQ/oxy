@@ -28,6 +28,7 @@ const sampleEntry: ServiceLinkedDownloadUrl = {
   mime: 'model/stl',
   size: 4096,
   sha256: 'a'.repeat(64),
+  visibility: 'private',
 };
 
 describe('OxyServer.assets.linkedDownloadUrls', () => {
@@ -66,6 +67,15 @@ describe('OxyServer.assets.linkedDownloadUrls', () => {
     const [entry] = await oxy.assets.linkedDownloadUrls(['asset-1']);
 
     expect(entry).toEqual(sampleEntry);
+  });
+
+  it('preserves a live visibility change and does not manufacture visibility for old API responses', async () => {
+    const { visibility: _visibility, ...legacy } = sampleEntry;
+    serviceRequestSpy
+      .mockResolvedValueOnce([{ ...sampleEntry, visibility: 'public' }])
+      .mockResolvedValueOnce([legacy]);
+    expect((await oxy.assets.linkedDownloadUrls(['asset-1']))[0].visibility).toBe('public');
+    expect((await oxy.assets.linkedDownloadUrls(['asset-1']))[0].visibility).toBeUndefined();
   });
 
   it("chunks at 25, a QUARTER of the metadata route's 100", async () => {

@@ -1,3 +1,4 @@
+import { enumValues } from './enumValues';
 /**
  * `price_versions` + `price_version_unit_prices` — the immutable snapshots
  * customer pricing is quoted and settled against.
@@ -104,7 +105,7 @@ import { currencyCode, currencyCodeCheck, exactAmount } from './ledgerColumns';
  * `draft | active | superseded`, taken from the wire contract's own enum rather
  * than restated, so the column and `priceVersionStatusSchema` cannot drift.
  */
-export const PRICE_VERSION_STATUSES = priceVersionStatusSchema.options;
+export const PRICE_VERSION_STATUSES = enumValues(priceVersionStatusSchema.options);
 
 export const priceVersions = pgTable(
   'price_versions',

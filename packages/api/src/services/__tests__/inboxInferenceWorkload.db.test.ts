@@ -94,12 +94,7 @@ function input() {
 
 /** A role, bound (or not) to `applicationId`, which this task then attests as. */
 async function taskRunningAs(
-  options: {
-    applicationId?: string | null;
-    scopes?: string[];
-    expiresAt?: Date;
-    attribute?: boolean;
-  } = {},
+  options: { applicationId?: string | null; expiresAt?: Date; attribute?: boolean } = {},
 ) {
   const subject = `arn:aws:iam::237343248947:role/oxy-inbox-test-${randomUUID().slice(0, 8)}`;
   const applicationId =
@@ -113,12 +108,7 @@ async function taskRunningAs(
         provider: 'aws-iam',
         subject,
         description: 'Inbox workload test binding',
-        scopes: options.scopes ?? [
-          'capability-events:publish',
-          'catalogs:write',
-          'inference:invoke',
-          'user:read',
-        ],
+        environment: workloadTokenEnvironment(),
         ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
       })
       .returning({ id: applicationWorkloadIdentities.id });
@@ -175,7 +165,7 @@ describe('Inbox point inference as the task role', () => {
       credentialId: task.handle,
       ownerAccountId,
       environment: workloadTokenEnvironment(),
-      scopes: ['capability-events:publish', 'catalogs:write', 'inference:invoke', 'user:read'],
+      authority: 'first_party',
       applicationType: 'first_party',
       applicationIsInternal: false,
     });
@@ -192,9 +182,11 @@ describe('Inbox point inference as the task role', () => {
     await expectUnavailable();
   });
 
-  it('refuses a binding that does not name inference:invoke', async () => {
-    await taskRunningAs({ scopes: ['capability-events:publish', 'catalogs:write', 'user:read'] });
-    await expectUnavailable();
+  it('serves a first-party binding with no scopes', async () => {
+    await taskRunningAs();
+    await executeInboxPointInference(input());
+    expect(mockExecuteInferenceRequest).toHaveBeenCalledTimes(1);
+    expect(mockExecuteInferenceRequest.mock.calls[0][0].principal).not.toHaveProperty('scopes');
   });
 
   it('refuses an expired binding', async () => {
@@ -227,11 +219,12 @@ describe('Inbox point inference as the task role', () => {
     await expectUnavailable();
   });
 
-  it('refuses half a pair instead of falling back to the task role', async () => {
+  it('ignores leftover credentials and uses the task role', async () => {
     await taskRunningAs();
     process.env.INBOX_APPLICATION_SECRET = 'leftover-secret';
 
-    await expectUnavailable();
-    expect(mockOwnWorkloadIdentity).not.toHaveBeenCalled();
+    await executeInboxPointInference(input());
+    expect(mockOwnWorkloadIdentity).toHaveBeenCalled();
+    expect(mockExecuteInferenceRequest.mock.calls[0][0].principal.authority).toBe('first_party');
   });
 });

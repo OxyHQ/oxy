@@ -322,6 +322,16 @@ wholesale cost can reach you by being nested one level deeper than anyone looked
 - **Evaluations, safety metadata and model-card URL** — these hang off a
   revision, because they describe specific weights.
 
+### Which models take images
+
+`image` in `inputModalities` says a model can see; it is not a bound. A request
+carrying images is served only on a line whose entry in Kaana's declared
+catalogue has `imageInput.maxInputTokensPerImage` (Kaana ADR 0007,
+`@kaana.ai/contracts` 8.2.0): the most input tokens one image costs there, from
+the publisher's documented rule. Both the old edge and the grant read it from
+the declared catalogue; Oxy's own tables carry no copy. It is not served on
+`GET /v1/models`. See [ADR 0051](../adr/0051-image-input.md).
+
 ## "It answers" is not "you may resell it"
 
 A technically callable route is not automatically publicly available. Two

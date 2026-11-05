@@ -1,15 +1,16 @@
+import { utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
 import { reauthProofSchema, secondFactorCodeSchema } from '@oxy.so/contracts';
 import { privacySettingsSchema } from './privacy.schemas';
 
 // Shared params for routes with :userId
 export const userIdParams = z.object({
-  userId: z.string().trim().min(1),
+  userId: z.string().trim().check(utf16MinLength(1)),
 });
 
 // POST /users/search
 export const searchUsersBodySchema = z.object({
-  query: z.string().trim().min(1),
+  query: z.string().trim().check(utf16MinLength(1)),
 });
 
 // Maximum number of ids accepted by POST /users/by-ids in a single request.
@@ -18,14 +19,14 @@ export const MAX_USERS_BY_IDS = 100;
 // POST /users/by-ids
 export const usersByIdsBodySchema = z.object({
   ids: z
-    .array(z.string().trim().min(1))
+    .array(z.string().trim().check(utf16MinLength(1)))
     .min(1, 'ids must not be empty')
     .max(MAX_USERS_BY_IDS, `Cannot request more than ${MAX_USERS_BY_IDS} users at once`),
 });
 
 // POST /users/verify/request
 export const verifyRequestSchema = z.object({
-  reason: z.string().trim().min(1),
+  reason: z.string().trim().check(utf16MinLength(1)),
   evidence: z.string().trim().optional(),
 });
 
@@ -35,13 +36,13 @@ export const verifyRequestSchema = z.object({
 // no email). Either adds its
 // authenticator code when it has one.
 export const deleteAccountSchema = z.object({
-  signature: z.string().trim().min(1).optional(),
+  signature: z.string().trim().check(utf16MinLength(1)).optional(),
   timestamp: z.number().optional(),
   /** An account without a key: a code just sent to its email, or its password without one (+ its authenticator code). */
   reauth: reauthProofSchema.optional(),
   /** An account with a key AND an authenticator: its code or a backup code. */
   totpCode: secondFactorCodeSchema.optional(),
-  confirmText: z.string().trim().min(1),
+  confirmText: z.string().trim().check(utf16MinLength(1)),
 });
 export type DeleteAccountBody = z.infer<typeof deleteAccountSchema>;
 

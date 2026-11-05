@@ -152,6 +152,7 @@ function makeRig(
 
   return {
     service: createDeliveryService(config),
+    config,
     signatures,
     deliveredBodies,
     enqueued,
@@ -211,6 +212,32 @@ describe('sendFollow', () => {
     expect(rig.deliveredBodies[0].body).toBe(
       `{"@context":"https://www.w3.org/ns/activitystreams","id":"${urls.actor('alice')}/follows/ACTID","type":"Follow","actor":"${urls.actor('alice')}","object":"${remote}"}`,
     );
+  });
+
+  it('durable: queues the Follow before resolving, resolving an uncached inbox first', async () => {
+    const remote = 'https://remote.example/users/carol';
+    const rig = makeRig();
+    const fetched = { _id: 'CAROL', uri: remote, inboxUrl: 'https://remote.example/inbox' };
+    const service = createDeliveryService({
+      ...rig.config,
+      actorRefresh: { ...rig.config.actorRefresh, fetchRemoteActor: async () => fetched },
+    });
+
+    expect(await service.sendFollow('u-alice', 'alice', remote, { durable: true })).toEqual({
+      success: true,
+      pending: false,
+    });
+    // Nothing left to the background: the job is queued when the call returns.
+    expect(rig.enqueued).toEqual([
+      expect.objectContaining({ targetInbox: 'https://remote.example/inbox' }),
+    ]);
+    expect(rig.upsertedFollows).toHaveLength(1);
+    await expect(
+      createDeliveryService({
+        ...rig.config,
+        actorRefresh: { ...rig.config.actorRefresh, fetchRemoteActor: async () => null },
+      }).sendFollow('u-alice', 'alice', 'https://remote.example/users/nobody', { durable: true }),
+    ).rejects.toThrow();
   });
 
   it('short-circuits when federation is disabled', async () => {

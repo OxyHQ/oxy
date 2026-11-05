@@ -7,6 +7,7 @@ export { Screen, SCREEN_PADDING, useScreenBottomPad, useFabClearance } from './s
 export { StackHeader } from './stack-header';
 export { Section } from './section';
 export { ListRow } from './list-row';
+export { SettingsListItem } from './settings-list-item';
 export { GroupedList } from './grouped-list';
 export { StatColumns } from './stat-columns';
 export type { StatColumn } from './stat-columns';

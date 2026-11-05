@@ -202,7 +202,6 @@ function baseRequest(
     runtimeVersion: '1.0.0',
     channelName: channel,
     protocolVersion: 1,
-    expectSignature: true,
     ...overrides,
   };
 }
@@ -284,14 +283,16 @@ describe('buildManifestResponse — golden manifest', () => {
     );
   });
 
-  test('omits signatures when the client did not request one', async () => {
+  test('signs the manifest even when the client did not ask (no unsigned mode)', async () => {
+    // A binary built without the certificate sends no expo-expect-signature and
+    // ignores the header; it must still never be handed an unsigned manifest.
     const { applicationId, channelId, channel } = await track();
     await publish(applicationId, channelId);
 
-    const response = await buildManifestResponse(
-      baseRequest(applicationId, channel, { expectSignature: false }),
-    );
-    expect(partNamed(response, 'manifest')?.headers['expo-signature']).toBeUndefined();
+    const response = await buildManifestResponse(baseRequest(applicationId, channel));
+    const manifest = partNamed(response, 'manifest') as ParsedPart;
+    expect(manifest.headers['expo-signature']).toMatch(/^sig="[^"]+", keyid="main"$/);
+    expect(verifyPartSignature(manifest)).toBe(true);
   });
 });
 
@@ -445,15 +446,33 @@ describe('buildManifestResponse — decision matrix', () => {
     expect(partNamed(response, 'manifest')).toBeDefined();
   });
 
-  test('requesting a signature with no key configured → surfaces CodeSigningNotConfiguredError', async () => {
+  test('no key configured → nothing is served, not even a no-op (CodeSigningNotConfiguredError)', async () => {
     const { applicationId, channelId, channel } = await track();
     await publish(applicationId, channelId);
     delete process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY;
     resetSigningKeyCache();
 
+    await expect(buildManifestResponse(baseRequest(applicationId, channel))).rejects.toThrow(
+      /not configured/i,
+    );
     await expect(
-      buildManifestResponse(baseRequest(applicationId, channel, { expectSignature: true })),
+      buildManifestResponse(baseRequest(applicationId, channel, { protocolVersion: 0 })),
     ).rejects.toThrow(/not configured/i);
+    await expect(
+      buildManifestResponse(baseRequest(applicationId, 'no-such-channel')),
+    ).rejects.toThrow(/not configured/i);
+  });
+
+  test('a key that decodes but cannot sign → refused, never unsigned', async () => {
+    const { applicationId, channelId, channel } = await track();
+    await publish(applicationId, channelId);
+    process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY =
+      '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----';
+    resetSigningKeyCache();
+
+    await expect(buildManifestResponse(baseRequest(applicationId, channel))).rejects.toThrow(
+      /unusable/i,
+    );
   });
 });
 

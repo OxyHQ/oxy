@@ -1,3 +1,4 @@
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { Router, type Response } from 'express';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { canonicalFederationHost } from '@oxy.so/federation';
@@ -31,7 +32,12 @@ import { users } from '../db/schema/users';
 import { isPermanentlyGoneActor } from '../utils/profileQuery';
 import userCache from '../utils/userCache';
 import credentialDomainCache from '../utils/credentialDomainCache';
-import { getUserPublicKey, signWithKeyId, federationService } from '../services/federation.service';
+import {
+  getUserPublicKey,
+  signWithKeyId,
+  federationService,
+  type SourceFailure,
+} from '../services/federation.service';
 import {
   getEquivalentUserIds,
   getExternalIdentitiesForUser,
@@ -90,8 +96,10 @@ const REQUIRED_SCOPE = 'federation:write';
 const IDENTITY_RESOLVE_SCOPE: ApplicationScope = 'federation:identities:resolve';
 
 function assertIdentityResolveScope(req: ServiceAuthRequest): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(REQUIRED_SCOPE) && !scopes.includes(IDENTITY_RESOLVE_SCOPE)) {
+  if (
+    !hasServiceAuthority(req.serviceApp, REQUIRED_SCOPE) &&
+    !hasServiceAuthority(req.serviceApp, IDENTITY_RESOLVE_SCOPE)
+  ) {
     throw new ForbiddenError(
       `Missing required scope: ${REQUIRED_SCOPE} or ${IDENTITY_RESOLVE_SCOPE}`,
     );
@@ -136,13 +144,18 @@ router.post(
         'protocol instagram-graph requires an instagram.com handle or an instagram-graph:<igUserId> actorUri',
       );
     }
-    const result = await federationService.resolveExternalIdentity({
-      actorUri,
-      handle,
-      transportAcct,
-      protocol,
-    });
-    if (!result) throw new NotFoundError('External actor could not be verified');
+    const failure: SourceFailure = {};
+    const result = await federationService.resolveExternalIdentity(
+      { actorUri, handle, transportAcct, protocol },
+      failure,
+    );
+    // The source's own HTTP refusal rides along, so a caller can tombstone a
+    // gone (410) actor without fetching it to find out.
+    if (!result)
+      throw new NotFoundError(
+        'External actor could not be verified',
+        failure.sourceStatus !== undefined ? { sourceStatus: failure.sourceStatus } : undefined,
+      );
     sendSuccess(res, resolveExternalIdentityResponseSchema.parse(result));
   }),
 );
@@ -263,8 +276,7 @@ async function getAllowedDomainsForRequest(req: ServiceAuthRequest): Promise<Set
 
 /** Assert the requesting credential carries the federation:write scope. */
 function assertFederationScope(req: ServiceAuthRequest): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(REQUIRED_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, REQUIRED_SCOPE)) {
     throw new ForbiddenError(`Missing required scope: ${REQUIRED_SCOPE}`);
   }
 }
@@ -470,7 +482,7 @@ router.post(
   instanceFetchLimiter,
   validate({ body: instanceFetchSignRequestSchema }),
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-    if (!(req.serviceApp?.scopes ?? []).includes(INSTANCE_FETCH_SCOPE)) {
+    if (!hasServiceAuthority(req.serviceApp, INSTANCE_FETCH_SCOPE)) {
       throw new ForbiddenError(`Missing required scope: ${INSTANCE_FETCH_SCOPE}`);
     }
     const { url } = req.body as InstanceFetchSignRequest;

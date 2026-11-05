@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { useOxy } from '@oxy.so/services';
 import { logger } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
@@ -18,9 +19,16 @@ const LOG_CONTEXT = { component: 'usePushRegistration' } as const;
  *   - A SESSION: `registerPushToken` is bearer-authed, so we wait for
  *     `canUsePrivateApi` (the SDK's own "a usable bearer is planted" verdict)
  *     rather than racing the device-first cold boot with a doomed 401.
- *   - PERMISSION: checked, never requested. Onboarding owns the single system
- *     prompt (`useAuthHandlers`), which registers immediately on a fresh grant;
- *     this hook covers every subsequent cold boot without re-asking.
+ *   - PERMISSION: checked, never requested. Onboarding owns the system prompt
+ *     (`useAuthHandlers`), which registers immediately on a fresh grant; this
+ *     hook covers every subsequent cold boot without re-asking.
+ *
+ * ── Re-read on foreground ──────────────────────────────────────────────────
+ * Until it has registered for the signed-in identity, the hook tries again
+ * every time the app comes back to the foreground. A permission turned on later
+ * in the system settings (or the offer on the ID tab) is picked up the moment
+ * the person returns to Commons, not at the next cold start. Once registered it
+ * stops: registration is idempotent server-side, but there is nothing to redo.
  *
  * ── Retirement is NOT done here, on purpose ────────────────────────────────
  * `DELETE /notifications/push-token` is scoped to the identity holding the
@@ -37,17 +45,20 @@ export function usePushRegistration(): void {
   const userId = user?.id ?? null;
 
   /**
-   * The identity this hook has already attempted a registration for, so a
-   * re-render (or a `canUsePrivateApi` flicker across a token refresh) cannot
-   * turn a one-shot registration into a request loop. Reset on failure so a
-   * later dependency change may retry.
+   * The identity this installation is REGISTERED for (or for which this
+   * platform has no push at all), so a re-render, a `canUsePrivateApi` flicker
+   * across a token refresh or a foreground never turns registration into a
+   * request loop. Any other outcome leaves it unset, and the next foreground
+   * tries again.
    */
-  const attemptedForRef = useRef<string | null>(null);
+  const settledForRef = useRef<string | null>(null);
+  /** One attempt at a time: a foreground during an attempt does not start another. */
+  const inFlightRef = useRef(false);
 
-  useEffect(() => {
+  const attempt = useCallback(() => {
     if (!canUsePrivateApi || !userId) return;
-    if (attemptedForRef.current === userId) return;
-    attemptedForRef.current = userId;
+    if (settledForRef.current === userId || inFlightRef.current) return;
+    inFlightRef.current = true;
 
     void (async () => {
       try {
@@ -56,9 +67,12 @@ export function usePushRegistration(): void {
           vaultChannelCopy(t),
           sessionClient?.getState()?.deviceId,
         );
-        if (outcome.status === 'skipped') {
-          // An expected steady state (permission declined, no EAS project id,
-          // an unsupported platform) — diagnostic, not operational.
+        if (outcome.status === 'registered' || outcome.reason === 'unsupported-platform') {
+          settledForRef.current = userId;
+        } else {
+          // An expected steady state (permission not granted yet, no EAS project
+          // id in this build): diagnostic, not operational. Retried on the next
+          // foreground.
           logger.debug('[commons] push registration skipped', {
             ...LOG_CONTEXT,
             reason: outcome.reason,
@@ -66,11 +80,22 @@ export function usePushRegistration(): void {
         }
       } catch (error) {
         // Best-effort by design: a vault that cannot be woken by push still
-        // approves sign-ins by QR. Clear the marker so a later session/device
-        // change can retry.
-        attemptedForRef.current = null;
+        // approves sign-ins by QR. Retried on the next foreground.
         logger.warn('[commons] push token registration failed', LOG_CONTEXT, error);
+      } finally {
+        inFlightRef.current = false;
       }
     })();
   }, [canUsePrivateApi, userId, oxyServices, sessionClient, t]);
+
+  useEffect(() => {
+    attempt();
+  }, [attempt]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') attempt();
+    });
+    return () => subscription.remove();
+  }, [attempt]);
 }

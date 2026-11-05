@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Username policy — the ONE rule, for every kind of account.
  *
@@ -144,8 +145,8 @@ export {
 export const usernameSchema = z
   .string()
   .trim()
-  .min(USERNAME_MIN_LENGTH, USERNAME_INVALID_MESSAGE)
-  .max(USERNAME_MAX_LENGTH, USERNAME_INVALID_MESSAGE)
+  .check(utf16MinLength(USERNAME_MIN_LENGTH, USERNAME_INVALID_MESSAGE))
+  .check(utf16MaxLength(USERNAME_MAX_LENGTH, USERNAME_INVALID_MESSAGE))
   .regex(USERNAME_PATTERN, USERNAME_INVALID_MESSAGE)
   .refine((username) => !/^[0-9]+$/.test(username), NUMERIC_USERNAME_MESSAGE)
   .refine((username) => !RESERVED_USERNAMES.has(username.toLowerCase()), RESERVED_USERNAME_MESSAGE)
@@ -245,6 +246,6 @@ export const botUsernameSchema = usernameSchema.refine(
  */
 export function usernameSchemaForAccountKind(
   kind: AccountKind | null | undefined,
-): z.ZodType<string, z.ZodTypeDef, string> {
+): z.ZodType<string, string> {
   return kind === 'bot' ? botUsernameSchema : usernameSchema;
 }

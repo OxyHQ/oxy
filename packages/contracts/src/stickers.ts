@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { urlCheck, utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Stickers — the wire shape of Oxy's shared sticker catalogue.
  *
@@ -65,21 +67,21 @@ export const stickerSha256Schema = z
 /** A pack's public URL segment. */
 export const stickerPackSlugSchema = z
   .string()
-  .min(2)
-  .max(64)
+  .check(utf16MinLength(2))
+  .check(utf16MaxLength(64))
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'slug must be lowercase words joined by hyphens');
 
-export const stickerIdSchema = z.string().min(1).max(64);
+export const stickerIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxLength(64));
 
 export const stickerPackStatusSchema = z.enum(['draft', 'published', 'archived']);
 export type StickerPackStatus = z.infer<typeof stickerPackStatusSchema>;
 
 /** One stored file: where to fetch it and the hash its bytes must have. */
 export const stickerFileSchema = z.object({
-  url: z.string().url(),
+  url: z.string().check(urlCheck()),
   sha256: stickerSha256Schema,
   mime: z.string(),
-  bytes: z.number().int().nonnegative(),
+  bytes: z.number().check(integerCheck()).nonnegative(),
 });
 export type StickerFile = z.infer<typeof stickerFileSchema>;
 
@@ -92,8 +94,8 @@ export const stickerSchema = z.object({
   packId: z.string(),
   emoji: z.array(z.string()).min(1),
   keywords: z.array(z.string()),
-  size: z.number().int().positive(),
-  durationMs: z.number().int().positive(),
+  size: z.number().check(integerCheck()).positive(),
+  durationMs: z.number().check(integerCheck()).positive(),
   /** The Lottie JSON. */
   animation: stickerFileSchema,
   /** A static image of the same sticker. */
@@ -110,7 +112,7 @@ export const stickerPackSummarySchema = z.object({
   author: z.string().nullable(),
   status: stickerPackStatusSchema,
   publishedAt: z.string().nullable(),
-  stickerCount: z.number().int().nonnegative(),
+  stickerCount: z.number().check(integerCheck()).nonnegative(),
   /** The first sticker, drawn as the pack's cover. Null for an empty draft. */
   cover: stickerSchema.nullable(),
 });
@@ -139,7 +141,7 @@ export type InstalledStickerPack = z.infer<typeof installedStickerPackSchema>;
  */
 export const stickerRefSchema = z.object({
   stickerId: stickerIdSchema,
-  packId: z.string().min(1).max(64),
+  packId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)),
   sha256: stickerSha256Schema,
 });
 export type StickerRef = z.infer<typeof stickerRefSchema>;
@@ -162,16 +164,18 @@ export type ResolveStickersResponse = z.infer<typeof resolveStickersResponseSche
 
 /** PATCH /stickers/me/packs/order — the installed pack ids, first to last. */
 export const reorderStickerPacksRequestSchema = z.object({
-  packIds: z.array(z.string().min(1).max(64)).max(STICKER_MAX_INSTALLED_PACKS),
+  packIds: z
+    .array(z.string().check(utf16MinLength(1)).check(utf16MaxLength(64)))
+    .max(STICKER_MAX_INSTALLED_PACKS),
 });
 export type ReorderStickerPacksRequest = z.infer<typeof reorderStickerPacksRequestSchema>;
 
 /** POST /stickers/admin/packs */
 export const createStickerPackRequestSchema = z.object({
   slug: stickerPackSlugSchema,
-  title: z.string().trim().min(1).max(64),
-  description: z.string().trim().max(500).nullish(),
-  author: z.string().trim().max(64).nullish(),
+  title: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(64)),
+  description: z.string().trim().check(utf16MaxLength(500)).nullish(),
+  author: z.string().trim().check(utf16MaxLength(64)).nullish(),
 });
 export type CreateStickerPackRequest = z.infer<typeof createStickerPackRequestSchema>;
 

@@ -18,6 +18,9 @@ const dict = {
       caption: 'Mit Commons scannen, um dich anzumelden',
       renew: 'Neuen Code anzeigen',
     },
+    device: {
+      codeHint: 'Prüfe, ob dein Smartphone diesen Code anzeigt',
+    },
     errors: {
       rateLimited: 'Zu viele Versuche. Versuche es in {{seconds}} s erneut.',
       invalidCredentials:

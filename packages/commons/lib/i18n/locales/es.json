@@ -51,11 +51,12 @@
       "importFailed": "No se pudo importar la identidad",
       "identityExistsSyncFailed": "Tu identidad existe en este dispositivo, pero no pudimos conectarla con tu cuenta. Comprueba tu conexión e inténtalo de nuevo.",
       "noIdentityFound": "No se encontró ninguna identidad en este dispositivo.",
-      "couldNotReadIdentity": "No se pudo leer tu identidad. Inténtalo de nuevo."
+      "couldNotReadIdentity": "No se pudo leer tu identidad. Inténtalo de nuevo.",
+      "connectFailed": "No se pudo conectar tu identidad. Inténtalo de nuevo."
     },
     "welcome": {
       "lead": "Oxy es tu",
-      "termsAgree": "Acepto los Términos y Condiciones de Usuario de Oxy y reconozco el Aviso de Privacidad",
+      "termsAgree": "Acepto los <terms>Términos del servicio</terms> de Oxy y reconozco la <privacy>Política de privacidad</privacy>.",
       "decline": "Rechazar",
       "accept": "Aceptar",
       "restore": "Ya tengo una cuenta",
@@ -168,7 +169,15 @@
       "subtitle": "Introduce tu frase de recuperación de 12 palabras para restaurar tu identidad.",
       "wordPlaceholder": "palabra",
       "import": "Importar identidad",
-      "createInstead": "Crear una nueva identidad en su lugar"
+      "createInstead": "Crear una nueva identidad en su lugar",
+      "wrongWordCount": "Una frase de recuperación tiene 12 palabras. Lo que pegaste tiene {{count}}.",
+      "wordLabel": "Palabra {{number}}"
+    },
+    "notificationsStep": {
+      "title": "Recibe aquí las solicitudes de inicio de sesión",
+      "subtitle": "Cuando inicies sesión en una app de Oxy desde otro dispositivo, Commons puede pedirte aquí que lo apruebes. Puedes desactivarlo cuando quieras en los ajustes del teléfono.",
+      "enable": "Activar notificaciones",
+      "notNow": "Ahora no"
     }
   },
   "home": {
@@ -452,7 +461,9 @@
       "failedDefault": "No se pudo eliminar la cuenta. Inténtalo de nuevo.",
       "localKeyPurgeWarning": "Tu cuenta se eliminó, pero no se pudo borrar la clave de identidad de este dispositivo. Reinstala la app para borrarla por completo.",
       "thisAccount": "esta cuenta",
-      "confirmInputLabel": "Escribe tu nombre de usuario para confirmar la eliminación de cuenta"
+      "confirmInputLabel": "Escribe tu nombre de usuario para confirmar la eliminación de cuenta",
+      "confirmDialogTitle": "¿Eliminar tu cuenta?",
+      "confirmDialogBody": "{{name}} y todo su contenido se eliminarán para siempre. No se puede deshacer."
     },
     "backup": {
       "title": "Crear copia de seguridad",
@@ -1062,13 +1073,15 @@
   },
   "deviceBackupWarning": {
     "title": "Esta identidad no tiene copia en este dispositivo",
-    "body": "Este dispositivo no puede guardar una copia automática de tu identidad. En Android necesita los servicios de Google Play. Si se borra el almacenamiento de Commons o de cualquier otra app de Oxy, tu identidad se borra de este dispositivo y solo tu frase de recuperación puede recuperarla. Apunta tu frase ahora y configura una copia cifrada.",
-    "bodyNoPhrase": "Este dispositivo no puede guardar una copia automática de tu identidad. En Android necesita los servicios de Google Play. Si se borra el almacenamiento de Commons o de cualquier otra app de Oxy, tu identidad se borra de este dispositivo. Se importó desde una clave privada y no tiene frase de recuperación, así que rota a una clave que la tenga.",
+    "body": "Este dispositivo no puede guardar una copia automática de tu identidad: en Android hacen falta los servicios de Google Play. Si se desinstala Commons o se borra su almacenamiento, tu identidad se borra de este dispositivo y solo tu frase de recuperación puede recuperarla. Apunta tu frase ahora y configura una copia cifrada.",
+    "bodyNoPhrase": "Este dispositivo no puede guardar una copia automática de tu identidad: en Android hacen falta los servicios de Google Play. Si se desinstala Commons o se borra su almacenamiento, tu identidad se borra de este dispositivo. Se importó desde una clave privada y no tiene frase de recuperación, así que rota a una clave que la tenga.",
     "revealPhrase": "Apunta tu frase de recuperación",
     "encryptedBackup": "Configura una copia cifrada",
     "rotate": "Rotar a una clave con frase de recuperación",
     "notNow": "Ahora no",
-    "confirm": "Ya guardé mi frase de recuperación"
+    "confirm": "Ya guardé mi frase de recuperación",
+    "promptBody": "Tu identidad no tiene copia de seguridad automática en este dispositivo. Mira qué hacer en Ajustes.",
+    "review": "Revisar en Ajustes"
   },
   "rotateKey": {
     "settingsEntry": "Rota tu clave",
@@ -1201,7 +1214,13 @@
       "unverifiedTitle": "No pudimos verificar este inicio de sesión",
       "unverifiedBody": "No pudimos confirmar desde dónde se inició esta solicitud. Continúa solo si acabas de iniciarla tú en un dispositivo de confianza. Si no fuiste tú, pulsa «No he sido yo».",
       "privacyLink": "Política de privacidad",
-      "termsLink": "Términos del servicio"
+      "termsLink": "Términos del servicio",
+      "errors": {
+        "unresolvedApp": "No pudimos saber qué app quiere iniciar sesión, así que esta solicitud no se puede aprobar.",
+        "expired": "Esta solicitud de inicio de sesión ha caducado. Pide un nuevo código QR.",
+        "network": "No se pudo conectar con Oxy. Comprueba tu conexión e inténtalo de nuevo.",
+        "failed": "Algo salió mal. Inténtalo de nuevo en un momento."
+      }
     },
     "channel": {
       "name": "Solicitudes de inicio de sesión",
@@ -1249,7 +1268,24 @@
       "qrPending": "Termina de configurar tu cuenta para generar tu QR.",
       "flipHint": "Toca la tarjeta para girarla",
       "didLabel": "ID descentralizado (DID)",
-      "pendingNote": "Este dispositivo guarda tus claves, pero tu cuenta aún no está registrada en Oxy. Tu tarjeta y QR funcionan sin conexión; completaremos el registro cuando vuelvas a estar en línea."
+      "pendingNote": "Este dispositivo guarda tus claves, pero tu cuenta aún no está registrada en Oxy. Tu tarjeta y QR funcionan sin conexión; completaremos el registro cuando vuelvas a estar en línea.",
+      "card": {
+        "backFooterNote": "AUTOCUSTODIA · SIN CONTRASEÑA · TÚ TIENES LA CLAVE",
+        "qrFooterTitle": "FIRMADA · IDENTIDAD EN AUTOCUSTODIA",
+        "qrFooterNote": "Se resuelve y verifica en la red de Oxy",
+        "docTypeIdentity": "Documento de identidad",
+        "name": "Nombre",
+        "type": "Tipo",
+        "selfCustody": "Autocustodia",
+        "username": "Usuario",
+        "idNumber": "Número de ID",
+        "issued": "Expedido",
+        "notAvailable": "N/D",
+        "docTypePublicKey": "Clave pública",
+        "publicKey": "Clave pública",
+        "holder": "Titular",
+        "docTypeVerify": "Verificar"
+      }
     },
     "card": {
       "title": "Tarjeta de ciudadanía",
@@ -1300,10 +1336,8 @@
         "subtitle": "La evidencia independiente detrás de tu puntuación.",
         "vouches": "Avales",
         "vouchesDesc": "Personas de confianza que apostaron su reputación a que eres real.",
-        "vouchesCount": "{{count}} avales",
         "realLife": "Confirmaciones en persona",
         "realLifeDesc": "Personas que confirmaron que te conocieron en persona.",
-        "realLifeCount": "{{count}} confirmaciones",
         "biometric": "Vínculo biométrico",
         "biometricDesc": "Tu identidad está vinculada a la biometría de este dispositivo.",
         "biometricBound": "Vinculado",
@@ -1878,7 +1912,8 @@
     "startOverConfirmTitle": "¿Empezar de nuevo?",
     "startOverConfirmBody": "Esto borra permanentemente la identidad protegida de este dispositivo. Sin tu frase de recuperación de 12 palabras, tu cuenta será irrecuperable.",
     "startOverConfirmCta": "Borrar y empezar de nuevo",
-    "startOverFailed": "No pudimos borrar la identidad de este dispositivo. Desbloquéalo e inténtalo de nuevo."
+    "startOverFailed": "No pudimos borrar la identidad de este dispositivo. Desbloquéalo e inténtalo de nuevo.",
+    "differentIdentity": "Esta frase pertenece a una identidad distinta de la que tenía este teléfono ({{key}}), que todavía se puede restaurar. Introduce la frase de esa identidad, o vuelve atrás y elige Empezar de nuevo para usar otra."
   },
   "linkAccount": {
     "entry": "Tengo una cuenta de Oxy en la web",
@@ -1900,6 +1935,20 @@
     "waiting": "Esperando a la otra pantalla…",
     "expired": "La vinculación se canceló o caducó. Empieza de nuevo en la otra pantalla.",
     "alreadyLinked": "Esta cuenta ya usa Commons.",
-    "failed": "No se ha podido vincular esta cuenta. Inténtalo de nuevo."
+    "failed": "No se ha podido vincular esta cuenta. Inténtalo de nuevo.",
+    "permissionBlockedBody": "El acceso a la cámara está desactivado para Commons. Actívalo en los ajustes del teléfono para escanear el código.",
+    "openSettings": "Abrir ajustes"
+  },
+  "notificationOffer": {
+    "title": "Recibe aquí las solicitudes de inicio de sesión",
+    "body": "Activa las notificaciones para que, cuando inicies sesión en una app de Oxy en otro dispositivo, Commons te pida aprobarlo aquí. Siempre puedes escanear el código QR del inicio de sesión.",
+    "turnOn": "Activar notificaciones",
+    "notNow": "Ahora no"
+  },
+  "notificationSettings": {
+    "section": "Notificaciones",
+    "title": "Solicitudes de inicio de sesión",
+    "on": "Activadas: las solicitudes de inicio de sesión llegan a este teléfono.",
+    "off": "Desactivadas: aprueba los inicios de sesión escaneando su código QR."
   }
 }

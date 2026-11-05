@@ -1,3 +1,4 @@
+import { utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
 import { identityProofSchema } from '@oxy.so/contracts';
 
@@ -6,7 +7,7 @@ import { identityProofSchema } from '@oxy.so/contracts';
 export const linkAuthMethodSchema = z
   .object({
     type: z.literal('identity'),
-    publicKey: z.string().trim().min(1),
+    publicKey: z.string().trim().check(utf16MinLength(1)),
     proof: identityProofSchema,
   })
   .strict();

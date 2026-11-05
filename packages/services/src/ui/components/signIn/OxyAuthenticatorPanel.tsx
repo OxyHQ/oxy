@@ -35,9 +35,9 @@ import {
   AccountFlowErrorLine,
   AccountFlowNote,
   AccountFlowProgress,
-  describeSignInError,
 } from './accountFlowParts';
 import { accountSecurityFallback, useAccountSecurityState } from './accountSecurityState';
+import { describeApiError } from '../../utils/apiErrorMessage';
 
 /** High-contrast, un-themed on purpose: scan reliability. */
 const QR_PLATE_BG = '#FFFFFF';
@@ -95,7 +95,7 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
         setCode('');
         setStep({ name: 'enroll', enrollment });
       })
-      .catch((reason: unknown) => setError(describeSignInError(reason, t)))
+      .catch((reason: unknown) => setError(describeApiError(reason, t)))
       .finally(() => setPending(false));
   };
 

@@ -1,3 +1,4 @@
+import { utf16MinLength } from './stringChecks';
 /**
  * Civic / Commons API contracts (Fase 1 — DNI + crypto-owned reputation).
  *
@@ -204,9 +205,9 @@ export const validationVerdictRecordSchema: z.ZodType<ValidationVerdictRecord> =
 /** Request body for opening a validation request (`POST /civic/validations`). */
 export const validationOpenRequestSchema = z.object({
   subjectUserId: z.string(),
-  actionType: z.string().min(1),
-  sourceActionId: z.string().min(1),
-  payload: z.record(z.unknown()),
+  actionType: z.string().check(utf16MinLength(1)),
+  sourceActionId: z.string().check(utf16MinLength(1)),
+  payload: z.record(z.string(), z.unknown()),
   highValue: z.boolean().optional(),
 });
 
@@ -244,7 +245,7 @@ export const validationRequestSummarySchema: z.ZodType<ValidationRequestSummary>
   id: z.string(),
   subjectUserId: z.string(),
   actionType: z.string(),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   payloadHash: z.string(),
   status: z.enum(['pending', 'quorum_met', 'validated', 'rejected', 'expired']),
   highValue: z.boolean(),
@@ -437,8 +438,8 @@ export interface CredentialRecord {
 
 export const credentialRecordSchema: z.ZodType<CredentialRecord> = z.object({
   about: z.string(),
-  types: z.array(z.string().min(1)).min(1),
-  claims: z.record(z.unknown()),
+  types: z.array(z.string().check(utf16MinLength(1))).min(1),
+  claims: z.record(z.string(), z.unknown()),
   expiresAt: z.number().optional(),
 });
 
@@ -472,7 +473,7 @@ export const verifiableCredentialResponseSchema: z.ZodType<VerifiableCredentialR
     issuerUserId: z.string().optional(),
     issuerDid: z.string(),
     types: z.array(z.string()),
-    claims: z.record(z.unknown()),
+    claims: z.record(z.string(), z.unknown()),
     status: z.enum(['active', 'revoked', 'expired']),
     issuedAt: z.number(),
     expiresAt: z.number().optional(),

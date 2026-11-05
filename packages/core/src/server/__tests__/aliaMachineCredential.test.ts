@@ -111,7 +111,10 @@ describe('Alia-only machine credential contract', () => {
     expect(isOxyAliaMachinePrincipal(changed)).toBe(false);
   });
   it('uses the receiver service token, with no SDK caching or retries', async () => {
-    const oxy = new OxyServer({ baseURL: 'https://api.oxy.invalid' });
+    const oxy = new OxyServer({
+      baseURL: 'https://api.oxy.invalid',
+      serviceAuth: { apiKey: 'external-key', apiSecret: 'external-secret' },
+    });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('resource-service-token');
     const request = jest.spyOn(oxy, 'request').mockResolvedValue({ active: true, principal });
     expect(await oxy.apps.introspectAliaMachineCredential(token)).toEqual({
@@ -120,7 +123,7 @@ describe('Alia-only machine credential contract', () => {
     });
     expect(request).toHaveBeenCalledWith(
       'POST',
-      '/internal/alia/machine-credentials/introspect',
+      'https://api.oxy.invalid/internal/alia/machine-credentials/introspect',
       { token },
       {
         cache: false,

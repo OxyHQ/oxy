@@ -39,6 +39,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Client code (core's client entries, services) imports contract VALUES from `@oxy.so/contracts/client`, never Zod; root schemas are for servers — core `clientEntriesZodFree.test.ts`
 - Client code loads the identity stack only via `import('@oxy.so/core/crypto')` (core: `../crypto/index`), one lazy root — core `rootEntryGraph.test.ts`
 - Peer ranges on third-party packages that ship breaking majors have an UPPER bound; first-party `@oxy.so/bloom` is deliberately open (`>=`) so apps always run the latest — #peer-ranges
+- A native module services/core/protocol need on a phone is a REQUIRED peer of services; Expo autolinking skips optional peers — #native-peers
 
 **Runtime traps**
 - Never ship a `\p{…}` regex atom in anything that runs on Hermes; transpile with `regexpu-core` — #hermes-property-escapes
@@ -47,6 +48,8 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Align native-module versions UP and add them to `expo.install.exclude` — build-and-deploy.md#architecture
 
 **Identity, auth, privacy** — auth-and-identity.md#auth--session-contract
+- Own Oxy apps use shared sessions/workload authority, never app scopes, consent or agent per-app levels; retain account boundaries and external grants — docs/auth/first-party-platform-access.md
+- Own Oxy apps' operator keys are declared in code (`operatorPermissions` in `seedOxyApplicationsSpecs.ts`, applied by the seed) and held by the owning org's roles; never per-person Console grants or env lists — docs/adr/0056
 - `displayName` is optional; the one fallback is the handle via `getNormalizedUserHandle` — #user-identity-contract
 - Zero cookies on every origin, `auth.oxy.so` included; no third-party cookies, iframes, FedCM, `prompt=none` or silent redirects.
 - The SDK never navigates the top-level window on its own; silent restore is deleted, not gated.

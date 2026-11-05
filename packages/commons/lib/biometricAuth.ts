@@ -19,38 +19,6 @@ export interface BiometricAuthResult {
 }
 
 /**
- * Check if biometric hardware is available on the device
- */
-export async function hasBiometricHardware(): Promise<boolean> {
-  if (Platform.OS === 'web') {
-    return false;
-  }
-
-  try {
-    return await LocalAuthentication.hasHardwareAsync();
-  } catch (error) {
-    console.error('[BiometricAuth] Error checking hardware:', error);
-    return false;
-  }
-}
-
-/**
- * Check if biometrics are enrolled on the device
- */
-export async function isBiometricEnrolled(): Promise<boolean> {
-  if (Platform.OS === 'web') {
-    return false;
-  }
-
-  try {
-    return await LocalAuthentication.isEnrolledAsync();
-  } catch (error) {
-    console.error('[BiometricAuth] Error checking enrollment:', error);
-    return false;
-  }
-}
-
-/**
  * Get the security level of enrolled authentication
  */
 export async function getEnrolledLevel(): Promise<LocalAuthentication.SecurityLevel> {
@@ -83,18 +51,22 @@ export async function getSupportedTypes(): Promise<AuthenticationType[]> {
 }
 
 /**
- * Check if biometric authentication can be used
- * (hardware available AND enrolled)
+ * Whether this device can confirm its owner at all: a screen lock (PIN,
+ * pattern, password, passcode) or enrolled biometrics.
+ *
+ * This, not "biometrics are enrolled", is the capability every gate in Commons
+ * needs. `authenticateAsync` falls back to the screen lock whenever biometrics
+ * are missing or not enrolled (BiometricPrompt with `DEVICE_CREDENTIAL` on
+ * Android, `LAPolicyDeviceOwnerAuthentication` on iOS). Gating on enrolled
+ * biometrics instead refused every phone protected by a PIN alone: it could not
+ * approve a sign-in, rotate its key or create a backup, and Settings revealed
+ * the recovery phrase on it without asking for anything.
  */
-export async function canUseBiometrics(): Promise<boolean> {
+export async function hasLocalConfirmation(): Promise<boolean> {
   if (Platform.OS === 'web') {
     return false;
   }
-
-  const hasHardware = await hasBiometricHardware();
-  const isEnrolled = await isBiometricEnrolled();
-
-  return hasHardware && isEnrolled;
+  return (await getEnrolledLevel()) !== LocalAuthentication.SecurityLevel.NONE;
 }
 
 /**
@@ -116,19 +88,12 @@ export async function authenticate(
   }
 
   try {
-    // Check if biometrics can be used
-    const canUse = await canUseBiometrics();
-    if (!canUse) {
-      const hasHardware = await hasBiometricHardware();
-      if (!hasHardware) {
-        return {
-          success: false,
-          error: 'not_available' as LocalAuthenticationError,
-        };
-      }
+    // Nothing to confirm with: no screen lock and no biometrics. Anything else
+    // is prompted, falling back to the screen lock when biometrics are absent.
+    if (!(await hasLocalConfirmation())) {
       return {
         success: false,
-        error: 'not_enrolled' as LocalAuthenticationError,
+        error: 'passcode_not_set' as LocalAuthenticationError,
       };
     }
 
@@ -163,9 +128,9 @@ export async function authenticate(
  * Why the device could not even ASK for a local confirmation.
  *
  * `unsupported_platform` — no local authentication surface at all (web).
- * `no_hardware`          — the device has no biometric sensor.
- * `no_enrollment`        — hardware exists but nothing is enrolled (no
- *                          fingerprint/face, or no device passcode set).
+ * `no_hardware`          — the platform reported no way to authenticate at all
+ *                          while prompting.
+ * `no_enrollment`        — the device has no screen lock and no biometrics.
  */
 export type LocalConfirmationUnavailableReason =
   | 'unsupported_platform'
@@ -206,10 +171,8 @@ export async function requestLocalConfirmation(reason: string): Promise<LocalCon
     return { outcome: 'unavailable', reason: 'unsupported_platform' };
   }
 
-  if (!(await hasBiometricHardware())) {
-    return { outcome: 'unavailable', reason: 'no_hardware' };
-  }
-  if (!(await isBiometricEnrolled())) {
+  // The screen lock counts: a phone with a PIN and no fingerprint can confirm.
+  if (!(await hasLocalConfirmation())) {
     return { outcome: 'unavailable', reason: 'no_enrollment' };
   }
 

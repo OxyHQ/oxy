@@ -6,6 +6,8 @@
  * A helper earns a place only if it is (a) copied byte-identically into three
  * or more REPOS, (b) pure and dependency-free, and (c) something no repo could
  * reasonably want a different version of. All three, not any of them.
+ * An explicit ecosystem decision may also establish a common pure contract,
+ * as with the cursor-cycle guard used by Mention and Syra.
  *
  * That last clause does most of the work. An audit of eight Oxy repos found
  * plenty of duplication that fails it and is deliberately NOT here:
@@ -49,6 +51,7 @@ export {
   resolvePageOffset,
   resolvePageNumber,
   offsetForPage,
+  nextUnvisitedCursor,
   type PageLimitBounds,
 } from './paging.js';
 

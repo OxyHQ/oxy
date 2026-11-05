@@ -1,3 +1,4 @@
+import { integerCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * The funding class of a synced route, from Kaana's credential economics.
  *
@@ -73,25 +74,25 @@ const MAX_CREDENTIAL_ECONOMICS_BYTES = 1024 * 1024;
 
 const capacityEvidenceSchema = z
   .object({
-    kind: z.string().max(64),
-    observedAt: z.string().max(64),
-    freshUntil: z.string().max(64).nullish(),
-    quotaWindow: z.string().max(64).nullish(),
-    quotaRemaining: z.union([z.number(), z.string().max(64)]).nullish(),
-    balancePicos: z.string().max(64).nullish(),
-    expiresAt: z.string().max(64).nullish(),
+    kind: z.string().check(utf16MaxLength(64)),
+    observedAt: z.string().check(utf16MaxLength(64)),
+    freshUntil: z.string().check(utf16MaxLength(64)).nullish(),
+    quotaWindow: z.string().check(utf16MaxLength(64)).nullish(),
+    quotaRemaining: z.union([z.number(), z.string().check(utf16MaxLength(64))]).nullish(),
+    balancePicos: z.string().check(utf16MaxLength(64)).nullish(),
+    expiresAt: z.string().check(utf16MaxLength(64)).nullish(),
   })
   .passthrough();
 
 const credentialEconomicsSchema = z
   .object({
-    provider: z.string().min(1).max(128),
-    keyId: z.string().min(1).max(256),
-    keyClass: z.string().max(64),
+    provider: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    keyId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+    keyClass: z.string().check(utf16MaxLength(64)),
     description: z
       .object({
-        revision: z.number().int(),
-        capacityCategory: z.string().max(64),
+        revision: z.number().check(integerCheck()),
+        capacityCategory: z.string().check(utf16MaxLength(64)),
       })
       .passthrough()
       .nullable(),

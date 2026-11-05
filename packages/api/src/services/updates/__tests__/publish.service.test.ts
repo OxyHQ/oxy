@@ -14,9 +14,12 @@
  *    invalid signature on a device that may fetch this update years later.
  *  - **A publish is atomic**: a rejected one leaves no channel, no update and no
  *    descriptors behind.
+ *  - **Nothing is published that could only be served unsigned**: without a
+ *    usable code-signing key, publish and promote are refused before anything
+ *    is written.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { CreateUpdateRequest } from '@oxy.so/contracts';
 
@@ -46,6 +49,14 @@ import { updateChannels } from '../../../db/schema/updateChannels';
 import { users } from '../../../db/schema/users';
 import * as publishService from '../publish.service';
 import { updateAssetS3Key } from '../assetKeys';
+import { CodeSigningNotConfiguredError, resetSigningKeyCache } from '../signing.service';
+
+const signingKeyBase64 = Buffer.from(
+  generateKeyPairSync('rsa', { modulusLength: 2048 })
+    .privateKey.export({ type: 'pkcs8', format: 'pem' })
+    .toString(),
+  'utf8',
+).toString('base64');
 
 beforeAll(async () => {
   await connectPostgres();
@@ -58,6 +69,13 @@ afterAll(async () => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockPresign.mockResolvedValue('https://s3.example/presigned-put');
+  process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY = signingKeyBase64;
+  resetSigningKeyCache();
+});
+
+afterEach(() => {
+  delete process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY;
+  resetSigningKeyCache();
 });
 
 /** A random lowercase-hex SHA-256, the shape every asset reference must match. */
@@ -554,6 +572,52 @@ describe('rollback', () => {
     await expect(
       publishService.rollback(applicationId, 'never-created', '1.0.0', 'ios'),
     ).rejects.toThrow(/not found/i);
+  });
+});
+
+describe('code signing is required to publish', () => {
+  test('createUpdate without a key is refused (503) and writes nothing', async () => {
+    const applicationId = await application();
+    const input = await createRequest(applicationId);
+    delete process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY;
+    resetSigningKeyCache();
+
+    const refusal = publishService.createUpdate(input);
+    await expect(refusal).rejects.toBeInstanceOf(CodeSigningNotConfiguredError);
+    await expect(refusal).rejects.toMatchObject({ statusCode: 503 });
+    const channels = await getDb()
+      .select({ id: updateChannels.id })
+      .from(updateChannels)
+      .where(
+        and(
+          eq(updateChannels.applicationId, applicationId),
+          eq(updateChannels.name, input.channel),
+        ),
+      );
+    expect(channels).toHaveLength(0);
+  });
+
+  test('createUpdate with a key that cannot sign is refused', async () => {
+    const applicationId = await application();
+    const input = await createRequest(applicationId);
+    process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY =
+      '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----';
+    resetSigningKeyCache();
+
+    await expect(publishService.createUpdate(input)).rejects.toBeInstanceOf(
+      CodeSigningNotConfiguredError,
+    );
+  });
+
+  test('promote without a key is refused', async () => {
+    const applicationId = await application();
+    const source = await publishService.createUpdate(await createRequest(applicationId));
+    delete process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY;
+    resetSigningKeyCache();
+
+    await expect(
+      publishService.promote(applicationId, source.id, 'preview', 100),
+    ).rejects.toBeInstanceOf(CodeSigningNotConfiguredError);
   });
 });
 

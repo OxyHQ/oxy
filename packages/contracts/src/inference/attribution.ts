@@ -37,15 +37,7 @@ import {
   requestIdSchema,
 } from './identifiers';
 
-/**
- * The inference capability scopes the data plane needs to know about.
- *
- * A credential may carry many other Oxy scopes; only these cross the boundary,
- * because the data plane's authorization questions are exactly "may this caller
- * invoke", "may it read the catalogue", "may it read usage", "may it read or
- * write routing", "may it read or write provider connections". Everything else
- * is the control plane's business and is not the data plane's to hold.
- */
+/** External caller limits recorded by Oxy. First-party instructions carry no scopes. */
 export const INFERENCE_SCOPES = [
   'inference:invoke',
   'inference:models:read',
@@ -83,13 +75,24 @@ export const billingPrincipalSchema = z
  * envelope; it does not re-derive access from its own database, because it has
  * no account graph to re-derive it from.
  */
-export const authenticatedPrincipalSchema = z.object({
+const principalIdentity = {
   billing: billingPrincipalSchema,
   applicationId: oxyApplicationIdSchema,
   credentialId: oxyCredentialIdSchema,
   environment: inferenceEnvironmentSchema,
-  inferenceScopes: z.array(inferenceScopeSchema),
-});
+};
+
+/** Oxy has authorized this instruction; the discriminator never grants customer access in Kaana. */
+export const authenticatedPrincipalSchema = z.discriminatedUnion('authority', [
+  z.object({ ...principalIdentity, authority: z.literal('first_party') }).strict(),
+  z
+    .object({
+      ...principalIdentity,
+      authority: z.literal('external').optional(),
+      inferenceScopes: z.array(inferenceScopeSchema),
+    })
+    .strict(),
+]);
 
 /**
  * The attribution block carried by every request, receipt and ledger record.

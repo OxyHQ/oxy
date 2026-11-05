@@ -1,3 +1,5 @@
+import { isSessionChangedError } from '../utils/sessionChangedError';
+
 /** Local display hint when a session lacks explicit `expiresAt` (7 days). */
 export const DEFAULT_SESSION_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -24,5 +26,6 @@ export function getHttpStatus(error: unknown): number | undefined {
 }
 
 export function isUnauthorizedStatus(error: unknown): boolean {
+  if (isSessionChangedError(error)) return false;
   return getHttpStatus(error) === 401;
 }

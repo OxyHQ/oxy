@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * The reserve → settle → refund protocol.
  *
@@ -71,12 +73,12 @@ export const usageReservationRequestSchema = z.object({
   /** Units already determined by the request itself, e.g. input tokens. */
   knownUnits: z.array(usageQuantitySchema).default([]),
   /** The ceiling on generated output, when the request set one. */
-  maxOutputTokens: z.number().int().positive().safe().optional(),
+  maxOutputTokens: z.number().check(integerCheck()).positive().check(safeNumberCheck()).optional(),
   /** The price version of the most expensive route the policy permits. */
-  ceilingPriceVersionId: z.string().min(1).max(128),
+  ceilingPriceVersionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
   maxAmount: exactDecimalSchema,
   currency: currencyCodeSchema,
-  expiresInSeconds: z.number().int().positive().max(86400),
+  expiresInSeconds: z.number().check(integerCheck()).positive().max(86400),
 });
 
 /** Lifecycle of a hold. Terminal states are `settled`, `released`, `expired`. */
@@ -93,17 +95,17 @@ export const usageReservationSchema = z
   .object({
     /** See `version.ts`: read back by the edge and the Console on its own. */
     schemaVersion: z.literal(1),
-    reservationId: z.string().min(1).max(128),
+    reservationId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     idempotencyKey: idempotencyKeySchema,
     attribution: inferenceAttributionSchema,
     status: usageReservationStatusSchema,
     reservedAmount: exactDecimalSchema,
     currency: currencyCodeSchema,
-    ceilingPriceVersionId: z.string().min(1).max(128),
+    ceilingPriceVersionId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     createdAt: inferenceTimestampSchema,
     expiresAt: inferenceTimestampSchema,
     /** The receipt that consumed this hold. Present exactly when `settled`. */
-    settledReceiptId: z.string().min(1).max(128).optional(),
+    settledReceiptId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
   })
   .superRefine((reservation, ctx) => {
     if (reservation.status === 'settled' && reservation.settledReceiptId === undefined) {
@@ -192,7 +194,7 @@ export const normalizedUsageReportSchema = z
     /** Exact Kaana deployment that attempted the request; never inferred from names. */
     deploymentId: deploymentIdSchema,
     /** How many allowed route switches occurred while serving this request. */
-    routeSwitches: z.number().int().nonnegative().max(100),
+    routeSwitches: z.number().check(integerCheck()).nonnegative().max(100),
     /**
      * The funding tier of the platform key that served the final attempt, as
      * the data plane states it (ADR 0038). Absent when the key's economics
@@ -203,7 +205,12 @@ export const normalizedUsageReportSchema = z
     fundingTier: inferenceFundingTierSchema.optional(),
     startedAt: inferenceTimestampSchema,
     completedAt: inferenceTimestampSchema,
-    timeToFirstTokenMs: z.number().int().nonnegative().safe().optional(),
+    timeToFirstTokenMs: z
+      .number()
+      .check(integerCheck())
+      .nonnegative()
+      .check(safeNumberCheck())
+      .optional(),
   })
   .superRefine((report, ctx) => {
     // Compared as instants: two spellings of one moment sort differently as text.
@@ -253,9 +260,9 @@ export const usageReceiptSchema = z
   .object({
     /** See `version.ts`: returned to customers by `GET /v1/generations/:id`. */
     schemaVersion: z.literal(1),
-    receiptId: z.string().min(1).max(128),
+    receiptId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     /** The hold this settled against. Absent for a charge with no reservation. */
-    reservationId: z.string().min(1).max(128).optional(),
+    reservationId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
     idempotencyKey: idempotencyKeySchema,
     attribution: inferenceAttributionSchema,
     outcome: inferenceRequestOutcomeSchema,
@@ -300,8 +307,18 @@ export const usageReceiptSchema = z
  * ledger accounts and only the second one is visible on an invoice.
  */
 export const usageRefundSubjectSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('reservation'), reservationId: z.string().min(1).max(128) }).strict(),
-  z.object({ kind: z.literal('receipt'), receiptId: z.string().min(1).max(128) }).strict(),
+  z
+    .object({
+      kind: z.literal('reservation'),
+      reservationId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('receipt'),
+      receiptId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    })
+    .strict(),
 ]);
 
 /** Why money was given back or a hold was released. */
@@ -333,7 +350,7 @@ export const usageRefundSchema = z
   .object({
     /** See `version.ts`: a ledger record read back on its own. */
     schemaVersion: z.literal(1),
-    refundId: z.string().min(1).max(128),
+    refundId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     idempotencyKey: idempotencyKeySchema,
     attribution: inferenceAttributionSchema,
     subject: usageRefundSubjectSchema,

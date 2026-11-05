@@ -13,7 +13,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { eq, getTableColumns, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { sqlColumnName } from '@oxy.so/db';
 import { USAGE_UNITS } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
@@ -40,12 +40,27 @@ import { users } from '../users';
 const UNIQUE_VIOLATION = '23505';
 /** Postgres `check_violation` — also what the immutability trigger raises. */
 const CHECK_VIOLATION = '23514';
+const syntheticReservationIds: string[] = [];
 
 beforeAll(async () => {
   await connectPostgres();
 });
 
 afterAll(async () => {
+  // These are schema-only holds: they deliberately have no matching balance
+  // reservation. Leave their rows for immutable FK assertions, but retire only
+  // this suite's synthetic holds before another suite runs the global sweeper.
+  if (syntheticReservationIds.length > 0) {
+    await getDb()
+      .update(usageReservations)
+      .set({ status: 'expired' })
+      .where(
+        and(
+          inArray(usageReservations.id, syntheticReservationIds),
+          eq(usageReservations.status, 'held'),
+        ),
+      );
+  }
   await closePostgres();
 });
 
@@ -164,6 +179,7 @@ async function insertReservation(f: Fixture, amount = '1.000000000000'): Promise
       expiresAt: new Date(Date.now() + 60_000),
     })
     .returning({ id: usageReservations.id });
+  syntheticReservationIds.push(row.id);
   return row.id;
 }
 

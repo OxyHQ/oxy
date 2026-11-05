@@ -241,3 +241,53 @@ for (const environment of ['development', 'production']) {
     }
   });
 }
+
+// From router-server 58.0.18 (expo-router 58.0.30) Expo passes the route it
+// matched, and `getRouteInfoForLocation` is gone from expo-router.
+function loadMatchedRouteRenderer(calls) {
+  const legacy = mocks['expo-router/internal/static'];
+  const { getRouteInfoForLocation: _removed, ...current } = legacy;
+  mocks['expo-router/internal/static'] = {
+    ...current,
+    getRouteInfoForMatchedRoute: (route, params, location) => {
+      calls.push({ route, params, location });
+      return {
+        pathname: '/inbox',
+        params: { folder: 'inbox' },
+        searchParams: new URLSearchParams({ q: 'one' }),
+      };
+    },
+  };
+  try {
+    return loadRenderer('production');
+  } finally {
+    mocks['expo-router/internal/static'] = legacy;
+  }
+}
+
+test('58.0.18+: the route and the loader key come from the route Expo matched', async () => {
+  const calls = [];
+  const adapter = loadMatchedRouteRenderer(calls);
+  title = null;
+  // The location's own query differs from the matched route's search params,
+  // so the loader key shows which one the adapter used.
+  const location = new URL('https://example.test/inbox?q=one&utm=ignored');
+  const route = { file: './inbox.tsx', page: '/[folder]' };
+  const html = await adapter.getStreamingContent(location, {
+    output: 'static',
+    route,
+    params: { folder: 'inbox' },
+    loader: { key: '/inbox', data: { value: 1 } },
+  });
+  assert.deepEqual(calls, [{ route, params: { folder: 'inbox' }, location }]);
+  assert.deepEqual(observedLoader, { '/inbox?q=one': { value: 1 } });
+  assert.equal(new JSDOM(html).window.document.querySelector('#root #mail').textContent, '_R_0_');
+});
+
+test('58.0.18+: a static render without the matched route fails the export', async () => {
+  const adapter = loadMatchedRouteRenderer([]);
+  await assert.rejects(
+    adapter.getStreamingContent(new URL('https://example.test/inbox'), { output: 'static' }),
+    /without the matched route/,
+  );
+});

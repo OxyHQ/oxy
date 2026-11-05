@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Admonition } from '@oxy.so/bloom/admonition';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Checkbox } from 'expo-checkbox';
-import { Icons } from '@/constants/icons';
+import { CheckboxCard } from '@oxy.so/bloom/checkbox';
 import { useOxy } from '@oxy.so/services';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
@@ -134,31 +133,14 @@ export default function RotateKeyConfirmScreen() {
           : t('rotateKey.confirm.summaryDevice')}
       </Admonition>
 
-      <TouchableOpacity
-        style={[styles.toggleRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-        onPress={() => setSignOutEverywhere((v) => !v)}
-        activeOpacity={0.7}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: signOutEverywhere }}
-        accessibilityLabel={t('rotateKey.confirm.signOutEverywhere')}
+      <CheckboxCard
+        title={t('rotateKey.confirm.signOutEverywhere')}
+        description={t('rotateKey.confirm.signOutEverywhereHint')}
+        checked={signOutEverywhere}
+        onCheckedChange={setSignOutEverywhere}
         disabled={rotating}
-      >
-        <Icons.signOut size="md" fill={colors.textSecondary} />
-        <View className="flex-1 gap-space-2">
-          <Text style={[styles.toggleTitle, { color: colors.text }]}>
-            {t('rotateKey.confirm.signOutEverywhere')}
-          </Text>
-          <Text style={[styles.toggleHint, { color: colors.textSecondary }]}>
-            {t('rotateKey.confirm.signOutEverywhereHint')}
-          </Text>
-        </View>
-        <Checkbox
-          value={signOutEverywhere}
-          onValueChange={setSignOutEverywhere}
-          color={signOutEverywhere ? colors.tint : undefined}
-          disabled={rotating}
-        />
-      </TouchableOpacity>
+        accessibilityLabel={t('rotateKey.confirm.signOutEverywhere')}
+      />
 
       <Button
         appearance="solid"
@@ -172,23 +154,3 @@ export default function RotateKeyConfirmScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderRadius: 16,
-    borderCurve: 'continuous',
-  },
-  toggleTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  toggleHint: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-});

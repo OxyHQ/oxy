@@ -1,5 +1,55 @@
 # Oxy One Personal launch readiness — inactive local handoff
 
+## Native Orbit billing (as built, 2026-11-04)
+
+**This section supersedes every proxy-era description below** (signed tax quotes,
+invoice authority, `billing.observation.updated`, checkout-operation recovery,
+the FX-quoted FairCoin renewal rail and `/billing/peable/observations/:sourceId`).
+Peable retired its Stripe-Billing proxy (`/v1/billing/*`); Oxy's personal-plan
+runtime uses Peable's native engine (Peable ADR 0018) through `@peable.to/sdk`:
+
+- **Catalog**: each published plan with an approved price is an Orbit product, a
+  recurring tax-inclusive price at exactly that amount and cadence (lookup key
+  `<offerId>_v<version>`) and one entitlement feature per benefit
+  (`<productId>:<key>`, shared by every plan granting it, so One-includes-Plus is
+  one feature). `scripts/sync-peable-catalogue.ts` creates them idempotently
+  (dry run by default) and prints the catalogue `prices[]` / runtime `offers[]`
+  binding. Run against production on 2026-11-04 (dry run, then `--apply`) for
+  Mention Plus only: `price_c3b3da89b1c174dc77fc11f1` (599 USD/month) and
+  `price_3df8a50ad8d3fe0f224bd2c9` (5750 USD/year), tax inclusive, on
+  `merch_e78538355d2d3c5be4da912a`.
+- **Checkout**: a Checkout Session in `subscription` mode for the account's native
+  customer (`metadata.oxy_account_id`), `client_reference_id` = the intent. Orbit
+  prices and taxes the order (Peable Tax, fail closed); Oxy refuses a session whose
+  `amount_total` is not the approved price. The payer pays on Peable's own checkout.
+- **Evidence**: paid periods come from authoritative reads of the native invoice
+  (one subscription line, approved price, quantity one, totals that add up, paid)
+  and subscription; refunds from the invoice payment's `amount_refunded`. Peable
+  webhooks (`POST /billing/peable/events`, `PEABLE_PERSONAL_EVENT_TYPES`, verified
+  with `OXY_ONE_PEABLE_WEBHOOK_SECRET`) only say which object to re-read.
+- **Management**: cancellation is `subscriptions.update(cancel_at_period_end)`;
+  everything else (payment methods, invoices, paying an open renewal) is Peable's
+  customer portal, opened by `POST /billing/product-subscriptions/portal`.
+- **Access** remains Oxy's product-access ledger (ADR 0033): grants, quota
+  windows, refunds fences, closure fences and ancestor inheritance are not
+  expressible as Peable active entitlements, which are flat per-customer lookup
+  keys. The Orbit features mirror the same benefits so Peable's answer agrees.
+- **Mention Plus runtime live, purchases held (2026-11-05)**:
+  `OXY_ONE_PEABLE_RUNTIME_ENABLED=true`; the runtime file
+  (`/oxy/oxy-api/OXY_ONE_PEABLE_RUNTIME`, oxy-infra
+  `config/personal-plans-runtime.json`) has `eventsEnabled` and
+  `recoveryEnabled`; the catalogue binds both Mention Plus offers; Peable
+  endpoint `we_be428a01c9d837c8a0ff9b7f` delivers `PEABLE_PERSONAL_EVENT_TYPES`
+  to `/billing/peable/events`. `purchasesEnabled` is held false: Peable refuses
+  to create any Checkout Session with automatic tax until the owner approves
+  Oxy's Peable Tax settings in Orbit (`400 tax_settings_not_active`, verified
+  live), and checkout reserves an intent and creates a customer before it asks.
+  After that approval, flip it (oxy-infra runbook 51). With no registrations,
+  every sale is then recorded `not_registered`. Oxy One has no approved price,
+  so it has no rows and stays unpurchasable. The runtime never fails the boot:
+  if it cannot start (Peable unreachable, a bad file), purchases answer
+  `unavailable`, the error is logged and the start retries every minute.
+
 ## Operating company transition (2026-10-20)
 
 Oxy Platforms, Inc. is the intended operating company and prospective Oxy One
@@ -44,7 +94,7 @@ Peable's current source adds `FinalInvoiceAuthorityReader.read` and pinned verif
 
 Oxy now supplies a concrete SDK reader: `createPeablePersonalEvidenceAuthority` calls `billing.retrieveFinalInvoiceAuthority` and checks every frozen source binding after the SDK verifies the signed envelope against deployment-pinned Ed25519 keys. Runtime additionally requires the configured seller and approved issuer identifier to match final invoice evidence. No signing key supplied by a response is trusted.
 
-`bootstrap` initializes the runtime only when `OXY_ONE_PEABLE_RUNTIME_ENABLED=true`. Enabling requires a validated `OXY_ONE_PEABLE_RUNTIME_FILE`, the existing `OXY_ONE_PEABLE_PUBLIC_KEY`/`OXY_ONE_PEABLE_SECRET`, correct persisted database namespace, and matching authenticated merchant/application ownership. The file requires explicit observation/recovery flags, merchant/application/namespace/offer mappings, the approved issuer legal name and verified issuer/seller identifiers, pinned invoice/tax-quote verification keys and a bounded recovery interval. Observations additionally require `OXY_ONE_PEABLE_OBSERVATION_SECRET`. No configuration or credentials were installed or enabled by this change.
+`bootstrap` initializes the runtime only when `OXY_ONE_PEABLE_RUNTIME_ENABLED=true`. Enabling requires a validated `OXY_ONE_PEABLE_RUNTIME_FILE`, an explicit reviewed `OXY_PEABLE_BILLING_AWS_PROFILE`, correct persisted database namespace, and matching authenticated merchant/application ownership. The file requires explicit observation/recovery flags, merchant/application/namespace/offer mappings, the approved issuer legal name and verified issuer/seller identifiers, pinned invoice/tax-quote verification keys and a bounded recovery interval. Observations additionally require `OXY_ONE_PEABLE_OBSERVATION_SECRET`. No configuration or credentials were installed or enabled by this change.
 
 The mounted raw-body endpoint is `POST /billing/peable/observations/:sourceId`. Signature verification happens before source lookup; context comes from an existing locally attributed personal source and reviewed catalogue mapping. Verified events are wake-ups; fresh SDK reads decide current paid/refunded/subscription state. Failed reconciliation returns 503 for retry. Recovery periodically scans at most 50 owned source identifiers per batch with a wrapping cursor and awaits its outstanding batch on shutdown. First-purchase checkout discovery is not composed by this worker; it handles already-recorded sources.
 
@@ -80,7 +130,7 @@ Peable main was rechecked twice and remains bbc478a7fe47230be0f757b4940ec88df348
 
 The new payments:read-scoped retrievePaidInvoice reads authoritative invoice, one full non-prorated line, invoice-payment linkage and succeeded captured unrefunded undisputed charge. It refuses partial/out-of-band/credit-note/multiple/incomplete/unpaid evidence and wrong customer/subscription/price/mode; root/payment rechecks detect changes. Missing net/tax stays null. These are authenticated pull observations, not an atomic provider snapshot, current tax quote, seller setup, a current tax quote or proof of deployed monitoring. The latest inactive delivery/refund source is described below.
 
-Oxy now wires exact personal Peable sources into named-source cancellation behind OXY_ONE_PEABLE_MANAGEMENT_FILE and existing OXY_ONE_PEABLE_PUBLIC_KEY/OXY_ONE_PEABLE_SECRET. The unconfigured default performs no financial call. Review configuration must name exact merchant/app/physical namespace and offer/version/plan/price mappings; merchant retrieve proves credential identity, subscription retrieve proves Peable's persisted customer/store mapping, and source paid evidence/frozen offer/price/exact period are required. Local state reconciles separately with202 for accepted-but-unreconciled outcomes. No configuration or credential was created.
+Oxy now wires exact personal Peable sources into named-source cancellation behind OXY_ONE_PEABLE_MANAGEMENT_FILE and the same reviewed OXY_PEABLE_BILLING_AWS_PROFILE. The unconfigured default performs no financial call. Review configuration must name exact merchant/app/physical namespace and offer/version/plan/price mappings; merchant retrieve proves workload identity, subscription retrieve proves Peable's persisted customer/store mapping, and source paid evidence/frozen offer/price/exact period are required. Local state reconciles separately with202 for accepted-but-unreconciled outcomes. No configuration or credential was created.
 
 Accounts keeps a fresh action ID across retries and discards it after success/dismissal; account/session remount clears it. Core forwards it. Peable's existing billing_operations durably scopes replay to owner/request/action. Peable and Oxy reread actual cancellation rather than accept cached historical success. Cancel→resume→same-action retry reports reconciliation required; a new user action can cancel again within the same period. No new DB migration is required.
 
@@ -191,3 +241,45 @@ The source requires the unpublished Peable SDK `0.2.4-oxy-one.0` and shared-type
 identity verification in this environment returns `ENEEDAUTH`. The consumer keeps
 its current registry dependency until that release exists, so registry-only API
 build remains blocked. Local candidate checks do not close publication or CI.
+
+### Dedicated billing workload authority
+
+The billing profile must resolve temporary AWS credentials for a separately reviewed
+billing role bound in Oxy to the intended billing application. The existing oxy-api
+ambient role is the Inbox principal and must not be borrowed for billing. Infrastructure
+review must supply the actual role, trust policy, named profile configuration and Oxy
+workload binding; this source change creates none of them. No application id or role
+ARN is inferred from Mention or its product catalogue.
+
+`OXY_PEABLE_BILLING_AWS_PROFILE` is required before runtime or management clients are
+constructed. An explicitly selected profile uses the shared core AWS helper's profile
+provider only: resolution failure does not fall back to environment, container or
+instance credentials. A profile may explicitly configure an approved role credential
+source. Session tokens and unexpired temporary credentials remain required. Legacy
+`OXY_ONE_PEABLE_PUBLIC_KEY` and `OXY_ONE_PEABLE_SECRET` are rejected, including when a
+profile is also present. Deployment composition may instead inject its own dedicated
+OxyServer; that host remains owned by the caller.
+
+Both runtime and management use `peableForOxyService`, then compare the retrieved
+merchant id, application id and environment against reviewed configuration. A mismatch
+fails closed. Runtime clients retain pinned invoice/tax verification keys; owned
+clients and hosts are disposed during shutdown or failed initialization. Billing stays
+disabled until the distinct authority, merchant, catalogue and tax prerequisites are
+reviewed and installed. The hardened core package must pass its normal versioned
+release before deployment adoption; an unpublished local core build is not a rollout.
+
+The runtime's configured customer-location evidence map is a separate activation
+limitation. This identity migration does not collect location evidence or make tax
+configuration ready.
+
+### Fiscal review evidence (read-only)
+
+Around 2026-11-02 23:40 UTC, the live payment-provider account returned an empty
+registration list (`has_more=false`), tax settings `pending` with `head_office`
+missing, and monitoring with `computed_at=null` and no locations. These are
+configuration observations, not a determination of the organization's legal
+registrations or obligations. Registration status remains
+`unknown_requires_verification`; the approved subscription prices include tax.
+No provider settings or registrations were changed. Accounting can review the
+concrete observations alongside the inactive
+[`Mention Plus activation draft`](mention-plus-activation-draft.json).

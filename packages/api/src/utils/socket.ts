@@ -1,6 +1,6 @@
 import type { Server as SocketIOServer } from 'socket.io';
 import type { DeviceSessionState, SessionAccountsChangedReason } from '@oxy.so/contracts';
-import { SESSION_ACCOUNTS_CHANGED_EVENT } from '@oxy.so/contracts';
+import { SESSION_ACCOUNTS_CHANGED_EVENT, SUPERVISION_CHANGED_EVENT } from '@oxy.so/contracts';
 import { logger } from './logger';
 
 let io: SocketIOServer | null = null;
@@ -53,6 +53,22 @@ export function broadcastSessionAccountsChanged(
   );
   for (const userId of unique) {
     server.to(`user:${userId}`).emit(SESSION_ACCOUNTS_CHANGED_EVENT, { userId, revision, reason });
+  }
+}
+
+/**
+ * Emit the token-free {@link SUPERVISION_CHANGED_EVENT} signal to `user:<id>` for
+ * each account whose supervision state changed, so every connected Oxy app
+ * refetches it instead of polling. It carries no payload; enforcement never
+ * depends on it. Blank ids are dropped and duplicates signalled once.
+ */
+export function broadcastSupervisionChanged(
+  accountIds: readonly (string | null | undefined)[],
+): void {
+  const server = getIO();
+  if (!server) return;
+  for (const accountId of new Set(accountIds)) {
+    if (accountId) server.to(`user:${accountId}`).emit(SUPERVISION_CHANGED_EVENT);
   }
 }
 

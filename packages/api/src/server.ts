@@ -24,6 +24,7 @@ import {
   authRateLimiter,
   userRateLimiter,
   federationServiceLimiter,
+  cdnResolverLimiter,
   bruteForceProtection,
   securityHeaders,
 } from './middleware/security';
@@ -43,9 +44,9 @@ import accountSecurityRoutes from './routes/accountSecurity';
 import resourceIntrospectionRoutes from './routes/resourceIntrospection';
 import productCatalogueRoutes from './routes/productCatalogue';
 import productAccessRoutes from './routes/productAccess';
-import peablePersonalObservationRoutes from './routes/peablePersonalObservations';
+import peableEventRoutes from './routes/peableEvents';
 import {
-  initializePeablePersonalRuntime,
+  startPeablePersonalRuntime,
   stopPeablePersonalRuntime,
 } from './services/peablePersonalRuntime.service';
 import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
@@ -115,6 +116,7 @@ import contactsRouter from './routes/contacts';
 import consoleOnboardingRouter from './routes/consoleOnboarding';
 import userDataRouter from './routes/userData';
 import appSignalsRouter from './routes/appSignals';
+import applicationAccountsRouter from './routes/applicationAccounts';
 import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
@@ -220,7 +222,7 @@ import { createCorsMiddleware, SOCKET_IO_CORS_CONFIG } from './config/cors';
 import { refreshOriginRegistry } from './config/dynamicOriginRegistry';
 import { reconcileOfficialRedirectUris } from './config/reconcileOfficialRedirectUris';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { getRedisClient, closeRedis } from './config/redis';
+import { getRedisClient, closeRedis, duplicateRedisSubscriber } from './config/redis';
 import { startUserCacheInvalidationSubscriber } from './utils/userCacheInvalidationSubscriber';
 import { startAuthorityCacheInvalidationSubscriber } from './utils/authorityCache';
 import { startFileCacheInvalidationSubscriber } from './utils/fileCacheInvalidationSubscriber';
@@ -259,6 +261,11 @@ const app = express();
 // Cloudflare: the private socket peer and one Cloudflare edge hop are trusted,
 // nothing a caller wrote is (`oxyTrustProxy`, @oxy.so/core/server).
 app.set('trust proxy', oxyTrustProxy);
+// Express 5 defaults to the `simple` parser (node:querystring), which leaves
+// `ids[]=a&ids[]=b` and `filter[kind]=x` as literal keys. Callers outside this
+// repository (axios encodes arrays as `key[]`) have always been parsed with
+// `qs`, so the API keeps that wire contract.
+app.set('query parser', 'extended');
 
 // Per-route request metrics (CloudWatch EMF). First, so every response is
 // measured, including those the MCP mounts and the limiters below answer.
@@ -338,7 +345,7 @@ function isEmailInboundWebhookRequest(req: express.Request): boolean {
 // Body parsing middleware - IMPORTANT: Add this before any routes
 // Stripe webhook needs raw body for signature verification (must be before express.json)
 app.use('/billing/webhook', express.raw({ type: 'application/json' }));
-app.use('/billing/peable/observations', express.raw({ type: 'application/json', limit: '1mb' }));
+app.use('/billing/peable/events', express.raw({ type: 'application/json', limit: '1mb' }));
 // Kaana's settlements are verified against Kaana's signature over their exact
 // bytes (Kaana ADR 0002), so the body must reach the route unparsed.
 app.use(
@@ -375,6 +382,14 @@ app.use((req, res, next) =>
     ? next()
     : urlencodedParser(req, res, next),
 );
+// Express 5's parsers leave `req.body` undefined when a request carries no body
+// (a bare `POST /session/cancel/:token`), where Express 4's set `{}`. Handlers
+// and body schemas here were written against `{}`, and clients send bodiless
+// POSTs, so a request no parser claimed still reads as an empty object.
+app.use((req, _res, next) => {
+  req.body ??= {};
+  next();
+});
 
 // Request timeout to prevent slow clients holding connections. The cache
 // stream-upload legitimately takes longer than a normal request (it pipes up
@@ -435,7 +450,7 @@ let fileCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null
 let authorityCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
 if (redis) {
   const pubClient = redis.duplicate();
-  const subClient = redis.duplicate();
+  const subClient = duplicateRedisSubscriber(redis);
   io.adapter(createAdapter(pubClient, subClient));
   logger.info('Socket.IO Redis adapter enabled');
   userCacheInvalidationSubscriber = startUserCacheInvalidationSubscriber(redis);
@@ -689,8 +704,9 @@ app.get('/', async (_req, res) => {
 // Health check endpoint
 //
 // This is the ALB target-group check: a 503 here drains the task out of the
-// load balancer, so its meaning must stay exactly what it was — the DATABASE
-// being unusable is the only condition that returns 503.
+// load balancer, so it answers 503 only for what replacing the task can fix:
+// the DATABASE being unusable, or this task's Redis client having ended for
+// good (an outage of Valkey itself is "degraded", see below).
 //
 // The probe is a real `select 1` round trip, NOT the existence of a connection
 // object: a driver-side "connected" flag can report a healthy database while
@@ -713,15 +729,22 @@ app.get('/health', async (_req, res) => {
         : 'disconnected'
       : 'not configured';
 
-    // Only the database being down is truly unhealthy (503).
-    // Redis is used for caching/sockets — brief reconnections are "degraded" not "down".
+    // A Valkey that is down or reconnecting is "degraded", not "down": every
+    // task sees the same outage, every limiter admits requests uncounted
+    // meanwhile (`rateLimiter.ts`), and the client reconnects on its own
+    // (`redisRetryStrategy`), so replacing tasks would only add a rolling
+    // restart to it. A client that has ENDED is different: it never reconnects,
+    // so this task stays without its cache, subscribers and queues until it is
+    // replaced. Answering 503 for that is what lets the orchestrator do it.
     const isRedisDown = redisClient && redisClient.status !== 'ready';
+    const isRedisEnded = redisClient?.status === 'end';
+    const isHealthy = isDatabaseUp && !isRedisEnded;
 
-    res.status(isDatabaseUp ? 200 : 503).json({
-      status: isDatabaseUp ? (isRedisDown ? 'degraded' : 'operational') : 'down',
+    res.status(isHealthy ? 200 : 503).json({
+      status: isHealthy ? (isRedisDown ? 'degraded' : 'operational') : 'down',
       timestamp: new Date().toISOString(),
       database: isDatabaseUp ? 'connected' : 'disconnected',
-      redis: redisStatus,
+      redis: isRedisEnded ? 'ended' : redisStatus,
     });
   } catch (error) {
     logger.error('Health check error:', error);
@@ -840,9 +863,11 @@ app.use('/v1/products', productAccessRoutes);
 app.use('/v1/products', productCatalogueRoutes);
 app.use('/auth', userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
 app.use('/assets', assetRoutes);
-// Public CDN origin for cloud.oxy.so/<id> (CloudFront OriginPath = /cdn). No
-// auth — serves ONLY public CDN-backed assets via 302; 404 otherwise.
-app.use('/cdn', cdnRoutes);
+// Public by-id resolver behind cloud.oxy.so/<id> (ADR 0047). No auth — serves
+// ONLY public CDN-backed assets via 302; 404 otherwise. Skipped by rl:general
+// and slowDown (`isCdnResolverPath`), so its own per-visitor limiter MUST stay
+// on this mount.
+app.use('/cdn', cdnResolverLimiter, cdnRoutes);
 // Oxy Updates (self-hosted expo-updates). The PUBLIC manifest endpoint has NO
 // auth — devices fetch it with only expo-updates headers — so it is mounted
 // here with its own limiter. The admin router (bearer/service-token
@@ -976,7 +1001,7 @@ app.use('/credits', userRateLimiter, creditsRoutes);
 // API-credit product, and these are the account-scoped INFERENCE money surface.
 app.use('/billing/accounts', accountBillingRoutes);
 app.use('/billing/cost-centers', costCenterRoutes);
-app.use('/billing/peable/observations', peablePersonalObservationRoutes);
+app.use('/billing/peable/events', peableEventRoutes);
 app.use('/billing', billingRoutes);
 // The canonical model catalogue (issue #972, ADR 0008). The mount path is
 // unchanged because Console still calls `GET /models/stats`; what it serves is
@@ -1024,6 +1049,7 @@ app.use('/contacts', userRateLimiter, contactsRouter);
 app.use('/console/onboarding', userRateLimiter, consoleOnboardingRouter);
 // Service-token-only cross-app signal ingest (endorsements + interests).
 app.use('/app-signals', appSignalsRouter);
+app.use('/application-accounts', applicationAccountsRouter);
 // Encrypted off-device identity backup (b3 Feature 1). Mixed private (bearer
 // upsert/status/delete) + public (restore-by-locator) routes; each gates its own
 // auth. Mounted
@@ -1314,7 +1340,8 @@ export async function bootstrap(
   // the server. This prevents queries from executing before the database is
   // ready.
   await waitForDatabaseConnection(startupTimeoutMs);
-  await initializePeablePersonalRuntime();
+  // Never fails the boot: purchases stay unavailable and it retries (see there).
+  await startPeablePersonalRuntime();
 
   // Repair legacy empty allowlists first, then publish one complete registry
   // snapshot. Startup fails closed if that authoritative read is unavailable.

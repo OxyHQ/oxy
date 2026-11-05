@@ -1,3 +1,4 @@
+import { integerCheck, isoDateTime, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 /**
  * The automatic Kaana → Oxy model catalogue sync.
  *
@@ -249,9 +250,13 @@ const nullish = <T extends z.ZodTypeAny>(schema: T) =>
 
 const kaanaCatalogueResponseSchema = z
   .object({
-    checkedAt: nullish(z.string().max(64)),
+    checkedAt: nullish(z.string().check(utf16MaxLength(64))),
     configuration: nullish(
-      z.object({ snapshotId: nullish(z.string().min(1).max(256)) }).passthrough(),
+      z
+        .object({
+          snapshotId: nullish(z.string().check(utf16MinLength(1)).check(utf16MaxLength(256))),
+        })
+        .passthrough(),
     ),
     // Kaana's signed `GET /internal/v1/models`: the served catalogue. Each
     // priced deployment it names is attested through the deployment query
@@ -274,10 +279,10 @@ const kaanaCatalogueEntrySchema = z
   .object({
     model: modelIdSchema,
     modelReference: modelReferenceSchema,
-    displayName: nullish(z.string().trim().min(1).max(200)),
-    createdAt: nullish(z.string().datetime({ offset: true })),
-    contextTokens: nullish(z.number().int().positive().max(2_147_483_647)),
-    maxOutputTokens: nullish(z.number().int().positive().max(2_147_483_647)),
+    displayName: nullish(z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200))),
+    createdAt: nullish(z.string().check(isoDateTime({ offset: true }))),
+    contextTokens: nullish(z.number().check(integerCheck()).positive().max(2_147_483_647)),
+    maxOutputTokens: nullish(z.number().check(integerCheck()).positive().max(2_147_483_647)),
     inputModalities: nullish(z.array(z.string())),
     outputModalities: nullish(z.array(z.string())),
     supportsTools: nullish(z.boolean()),

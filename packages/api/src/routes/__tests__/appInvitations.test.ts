@@ -35,7 +35,9 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import express from 'express';
+import express, { type Request } from 'express';
+import { bindWorkloadIdentity } from '../../services/workloadIdentityBinding.service';
+import sessionService from '../../services/session.service';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
@@ -150,7 +152,7 @@ function tokenFor(seeded: SeededApp): string {
 
 function post(
   body: unknown,
-  options: { key?: string | null; as?: SeededApp; token?: string } = {},
+  options: { key?: string | null; as?: SeededApp; token?: string; requesterToken?: string } = {},
 ): Promise<Answer> {
   const address = server.address() as AddressInfo;
   const payload = JSON.stringify(body);
@@ -160,6 +162,7 @@ function post(
     'content-length': String(Buffer.byteLength(payload)),
     connection: 'close',
   };
+  if (options.requesterToken) headers['x-oxy-requester-token'] = options.requesterToken;
   const key = options.key === undefined ? randomUUID() : options.key;
   if (key !== null) headers['idempotency-key'] = key;
   return new Promise((resolve, reject) => {
@@ -303,7 +306,8 @@ describe('who may send', () => {
     const inviter = await person();
     const res = await post(await invitation(inviter.id), { as: stale });
     expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/may not send invitation emails/);
+    expect(res.body.message).toBe('Missing required scope: invitations:email');
+    expect(mockSendMail).not.toHaveBeenCalled();
   });
 
   it('refuses a session-shaped bearer outright', async () => {
@@ -685,4 +689,48 @@ describe('delivery', () => {
     expect(await rowOf(orphan.id)).toMatchObject({ status: 'failed', errorCode: 'cancelled' });
     expect(mockSendMail).toHaveBeenCalledTimes(1);
   });
+});
+
+it('own workloads send for the verified inviter without app scopes and cannot substitute another inviter', async () => {
+  process.env.ACCESS_TOKEN_SECRET = 'invitation-own-proof-test-secret';
+  process.env.REFRESH_TOKEN_SECRET = 'invitation-own-refresh-test-secret';
+  const own = await seedApp({ scopes: [] });
+  const inviter = await person();
+  const stranger = await person();
+  const { binding } = await bindWorkloadIdentity({
+    applicationId: own.appId,
+    subject: `arn:aws:iam::237343248947:role/invitation-own-${randomUUID()}`,
+    environment: 'development',
+    actor: { isPlatformStaff: true, describedAs: 'test' },
+  });
+  const token = signServiceTokenEd25519({
+    type: 'service',
+    authority: 'first_party',
+    tier: 'internal',
+    appId: own.appId,
+    appName: 'Workspace',
+    credentialId: binding.attestationId,
+    ownerAccountId: own.ownerAccountId,
+    environment: 'development',
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 300,
+  });
+  const session = await sessionService.createSession(inviter.id, { headers: {} } as Request, {
+    deviceId: randomUUID(),
+  });
+  const sent = await post(await invitation(inviter.id), {
+    token,
+    requesterToken: session.accessToken,
+  });
+  expect(sent.status).toBe(202);
+  await settled(sent.body.data!.id);
+  expect(mockSendMail).toHaveBeenCalledTimes(1);
+  expect(
+    (await post(await invitation(stranger.id), { token, requesterToken: session.accessToken }))
+      .status,
+  ).toBe(403);
+  expect((await post(await invitation(inviter.id), { token })).status).toBe(403);
+  expect(mockSendMail).toHaveBeenCalledTimes(1);
 });

@@ -555,7 +555,7 @@ try {
   );
   assert.equal(group.status, 0, group.stderr);
   assertions++;
-  assert.match(group.stdout, /All 10 dependency-audit cases passed/);
+  assert.match(group.stdout, /All 11 dependency-audit cases passed/);
   assertions++;
 } finally {
   activeCheckout.remove();

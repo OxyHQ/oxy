@@ -29,9 +29,16 @@
  *
  * `signature` is the whole trust boundary at the manifest level; each provider
  * also checks the calling package and its certificate itself.
+ *
+ * Declaring these permissions is only safe under the ONE Oxy ecosystem
+ * certificate, so this plugin also applies `withOxyReleaseSigning`: every
+ * release build is signed with the ecosystem key from the `OXY_UPLOAD_*` Gradle
+ * properties and FAILS unless its certificate is the ecosystem one. Apps list
+ * neither that plugin nor any signing plugin of their own.
  */
 // The app's own Expo SDK copy, never one this package ships (Expo's guidance for library plugins).
 const { withAndroidManifest } = require('expo/config-plugins');
+const withOxyReleaseSigning = require('./withOxyReleaseSigning');
 
 const IDENTITY_PERMISSION = 'so.oxy.permission.IDENTITY';
 const DEVICE_SESSION_PERMISSION = 'so.oxy.permission.DEVICE_SESSION';
@@ -52,7 +59,7 @@ const HOST_AUTHORITIES = [
 ];
 
 function withOxySharedPermissions(config) {
-  return withAndroidManifest(config, (modConfig) => {
+  return withAndroidManifest(withOxyReleaseSigning(config), (modConfig) => {
     const manifest = modConfig.modResults.manifest;
 
     manifest.permission = manifest.permission ?? [];

@@ -9,7 +9,10 @@ normalize profile biographies, or decide person equivalence.
 
 `POST /federation/identities/resolve` requires a service token with
 `federation:write` and exactly one `actorUri` or `handle`. A handle can be a
-supported network profile URL. Oxy fetches the source with its signed,
+supported network profile URL. A handle Oxy already holds is answered from the
+registry with no remote fetch, its source re-verified in the background once
+the stored verification is a day old; an `actorUri`, an unknown handle, an
+Instagram account or a never-verified legacy row is fetched. Oxy fetches the source with its signed,
 DNS-pinned HTTPS client and applies the reviewed policy in
 `packages/api/src/config/federationBridgePolicy.ts`. Native atproto identities
 are verified against the DID returned by the Bluesky appview. Caller-provided
@@ -18,13 +21,29 @@ name, biography, avatar, and canonical handle claims are never persisted.
 The response includes the public `user`, the actor-specific `externalIdentity`,
 all currently verified `externalIdentities`, and `redirectedUserIds` for older
 references. `sourceUserId` stays anchored to the source account; `userId` is the
-current canonical person. Public profile resolution and legacy
+current canonical person. When the request fetched the source (an `actorUri`
+resolve always does), the response also carries `sourceDocument`: the
+ActivityPub actor or atproto `getProfile` view Oxy verified, bound to
+`externalIdentity.actorUri`. A caller reads the fields Oxy does not keep (banner,
+counts, profile fields, flags, inbox, keys) from it rather than fetching the
+source again; Mention's actor resolver reads every actor this way, so a profile
+sync fetches the actor once. A failed resolve is a 404 whose `details.sourceStatus`
+is the source's own HTTP refusal (410: the actor is gone). Public profile resolution and legacy
 `PUT /users/resolve` use the same authority. `POST /federation/identities/lookup`
 accepts up to 100 IDs, account handles, or actor URIs without remote discovery.
 The shared request/response schemas live in `@oxy.so/contracts`.
 
 `external_identities` owns canonical network accounts; `external_identity_actors`
-retains every transport URI and protocol. A split-domain account (`alice@example`,
+retains every transport URI and protocol. Every transport of an account is in
+`externalIdentities` (same `canonicalAcct`, one entry per `actorUri`); an app that
+subscribes to a person subscribes to all of them. Each bridged network has one
+routed transport (`transportHandleForExternalAccount`: X through bird.makeup,
+Instagram through kilogram.makeup, Bluesky natively over atproto), the one whose
+posts carry the network's own post id. An account first registered through
+another transport (mastox.eu, Bridgy Fed) gets its routed transport discovered
+in the background, at most once per account per five minutes per process
+(`scheduleRoutedTransportDiscovery`); a failed discovery is retried on a later
+registration. A split-domain account (`alice@example`,
 its actor on `social.example`) is relabelled only once the account host's
 WebFinger names that actor, and keeps the actor-host handle as its transport, as
 a bridge does. Physical redirects retain old user
@@ -188,7 +207,8 @@ verification timestamp as epoch. An unverified legacy bridge actor is never
 returned before Oxy has verified its source, and a public read never performs
 that verification: it schedules it in the background and answers "not found"
 until it lands. A handle whose discovery just failed is not rediscovered by
-profile lookups for five minutes.
+profile lookups for five minutes, unless it failed through a bridge whose 404 is
+intermittent (bird.makeup): that failure says nothing about the account.
 
 Run the Oxy reconciliation from the API package using the deployment's ordinary
 database and signing configuration:

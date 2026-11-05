@@ -1,6 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { mkdtempSync, mkdirSync, symlinkSync, rmSync, writeFileSync } = require('node:fs');
+const {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  rmSync,
+  writeFileSync,
+} = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 
@@ -38,7 +45,7 @@ test('every Oxy app declares and requests both signature permissions, and never 
   const root = fakeApp();
   try {
     const config = withOxyAppPreset(
-      { name: 'app', _internal: { projectRoot: root } },
+      { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
       { ios: false, android: false },
     );
     const manifest = await runManifestMods(config, {
@@ -81,7 +88,11 @@ test('every Oxy app declares and requests both signature permissions, and never 
 });
 
 test('the removed sharedUserId and sharedIdentityReader options throw', () => {
-  const config = { name: 'app', _internal: { projectRoot: join(tmpdir(), 'no-such-app') } };
+  const config = {
+    name: 'app',
+    version: '1.0.0',
+    _internal: { projectRoot: join(tmpdir(), 'no-such-app') },
+  };
   assert.throws(
     () => withOxyAppPreset(config, { sharedUserId: 'so.oxy.shared' }),
     /`sharedUserId` option was removed/,
@@ -120,7 +131,7 @@ test('react-native-webgpu is opt-in: applied with `webgpu: true`, never by defau
   const root = fakeApp();
   try {
     installFakeWebGPU(root);
-    const base = { name: 'app', _internal: { projectRoot: root } };
+    const base = { name: 'app', version: '1.0.0', _internal: { projectRoot: root } };
     const off = withOxyAppPreset(base, { ios: false, android: false });
     assert.equal(off.webgpuPluginApplied, undefined);
     const on = withOxyAppPreset(base, { ios: false, android: false, webgpu: true });
@@ -136,7 +147,7 @@ test('`webgpu: true` without react-native-webgpu installed says what to install'
     assert.throws(
       () =>
         withOxyAppPreset(
-          { name: 'app', _internal: { projectRoot: root } },
+          { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
           { ios: false, android: false, webgpu: true },
         ),
       /`webgpu: true` needs 'react-native-webgpu' installed in the app/,
@@ -144,4 +155,121 @@ test('`webgpu: true` without react-native-webgpu installed says what to install'
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('Noxcturnal is on in development only, and an app can opt out or set it itself', () => {
+  const root = fakeApp();
+  const saved = process.env.NODE_ENV;
+  try {
+    const base = { name: 'app', version: '1.0.0', _internal: { projectRoot: root } };
+    const flag = (config, options = {}) =>
+      withOxyAppPreset(config, { ios: false, android: false, ...options }).experiments
+        ?.noxcturnalTransformWorker;
+
+    process.env.NODE_ENV = 'development';
+    assert.equal(flag(base), true);
+    assert.equal(flag(base, { noxcturnal: false }), undefined);
+    assert.equal(flag({ ...base, experiments: { noxcturnalTransformWorker: false } }), false);
+
+    process.env.NODE_ENV = 'production';
+    assert.equal(flag(base), false);
+  } finally {
+    if (saved === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = saved;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+const SDK58_BUILD_GRADLE = readFileSync(
+  resolve(__dirname, '../../services/__tests__/plugins/fixtures/expo-58-app-build.gradle'),
+  'utf8',
+);
+
+/** Run the app/build.gradle mods the preset registered, over `contents`. */
+async function runAppBuildGradleMods(config, contents) {
+  const mod = config.mods?.android?.appBuildGradle;
+  assert.equal(typeof mod, 'function', 'the preset registers an app/build.gradle mod');
+  const result = await mod({
+    ...config,
+    modResults: { contents, language: 'groovy' },
+    modRequest: {
+      platform: 'android',
+      modName: 'appBuildGradle',
+      projectRoot: config._internal.projectRoot,
+    },
+  });
+  return result.modResults.contents;
+}
+
+test('the preset signs every release with the ecosystem key and fails one without it', async () => {
+  const root = fakeApp();
+  try {
+    const config = withOxyAppPreset(
+      { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
+      { ios: false, android: false },
+    );
+    const gradle = await runAppBuildGradleMods(config, SDK58_BUILD_GRADLE);
+    const releaseBuildType = gradle.slice(
+      gradle.indexOf('release {', gradle.indexOf('buildTypes {')),
+    );
+    assert.match(releaseBuildType, /^release \{[\s\S]*?signingConfig signingConfigs\.release\n/);
+    assert.match(gradle, /tasks\.register\('oxyVerifyReleaseSigning'\)/);
+    assert.match(
+      gradle,
+      /def expected = 'b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d'/,
+    );
+    assert.ok(gradle.includes('proguard-android-optimize.txt'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('on Expo SDK 56/57 the preset swaps in the R8 -optimize ProGuard file', async () => {
+  const root = fakeApp();
+  try {
+    const config = withOxyAppPreset(
+      { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
+      { ios: false, android: false },
+    );
+    const sdk57 = SDK58_BUILD_GRADLE.replace(
+      'getDefaultProguardFile("proguard-android-optimize.txt")',
+      'getDefaultProguardFile("proguard-android.txt")',
+    );
+    const gradle = await runAppBuildGradleMods(config, sdk57);
+    assert.ok(gradle.includes('getDefaultProguardFile("proguard-android-optimize.txt")'));
+    assert.ok(!gradle.includes('getDefaultProguardFile("proguard-android.txt")'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a Services without release signing (older than 13.4.0) is refused', () => {
+  const root = mkdtempSync(join(tmpdir(), 'oxy-preset-old-services-'));
+  try {
+    const plugins = join(root, 'node_modules', '@oxy.so', 'services', 'plugins');
+    mkdirSync(plugins, { recursive: true });
+    writeFileSync(
+      join(root, 'node_modules', '@oxy.so', 'services', 'package.json'),
+      JSON.stringify({ name: '@oxy.so/services', version: '13.3.0' }),
+    );
+    writeFileSync(join(plugins, 'withOxySharedPermissions.js'), 'module.exports = (c) => c;\n');
+    assert.throws(
+      () =>
+        withOxyAppPreset(
+          { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
+          { ios: false, android: false },
+        ),
+      /needs '@oxy\.so\/services' 13\.4\.0 or later/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('plugin/withOxyAndroidRelease is gone and says what replaced it', () => {
+  const withOxyAndroidRelease = require('../plugin/withOxyAndroidRelease');
+  assert.throws(
+    () => withOxyAndroidRelease({ name: 'app' }),
+    /removed in 5\.0\.0\. Delete it from the app config: release signing is applied by @oxy\.so\/services\/plugins\/withOxySharedPermissions/,
+  );
 });

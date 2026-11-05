@@ -62,11 +62,13 @@ describe('screen entry-point isolation', () => {
     expect(readFileSync(entry, 'utf8')).not.toMatch(/registerScreens\(/);
   });
 
-  it('loads the screens lazily, as one dynamic chunk, from OxyProvider', () => {
+  it('loads the screens lazily when a surface opens', () => {
     const routes = readFileSync(join(SRC, 'ui/navigation/routes.ts'), 'utf8');
     expect(routes).toMatch(/import\(\s*'\.\/screenComponents'\s*\)/);
     const provider = readFileSync(join(SRC, 'ui/components/OxyProvider.tsx'), 'utf8');
-    expect(provider).toMatch(/loadScreens\(\)/);
+    expect(provider).not.toMatch(/loadScreens\(\)/);
+    const host = readFileSync(join(SRC, 'ui/components/SurfaceScreen.tsx'), 'utf8');
+    expect(host).toMatch(/loadScreens\(\)/);
   });
 
   it.each(FULL_ENTRIES)('%s registers the real screen components before navigation', (entry) => {
@@ -74,8 +76,6 @@ describe('screen entry-point isolation', () => {
     expect(source).toContain('registerScreens(screenComponents)');
     expect(staticallyReachable(entry).has(join(SCREEN_ROOT, 'ManageAccountScreen.tsx'))).toBe(true);
     expect(staticallyReachable(entry).has(join(SCREEN_ROOT, 'PreferencesScreen.tsx'))).toBe(true);
-    const host = readFileSync(join(SRC, 'ui/components/SurfaceScreen.tsx'), 'utf8');
-    expect(host).not.toMatch(/Suspense|ScreenPending|ScreenPlaceholder/);
   });
 
   it('keeps screens explicitly available from their own subpath', () => {

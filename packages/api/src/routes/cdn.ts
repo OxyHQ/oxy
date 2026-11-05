@@ -24,9 +24,14 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { CDN_REDIRECT_CACHE_CONTROL, isServableStatus } from '../config/cdn';
 import { sendAssetRedirect } from '../utils/cdnRedirect';
 import { logger } from '../utils/logger';
+import { NotFoundError } from '../utils/error';
 import { singleQueryValue } from '../utils/queryString';
+import { isRenditionRevision, readyVariantRevision } from '../utils/assetRenditionRevision';
 
 const router = express.Router();
+
+/** How long a client should wait before asking again after a transient failure. */
+const CDN_RESOLVE_RETRY_AFTER_SECONDS = 5;
 
 /**
  * @openapi
@@ -49,18 +54,37 @@ const router = express.Router();
  *         required: false
  *         schema: { type: string }
  *         description: Optional variant (e.g. `thumb`, `w320`); omitted = original.
+ *       - in: query
+ *         name: revision
+ *         required: false
+ *         schema: { type: string, format: date-time }
+ *         description: >
+ *           Canonical UTC ready timestamp for the requested variant. HLS uses
+ *           service metadata hlsReadyAt. A stale revision resolves the current
+ *           public rendition without caching; malformed revisions return 400.
  *     responses:
  *       302:
  *         description: Redirect to the public cloud.oxy.so CDN URL.
  *       404:
  *         description: No public CDN-backed asset for this id.
+ *       503:
+ *         description: >
+ *           The asset could not be resolved right now (storage or database
+ *           unavailable). Not cacheable; retry after `Retry-After` seconds.
  */
 router.get(
   '/:id',
   validate({ params: assetIdParams }),
-  asyncHandler(async (req: express.Request, res: express.Response) => {
+  asyncHandler(async (req, res) => {
     const { id: fileId } = req.params;
     const variant = singleQueryValue(req.query.variant);
+    const revision = req.query.revision;
+    if (revision !== undefined && (!variant || !isRenditionRevision(revision))) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res
+        .status(400)
+        .json({ error: 'INVALID_REVISION', message: 'Invalid rendition revision' });
+    }
 
     const file = await assetService.getFile(fileId);
     if (!file) {
@@ -74,17 +98,31 @@ router.get(
     // `getPublicCdnUrl` returns a `cloud.oxy.so` URL ONLY for a public file whose
     // bytes are CDN-reachable; it returns null for private/unlisted assets and
     // for public assets without a `public/` copy. Either non-result is a 404
-    // here — this public origin must never stream private bytes or 500.
+    // here — this public origin must never stream private bytes.
+    //
+    // A THROW is one of two things. A rendition this file can never have (an
+    // unknown size, an audio file asked for a thumbnail) is a `NotFoundError`
+    // from `ensureVariant`, and a 404. Anything else (S3 or the database
+    // failing, a render that did not finish) says nothing about the file, only
+    // about this moment: 503, never cached, with when to ask again. A 404 there
+    // told every client the file did not exist, and the image stayed broken.
     let cdnUrl: string | null;
     try {
       cdnUrl = await assetService.getPublicCdnUrl(file, variant);
     } catch (error) {
+      if (error instanceof NotFoundError) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: 'Resource not found' });
+      }
       logger.warn('CDN resolve failed for public asset', {
         fileId,
         variant,
         error: error instanceof Error ? error.message : String(error),
       });
-      return res.status(404).json({ error: 'NOT_FOUND', message: 'Resource not found' });
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Retry-After', String(CDN_RESOLVE_RETRY_AFTER_SECONDS));
+      return res
+        .status(503)
+        .json({ error: 'SERVICE_UNAVAILABLE', message: 'File temporarily unavailable' });
     }
 
     if (!cdnUrl) {
@@ -92,7 +130,12 @@ router.get(
     }
 
     // Cacheable redirect: bodiless, and not rangeable. See `sendAssetRedirect`.
-    res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
+    // Older post snapshots still play the current rendition, but an obsolete
+    // timestamp must never cache today's target as that earlier generation.
+    const matchesRevision =
+      revision === undefined ||
+      (variant !== undefined && readyVariantRevision(file, variant) === revision);
+    res.setHeader('Cache-Control', matchesRevision ? CDN_REDIRECT_CACHE_CONTROL : 'no-store');
     return sendAssetRedirect(res, cdnUrl);
   }),
 );

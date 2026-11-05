@@ -12,7 +12,7 @@
  * the username step.
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 const BELOW_INPUT_HEIGHT = 140;
 const mockScrollViewProps: { reserveTopInset?: boolean; bottomOffset?: number }[] = [];
@@ -100,10 +100,13 @@ jest.mock('@/hooks/identity/identityStore', () => ({
 }));
 
 import { __setOxyState } from '@oxy.so/services';
+import { alert } from '@oxy.so/bloom/surfaces';
+import { KeyManager } from '@oxy.so/core/crypto';
 import DeleteAccountScreen from '@/app/(tabs)/(settings)/delete-account';
 
 describe('Delete account screen layout', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     mockScrollViewProps.length = 0;
     __setOxyState({ user: { id: 'u1', username: 'qatest0925' }, isLoading: false });
   });
@@ -125,5 +128,37 @@ describe('Delete account screen layout', () => {
     const block = screen.getByTestId('delete-account-below-input');
     expect(block.textContent).toContain('data.deleteAccount.deleteCta');
     expect(block.textContent).toContain('data.deleteAccount.cancel');
+  });
+
+  it('styles "Delete my account" destructive (danger), not as the accent action', () => {
+    render(<DeleteAccountScreen />);
+    expect(screen.getByTestId('delete-account-cta').getAttribute('data-tone')).toBe('danger');
+  });
+
+  it('asks once more, in a destructive confirmation, before anything is deleted', () => {
+    render(<DeleteAccountScreen />);
+    fireEvent.change(screen.getByTestId('delete-account-confirm-input'), {
+      target: { value: 'qatest0925' },
+    });
+    fireEvent.click(screen.getByTestId('delete-account-cta'));
+
+    expect(alert).toHaveBeenCalledTimes(1);
+    const [title, , buttons] = (alert as jest.Mock).mock.calls[0];
+    expect(title).toBe('data.deleteAccount.confirmDialogTitle');
+    const destructive = (buttons as { style?: string; onPress?: () => void }[]).find(
+      (button) => button.style === 'destructive',
+    );
+    expect(destructive).toBeDefined();
+    // Nothing ran before the confirmation was accepted.
+    expect(KeyManager.hasIdentity).not.toHaveBeenCalled();
+  });
+
+  it('does not offer the confirmation until the username matches', () => {
+    render(<DeleteAccountScreen />);
+    fireEvent.change(screen.getByTestId('delete-account-confirm-input'), {
+      target: { value: 'someone-else' },
+    });
+    fireEvent.click(screen.getByTestId('delete-account-cta'));
+    expect(alert).not.toHaveBeenCalled();
   });
 });

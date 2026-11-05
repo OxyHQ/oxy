@@ -20,6 +20,7 @@
  */
 
 import { canonicalFederationHost, isSameFederationHost } from '../apUri';
+import { apDate, apImageUrl, apIri, apIriList, apList, isActivityPubMediaType } from '../apValue';
 import {
   readProxyDeclarations,
   type DeriveNetworkIdentity,
@@ -27,7 +28,7 @@ import {
   type NetworkIdentityCandidate,
 } from '../networkIdentity';
 import type { NormalizedExternalActor } from '../index';
-import { readBodyChunks, ResponseBodyTooLargeError } from './boundedBody';
+import { readBoundedResponseJson, readBoundedResponseText } from './boundedBody';
 import type { SignedFetch } from './signedFetch';
 import type { ReportActorGoneOutcome } from './identityBridge';
 import type { FetchPublicKeyOptions } from '../httpSignature';
@@ -62,52 +63,6 @@ const COLLECTION_BODY_MAX_BYTES = 64 * 1024;
  */
 const COLLECTION_WITHHELD_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 410]);
 const ERROR_BODY_MAX_BYTES = 4 * 1024;
-
-/**
- * Deadline for reading a whole actor/collection/error body once its headers
- * arrived. `signedFetch`'s timeout ends at the headers, so without this a remote
- * that stalls mid-body would hold the resolver open.
- */
-const BODY_TIMEOUT_MS = 10_000;
-
-async function readBoundedResponseBody(res: Response, maxBytes: number): Promise<string> {
-  const contentLength = res.headers.get('content-length');
-  if (contentLength) {
-    const declaredBytes = Number(contentLength);
-    if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
-      await res.body?.cancel().catch(() => {});
-      throw new ResponseBodyTooLargeError(maxBytes);
-    }
-  }
-
-  if (!res.body) return '';
-
-  const reader = res.body.getReader();
-  const body = await readBodyChunks(
-    { read: () => reader.read(), cancel: () => void reader.cancel().catch(() => {}) },
-    { maxBytes, timeoutMs: BODY_TIMEOUT_MS },
-  );
-  return new TextDecoder('utf-8', { fatal: true }).decode(body);
-}
-
-async function readBoundedJson(res: Response, maxBytes: number): Promise<Record<string, unknown>> {
-  const body = await readBoundedResponseBody(res, maxBytes);
-  // An empty body is a REMOTE's answer, not a parser error. Without this,
-  // `JSON.parse('')` throws a SyntaxError whose message names a column number,
-  // which is a worse thing to find in a federation log than the fact that the
-  // instance sent nothing.
-  if (body.length === 0) throw new Error('Remote response has no body');
-  const value: unknown = JSON.parse(body);
-  const record = asRecord(value);
-  if (!record) throw new Error('Remote response is not a JSON object');
-  return record;
-}
-
-function isApActorContentType(type: string | undefined): boolean {
-  if (!type) return false;
-  const base = type.split(';')[0]?.trim().toLowerCase();
-  return base === 'application/activity+json' || base === 'application/ld+json';
-}
 
 /** The minimal fields the resolver reads off / writes to a stored actor record. */
 export interface FederatedActorRecordBase {
@@ -148,12 +103,19 @@ export interface FederatedActorUpsert {
   type: string;
   manuallyApprovesFollowers: boolean;
   discoverable: boolean;
+  /**
+   * Mastodon's opt-in to search engines and full-text search (`indexable`).
+   * Absent when the actor does not say, which Mastodon reads as "no".
+   */
+  indexable?: boolean;
   memorial: boolean;
   suspended: boolean;
   fields: FederatedActorField[];
   featuredUrl?: string;
   featuredTagsUrl?: string;
   alsoKnownAs?: string[];
+  /** The account this actor moved to (`movedTo`), when it advertises one. */
+  movedTo?: string;
   /**
    * The `<handle>@<network-domain>` identity this actor was re-labelled onto, when
    * it came from a bridge; absent for the ordinary actor whose identity is simply
@@ -195,11 +157,15 @@ export interface FederatedActorUpsert {
 export type CollectionCount = number | null | undefined;
 
 /** Bring-your-own-store: the AP actor cache stays in the app DB behind this adapter. */
-export interface FederatedActorStore<TActor extends FederatedActorRecordBase> {
+export interface FederatedActorStore<TActor extends FederatedActorRecordBase, TSource = undefined> {
   /** Look up a cached actor by its protocol URI. */
   findActorByUri(uri: string): Promise<TActor | null>;
-  /** Upsert (create-or-update) the actor cache row keyed by `uri`. */
-  upsertActor(uri: string, update: FederatedActorUpsert): Promise<TActor | null>;
+  /**
+   * Upsert (create-or-update) the actor cache row keyed by `uri`. `source` is
+   * what {@link ActorResolverConfig.fetchActorDocument} returned beside the
+   * document this update was parsed from (absent with the default fetch).
+   */
+  upsertActor(uri: string, update: FederatedActorUpsert, source?: TSource): Promise<TActor | null>;
   /** Look up a cached actor by its `publicKey.id` (HTTP-signature key resolution). */
   findActorByPublicKeyId(keyId: string): Promise<Pick<TActor, 'uri' | 'publicKeyPem'> | null>;
   /** Stamp the resolved Oxy user id onto an actor row (identified by its `_id`). */
@@ -255,6 +221,41 @@ export interface ActorTextAdapter {
   qualifyHandles?(text: string, instanceDomain: string): string;
 }
 
+/**
+ * One read of a remote actor document, as {@link ActorResolver.fetchRemoteActor}
+ * consumes it.
+ */
+export interface ActorDocumentFetchResult<TSource = undefined> {
+  /** The HTTP status the actor's server answered. Only a 2xx carries `document`. */
+  status: number;
+  /** The actor document, present when the read succeeded. */
+  document?: Record<string, unknown>;
+  /** A short description of a failure for the resolver's log line. */
+  detail?: string;
+  /**
+   * What the fetcher learned beside the document (Mention: Oxy's verified
+   * identity answer), handed to {@link FederatedActorStore.upsertActor} so the
+   * store does not ask for it a second time.
+   */
+  source?: TSource;
+}
+
+/**
+ * Where actor documents come from: the actor URI, and the canonical acct the
+ * caller knows it by (a hint, never an identity claim).
+ */
+export type ActorDocumentFetch<TSource = undefined> = (
+  actorUri: string,
+  acctHint?: string,
+) => Promise<ActorDocumentFetchResult<TSource>>;
+
+/** Whether a read produced a document the resolver can parse. */
+function hasActorDocument<TSource>(
+  fetched: ActorDocumentFetchResult<TSource>,
+): fetched is ActorDocumentFetchResult<TSource> & { document: Record<string, unknown> } {
+  return fetched.status >= 200 && fetched.status < 300 && fetched.document !== undefined;
+}
+
 /** A parsed WebFinger JRD (only the `links` we read). */
 export interface WebFingerJrd {
   links?: Array<{ rel?: string; type?: string; href?: string }>;
@@ -274,11 +275,21 @@ export interface ActorResolverLogger {
 }
 
 /** Adapters + config an {@link ActorResolver} is built from. */
-export interface ActorResolverConfig<TActor extends FederatedActorRecordBase> {
+export interface ActorResolverConfig<TActor extends FederatedActorRecordBase, TSource = undefined> {
   /** Whether federation is enabled (gates background refreshes). */
   federationEnabled: boolean;
-  /** Signed AP GET (actor + collection-count fetches). */
+  /** Signed AP GET (collection-count fetches, and actor documents by default). */
   signedFetch: SignedFetch;
+  /**
+   * Where actor documents come from. Default: {@link signedFetch} of the actor
+   * URI. An app whose identity authority already fetches and verifies the actor
+   * reads the document from that answer instead, so one refresh fetches the
+   * actor once: Mention reads it from Oxy's `/federation/identities/resolve`,
+   * which returns the document it verified. Every guard below (same origin,
+   * self-consistent key, blocked domains, 410 tombstone, WebFinger fallback)
+   * applies to the document whichever way it arrived.
+   */
+  fetchActorDocument?: ActorDocumentFetch<TSource>;
   /** SSRF-safe bounded WebFinger fetch. */
   fetchWebFinger: WebFingerFetch;
   /** Per-instance blocked-domain check (own domains + identity apex + configured blocks). */
@@ -287,15 +298,18 @@ export interface ActorResolverConfig<TActor extends FederatedActorRecordBase> {
   normalizeFederatedAcct: (acct: string | undefined) => string | undefined;
   /** Extract the domain from a canonical acct. */
   domainFromAcct: (acct: string) => string | undefined;
-  /** Recursively find the first absolute http(s) URL in a value (icon/image). */
-  firstStringUrl: (value: unknown) => string | undefined;
+  /**
+   * The first absolute http(s) URL in an `icon` / `image` value. Optional: the
+   * default is {@link apImageUrl}, which reads every image shape.
+   */
+  firstStringUrl?: (value: unknown) => string | undefined;
   /**
    * Optional re-labelling of a bridged actor onto its real network. Absent means
    * every actor keeps the identity of the host it was fetched from.
    */
   deriveNetworkIdentity?: DeriveNetworkIdentity;
   /** The app's actor cache store. */
-  store: FederatedActorStore<TActor>;
+  store: FederatedActorStore<TActor, TSource>;
   /** The actor↔Oxy-user identity bridge. */
   identity: ActorResolverIdentity;
   /** Remote-text normalization. */
@@ -347,14 +361,34 @@ function actorPublicKeyIsSelfConsistent(actor: Record<string, unknown>, actorId:
  * through the instance (e.g. `fetchRemoteActor` → `this.tombstoneGoneActor`),
  * which keeps them spy-able and overridable in tests.
  */
-export class ActorResolver<TActor extends FederatedActorRecordBase> {
+export class ActorResolver<TActor extends FederatedActorRecordBase, TSource = undefined> {
   /** Actor URIs with an in-flight background refresh (guards against refresh storms). */
   private readonly inFlightActorRefreshes = new Set<string>();
 
   /** Actor key refetches in flight, by actor URI: concurrent failed signatures share one. */
   private readonly inFlightKeyRefetches = new Map<string, Promise<TActor | null>>();
 
-  constructor(private readonly config: ActorResolverConfig<TActor>) {}
+  constructor(private readonly config: ActorResolverConfig<TActor, TSource>) {}
+
+  /** One read of an actor document: the app's {@link ActorResolverConfig.fetchActorDocument}, or a signed GET. */
+  private async readActorDocument(
+    actorUri: string,
+    acctHint?: string,
+  ): Promise<ActorDocumentFetchResult<TSource>> {
+    if (this.config.fetchActorDocument) return this.config.fetchActorDocument(actorUri, acctHint);
+    const res = await this.config.signedFetch(actorUri, AP_CONTENT_TYPE);
+    if (res.ok) {
+      return {
+        status: res.status,
+        document: await readBoundedResponseJson(res, { maxBytes: ACTOR_BODY_MAX_BYTES }),
+      };
+    }
+    if (res.status === 410) return { status: res.status };
+    const body = await readBoundedResponseText(res, { maxBytes: ERROR_BODY_MAX_BYTES }).catch(
+      () => '',
+    );
+    return { status: res.status, detail: `${res.statusText} body=${body.slice(0, 500)}`.trim() };
+  }
 
   /**
    * Whether an actor URI's host is refused by the instance domain policy. An
@@ -396,7 +430,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     try {
       const data = await this.config.fetchWebFinger(url);
       if (!data) return null;
-      const link = data.links?.find((l) => l.rel === 'self' && isApActorContentType(l.type));
+      const link = data.links?.find((l) => l.rel === 'self' && isActivityPubMediaType(l.type));
       return link?.href || null;
     } catch (err) {
       this.config.logger.warn(`WebFinger resolution failed for ${acct}:`, err);
@@ -433,22 +467,20 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       }
 
       const canonicalAcctHint = this.config.normalizeFederatedAcct(acctHint);
-      // Use signed fetch for servers that enforce authorized fetch (e.g., Threads)
-      let res = await this.config.signedFetch(currentUri, AP_CONTENT_TYPE);
-      if (!res.ok) {
+      let fetched = await this.readActorDocument(currentUri, canonicalAcctHint);
+      if (!hasActorDocument(fetched)) {
         // A definitive 410 Gone is authoritative: tombstone and stop — do NOT fall
         // through to the WebFinger fallback (which recovers a STALE/wrong URI on a
         // transient failure, not a permanent removal). Only 410 does this.
-        if (res.status === 410) {
+        if (fetched.status === 410) {
           this.config.logger.info(
             `[FedSync] fetchRemoteActor 410 Gone for ${currentUri} — tombstoning actor`,
           );
           await this.tombstoneGoneActor(currentUri);
           return null;
         }
-        const body = await readBoundedResponseBody(res, ERROR_BODY_MAX_BYTES).catch(() => '');
         this.config.logger.info(
-          `[FedSync] fetchRemoteActor HTTP ${res.status} ${res.statusText} for ${currentUri} body=${body.slice(0, 500)}`,
+          `[FedSync] fetchRemoteActor HTTP ${fetched.status}${fetched.detail ? ` ${fetched.detail}` : ''} for ${currentUri}`,
         );
 
         // If direct fetch failed, try WebFinger to resolve the canonical actor URI.
@@ -461,46 +493,36 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
           (pathUsername
             ? this.config.normalizeFederatedAcct(`${pathUsername}@${parsed.hostname}`)
             : undefined);
-        if (acct) {
-          this.config.logger.info(`[FedSync] attempting WebFinger fallback for ${acct}`);
-          const resolved = await this.resolveWebFinger(acct);
-          if (resolved && resolved !== currentUri) {
-            this.config.logger.info(`[FedSync] WebFinger resolved ${acct} → ${resolved}`);
-            res = await this.config.signedFetch(resolved, AP_CONTENT_TYPE);
-            if (res.ok) {
-              currentUri = resolved;
-            } else {
-              // A 410 on the WebFinger-RESOLVED URI is just as definitive. Tombstone
-              // against the stored URI (not reassigned on this branch).
-              if (res.status === 410) {
-                this.config.logger.info(
-                  `[FedSync] fetchRemoteActor 410 Gone for resolved ${resolved} — tombstoning actor ${currentUri}`,
-                );
-                await this.tombstoneGoneActor(currentUri);
-                return null;
-              }
-              const body2 = await readBoundedResponseBody(res, ERROR_BODY_MAX_BYTES).catch(
-                () => '',
-              );
-              this.config.logger.info(
-                `[FedSync] fetchRemoteActor HTTP ${res.status} for resolved ${resolved} body=${body2.slice(0, 500)}`,
-              );
-              return null;
-            }
-          } else {
-            this.config.logger.info(
-              `[FedSync] WebFinger returned ${resolved ?? 'null'} for ${acct}`,
-            );
-            return null;
-          }
-        } else {
+        if (!acct) return null;
+        this.config.logger.info(`[FedSync] attempting WebFinger fallback for ${acct}`);
+        const resolved = await this.resolveWebFinger(acct);
+        if (!resolved || resolved === currentUri) {
+          this.config.logger.info(`[FedSync] WebFinger returned ${resolved ?? 'null'} for ${acct}`);
           return null;
         }
+        this.config.logger.info(`[FedSync] WebFinger resolved ${acct} → ${resolved}`);
+        fetched = await this.readActorDocument(resolved, acct);
+        if (!hasActorDocument(fetched)) {
+          // A 410 on the WebFinger-RESOLVED URI is just as definitive. Tombstone
+          // against the stored URI.
+          if (fetched.status === 410) {
+            this.config.logger.info(
+              `[FedSync] fetchRemoteActor 410 Gone for resolved ${resolved} — tombstoning actor ${currentUri}`,
+            );
+            await this.tombstoneGoneActor(currentUri);
+            return null;
+          }
+          this.config.logger.info(
+            `[FedSync] fetchRemoteActor HTTP ${fetched.status}${fetched.detail ? ` ${fetched.detail}` : ''} for resolved ${resolved}`,
+          );
+          return null;
+        }
+        currentUri = resolved;
       }
 
-      const actor = await readBoundedJson(res, ACTOR_BODY_MAX_BYTES);
+      const actor = fetched.document;
       const actorId = asString(actor.id);
-      const actorInbox = asString(actor.inbox);
+      const actorInbox = apIri(actor.inbox);
       if (!actorId || !actorInbox) {
         this.config.logger.info(
           `[FedSync] fetchRemoteActor missing fields for ${currentUri}: id=${!!actor.id} inbox=${!!actor.inbox} type=${String(actor.type)} keys=${Object.keys(actor).join(',')}`,
@@ -557,35 +579,34 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
 
       // Fetch collection counts (followers, following, posts) in parallel
       const [followersCount, followingCount, postsCount] = await Promise.all([
-        this.fetchCollectionCount(asString(actor.followers)),
-        this.fetchCollectionCount(asString(actor.following)),
-        this.fetchCollectionCount(asString(actor.outbox)),
+        this.fetchCollectionCount(apIri(actor.followers)),
+        this.fetchCollectionCount(apIri(actor.following)),
+        this.fetchCollectionCount(apIri(actor.outbox)),
       ]);
 
       // Extract profile fields (PropertyValue attachments). Sanitize BEFORE
       // normalizing: the canonical normalizer collapses whitespace, it never
       // strips markup — so the sanitizer must run first, on the raw value.
       const fields: FederatedActorField[] = [];
-      if (Array.isArray(actor.attachment)) {
-        for (const att of actor.attachment) {
-          const attRecord = asRecord(att);
-          if (!attRecord || attRecord.type !== 'PropertyValue') continue;
-          const fieldName = this.config.text.inlineField(attRecord.name);
-          const fieldValue =
-            typeof attRecord.value === 'string'
-              ? this.config.text.sanitizeFieldValue(attRecord.value)
-              : '';
-          if (!fieldName || !fieldValue) continue;
-          fields.push({
-            name: fieldName,
-            value: fieldValue,
-            verifiedAt: attRecord.verifiedAt ? new Date(String(attRecord.verifiedAt)) : undefined,
-          });
-        }
+      for (const att of apList(actor.attachment)) {
+        const attRecord = asRecord(att);
+        if (!attRecord || attRecord.type !== 'PropertyValue') continue;
+        const fieldName = this.config.text.inlineField(attRecord.name);
+        const fieldValue =
+          typeof attRecord.value === 'string'
+            ? this.config.text.sanitizeFieldValue(attRecord.value)
+            : '';
+        if (!fieldName || !fieldValue) continue;
+        fields.push({
+          name: fieldName,
+          value: fieldValue,
+          verifiedAt: apDate(attRecord.verifiedAt),
+        });
       }
 
-      const avatarUrl = this.config.firstStringUrl(actor.icon);
-      const headerUrl = this.config.firstStringUrl(actor.image);
+      const imageUrl = this.config.firstStringUrl ?? apImageUrl;
+      const avatarUrl = imageUrl(actor.icon);
+      const headerUrl = imageUrl(actor.image);
       // `summary` is the actor's bio — a BODY, so its line breaks are the author's
       // and must survive; `htmlToPlainText` normalizes it as multiline.
       const summary =
@@ -595,9 +616,15 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       const rawDisplayName = typeof actor.name === 'string' ? actor.name : '';
       const displayName = this.config.text.inlineDisplayName(rawDisplayName) || username;
 
-      const alsoKnownAs = Array.isArray(actor.alsoKnownAs)
-        ? actor.alsoKnownAs.filter((v): v is string => typeof v === 'string')
-        : undefined;
+      // Absent stays absent (the store keeps what it has); one alias or a list
+      // of them is the list.
+      const alsoKnownAs =
+        actor.alsoKnownAs === undefined || actor.alsoKnownAs === null
+          ? undefined
+          : apIriList(actor.alsoKnownAs);
+      // A move target is an actor URL; anything else is not one.
+      const movedToValue = apIri(actor.movedTo);
+      const movedTo = movedToValue && /^https?:\/\//.test(movedToValue) ? movedToValue : undefined;
 
       // The IDENTITY the actor is stored under in Oxy, which is not necessarily the
       // host it was fetched from — see `DeriveNetworkIdentity`. Everything below
@@ -638,24 +665,25 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         avatarUrl,
         headerUrl,
         inboxUrl: actorInbox,
-        outboxUrl: asString(actor.outbox) || undefined,
-        sharedInboxUrl: asString(actorEndpoints?.sharedInbox) || undefined,
-        followersUrl: asString(actor.followers) || undefined,
-        followingUrl: asString(actor.following) || undefined,
+        outboxUrl: apIri(actor.outbox),
+        sharedInboxUrl: apIri(actorEndpoints?.sharedInbox),
+        followersUrl: apIri(actor.followers),
+        followingUrl: apIri(actor.following),
         publicKeyPem: asString(actorPublicKey?.publicKeyPem) || undefined,
         publicKeyId: asString(actorPublicKey?.id) || undefined,
         type: asString(actor.type) || 'Person',
         manuallyApprovesFollowers: actor.manuallyApprovesFollowers === true,
         discoverable: actor.discoverable !== false,
+        ...(typeof actor.indexable === 'boolean' && { indexable: actor.indexable }),
         memorial: actor.memorial === true,
         suspended: actor.suspended === true,
         fields,
-        featuredUrl: asString(actor.featured) || undefined,
-        featuredTagsUrl: asString(actor.featuredTags) || undefined,
+        featuredUrl: apIri(actor.featured),
+        featuredTagsUrl: apIri(actor.featuredTags),
         alsoKnownAs,
+        ...(movedTo && { movedTo }),
         networkAcct: networkIdentity?.federatedUsername,
-        remoteCreatedAt:
-          typeof actor.published === 'string' ? new Date(actor.published) : undefined,
+        remoteCreatedAt: apDate(actor.published),
         // Omitted, not written as `undefined`, when this refresh could not tell:
         // an absent key is what tells the store to keep the value it has.
         ...(followersCount !== undefined && { followersCount }),
@@ -664,7 +692,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         lastFetchedAt: new Date(),
       };
 
-      const fedActor = await this.config.store.upsertActor(actorId, update);
+      const fedActor = await this.config.store.upsertActor(actorId, update, fetched.source);
 
       // Always upsert into Oxy so profile changes (avatar, name, bio) are synced.
       // The identity bridge creates the federated Oxy user if it does not exist,
@@ -813,7 +841,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       if (!res.ok) {
         return COLLECTION_WITHHELD_STATUSES.has(res.status) ? null : undefined;
       }
-      const col = await readBoundedJson(res, COLLECTION_BODY_MAX_BYTES);
+      const col = await readBoundedResponseJson(res, { maxBytes: COLLECTION_BODY_MAX_BYTES });
       const total = col.totalItems;
       return typeof total === 'number' && Number.isSafeInteger(total) && total >= 0 ? total : null;
     } catch {
@@ -963,8 +991,8 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
 }
 
 /** Build the remote-actor resolver from an app's storage + identity + transports. */
-export function createActorResolver<TActor extends FederatedActorRecordBase>(
-  config: ActorResolverConfig<TActor>,
-): ActorResolver<TActor> {
+export function createActorResolver<TActor extends FederatedActorRecordBase, TSource = undefined>(
+  config: ActorResolverConfig<TActor, TSource>,
+): ActorResolver<TActor, TSource> {
   return new ActorResolver(config);
 }

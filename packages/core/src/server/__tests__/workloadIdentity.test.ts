@@ -95,6 +95,7 @@ describe('workload identity client', () => {
     };
 
     expect(body.provider).toBe('aws-iam');
+    expect(body).toHaveProperty('protocolVersion', 2);
     expect(body.nonce).toBe('nonce-from-oxy');
     expect(body.attestation.headers['x-oxy-attestation-nonce']).toBe('nonce-from-oxy');
     expect(body.attestation.headers.host).toBe('sts.amazonaws.com');
@@ -179,4 +180,48 @@ describe('workload identity client', () => {
       requestWorkloadServiceToken({ baseUrl: 'https://api.oxy.so', fetch: fetchImpl }),
     ).rejects.toThrow(/cannot attest its identity/);
   });
+});
+
+it('can attest a temporary development role without a container endpoint', async () => {
+  const { calls, fetchImpl } = harness();
+  const credentials = jest.fn(async () => CREDENTIALS);
+  await requestWorkloadServiceToken({
+    baseUrl: 'https://api.oxy.so',
+    fetch: fetchImpl,
+    credentials,
+  });
+  expect(credentials).toHaveBeenCalledTimes(1);
+  expect(calls.some((call) => call.url.includes('169.254.170.2'))).toBe(false);
+  const exchange = calls.find((call) => call.url.endsWith('/auth/service-token/workload'));
+  const body = JSON.parse(String(exchange?.init?.body));
+  expect(body).not.toHaveProperty('scopes');
+  expect(body.attestation.headers['x-amz-security-token']).toBe(CREDENTIALS.Token);
+});
+
+it('bounds a stalled credential provider and never submits its late attestation', async () => {
+  jest.useFakeTimers();
+  let release!: (value: typeof CREDENTIALS) => void;
+  const credentials = new Promise<typeof CREDENTIALS>((resolve) => {
+    release = resolve;
+  });
+  const { calls, fetchImpl } = harness();
+  try {
+    const pending = requestWorkloadServiceToken({
+      baseUrl: 'https://api.oxy.so',
+      fetch: fetchImpl,
+      credentials: () => credentials,
+    });
+    const rejected = expect(pending).rejects.toBeDefined();
+    await jest.advanceTimersByTimeAsync(15_000);
+    await rejected;
+    release(CREDENTIALS);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(calls.map((call) => call.url)).toEqual([
+      'https://api.oxy.so/auth/service-token/workload/challenge',
+    ]);
+    expect(calls[0].init).toMatchObject({ redirect: 'error', credentials: 'omit' });
+    expect(calls[0].init?.signal?.aborted).toBe(true);
+  } finally {
+    jest.useRealTimers();
+  }
 });

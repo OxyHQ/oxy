@@ -36,7 +36,7 @@ describe('routingPolicySchema', () => {
   });
 
   it('carries every control the control plane owns', () => {
-    const controls = Object.keys(routingPolicySchema.innerType().shape);
+    const controls = Object.keys(routingPolicySchema.shape);
     for (const control of [
       'defaultTarget',
       'providerAllowlist',

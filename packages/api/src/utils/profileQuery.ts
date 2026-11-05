@@ -23,7 +23,12 @@ import { organizationProfiles } from '../db/schema/organizationProfiles';
 import { and, eq, gte, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { federatedUsernameFromUpstreamUrl } from '@oxy.so/federation';
 import { qualified } from '@oxy.so/db';
-import { PEOPLE_SEARCH_TRGM_EXPRESSION, users } from '../db/schema/users';
+import {
+  type AccountKind,
+  PEOPLE_SEARCH_TRGM_EXPRESSION,
+  type USER_TYPES,
+  users,
+} from '../db/schema/users';
 import { userLocations } from '../db/schema/userLocations';
 
 export const FEDERATED_RECOMMENDATION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -106,6 +111,11 @@ export function normalizePeopleSearchTerm(raw: string): string {
   return trimmed.slice(0, MAX_PEOPLE_SEARCH_TERM_LENGTH);
 }
 
+/** Escape `\\`, `%` and `_` so a user's term is a LITERAL inside a LIKE pattern. */
+function escapeLikeTerm(term: string): string {
+  return term.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 export interface PeopleSearchMatchOptions {
   /** Include `description` (default: true). */
   includeDescription?: boolean;
@@ -156,7 +166,7 @@ export function peopleSearchMatch(term: string, options: PeopleSearchMatchOption
     return sql`lower(btrim(${users.username})) = ${upstreamUsername}`;
   }
 
-  const escaped = term.replace(/[\\%_]/g, (char) => `\\${char}`);
+  const escaped = escapeLikeTerm(term);
 
   // Below three characters, switch from substring to anchored PREFIX.
   //
@@ -239,24 +249,134 @@ export function peopleSearchMatch(term: string, options: PeopleSearchMatchOption
 }
 
 /**
- * Shared native-first ordering for people-search surfaces.
+ * The relevance tiers of a people search, best first. A row's tier is the BEST
+ * clause it satisfies, read off the row that is actually returned.
  *
- * Applied BEFORE paging so offset pagination stays deterministic:
- *   1. native before federated
- *   2. higher reputation rank first
- *   3. `id` ascending as the FINAL tiebreaker
+ *   0. `exactHandle`    — the username IS the term (`nate`, or a full
+ *                         `nate@mastodon.social`), or a federated username's
+ *                         local part is (`nate@mstdn.social` for `nate`).
+ *   1. `usernamePrefix` — the username starts with the term (`nateisern`).
+ *   2. `nameExact`      — the display name, the composed first+last name, the
+ *                         first name or the last name IS the term.
+ *   3. `namePrefix`     — the display name, first name or last name starts with
+ *                         the term, or a later WORD of the display/full name
+ *                         does (`Notas de Nate`).
+ *   4. `substring`      — the term appears anywhere in the username or a name.
+ *   5. `other`          — everything else the match admitted: the description
+ *                         (bio), a location (`GET /search`), or a linked
+ *                         identity whose canonical row matched through an alias.
  *
- * The third element is load-bearing, not decoration. `id` is unique, so the
+ * Exported for tests and documentation; {@link peopleSearchRelevance} renders it.
+ */
+export const PEOPLE_SEARCH_TIERS = {
+  exactHandle: 0,
+  usernamePrefix: 1,
+  nameExact: 2,
+  namePrefix: 3,
+  substring: 4,
+  other: 5,
+} as const;
+
+/**
+ * The relevance tier ({@link PEOPLE_SEARCH_TIERS}) of each row for `term`, as a
+ * SQL integer expression.
+ *
+ * It ORDERS; it never filters. `peopleSearchMatch` decides which rows are in the
+ * result and this only ranks them, so it is evaluated over the matched set alone
+ * (after the trigram/prefix indexes have narrowed it) and needs no index of its
+ * own. Every comparison is case-insensitive and the term is LIKE-escaped and
+ * bound, exactly as in the match.
+ *
+ * A pasted upstream profile URL is ranked by the username it resolves to, the
+ * same substitution `peopleSearchMatch` makes, so its single answer is tier 0.
+ */
+export function peopleSearchRelevance(term: string): SQL {
+  const rankTerm = federatedUsernameFromUpstreamUrl(term) ?? term;
+  const escaped = escapeLikeTerm(rankTerm);
+  const exact = sql`lower(${rankTerm}::text)`;
+  const prefix = sql`lower(${`${escaped}%`}::text)`;
+  const wordPrefix = sql`lower(${`% ${escaped}%`}::text)`;
+  const contains = `%${escaped}%`;
+  const username = sql`lower(btrim(${users.username}))`;
+  const fullName = sql`lower(btrim(concat_ws(' ', ${users.nameFirst}, ${users.nameLast})))`;
+  const display = sql`lower(btrim(${users.nameDisplay}))`;
+  const first = sql`lower(btrim(${users.nameFirst}))`;
+  const last = sql`lower(btrim(${users.nameLast}))`;
+  const tier = PEOPLE_SEARCH_TIERS;
+
+  return sql`(case
+    when ${username} = ${exact}
+      or (${users.type} = 'federated' and split_part(${username}, '@', 1) = ${exact})
+      then ${sql.raw(String(tier.exactHandle))}
+    when ${username} like ${prefix} then ${sql.raw(String(tier.usernamePrefix))}
+    when ${display} = ${exact} or ${fullName} = ${exact} or ${first} = ${exact} or ${last} = ${exact}
+      then ${sql.raw(String(tier.nameExact))}
+    when ${display} like ${prefix} or ${display} like ${wordPrefix}
+      or ${fullName} like ${wordPrefix}
+      or ${first} like ${prefix} or ${last} like ${prefix}
+      then ${sql.raw(String(tier.namePrefix))}
+    when ${users.username} ilike ${contains} or ${users.nameFirst} ilike ${contains}
+      or ${users.nameLast} ilike ${contains} or ${users.nameDisplay} ilike ${contains}
+      then ${sql.raw(String(tier.substring))}
+    else ${sql.raw(String(tier.other))}
+  end)`;
+}
+
+/**
+ * The ONE ordering every people-search surface applies (`GET /profiles/search`,
+ * `GET /search`, `POST /users/search`), before paging:
+ *
+ *   1. relevance tier ascending — {@link peopleSearchRelevance}
+ *   2. native (local, agent, automated) before federated, WITHIN a tier
+ *   3. higher reputation rank first
+ *   4. shorter username first — the closest completion of a prefix
+ *      (`natehill` before `natediggitydawg`); a key-only row (no username) last
+ *   5. `id` ascending as the FINAL tiebreaker
+ *
+ * Relevance is the primary key and origin only the second, deliberately: a
+ * federated account whose handle IS the query (`nate@mstdn.social` for `nate`)
+ * ranks above a local account that merely contains it (`notasdenate`). Within
+ * one tier a local account always comes first, so the account a messaging app
+ * can actually reach is not pushed down by remote actors that match equally.
+ *
+ * The last key is load-bearing, not decoration. `id` is unique, so the
  * composite key is a STRICT TOTAL ORDER: two rows can never compare equal, and
  * an `offset`/`limit` page therefore cannot show a row twice or skip one. Drop
  * it and infinite scroll corrupts with no error and no failing request.
  */
-export function peopleSearchOrder(): SQL[] {
+export function peopleSearchOrder(term: string): SQL[] {
   return [
+    sql`${peopleSearchRelevance(term)} asc`,
     sql`(case when ${users.type} = 'federated' then 1 else 0 end) asc`,
     sql`${users.reputationRankWeight} desc`,
+    sql`char_length(btrim(${users.username})) asc nulls last`,
     sql`${users.id} asc`,
   ];
+}
+
+/** Optional narrowing of a people search by the row's own `type` / `kind`. */
+export interface PeopleSearchFilters {
+  /** `users.type`: `local` is an Oxy account, `federated` a remote actor. */
+  type?: (typeof USER_TYPES)[number];
+  /** `users.kind`: `personal`, `organization`, `bot`, … */
+  kind?: AccountKind;
+}
+
+/**
+ * The `type` / `kind` narrowing of `GET /profiles/search`, or `undefined` when
+ * neither is asked for.
+ *
+ * Applied to the row that is RETURNED (the canonical row of a linked identity),
+ * on top of — never instead of — {@link peopleSearchPredicate}, so it can only
+ * remove rows search would otherwise show. Both values are already on every
+ * result (`type`, `kind`), so a filter reveals nothing the unfiltered search
+ * did not.
+ */
+export function peopleSearchFilterPredicate(filters: PeopleSearchFilters): SQL | undefined {
+  return and(
+    filters.type ? eq(users.type, filters.type) : undefined,
+    filters.kind ? eq(users.kind, filters.kind) : undefined,
+  );
 }
 
 /**

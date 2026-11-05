@@ -81,6 +81,15 @@ describe('mapSessionsToClient', () => {
 });
 
 describe('fetchSessionsWithFallback', () => {
+  it('does not retry under a different session when the original request was superseded', async () => {
+    const error = { code: 'AUTH_SESSION_CHANGED', status: 401 };
+    const oxy = {
+      devices: { sessions: jest.fn().mockRejectedValue(error) },
+      session: { list: jest.fn() },
+    };
+    await expect(fetchSessionsWithFallback(oxy, 'session-a')).rejects.toBe(error);
+    expect(oxy.session.list).not.toHaveBeenCalled();
+  });
   it('returns mapped device sessions on the happy path', async () => {
     const oxy = {
       devices: { sessions: jest.fn().mockResolvedValue([{ sessionId: 's1', userId: 'u1' }]) },

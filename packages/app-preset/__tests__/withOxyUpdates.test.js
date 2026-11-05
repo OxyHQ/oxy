@@ -4,10 +4,8 @@
  * Run with the package's own `bun run test` (Node's built-in test runner, so a
  * zero-build config package stays dependency-free).
  *
- * The certificate cases use a temporary file rather than the real bundled path.
- * Writing a placeholder into `certs/` would be actively dangerous: a leftover
- * file there is indistinguishable from a real certificate to every consumer, and
- * would make builds look signature-verifying while trusting nothing.
+ * Most certificate cases use a temporary file rather than the bundled one; the
+ * bundled ecosystem certificate itself is checked at the end of the file.
  */
 
 const test = require('node:test');
@@ -23,7 +21,13 @@ const PROJECT_ROOT = path.join(os.tmpdir(), 'oxy-app-preset-test-project');
 
 /** Minimal ExpoConfig shape carrying the internals a static plugin receives. */
 function baseConfig(extra = {}) {
-  return { name: 'Test', slug: 'test', _internal: { projectRoot: PROJECT_ROOT }, ...extra };
+  return {
+    name: 'Test',
+    slug: 'test',
+    version: '1.0.0',
+    _internal: { projectRoot: PROJECT_ROOT },
+    ...extra,
+  };
 }
 
 /** Options for tests whose behavior is unrelated to code signing. */
@@ -141,8 +145,56 @@ test('throws when required code signing has no certificate', () => {
         certificatePath: path.join(os.tmpdir(), 'oxy-updates-absent.pem'),
         codeSigning: 'require',
       }),
-    /code signing is required but the Oxy Updates certificate is missing/,
+    /certificate is missing .* would accept unsigned updates/s,
   );
+});
+
+test('fails closed by default: no certificate, no build', () => {
+  assert.throws(
+    () =>
+      withOxyUpdates(baseConfig(), {
+        clientId: CLIENT_ID,
+        certificatePath: path.join(os.tmpdir(), 'oxy-updates-absent.pem'),
+      }),
+    /certificate is missing/,
+  );
+});
+
+test('refuses a certificate file that is not a PEM certificate', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oxy-updates-cert-'));
+  const file = path.join(dir, 'oxy-updates-code-signing.pem');
+  // A private key committed by mistake is exactly what this must catch.
+  fs.writeFileSync(file, '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n');
+  try {
+    assert.throws(
+      () => withOxyUpdates(baseConfig(), { clientId: CLIENT_ID, certificatePath: file }),
+      /is not a PEM certificate/,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('rejects an unknown codeSigning value rather than treating it as on or off', () => {
+  assert.throws(
+    () => withOxyUpdates(baseConfig(), { clientId: CLIENT_ID, codeSigning: 'yes' }),
+    /must be 'require' \(the default\), 'auto' or false/,
+  );
+});
+
+test('the bundled ecosystem certificate is a valid code-signing certificate, and is wired by default', () => {
+  const bundled = path.join(__dirname, '..', 'certs', 'oxy-updates-code-signing.pem');
+  const pem = fs.readFileSync(bundled, 'utf8');
+  assert.doesNotMatch(pem, /PRIVATE KEY/);
+  const certificate = new (require('node:crypto').X509Certificate)(pem);
+  assert.equal(certificate.subject, 'CN=Oxy Updates Code Signing');
+  assert.ok(certificate.publicKey.asymmetricKeyType === 'rsa');
+  // Code signing EKU (1.3.6.1.5.5.7.3.3): expo-updates refuses a cert without it.
+  assert.ok(certificate.keyUsage?.includes('1.3.6.1.5.5.7.3.3'));
+  assert.ok(new Date(certificate.validTo).getTime() > Date.now() + 5 * 365 * 24 * 3600 * 1000);
+
+  const config = withOxyUpdates(baseConfig(), { clientId: CLIENT_ID });
+  assert.equal(path.join(PROJECT_ROOT, config.updates.codeSigningCertificate), bundled);
 });
 
 test('wires the URL but no signing when the certificate is absent and codeSigning is auto', () => {
@@ -159,8 +211,21 @@ test('fails loudly when the project root is unavailable and a certificate must b
   withTemporaryCertificate((certificatePath) => {
     assert.throws(
       () =>
-        withOxyUpdates({ name: 'Test', slug: 'test' }, { clientId: CLIENT_ID, certificatePath }),
+        withOxyUpdates(
+          { name: 'Test', slug: 'test', version: '1.0.0' },
+          { clientId: CLIENT_ID, certificatePath },
+        ),
       /could not resolve the project root/,
     );
   });
+});
+
+test('an OTA-enabled build is numbered from its version, the OTA boundary', () => {
+  const config = withOxyUpdates(baseConfig({ version: '1.4.0' }), unsignedOptions());
+  assert.equal(config.android.versionCode, 1_004_000);
+  assert.equal(config.ios.buildNumber, '1004000');
+  assert.throws(
+    () => withOxyUpdates(baseConfig({ android: { versionCode: 5 } }), unsignedOptions()),
+    /Remove `android.versionCode` \(5\)/,
+  );
 });

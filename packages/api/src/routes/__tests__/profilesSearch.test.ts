@@ -9,8 +9,10 @@ import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
  *  - **The gate.** Archived, `restricted`-tier and private accounts must not
  *    appear — including via the federated prepend, which re-reads the resolved
  *    actor and re-applies the same predicate.
- *  - **The order.** Native before federated, most-reputable first, `id` as the
- *    FINAL tiebreaker. The third key is what makes the order STRICT, and a
+ *  - **The order.** Relevance tier first (exact handle, username prefix, name
+ *    exact, name prefix, substring, description), then native before
+ *    federated, most-reputable first, shorter username, `id` as the FINAL
+ *    tiebreaker. The last key is what makes the order STRICT, and a
  *    strict order is what makes offset pagination safe; a page that repeats one
  *    row while skipping another corrupts an infinite scroll with no error.
  *  - **The total.** `count(*) over ()` is evaluated before `LIMIT`, so it
@@ -314,7 +316,7 @@ describe('GET /profiles/search — leading @ handling', () => {
 });
 
 describe('GET /profiles/search — ordering and pagination stability', () => {
-  it('orders NATIVE accounts before FEDERATED ones regardless of reputation rank', async () => {
+  it('orders NATIVE accounts before FEDERATED ones in the same tier, regardless of rank', async () => {
     const term = token();
     const federatedHighRank = await account({
       username: `fed${term}`,
@@ -377,6 +379,194 @@ describe('GET /profiles/search — ordering and pagination stability', () => {
 
     expect(res.body.data).toHaveLength(2);
     expect(res.body.pagination).toEqual({ total: 5, limit: 2, offset: 0, hasMore: true });
+  });
+});
+
+describe('GET /profiles/search — relevance tiers', () => {
+  /**
+   * One row per tier, seeded WORST tier first and with reputation INVERTED
+   * (the worst match has the highest rank weight), so neither insertion order,
+   * id order nor reputation can produce the expected order — only the tier can.
+   */
+  it('ranks exact handle, username prefix, name exact, name prefix, substring, description', async () => {
+    const term = token();
+    const description = await account({
+      username: `d${token()}`,
+      description: `writes about ${term} daily`,
+      reputationRankWeight: 9,
+    });
+    const substring = await account({ username: `zz${term}zz`, reputationRankWeight: 8 });
+    const nameWord = await account({
+      username: `w${token()}`,
+      nameDisplay: `Notas de ${term}`,
+      reputationRankWeight: 7,
+    });
+    const namePrefix = await account({
+      username: `p${token()}`,
+      nameDisplay: `${term}son`,
+      reputationRankWeight: 6.5,
+    });
+    const nameExact = await account({
+      username: `n${token()}`,
+      nameDisplay: term.toUpperCase(),
+      reputationRankWeight: 6,
+    });
+    const fedPrefix = await account({
+      username: `${term}hill@remote.example`,
+      type: 'federated',
+      reputationRankWeight: 5,
+    });
+    const localPrefix = await account({ username: `${term}isern`, reputationRankWeight: 4 });
+    const fedExact = await account({
+      username: `${term}@remote.example`,
+      type: 'federated',
+      reputationRankWeight: 3,
+    });
+    const localExact = await account({ username: term, reputationRankWeight: 0.1 });
+
+    const res = await search(term);
+
+    expect(ids(res)).toEqual([
+      localExact,
+      // A federated handle whose local part IS the term outranks every weaker
+      // local match: relevance first, origin only within a tier.
+      fedExact,
+      localPrefix,
+      fedPrefix,
+      nameExact,
+      // Both tier 3 (a name, or a later word of it, starts with the term):
+      // within one tier the higher rank weight comes first.
+      nameWord,
+      namePrefix,
+      substring,
+      description,
+    ]);
+    expect(res.body.pagination?.total).toBe(9);
+  });
+
+  it('treats a leading @ and letter case as the same exact handle', async () => {
+    const term = token();
+    const prefix = await account({ username: `${term}a`, reputationRankWeight: 5 });
+    const exact = await account({ username: term.toUpperCase(), reputationRankWeight: 0.1 });
+
+    expect(ids(await search(`@${term}`))).toEqual([exact, prefix]);
+  });
+
+  it('ranks a full federated handle query as exact for that actor', async () => {
+    const term = token();
+    const handle = `${term}@remote.example`;
+    const longer = await account({
+      username: `${term}@remote.example.org`,
+      type: 'federated',
+      reputationRankWeight: 5,
+    });
+    const exact = await account({ username: handle, type: 'federated' });
+    mockResolveAndUpsert.mockResolvedValue({ _id: exact });
+
+    expect(ids(await search(handle))).toEqual([exact, longer]);
+  });
+
+  it('puts the shorter username first when tier, origin and rank are equal', async () => {
+    const term = token();
+    const longer = await account({ username: `${term}diggitydawg`, reputationRankWeight: 1 });
+    const shorter = await account({ username: `${term}hill`, reputationRankWeight: 1 });
+
+    expect(ids(await search(term))).toEqual([shorter, longer]);
+  });
+
+  it('pages across tier boundaries without duplicating or skipping a row', async () => {
+    const term = token();
+    const expected = [
+      await account({ username: term }),
+      await account({ username: `${term}@remote.example`, type: 'federated' }),
+      await account({ username: `${term}x` }),
+      await account({ username: `u${token()}`, nameFirst: term }),
+      await account({ username: `y${term}` }),
+      await account({ username: `v${token()}`, description: `on ${term}` }),
+    ];
+
+    const pages = [];
+    for (let offset = 0; offset < expected.length; offset += 2) {
+      pages.push(...ids(await search(term, { limit: '2', offset: String(offset) })));
+    }
+
+    expect(pages).toEqual(expected);
+  });
+});
+
+describe('GET /profiles/search — type and kind filters', () => {
+  it('type=local returns only Oxy accounts and counts only them', async () => {
+    const term = token();
+    const local = await account({ username: `${term}local` });
+    await account({ username: `${term}@remote.example`, type: 'federated' });
+    const agent = await account({ username: `${term}agent`, type: 'agent' });
+
+    const res = await search(term, { type: 'local' });
+
+    expect(ids(res)).toEqual([local]);
+    expect(res.body.pagination?.total).toBe(1);
+    // The control: without the filter all three match.
+    expect(ids(await search(term))).toHaveLength(3);
+    expect(ids(await search(term, { type: 'agent' }))).toEqual([agent]);
+  });
+
+  it('type=local never runs remote discovery, even for a fediverse handle', async () => {
+    const term = token();
+    const handle = `${term}@remote.example`;
+    const remote = await account({ username: `stored${term}remote`, type: 'federated' });
+    mockResolveAndUpsert.mockResolvedValue({ _id: remote });
+
+    const res = await search(handle, { type: 'local' });
+
+    expect(mockResolveAndUpsert).not.toHaveBeenCalled();
+    expect(ids(res)).toEqual([]);
+  });
+
+  it('type=federated still prepends the resolved actor', async () => {
+    const term = token();
+    const handle = `${term}@remote.example`;
+    const remote = await account({ username: `stored${term}remote`, type: 'federated' });
+    mockResolveAndUpsert.mockResolvedValue({ _id: remote });
+
+    expect(ids(await search(handle, { type: 'federated' }))).toEqual([remote]);
+  });
+
+  it('kind keeps only that kind, and also gates the federated prepend', async () => {
+    const term = token();
+    const person = await account({ username: `${term}person`, kind: 'personal' });
+    const bot = await account({ username: `${term}bot`, kind: 'bot' });
+
+    expect(ids(await search(term, { kind: 'personal' }))).toEqual([person]);
+    expect(ids(await search(term, { kind: 'bot' }))).toEqual([bot]);
+
+    const handle = `${term}@remote.example`;
+    const community = await account({
+      username: `stored${term}community`,
+      type: 'federated',
+      kind: 'community',
+    });
+    mockResolveAndUpsert.mockResolvedValue({ _id: community });
+
+    expect(ids(await search(handle, { kind: 'personal' }))).not.toContain(community);
+    expect(ids(await search(handle, { kind: 'community' }))).toEqual([community]);
+  });
+
+  it('combines type and kind, and keeps the private-account gate', async () => {
+    const term = token();
+    const localPerson = await account({ username: `${term}a` });
+    await account({ username: `${term}b`, kind: 'bot' });
+    await account({ username: `${term}c@remote.example`, type: 'federated' });
+    await account({ username: `${term}d`, privacyIsPrivateAccount: true });
+
+    const res = await search(term, { type: 'local', kind: 'personal' });
+
+    expect(ids(res)).toEqual([localPerson]);
+    expect(res.body.pagination?.total).toBe(1);
+  });
+
+  it('400s an unknown type or kind instead of silently ignoring it', async () => {
+    expect((await search('anything', { type: 'remote' })).status).toBe(400);
+    expect((await search('anything', { kind: 'robot' })).status).toBe(400);
   });
 });
 
@@ -552,7 +742,10 @@ describe('GET /profiles/search — canonical identity pagination', () => {
     const instagram = source('instagram.com', 'threads.net');
     const first = await registerExternalIdentity(instagram);
     const linked = await registerExternalIdentity(source('threads.net', 'instagram.com'));
-    const local = await account({ username: `local${term}` });
+    // The canonical federated row's handle IS the term (relevance tier 0), so
+    // the local account is given the exact username too: within one tier the
+    // local account comes first, which is what fixes the page order here.
+    const local = await account({ username: term });
     const page1 = await search(term, { limit: '1' });
     const page2 = await search(term, { limit: '1', offset: '1' });
     expect(ids(page1)).toEqual([local]);

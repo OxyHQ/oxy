@@ -533,6 +533,9 @@ describe('POST /auth/session/create — the public QR handle', () => {
     expect(data.qrPayload).toContain(`app=${app.id}`);
     // The SECRET never travels in the QR.
     expect(data.qrPayload).not.toContain(sessionToken);
+    // The same request as the IdP's device approval page, for a phone camera.
+    expect(data.approvalUrl).toBe(`https://auth.oxy.so/device?user_code=${data.authorizeCode}`);
+    expect(data.approvalUrl).not.toContain(sessionToken);
 
     const row = await storedSession(sessionToken);
     expect(row.authorizeCode).toBe(data.authorizeCode);

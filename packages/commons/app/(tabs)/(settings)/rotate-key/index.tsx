@@ -1,10 +1,10 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, ImportantBanner } from '@/components/ui';
+import { Screen, StackHeader, ImportantBanner, SettingsListItem } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 
@@ -35,19 +35,15 @@ export default function RotateKeyEntryScreen() {
   }, [reset, setProof, router]);
 
   return (
-    // Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
-    // header and banner are padded to align with it (see settings index).
-    <Screen contentStyle={styles.flush} gap={16}>
-      <View style={styles.header}>
-        <StackHeader
-          title={t('rotateKey.title')}
-          subtitle={t('rotateKey.subtitle')}
-          onBack={() => router.back()}
-          backAccessibilityLabel={t('common.back')}
-        />
-      </View>
+    <Screen gap={16}>
+      <StackHeader
+        title={t('rotateKey.title')}
+        subtitle={t('rotateKey.subtitle')}
+        onBack={() => router.back()}
+        backAccessibilityLabel={t('common.back')}
+      />
 
-      <View style={styles.gutter}>
+      <View>
         <ImportantBanner title={t('rotateKey.warningTitle')}>
           {t('rotateKey.warning')}
         </ImportantBanner>
@@ -71,8 +67,4 @@ export default function RotateKeyEntryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flush: { paddingHorizontal: 0 },
-  header: { paddingHorizontal: 20, marginBottom: 16 },
-  gutter: { paddingHorizontal: 20 },
-});
+const styles = StyleSheet.create({});

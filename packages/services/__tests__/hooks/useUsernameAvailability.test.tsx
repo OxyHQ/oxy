@@ -4,6 +4,7 @@ import { useUsernameAvailability } from '../../src/ui/hooks/useUsernameAvailabil
 const checkUsername = jest.fn();
 jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ({ user: { username: 'existinguser' }, oxyServices: client }),
+  useOptionalOxy: () => null,
 }));
 const client = { auth: { checkUsername } };
 const advance = async () => {
@@ -28,6 +29,7 @@ test('keeps the current handle usable and rejects invalid handles without reques
   rerender({ name: 'not a username' });
   await advance();
   expect(result.current.status).toBe('invalid');
+  expect(result.current.invalid).toBe("Usernames can't contain spaces. Use - or _ instead.");
   expect(result.current.canSave).toBe(false);
   expect(checkUsername).not.toHaveBeenCalled();
 });

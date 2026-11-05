@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { darkenColor } from '@/utils/color-utils';
 import type { MaterialCommunityIconName } from '@/types/icons';
 
@@ -72,7 +72,7 @@ const GroupedItemComponent = ({
     </View>
   );
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   if (onPress && !disabled) {
     const a11yLabel = subtitle ? `${title}, ${subtitle}` : title;

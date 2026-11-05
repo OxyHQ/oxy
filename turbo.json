@@ -5,7 +5,11 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", "lib/**", ".next/**", ".output/**"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/core/scripts/**"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/core/scripts/**",
+        "$TURBO_ROOT$/packages/app-preset/metro/source-stamp.js"
+      ]
     },
     "lint": {
       "cache": false

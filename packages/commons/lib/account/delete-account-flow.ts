@@ -81,8 +81,8 @@ export interface AccountDeletionResult {
  * Run the account-deletion sequence.
  *
  * Resolves with {@link AccountDeletionResult} once the account has been
- * deleted server-side and sign-out has completed (whether or not the local
- * purge succeeded).
+ * deleted server-side and sign-out has been attempted (whether or not the
+ * local purge or the sign-out succeeded).
  *
  * Rejects (without touching the local identity or signing out) if the
  * server-side delete fails — propagate the error so the caller can show the
@@ -129,7 +129,20 @@ export async function runAccountDeletion(
   }
 
   // Step 3: drop all local sessions and let the caller route back to auth.
-  await deps.signOutAll();
+  // Non-fatal too: the account no longer exists, so its sessions are dead
+  // server-side whatever this call does. A rejection (offline right after the
+  // delete) used to escape after the delete and the purge, so the screen showed
+  // an error, stayed put, never reset onboarding, and a retry then said the
+  // identity was missing.
+  try {
+    await deps.signOutAll();
+  } catch (error) {
+    logger.warn(
+      'Account deleted server-side, but signing out locally failed. The sessions are already invalid.',
+      { component: 'DeleteAccountScreen' },
+      error instanceof Error ? error : new Error(String(error)),
+    );
+  }
 
   return { localIdentityPurged };
 }

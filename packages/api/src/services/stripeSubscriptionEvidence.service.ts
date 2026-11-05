@@ -19,7 +19,7 @@ export async function subscriptionProcessorBinding(
   const mode = key?.match(/^(?:sk|rk)_(live|test)_/u)?.[1];
   if (!mode || typeof livemode !== 'boolean' || (mode === 'live') !== livemode)
     throw new Error('Stripe credential and evidence mode differ');
-  const account = await (await getBillingStripe()).accounts.retrieve();
+  const account = await (await getBillingStripe()).accounts.retrieveCurrent();
   if (
     !/^acct_[a-zA-Z0-9_]+$/u.test(account.id) ||
     (connectedAccount && account.id !== connectedAccount)

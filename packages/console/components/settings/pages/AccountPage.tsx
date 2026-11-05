@@ -29,7 +29,7 @@ import { accountInitials, useAccountLabels } from '@/components/settings/account
 import { useConsoleSettings } from '@/components/settings/ConsoleSettings';
 import { ArchiveAccountDialog } from '@/components/settings/ArchiveAccountDialog';
 import { ASSIGNABLE_ROLES, InviteMemberDialog } from '@/components/settings/InviteMemberDialog';
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import {
   type AccountMember,
   type AssignableAccountRole,

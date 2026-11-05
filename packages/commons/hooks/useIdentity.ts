@@ -17,6 +17,7 @@ import {
   persistOnboardingComplete,
   persistOnboardingFlow,
   persistPendingUsername,
+  persistRecoveryPhraseAcknowledged,
 } from './identity/identityStore';
 import { useNetworkReconnect } from './identity/useNetworkReconnect';
 import { useSyncIdentity, type UseSyncIdentityResult } from './identity/useSyncIdentity';
@@ -195,6 +196,11 @@ export const useIdentity = (): UseIdentityResult => {
       await persistOnboardingFlow('create');
       // A username chosen for a previous (deleted) identity is not this one's.
       await persistPendingUsername(null);
+      // Nor is a previous identity's "I wrote my phrase down": this identity's
+      // phrase has not been acknowledged until its own phrase screen says so,
+      // and a resumed onboarding shows it again until then.
+      useIdentityStore.setState({ recoveryPhraseAcknowledged: false });
+      await persistRecoveryPhraseAcknowledged(false);
 
       // No registration here: `POST /auth/register` carries the username, so
       // the account is created at the username step — never as a key alone.

@@ -1,3 +1,11 @@
+import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
+import type { NamedRouteParams } from '../types/routeParams';
+import { resolveRequesterContext } from '../services/requesterContext.service';
+import {
+  resolveCapabilityRequester,
+  requireRequesterEffect,
+} from '../services/capabilityRequester.service';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { safetyOrganizationIdentities } from '../services/organization-directory.service';
 import {
   safetyProfileRequestSchema,
@@ -31,6 +39,8 @@ import {
   messageAccessInputSchema,
   messageAccessBatchResponseSchema,
   deliveryAccessBatchInputSchema,
+  notificationAccessBatchInputSchema,
+  notificationAccessBatchResponseSchema,
   contactAccessInputSchema,
   contactAccessResponseSchema,
   contentAccessInputSchema,
@@ -87,7 +97,7 @@ router.use((_req, res, next) => {
 const handler =
   (
     fn: (req: AuthRequest & ServiceAuthRequest, res: Response) => Promise<unknown>,
-  ): RequestHandler =>
+  ): RequestHandler<NamedRouteParams> =>
   (req, res) => {
     void fn(req, res).catch((error: unknown) => {
       if (error instanceof z.ZodError)
@@ -135,7 +145,7 @@ async function principal(req: ServiceAuthRequest): Promise<LiveAgencyServicePrin
       'A consumer service identity is required',
     );
   const live = await resolveLiveAgencyServicePrincipal(req.serviceApp);
-  if (!live || !live.scopes.includes('safety:decide'))
+  if (!live || !hasServiceAuthority(live, 'safety:decide'))
     throw new supervision.SafetyError(403, 'forbidden', 'Consumer authority is no longer active');
   return live;
 }
@@ -165,7 +175,26 @@ async function serviceContext(req: ServiceAuthRequest, requireUser: boolean) {
   const live = await principal(req);
   const proof = safetyRequesterSchema.parse(req.body.requester);
   let user: string | null;
-  if ('connectionToken' in proof) {
+  if ('requesterContext' in proof) {
+    const resolved = await resolveRequesterContext(proof.requesterContext, live);
+    if (!resolved)
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'The forwarded requester context is no longer authorized',
+      );
+    user = resolved.binding.subjectAccountId;
+  } else if ('capabilityTicket' in proof) {
+    const resolved = await resolveCapabilityRequester(proof.capabilityTicket, live);
+    if (!resolved)
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'The original operation is no longer authorized',
+      );
+    requireRequesterEffect(resolved, req.path.startsWith('/service/purchases') ? 'write' : 'read');
+    user = resolved.subjectAccountId;
+  } else if ('connectionToken' in proof) {
     const resolved = await resolveLiveMcpAccessToken(proof.connectionToken, live.applicationId);
     if (!resolved)
       throw new supervision.SafetyError(
@@ -529,6 +558,35 @@ router.post(
   }),
 );
 /**
+ * Decide whether each actor may notify each recipient — blocks in either
+ * direction, availability, supervised contact approval — for background
+ * delivery with no human proof. Discloses one decision per resource, nothing else.
+ * @requestBody notificationAccessBatchInputSchema
+ * @response 200 notificationAccessBatchResponseSchema Per-resource decisions.
+ * @response 401 safetyErrorSchema Consumer required.
+ * @response 403 safetyErrorSchema Consumer refused.
+ * @response 422 safetyErrorSchema Invalid batch.
+ * @response 503 safetyErrorSchema Authority unavailable.
+ */
+router.post(
+  '/service/notification-access-batch',
+  handler(async (req, res) => {
+    const input = notificationAccessBatchInputSchema.parse(req.body);
+    const live = await principal(req);
+    if (!policy.consumerSupports(live, 'notification-delivery'))
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'Reviewed notification delivery authority is required',
+      );
+    res.json(
+      notificationAccessBatchResponseSchema.parse(
+        await policy.decideNotificationsBatch(input.items, live),
+      ),
+    );
+  }),
+);
+/**
  * Revalidate original recipient proofs before realtime delivery. This grants no resource access.
  * @requestBody messagingSessionsInputSchema
  * @response 200 messagingSessionsResponseSchema Minimal correlated live identities.
@@ -591,7 +649,7 @@ router.post(
     safetyPurchaseRequestSchema.parse(req.body);
     const live = await purchasing(req);
     const token = z
-      .object({ accessToken: z.string().min(1).max(16384) })
+      .object({ accessToken: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)) })
       .strict()
       .parse(req.body.requester).accessToken;
     const child = await requester(token, live);

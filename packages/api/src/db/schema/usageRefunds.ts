@@ -1,3 +1,4 @@
+import { enumValues } from './enumValues';
 /**
  * `usage_refunds` — the immutable reversal.
  *
@@ -58,7 +59,7 @@ export const USAGE_REFUND_SUBJECT_KINDS = ['reservation', 'receipt'] as const;
 export type UsageRefundSubjectKind = (typeof USAGE_REFUND_SUBJECT_KINDS)[number];
 
 /** Why money was given back or a hold released, from the wire contract's enum. */
-export const USAGE_REFUND_REASONS = usageRefundReasonSchema.options;
+export const USAGE_REFUND_REASONS = enumValues(usageRefundReasonSchema.options);
 
 /** Reasons that can only ever act on a settled charge. */
 export const RECEIPT_ONLY_REFUND_REASONS = ['billing_correction', 'duplicate_charge'] as const;

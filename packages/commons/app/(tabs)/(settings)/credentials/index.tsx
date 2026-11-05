@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Icons } from '@/constants/icons';
 import { bloomToneFor } from '@/lib/civic/card-presentation';
@@ -16,7 +16,7 @@ import {
   LoadingState,
   STATE_MIN_HEIGHT,
 } from '@/components/ui';
-import { useHaptics } from '@oxy.so/bloom/hooks';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useMyCredentials } from '@/hooks/useCredentials';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import {
@@ -88,15 +88,7 @@ export default function CredentialsScreen() {
           icon={Icons.alert}
           title={t('civic.credentials.error.title')}
           description={t('civic.credentials.error.body')}
-          footer={
-            <TouchableOpacity
-              style={[styles.retry, { backgroundColor: colors.tint }]}
-              onPress={() => query.refetch()}
-              accessibilityRole="button"
-            >
-              <Text style={styles.retryText}>{t('common.retry')}</Text>
-            </TouchableOpacity>
-          }
+          action={{ label: t('common.retry'), onPress: () => void query.refetch() }}
           minHeight={STATE_MIN_HEIGHT}
         />
       );
@@ -164,10 +156,7 @@ interface CredentialRowProps {
 }
 
 function CredentialRow({ credential, colors, t, onPress }: CredentialRowProps) {
-  const haptics = useHaptics();
-  // Wrapped, not passed directly: Bloom's `useHaptics()` takes a STRENGTH,
-  // and `onPressIn` would hand it the gesture event as that argument.
-  const handlePressIn = useCallback(() => haptics(), [haptics]);
+  const { tap: handlePressIn } = useHapticFeedback();
   const primary = primaryCredentialType(credential.types);
   const typeLabel = primary ? humanizeTypeTag(primary) : t('civic.credentials.detail.title');
   const statusMeta = getCredentialStatusMeta(credential.status);

@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MinLength } from './stringChecks';
 import { z } from 'zod';
 import { accountKindSchema } from './accountGraph';
 import { activeTokenSchema, deviceSessionStateSchema } from './deviceSession';
@@ -48,7 +50,7 @@ export const deviceContextRelationshipSchema = z.enum(['self', 'owner', 'member'
  * every installed app reads would widen the profile for no rendering gain.
  */
 export const deviceDirectoryProfileSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().check(utf16MinLength(1)),
   username: z.string(),
   name: userNameSchema.optional(),
   avatar: z.string().nullable().optional(),
@@ -91,8 +93,8 @@ export const deviceDirectoryProfileSchema = z.object({
  * recomputes, so it is spelled out here in full.)
  */
 export const deviceAccountContextSchema = z.object({
-  id: z.string().min(1),
-  accountId: z.string().min(1),
+  id: z.string().check(utf16MinLength(1)),
+  accountId: z.string().check(utf16MinLength(1)),
   kind: accountKindSchema,
   relationship: deviceContextRelationshipSchema,
   account: deviceDirectoryProfileSchema,
@@ -111,9 +113,9 @@ export const deviceAccountContextSchema = z.object({
  * an organization must never consume one.
  */
 export const devicePrincipalSchema = z.object({
-  id: z.string().min(1),
-  userId: z.string().min(1),
-  authuser: z.number().int().nonnegative(),
+  id: z.string().check(utf16MinLength(1)),
+  userId: z.string().check(utf16MinLength(1)),
+  authuser: z.number().check(integerCheck()).nonnegative(),
   user: deviceDirectoryProfileSchema,
   contexts: z.array(deviceAccountContextSchema),
 });
@@ -127,8 +129,8 @@ export const devicePrincipalSchema = z.object({
  * away), not an error.
  */
 export const deviceDirectorySchema = z.object({
-  deviceId: z.string().min(1),
-  revision: z.number().int().nonnegative(),
+  deviceId: z.string().check(utf16MinLength(1)),
+  revision: z.number().check(integerCheck()).nonnegative(),
   activeContextId: z.string().nullable(),
   principals: z.array(devicePrincipalSchema),
   updatedAt: z.number(),
@@ -142,7 +144,7 @@ export const deviceDirectorySchema = z.object({
  * that ambiguity server-side would mean guessing inside an authorization path.
  */
 export const deviceActivateRequestSchema = z.object({
-  contextId: z.string().min(1),
+  contextId: z.string().check(utf16MinLength(1)),
 });
 
 /**

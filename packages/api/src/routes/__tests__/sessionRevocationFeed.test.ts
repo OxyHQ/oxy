@@ -5,7 +5,7 @@
  * `@oxy.so/core/server`, validating through the real `/session/validate-header`
  * route — stops serving its cached validation at once.
  *
- * Also the namespace's own gate: only an internal-tier service token is
+ * Also the namespace's own gate: only a live own workload token is
  * admitted; no token, a user bearer, an external application's token and an
  * expired token are refused.
  *
@@ -40,7 +40,7 @@ jest.mock('../../utils/socket', () => ({
 jest.mock('../../server', () => ({ emitSessionUpdate: jest.fn() }));
 jest.mock('../../middleware/security', () => ({
   idpServiceLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
-  sessionHeaderValidationLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  sessionHeaderValidationBudget: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../services/securityActivityService', () => ({
   __esModule: true,
@@ -62,11 +62,25 @@ import {
 import { OxyServer } from '@oxy.so/core/server';
 import { Server } from 'socket.io';
 import { io as connect, type Socket as ClientSocket } from 'socket.io-client';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 import { sessions } from '../../db/schema/sessions';
+import { accountMembers } from '../../db/schema/accountMembers';
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import { users } from '../../db/schema/users';
+import {
+  applications,
+  applicationCredentials,
+  applicationWorkloadIdentities,
+} from '../../db/schema';
+import { bindWorkloadIdentity } from '../../services/workloadIdentityBinding.service';
+import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
+import { LEGACY_WORKLOAD_BINDINGS } from '../../__fixtures__/retiredWorkloadCohort';
+import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
+import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
+import { verifyServiceToken } from '../../middleware/serviceToken';
+import { resolveLiveServiceTokenAuthority } from '../../services/liveServiceTokenAuthority.service';
 import { errorHandler } from '../../middleware/errorHandler';
 import sessionService from '../../services/session.service';
 import sessionCache from '../../utils/sessionCache';
@@ -80,6 +94,12 @@ let sockets: Server;
 let feed: { stop: () => Promise<void> };
 let baseURL: string;
 let serviceOwner: string;
+let serviceApp: string;
+let serviceCredential: string;
+let bindingId: string;
+const originalDatabaseUrl = process.env.DATABASE_URL;
+let databaseUrl: string;
+jest.setTimeout(60_000);
 const clients: ClientSocket[] = [];
 const backends: OxyServer[] = [];
 
@@ -107,18 +127,29 @@ async function signIn(userId: string, deviceId = `fixture-device-${randomUUID()}
 }
 
 function serviceToken(
-  options: { tier?: 'internal' | 'external'; expiresIn?: number; owner?: string } = {},
+  options: {
+    tier?: 'internal' | 'external';
+    expiresIn?: number;
+    owner?: string;
+    credentialId?: string;
+    legacy?: boolean;
+    appId?: string;
+  } = {},
 ): string {
   const now = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
     type: 'service',
-    appId: `app-${randomUUID()}`,
+    appId: options.appId ?? serviceApp,
     appName: 'Feed test',
-    credentialId: `cred-${randomUUID()}`,
+    credentialId: options.credentialId ?? serviceCredential,
     ownerAccountId: options.owner ?? serviceOwner,
-    environment: 'production',
+    environment: 'development',
     tier: options.tier ?? 'internal',
-    scopes: [],
+    ...(options.legacy
+      ? { scopes: [] }
+      : options.tier === 'external'
+        ? { authority: 'external', scopes: [] }
+        : { authority: 'first_party' }),
     iss: 'oxy-auth',
     aud: 'oxy-api',
     // Service tokens live at most 300 s (`hasBoundedServiceTokenLifetime`).
@@ -230,6 +261,9 @@ async function cached(oxy: OxyServer, sessionId: string, bearer: string) {
 }
 
 beforeAll(async () => {
+  await closePostgres();
+  databaseUrl = await createTestDatabase();
+  process.env.DATABASE_URL = databaseUrl;
   await connectPostgres();
   process.env.ACCESS_TOKEN_SECRET = `access-${randomUUID()}`;
   process.env.REFRESH_TOKEN_SECRET = `refresh-${randomUUID()}`;
@@ -245,6 +279,22 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   baseURL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   serviceOwner = await account();
+  const [appRow] = await getDb()
+    .insert(applications)
+    .values({ name: 'Own feed', ownerAccountId: serviceOwner, isOfficial: true, status: 'active' })
+    .returning();
+  serviceApp = appRow.id;
+  const { binding } = await bindWorkloadIdentity({
+    applicationId: serviceApp,
+    environment: 'development',
+    subject: `arn:aws:iam::237343248947:role/feed-${randomUUID()}`,
+    actor: { isPlatformStaff: true, describedAs: 'feed fixture' },
+  });
+  bindingId = binding.id;
+  serviceCredential = binding.attestationId;
+  const verified = verifyServiceToken(serviceToken());
+  expect(verified.ok).toBe(true);
+  if (verified.ok) expect(await resolveLiveServiceTokenAuthority(verified.payload)).not.toBeNull();
 });
 
 afterEach(() => {
@@ -256,6 +306,9 @@ afterAll(async () => {
   await feed.stop();
   await new Promise<void>((resolve) => sockets.close(() => resolve()));
   await closePostgres();
+  await dropTestDatabase(databaseUrl);
+  if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = originalDatabaseUrl;
 });
 
 beforeEach(() => {
@@ -275,7 +328,7 @@ describe('the /service-events namespace admits only Oxy’s own services', () =>
     expect(await listen(serviceToken({ expiresIn: -1 })).refusal).toBe('unauthorized');
   });
 
-  it('admits an internal service, vouches for itself at once, and relays revocations to it', async () => {
+  it('admits a scope-less own workload, vouches for itself at once, and relays revocations to it', async () => {
     const heard = listen(serviceToken());
     await eventually(() => heard.heartbeats > 0, 'a heartbeat');
 
@@ -284,6 +337,92 @@ describe('the /service-events namespace admits only Oxy’s own services', () =>
     await sessionService.deactivateSession(sessionId);
     await eventually(() => heard.revoked.length > 0, 'the revocation');
     expect(heard.revoked).toEqual([{ sessionId, userId: owner, at: expect.any(Number) }]);
+  });
+
+  it('rejects revoked bindings, applications and owners, including on an established connection', async () => {
+    for (const target of ['binding', 'application', 'owner'] as const) {
+      const heard = listen(serviceToken());
+      await eventually(() => heard.socket.connected, 'live connection');
+      if (target === 'binding')
+        await getDb()
+          .update(applicationWorkloadIdentities)
+          .set({ expiresAt: new Date(0) })
+          .where(eq(applicationWorkloadIdentities.id, bindingId));
+      if (target === 'application')
+        await getDb()
+          .update(applications)
+          .set({ status: 'suspended' })
+          .where(eq(applications.id, serviceApp));
+      if (target === 'owner')
+        await getDb()
+          .update(users)
+          .set({ accountStatus: 'archived' })
+          .where(eq(users.id, serviceOwner));
+      expect(await listen(serviceToken()).refusal).toBe(OXY_SERVICE_EVENTS_FORBIDDEN);
+      const session = await signIn(await account());
+      await sessionService.deactivateSession(session.sessionId);
+      await eventually(() => !heard.socket.connected, 'live authority disconnect');
+      expect(heard.revoked).toEqual([]);
+      await getDb()
+        .update(applicationWorkloadIdentities)
+        .set({ expiresAt: null })
+        .where(eq(applicationWorkloadIdentities.id, bindingId));
+      await getDb()
+        .update(applications)
+        .set({ status: 'active' })
+        .where(eq(applications.id, serviceApp));
+      await getDb()
+        .update(users)
+        .set({ accountStatus: 'active' })
+        .where(eq(users.id, serviceOwner));
+    }
+  });
+
+  it('never promotes an official application customer credential, including old internal branding', async () => {
+    const [credential] = await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId: serviceApp,
+        name: 'customer',
+        type: 'service',
+        publicKey: randomUUID(),
+        secretHash: 'fixture',
+        environment: 'development',
+        scopes: [],
+      })
+      .returning();
+    expect(
+      await listen(serviceToken({ tier: 'external', credentialId: credential.id })).refusal,
+    ).toBe(OXY_SERVICE_EVENTS_FORBIDDEN);
+    expect(await listen(serviceToken({ legacy: true, credentialId: credential.id })).refusal).toBe(
+      OXY_SERVICE_EVENTS_FORBIDDEN,
+    );
+    expect(await listen(serviceToken({ legacy: true })).refusal).toBe(OXY_SERVICE_EVENTS_FORBIDDEN);
+  });
+
+  it('refuses v1 even for an exact live historical cohort workload', async () => {
+    const tuple = LEGACY_WORKLOAD_BINDINGS[0];
+    await getDb().insert(applications).values({
+      id: tuple.applicationId,
+      name: 'Legacy feed',
+      ownerAccountId: serviceOwner,
+      isOfficial: true,
+      status: 'active',
+    });
+    await getDb()
+      .insert(applicationWorkloadIdentities)
+      .values({ ...tuple, environment: 'development' });
+    await ensureWorkloadAttributionIdentity({
+      bindingId: tuple.id,
+      applicationId: tuple.applicationId,
+      subject: tuple.subject,
+    });
+    const token = serviceToken({
+      legacy: true,
+      appId: tuple.applicationId,
+      credentialId: workloadAttestationHandle(tuple.subject),
+    });
+    expect(await listen(token).refusal).toBe(OXY_SERVICE_EVENTS_FORBIDDEN);
   });
 
   it('closes a service socket when its token expires', async () => {
@@ -337,14 +476,83 @@ describe('a backend stops trusting a revoked session at once', () => {
       200,
     );
     await eventually(
-      () => heard.revoked.some((event) => event.userId === owner && !event.sessionId),
-      'the account-wide announcement',
+      () =>
+        heard.revoked.some(
+          (event) => event.userId === owner && event.sessionId === other.sessionId,
+        ),
+      'the revoked-session announcement',
     );
+    expect(heard.revoked.some((event) => event.userId === owner && !event.sessionId)).toBe(false);
     const before = validations();
     await expect(
       oxy.session.validate(other.sessionId, { accessToken: other.bearer }),
     ).rejects.toBeDefined();
     expect(validations()).toBe(before + 1);
+  });
+
+  it('delivers actor-scoped revocations without invalidating another actor', async () => {
+    const owner = await account();
+    const editor = await account();
+    const [org] = await insertAccountFixtures(
+      {
+        username: `u-${randomUUID().slice(0, 12)}`,
+        kind: 'organization',
+        parentAccountId: owner,
+        rootAccountId: owner,
+      },
+      { id: users.id },
+    );
+    await getDb().execute(
+      sql`insert into user_ancestors (user_id, depth, ancestor_id) values (${org.id}, 0, ${owner})`,
+    );
+    await getDb()
+      .insert(accountMembers)
+      .values([
+        { accountId: org.id, memberUserId: owner, role: 'owner', status: 'active' },
+        { accountId: org.id, memberUserId: editor, role: 'editor', status: 'active' },
+      ]);
+    const mint = (actor: string) =>
+      sessionService.createSession(org.id, { headers: { 'user-agent': 'jest' } } as never, {
+        deviceId: `fixture-${randomUUID()}`,
+        operatedByUserId: actor,
+      });
+    const current = await mint(editor);
+    const other = await mint(editor);
+    const preserved = await mint(owner);
+    const personal = await signIn(owner);
+    const heard = listen(serviceToken());
+    await eventually(() => heard.socket.connected, 'feed connection');
+    const { oxy, validations } = await backend();
+    await cached(oxy, personal.sessionId, personal.bearer);
+    await oxy.session.validate(preserved.sessionId, { accessToken: preserved.accessToken });
+    await oxy.session.validate(other.sessionId, { accessToken: other.accessToken });
+    const applied = jest.spyOn(oxy.session, 'applyRevocation');
+
+    expect(
+      await call('POST', `/session/logout-all/${current.sessionId}`, current.accessToken),
+    ).toBe(200);
+    await eventually(
+      () => heard.revoked.some((event) => event.sessionId === other.sessionId),
+      'actor-scoped announcement',
+    );
+    await eventually(
+      () => applied.mock.calls.some(([event]) => event.sessionId === other.sessionId),
+      'backend revocation',
+    );
+    expect(
+      heard.revoked.some(
+        (event) =>
+          event.userId === org.id && (!event.sessionId || event.sessionId === preserved.sessionId),
+      ),
+    ).toBe(false);
+    const before = validations();
+    await oxy.session.validate(preserved.sessionId, { accessToken: preserved.accessToken });
+    // Delegated validations intentionally ask Oxy every time.
+    expect(validations()).toBe(before + 1);
+    await expect(
+      oxy.session.validate(other.sessionId, { accessToken: other.accessToken }),
+    ).rejects.toBeDefined();
+    expect(validations()).toBe(before + 2);
   });
 
   it('device removal', async () => {

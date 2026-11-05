@@ -1,26 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { useRouter } from 'expo-router';
 import { useCameraPermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
-import {
-  useReducedMotion,
-  useSharedValue,
-  withDelay,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+import { useHapticFeedback, usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
+import { useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { useOxy, useCurrentUser } from '@oxy.so/services';
 import { buildUserDid } from '@oxy.so/core';
 import { Fab } from '@oxy.so/bloom/fab';
 import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { Screen, Section, useFabClearance } from '@/components/ui';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import { Screen, Section, useFabClearance, SettingsListItem } from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';
 import { BackSide } from '@/components/OxyID/back-side';
@@ -29,6 +23,7 @@ import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { CameraPermissionSheet } from '@/components/civic/CameraPermissionSheet';
 import { useIdentity } from '@/hooks/useIdentity';
 import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
+import { NotificationOffer } from '@/components/notifications/NotificationOffer';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useAttestedEvent, type AttestedEventPayload } from '@/hooks/civic/useAttestedEvent';
 import { getDisplayNameOrNull } from '@/utils/date-utils';
@@ -123,7 +118,8 @@ export default function IdScreen() {
 
   // ---- Attestation-confirmed card feedback --------------------------------
   const attestGlow = useSharedValue(0);
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = usePrefersReducedMotion();
+  const haptics = useHapticFeedback();
 
   const [attestedVisible, setAttestedVisible] = useState(false);
   const attestedBadgeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -133,7 +129,7 @@ export default function IdScreen() {
     };
   }, []);
   const triggerAttestGlow = useCallback(() => {
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    haptics.success();
     setAttestedVisible(true);
     AccessibilityInfo.announceForAccessibility(t('civic.attest.confirmed'));
     if (attestedBadgeTimeoutRef.current) clearTimeout(attestedBadgeTimeoutRef.current);
@@ -143,7 +139,7 @@ export default function IdScreen() {
       withTiming(1, { duration: 400 }),
       withDelay(1000, withTiming(0, { duration: 1400 })),
     );
-  }, [attestGlow, reducedMotion, t]);
+  }, [attestGlow, haptics, reducedMotion, t]);
 
   const handleAttestedEvent = useCallback(
     (payload: AttestedEventPayload) => {
@@ -195,9 +191,18 @@ export default function IdScreen() {
 
   return (
     <View className="flex-1">
-      {/* Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
-          centered hero and the DID/callout blocks are padded to align with it. */}
-      <Screen contentStyle={styles.flush} gap={16} bottomClearance={fabClearance}>
+      <Screen gap={16} bottomClearance={fabClearance}>
+        {/* Shown once after onboarding on devices where the identity has no
+            device backup (no Block Store, OxyHQ/oxy#1388); Settings keeps it.
+            FIRST on the screen: below the card it came to rest under the QR
+            button and the floating tab bar, which covered its copy and its
+            "Write down your recovery phrase" action (Pixel 8a, no Play
+            services). */}
+        <DeviceBackupWarning variant="prompt" />
+        {/* Once, for an identity never asked about notifications (it finished
+            onboarding before that step existed); after the backup prompt. */}
+        <NotificationOffer />
+
         <View className="items-center gap-space-16 pt-space-8">
           <OxyID
             width={CARD_WIDTH}
@@ -240,10 +245,6 @@ export default function IdScreen() {
           </Text>
         </View>
 
-        {/* Shown once after onboarding on devices where the identity has no
-            device backup (no Block Store, OxyHQ/oxy#1388); Settings keeps it. */}
-        <DeviceBackupWarning variant="prompt" />
-
         {/* Self-custody identity actions (native only). */}
         {isNative && (
           <SettingsListGroup
@@ -279,7 +280,7 @@ export default function IdScreen() {
         </SettingsListGroup>
 
         {did && (
-          <View style={styles.gutter}>
+          <View>
             <Section title={t('civic.id.didLabel')}>
               <Text
                 style={[styles.didValue, { color: colors.textSecondary }]}
@@ -293,7 +294,7 @@ export default function IdScreen() {
         )}
 
         {state === 'pending' && (
-          <View style={styles.gutter}>
+          <View>
             <Admonition type="warning">{t('civic.id.pendingNote')}</Admonition>
           </View>
         )}
@@ -331,8 +332,6 @@ export default function IdScreen() {
 }
 
 const styles = StyleSheet.create({
-  flush: { paddingHorizontal: 0 },
-  gutter: { paddingHorizontal: 20 },
   qrPlaceholder: {
     flex: 1,
     alignItems: 'center',

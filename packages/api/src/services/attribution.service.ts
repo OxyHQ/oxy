@@ -92,7 +92,6 @@ import {
 } from '../utils/accountRoles';
 import { intersectScopes, type ApplicationScope } from '../utils/applicationScopes';
 import { isCredentialUsable } from '../utils/credentialUsability';
-import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
 import { resolveLiveAgencyWorkloadByHandle } from './agencyServicePrincipal.service';
 import { isWorkloadAttestationHandle } from './workloadAttestation.service';
 import type { ServiceTokenPayload } from '../middleware/serviceToken';
@@ -401,7 +400,8 @@ export interface ServiceTokenPrincipal {
   readonly ownerAccountId: string;
   readonly environment: ApplicationCredentialEnvironment;
   /** Current database authority, already reduced to what this identity may do. */
-  readonly scopes: ApplicationScope[];
+  readonly authority?: 'first_party' | 'external';
+  readonly scopes?: ApplicationScope[];
 }
 
 /**
@@ -444,7 +444,7 @@ export type ServiceTokenPrincipalResolution =
  * | usable | {@link isCredentialUsable} — status and rotation grace | live binding: present, unexpired, still naming this application |
  * | application | `active` | `active` AND trusted first-party |
  * | owner | — | active, no closure fence |
- * | scopes | `intersectScopes(credential, application)` | `workloadBindingScopes(binding, application)` |
+ * | scopes | `intersectScopes(credential, application)` | scope-free live workload identity |
  *
  * The attested column is not the weaker one. Deleting a binding is how a
  * compromised workload is cut off, and it takes effect on the very next call
@@ -467,8 +467,14 @@ export async function resolveServiceTokenPrincipal(
   payload: ServiceTokenPayload,
 ): Promise<ServiceTokenPrincipalResolution> {
   if (isWorkloadAttestationHandle(payload.credentialId)) {
+    if (payload.authority !== 'first_party') return { status: 'unknown-workload' };
     const binding = await resolveLiveAgencyWorkloadByHandle(payload.appId, payload.credentialId);
-    if (binding === null) {
+    if (
+      binding === null ||
+      binding.ownerAccountId !== payload.ownerAccountId ||
+      binding.environment !== payload.environment ||
+      (payload.authority === 'first_party' && !binding.environmentBound)
+    ) {
       return { status: 'unknown-workload' };
     }
     return {
@@ -478,17 +484,13 @@ export async function resolveServiceTokenPrincipal(
         credentialId: binding.handle,
         applicationId: binding.applicationId,
         ownerAccountId: binding.ownerAccountId,
-        // A binding has no environment column: a workload proves what it is,
-        // never which environment it means. `workloadTokenEnvironment` is the
-        // ONE definition the mint itself uses, so what a receipt records and
-        // what the token carries are one value rather than two copies of an
-        // expression.
-        environment: workloadTokenEnvironment(),
-        scopes: [...binding.scopes],
+        environment: binding.environment,
+        authority: 'first_party',
       },
     };
   }
 
+  if (payload.authority === 'first_party') return { status: 'unknown-credential' };
   const attribution = await resolveCredentialAttributionById(payload.credentialId);
   if (attribution.status !== 'resolved') {
     return { status: attribution.status };

@@ -50,7 +50,7 @@ router.get('/', validate({ query: searchQuerySchema }), async (req: Request, res
         .select(publicUserColumns)
         .from(users)
         .where(and(peopleSearchPredicate(), peopleSearchMatch(term, { includeLocations: true })))
-        .orderBy(...peopleSearchOrder())
+        .orderBy(...peopleSearchOrder(term))
         .offset(skip)
         .limit(limit);
 

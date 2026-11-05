@@ -1,7 +1,13 @@
+import { integerCheck, safeNumberCheck, urlCheck, utf16MinLength } from '@oxy.so/contracts';
 import { readFile } from 'node:fs/promises';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { Peable } from '@peable.to/sdk';
+import type { Peable } from '@peable.to/sdk';
+import {
+  assertPeableBillingWorkloadConfiguration,
+  assertPeableBillingMerchant,
+  createPeableBillingClient,
+} from './peableBillingWorkload.service';
 import {
   billingNamespaceSchema,
   assertPersistedBillingNamespace,
@@ -16,58 +22,100 @@ import {
 import { ApiError } from '../utils/error';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 import { reconcileProductAccessFinancialState } from './productAccessPersistence.service';
-import { cancelOwnedPeableSubscription } from './peablePersonalBilling.service';
+import {
+  cancelOwnedPeableSubscription,
+  peableInstantToIso,
+  readNativeSubscription,
+} from './peablePersonalBilling.service';
+import { PEABLE_CUSTOMER_ACCOUNT_KEY } from './peablePersonalCheckout.service';
 export const peablePersonalManagementConfigurationSchema = z
   .object({
     merchantId: z.string().regex(/^merch_[A-Za-z0-9_]+$/),
-    applicationId: z.string().min(1),
+    applicationId: z.string().check(utf16MinLength(1)),
     namespace: billingNamespaceSchema,
     offers: z
       .array(
         z
           .object({
-            offerId: z.string().min(1),
-            offerVersion: z.number().int().positive(),
-            planId: z.string().min(1),
-            providerPriceId: z.string().min(1),
+            offerId: z.string().check(utf16MinLength(1)),
+            offerVersion: z.number().check(integerCheck()).positive(),
+            providerPriceId: z.string().regex(/^price_[A-Za-z0-9_]+$/),
             kind: z.enum(['oxy_one', 'existing_product']).optional(),
-            amountMinorUnits: z.number().int().positive().safe().optional(),
+            amountMinorUnits: z
+              .number()
+              .check(integerCheck())
+              .positive()
+              .check(safeNumberCheck())
+              .optional(),
             interval: z.enum(['month', 'year']).optional(),
           })
           .strict(),
       )
       .min(1),
+    /** Where Peable's customer portal returns the payer. */
+    portalReturnUrl: z
+      .string()
+      .check(urlCheck())
+      .refine((value) => new URL(value).protocol === 'https:'),
   })
   .strict();
-export async function loadPeablePersonalManagement() {
+type PeablePersonalManagement = {
+  configuration: z.infer<typeof peablePersonalManagementConfigurationSchema>;
+  client: Peable;
+};
+let fallbackManagement: Promise<PeablePersonalManagement> | undefined;
+let fallbackPath: string | undefined;
+let disposeFallback: (() => void) | undefined;
+export async function loadPeablePersonalManagement(): Promise<
+  PeablePersonalManagement | undefined
+> {
   const runtime = (await import('./peablePersonalRuntime.service.js')).getPeablePersonalRuntime();
   if (runtime) return runtime.management;
   const path = process.env.OXY_ONE_PEABLE_MANAGEMENT_FILE;
-  if (!path || !process.env.OXY_ONE_PEABLE_PUBLIC_KEY || !process.env.OXY_ONE_PEABLE_SECRET)
-    return undefined;
-  const configuration = peablePersonalManagementConfigurationSchema.parse(
-    JSON.parse(await readFile(path, 'utf8')),
-  );
-  const client = new Peable({
-    publicKey: process.env.OXY_ONE_PEABLE_PUBLIC_KEY,
-    secret: process.env.OXY_ONE_PEABLE_SECRET,
-  });
-  return { configuration, client };
+  if (!path) return undefined;
+  assertPeableBillingWorkloadConfiguration();
+  if (fallbackPath && fallbackPath !== path)
+    throw new Error('Peable management configuration changed; restart the billing runtime');
+  if (!fallbackManagement) {
+    fallbackPath = path;
+    const pending = (async () => {
+      const configuration = peablePersonalManagementConfigurationSchema.parse(
+        JSON.parse(await readFile(path, 'utf8')),
+      );
+      const owned = createPeableBillingClient();
+      try {
+        await assertPeableBillingMerchant(owned.client, configuration);
+        disposeFallback = owned.dispose;
+        return { configuration, client: owned.client };
+      } catch (error) {
+        owned.dispose();
+        throw error;
+      }
+    })();
+    fallbackManagement = pending;
+    void pending.catch(() => {
+      if (fallbackManagement === pending) {
+        fallbackManagement = undefined;
+        fallbackPath = undefined;
+      }
+    });
+  }
+  return fallbackManagement;
 }
-/** Named-source cancellation through Peable's durable action ledger. Source and
- * customer ownership remain authoritative at both services; no grants are created. */
-export async function cancelStoredPeablePersonalSource(
+export async function stopPeablePersonalManagement(): Promise<void> {
+  await fallbackManagement?.catch(() => undefined);
+  disposeFallback?.();
+  disposeFallback = undefined;
+  fallbackManagement = undefined;
+  fallbackPath = undefined;
+}
+/** The named source, owned by this account, bound to the configured merchant
+ * namespace, and its native subscription read fresh. */
+async function ownedPeableSource(
+  management: PeablePersonalManagement,
   accountId: string,
   sourceId: string,
-  actionId: string,
-  dependencies: {
-    management?: Awaited<ReturnType<typeof loadPeablePersonalManagement>>;
-    now?: () => Date;
-  } = {},
 ) {
-  const management = dependencies.management ?? (await loadPeablePersonalManagement());
-  if (!management)
-    throw new ApiError(503, 'Peable management is unconfigured', 'PEABLE_UNCONFIGURED');
   const { configuration: cfg, client } = management;
   assertPersistedBillingNamespace(await readPersistedBillingNamespace(getDb()), cfg.namespace);
   const [source] = await getDb()
@@ -90,14 +138,64 @@ export async function cancelStoredPeablePersonalSource(
   const merchant = await client.merchants.retrieve();
   if (
     merchant.id !== cfg.merchantId ||
-    merchant.oxyAppId !== cfg.applicationId ||
+    merchant.oxy_app_id !== cfg.applicationId ||
     merchant.environment !== cfg.namespace.environment
   )
     throw new ApiError(409, 'Peable credential owner differs', 'SOURCE_CONFLICT');
-  const observed = await client.billing.retrieveSubscription(source.providerSubscriptionId);
-  const matches = cfg.offers.filter(
-    (v) => v.providerPriceId === observed.providerPriceId && v.planId === observed.planId,
+  const observed = readNativeSubscription(
+    await client.subscriptions.retrieve(source.providerSubscriptionId),
   );
+  const customer = await client.customers.retrieve(observed.customerId);
+  if (
+    observed.id !== source.providerSubscriptionId ||
+    observed.livemode !== (cfg.namespace.mode === 'live') ||
+    'deleted' in customer ||
+    customer.metadata[PEABLE_CUSTOMER_ACCOUNT_KEY] !== accountId
+  )
+    throw new ApiError(409, 'Named source ownership differs', 'SOURCE_CONFLICT');
+  return { source, observed };
+}
+
+/** Peable's customer portal for the named source's customer: payment methods,
+ * invoices and plan management, all through the engine's own rules. */
+export async function openPeablePersonalPortal(
+  accountId: string,
+  sourceId: string,
+  dependencies: { management?: Awaited<ReturnType<typeof loadPeablePersonalManagement>> } = {},
+) {
+  const management = dependencies.management ?? (await loadPeablePersonalManagement());
+  if (!management)
+    throw new ApiError(503, 'Peable management is unconfigured', 'PEABLE_UNCONFIGURED');
+  const { observed } = await ownedPeableSource(management, accountId, sourceId);
+  const session = await management.client.billingPortal.sessions.create({
+    customer: observed.customerId,
+    return_url: management.configuration.portalReturnUrl,
+  });
+  const url = z
+    .string()
+    .check(urlCheck())
+    .refine((value) => new URL(value).protocol === 'https:')
+    .parse(session.url);
+  return { url };
+}
+
+/** Named-source cancellation. Source and customer ownership remain
+ * authoritative at both services; no grants are created. */
+export async function cancelStoredPeablePersonalSource(
+  accountId: string,
+  sourceId: string,
+  actionId: string,
+  dependencies: {
+    management?: Awaited<ReturnType<typeof loadPeablePersonalManagement>>;
+    now?: () => Date;
+  } = {},
+) {
+  const management = dependencies.management ?? (await loadPeablePersonalManagement());
+  if (!management)
+    throw new ApiError(503, 'Peable management is unconfigured', 'PEABLE_UNCONFIGURED');
+  const { configuration: cfg, client } = management;
+  const { source, observed } = await ownedPeableSource(management, accountId, sourceId);
+  const matches = cfg.offers.filter((v) => v.providerPriceId === observed.priceId);
   if (matches.length !== 1)
     throw new ApiError(503, 'Named Peable offer is unconfigured', 'PEABLE_UNCONFIGURED');
   const mapping = matches[0];
@@ -113,8 +211,8 @@ export async function cancelStoredPeablePersonalSource(
         v.origin === (mapping.kind === 'existing_product' ? 'individual' : 'bundle') &&
         v.offerId === mapping.offerId &&
         v.offerVersion === mapping.offerVersion &&
-        v.periodStart.getTime() <= Date.parse(observed.currentPeriodStart) &&
-        v.periodEnd.getTime() <= Date.parse(observed.currentPeriodEnd),
+        v.periodStart.getTime() <= observed.currentPeriodStart * 1000 &&
+        v.periodEnd.getTime() <= observed.currentPeriodEnd * 1000,
     )
     .sort((a, b) => b.periodStart.getTime() - a.periodStart.getTime());
   const segment = historical[0];
@@ -155,16 +253,18 @@ export async function cancelStoredPeablePersonalSource(
   );
   if (prices.length !== 1)
     throw new ApiError(503, 'Named price evidence is unconfigured', 'PEABLE_UNCONFIGURED');
-  const owned = {
-    payerAccountId: accountId,
-    providerSubscriptionId: source.providerSubscriptionId,
-    providerCustomerId: observed.providerCustomerId,
-    providerPriceId: mapping.providerPriceId,
-    storeId: accountId,
-    planId: mapping.planId,
-    livemode: cfg.namespace.mode === 'live',
-  };
-  const confirmed = await cancelOwnedPeableSubscription(client, accountId, owned, actionId);
+  const confirmed = await cancelOwnedPeableSubscription(
+    client,
+    accountId,
+    {
+      payerAccountId: accountId,
+      providerSubscriptionId: source.providerSubscriptionId,
+      providerCustomerId: observed.customerId,
+      providerPriceId: mapping.providerPriceId,
+      livemode: cfg.namespace.mode === 'live',
+    },
+    actionId,
+  );
   const confirmedObservedAt = (dependencies.now ?? (() => new Date()))();
   try {
     await reconcileProductAccessFinancialState({
@@ -176,7 +276,10 @@ export async function cancelStoredPeablePersonalSource(
       providerBinding: { providerAccountRef: cfg.merchantId, ...cfg.namespace },
       providerObservedAt: confirmedObservedAt,
       status: confirmed.status,
-      period: { start: confirmed.currentPeriodStart, end: confirmed.currentPeriodEnd },
+      period: {
+        start: peableInstantToIso(confirmed.currentPeriodStart),
+        end: peableInstantToIso(confirmed.currentPeriodEnd),
+      },
       cancelAtPeriodEnd: true,
     });
     return { sourceId: source.id, cancelAtPeriodEnd: true as const };

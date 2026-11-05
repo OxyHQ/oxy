@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '@oxy.so/bloom/button';
@@ -40,16 +40,44 @@ export function DeviceBackupWarning({ variant }: DeviceBackupWarningProps) {
         | '/(tabs)/(settings)/create-backup'
         | '/(tabs)/(settings)/rotate-key',
     ) => {
-      if (variant === 'prompt') void markPrompted();
       router.push(href);
     },
-    [markPrompted, router, variant],
+    [router],
   );
 
   if (!visible) return null;
 
+  // The ID tab gets ONE compact notice that leads to Settings, which holds the
+  // full warning and its actions. Both used to draw the same three-button block,
+  // so the same alarm stacked twice.
+  if (variant === 'prompt') {
+    return (
+      <View style={styles.block} testID="device-backup-warning-prompt">
+        <ImportantBanner title={t('deviceBackupWarning.title')}>
+          {t('deviceBackupWarning.promptBody')}
+        </ImportantBanner>
+        <View style={styles.row}>
+          <Button
+            appearance="solid"
+            tone="accent"
+            onPress={() => {
+              void markPrompted();
+              router.push('/(tabs)/(settings)');
+            }}
+            style={styles.rowButton}
+          >
+            {t('deviceBackupWarning.review')}
+          </Button>
+          <Button appearance="subtle" onPress={() => void markPrompted()} style={styles.rowButton}>
+            {t('deviceBackupWarning.notNow')}
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.gutter} testID={`device-backup-warning-${variant}`}>
+    <View style={styles.block} testID={`device-backup-warning-${variant}`}>
       <ImportantBanner title={t('deviceBackupWarning.title')}>
         {hasPhrase ? t('deviceBackupWarning.body') : t('deviceBackupWarning.bodyNoPhrase')}
       </ImportantBanner>
@@ -80,21 +108,17 @@ export function DeviceBackupWarning({ variant }: DeviceBackupWarningProps) {
             {t('deviceBackupWarning.rotate')}
           </Button>
         )}
-        {variant === 'prompt' ? (
-          <Button appearance="subtle" onPress={() => void markPrompted()}>
-            {t('deviceBackupWarning.notNow')}
-          </Button>
-        ) : (
-          <Button appearance="subtle" onPress={() => void acknowledge()}>
-            {t('deviceBackupWarning.confirm')}
-          </Button>
-        )}
+        <Button appearance="subtle" onPress={() => void acknowledge()}>
+          {t('deviceBackupWarning.confirm')}
+        </Button>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  gutter: { paddingHorizontal: 20, gap: 12 },
+  block: { gap: 12 },
   actions: { gap: 8 },
+  row: { flexDirection: 'row', gap: 8 },
+  rowButton: { flex: 1 },
 });

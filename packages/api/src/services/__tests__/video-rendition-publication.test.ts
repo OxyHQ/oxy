@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { access, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema';
@@ -21,10 +23,9 @@ jest.mock('../cdnInvalidation', () => ({
 }));
 
 interface EncodingHarness {
-  extractVideoMetadataFromUrl(): Promise<{ width: number; height: number; duration: number }>;
-  generatePosterFrame(): Promise<NewFileVariant>;
-  generateVideoVariant(): Promise<NewFileVariant>;
-  generateHLSStream(): Promise<NewFileVariant[]>;
+  probeVideoMetadata(source: string): Promise<{ width: number; height: number; duration: number }>;
+  generatePosterFrame(...args: unknown[]): Promise<NewFileVariant>;
+  generateVideoRenditions(source: string, ...args: unknown[]): Promise<NewFileVariant[]>;
 }
 
 const sha = () => randomBytes(32).toString('hex');
@@ -52,26 +53,27 @@ function currentMaster(): NewFileVariant {
 function encoder() {
   const s3 = {
     getPresignedDownloadUrl: jest.fn(async () => 'https://example.com/video.mp4'),
+    downloadFile: jest.fn(async (_key: string, destination: string) => {
+      await writeFile(destination, 'original fixture');
+    }),
     fileExists: jest.fn(async () => true),
   } as unknown as S3Service;
   const service = new VariantService(s3);
   const harness = service as unknown as EncodingHarness;
   jest
-    .spyOn(harness, 'extractVideoMetadataFromUrl')
+    .spyOn(harness, 'probeVideoMetadata')
     .mockResolvedValue({ width: 180, height: 320, duration: 3 });
   jest
     .spyOn(harness, 'generatePosterFrame')
     .mockResolvedValue({ type: 'poster', key: 'new/poster.jpg', readyAt: new Date() });
-  const mp4 = jest
-    .spyOn(harness, 'generateVideoVariant')
-    .mockResolvedValue({ type: '360p', key: 'new/360p.mp4', readyAt: new Date() });
-  const hls = jest
-    .spyOn(harness, 'generateHLSStream')
+  const renditions = jest
+    .spyOn(harness, 'generateVideoRenditions')
     .mockResolvedValue([
+      { type: '360p', key: 'new/360p.mp4', readyAt: new Date() },
       { type: 'hls_360p', key: 'new/hls_360p.m3u8', readyAt: new Date() },
       currentMaster(),
     ]);
-  return { service, hls, mp4, s3 };
+  return { service, renditions, s3 };
 }
 
 beforeAll(connectPostgres);
@@ -89,8 +91,8 @@ it('keeps the original, complete old ladder and metadata when a replacement fail
     { metadata: { media: { width: 180, height: 320 } } },
   );
   const before = await findFileById(original.id);
-  const { service, hls } = encoder();
-  hls.mockRejectedValue(new Error('segment upload failed'));
+  const { service, renditions } = encoder();
+  renditions.mockRejectedValue(new Error('segment upload failed'));
   await expect(service.generateVariants(original.id, { reencode: true })).rejects.toThrow(
     'segment upload failed',
   );
@@ -143,9 +145,9 @@ it('never reuses a legacy twin ladder for a new upload', async () => {
     readyAt: new Date(),
   });
   const fresh = await file(old.sha256);
-  const { service, mp4 } = encoder();
+  const { service, renditions } = encoder();
   await service.generateVariants(fresh.id);
-  expect(mp4).toHaveBeenCalled();
+  expect(renditions).toHaveBeenCalled();
   expect(
     (await findFileById(fresh.id))?.variants.find((variant) => variant.type === 'hls_master')
       ?.metadata?.encodingProfile,
@@ -280,8 +282,8 @@ it('records historical roots across twin copying and visibility/deletion targets
 
 it('records first-generation ownership before encoding so failed new uploads can be purged', async () => {
   const original = await file(undefined, 'public');
-  const { service, hls } = encoder();
-  hls.mockRejectedValue(new Error('first HLS upload failed'));
+  const { service, renditions } = encoder();
+  renditions.mockRejectedValue(new Error('first HLS upload failed'));
   await expect(service.generateVariants(original.id)).rejects.toThrow('first HLS upload failed');
   const failed = await findFileById(original.id);
   if (!failed) throw new Error('File disappeared');
@@ -318,3 +320,112 @@ it('invalidates cached records after recording a storage root, including repeat 
     invalidate.mockRestore();
   }
 });
+
+it('skips a completed video encode and upgrades only outdated twins in the same spelling', async () => {
+  const source = await file();
+  const staleTwin = await file(source.sha256);
+  const currentTwin = await file(source.sha256);
+  const publicTwin = await file(source.sha256, 'public');
+  await upsertVariantSet(source.id, [currentMaster()]);
+  await upsertVariantSet(staleTwin.id, [{ type: 'hls_master', key: 'legacy/master.m3u8' }]);
+  await upsertVariantSet(currentTwin.id, [currentMaster()]);
+  await upsertVariantSet(publicTwin.id, [{ type: 'hls_master', key: 'public/legacy/master.m3u8' }]);
+  const beforeSource = await findFileById(source.id);
+  const beforeCurrent = await findFileById(currentTwin.id);
+  const beforePublic = await findFileById(publicTwin.id);
+  const { service, renditions } = encoder();
+  await service.generateVariants(source.id);
+  expect(renditions).not.toHaveBeenCalled();
+  expect((await findFileById(source.id))?.variants).toEqual(beforeSource?.variants);
+  expect(hasCurrentVideoRenditions((await findFileById(staleTwin.id)) ?? { variants: [] })).toBe(
+    true,
+  );
+  expect((await findFileById(currentTwin.id))?.variants).toEqual(beforeCurrent?.variants);
+  expect((await findFileById(publicTwin.id))?.variants).toEqual(beforePublic?.variants);
+});
+
+it('upgrades legacy twins after a normal queued video job and makes its replay a no-op', async () => {
+  const source = await file();
+  const twin = await file(source.sha256);
+  for (const row of [source, twin])
+    await upsertVariantSet(row.id, [{ type: 'hls_master', key: 'legacy/master.m3u8' }]);
+  const { service, renditions } = encoder();
+  await service.generateVariants(source.id);
+  expect(renditions).toHaveBeenCalledTimes(1);
+  expect(hasCurrentVideoRenditions((await findFileById(twin.id)) ?? { variants: [] })).toBe(true);
+  await service.generateVariants(source.id);
+  await service.generateVariants(twin.id);
+  expect(renditions).toHaveBeenCalledTimes(1);
+});
+
+it('honors an explicit re-encode even when the video profile is already current', async () => {
+  const source = await file();
+  await upsertVariantSet(source.id, [currentMaster()]);
+  const { service, renditions } = encoder();
+  await service.generateVariants(source.id, { reencode: true });
+  expect(renditions).toHaveBeenCalledTimes(1);
+});
+
+it('does not render a video that left the active state while its request waited', async () => {
+  const source = await file();
+  const { updateFile } = await import('../fileRepository');
+  await updateFile(source.id, { status: 'trash' });
+  const { service, renditions } = encoder();
+  await service.generateVariants(source.id);
+  expect(renditions).not.toHaveBeenCalled();
+});
+
+it('finds a complete current twin beyond older legacy owners without re-encoding', async () => {
+  const target = await file();
+  for (let i = 0; i < 6; i++) {
+    const legacy = await file(target.sha256);
+    await upsertVariantSet(legacy.id, [{ type: 'hls_master', key: 'legacy/master.m3u8' }]);
+  }
+  const current = await file(target.sha256);
+  await upsertVariantSet(current.id, [currentMaster()]);
+  const { service, renditions } = encoder();
+  await service.generateVariants(target.id);
+  expect(renditions).not.toHaveBeenCalled();
+  expect(hasCurrentVideoRenditions((await findFileById(target.id)) ?? { variants: [] })).toBe(true);
+});
+
+it.each(['success', 'probe', 'poster', 'renditions', 'download'] as const)(
+  'acquires one original and cleans it after %s',
+  async (stage) => {
+    const original = await file();
+    const { service, s3 } = encoder();
+    const harness = service as unknown as EncodingHarness;
+    const download = jest.mocked(s3.downloadFile);
+    if (stage === 'download') {
+      download.mockImplementationOnce(async (_key, destination) => {
+        await writeFile(destination, 'partial');
+        throw new Error('download cancelled');
+      });
+    } else if (stage !== 'success') {
+      const method =
+        stage === 'probe'
+          ? 'probeVideoMetadata'
+          : stage === 'poster'
+            ? 'generatePosterFrame'
+            : 'generateVideoRenditions';
+      jest.mocked(harness[method]).mockRejectedValueOnce(new Error('stage failed'));
+    }
+    const generation = service.generateVariants(original.id, { reencode: true });
+    if (stage === 'success') await generation;
+    else await expect(generation).rejects.toThrow();
+    expect(download).toHaveBeenCalledTimes(1);
+    const source = download.mock.calls[0][1];
+    expect(download.mock.calls[0][2]).toMatchObject({
+      maxBytes: 8 * 1024 ** 3,
+      timeoutMs: 15 * 60 * 1000,
+    });
+    expect(s3.getPresignedDownloadUrl).not.toHaveBeenCalled();
+    if (stage === 'success') {
+      expect(harness.probeVideoMetadata).toHaveBeenCalledWith(source);
+      expect(jest.mocked(harness.generatePosterFrame).mock.calls[0].at(-1)).toBe(source);
+      expect(jest.mocked(harness.generateVideoRenditions).mock.calls[0][0]).toBe(source);
+    }
+    await expect(access(source)).rejects.toThrow();
+    await expect(access(path.dirname(source))).rejects.toThrow();
+  },
+);

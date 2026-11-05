@@ -11,7 +11,7 @@ import { LogoIcon, useOxy } from '@oxy.so/services';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { useScrollContext } from '@/contexts/scroll-context';
 import { getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { darkenColor } from '@/utils/color-utils';
 import { useTranslation } from '@/lib/i18n';
 import { AskAlia } from '@/components/ask-alia';
@@ -100,7 +100,7 @@ export function Header(_props: HeaderProps) {
     }
   }, [router, scrollToTop, refreshSessions, clearPressTimeout]);
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   const handleLogoPressIn = useCallback(() => {
     handlePressIn();

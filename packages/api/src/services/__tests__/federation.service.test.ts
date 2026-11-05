@@ -208,6 +208,7 @@ async function storedUser(userId: string) {
       bio: users.bio,
       description: users.description,
       avatar: users.avatar,
+      color: users.color,
       actorUri: users.federationActorUri,
       domain: users.federationDomain,
       lastResolvedAt: users.federationLastResolvedAt,
@@ -319,7 +320,8 @@ afterAll(async () => {
 
 describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
   let webfingerSpy: jest.SpyInstance;
-  let actorSpy: jest.SpyInstance;
+  let actorSpy: jest.Mock;
+  let actorResultSpy: jest.SpyInstance;
   let avatarSpy: jest.SpyInstance;
 
   beforeEach(() => {
@@ -328,15 +330,33 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     mockAcquireAvatarOriginLease.mockResolvedValue(0);
     mockRecordAvatarOriginRateLimit.mockResolvedValue(30_000);
     webfingerSpy = jest.spyOn(federationService, 'resolveWebFingerResource');
-    actorSpy = jest.spyOn(federationService, 'fetchActorProfile');
+    // The resolve path reads the source through `fetchActorProfileResult`; the
+    // tests script the profile it yields (null: the source refused).
+    actorSpy = jest.fn();
+    actorResultSpy = jest
+      .spyOn(federationService, 'fetchActorProfileResult')
+      .mockImplementation(async (...args: [string, string?]) => {
+        const fetched = await actorSpy(...args);
+        return fetched
+          ? { ok: true as const, profile: fetched }
+          : {
+              ok: false as const,
+              failure: {
+                operation: 'resolve_external_identity' as const,
+                phase: 'actor_fetch' as const,
+                reason: 'http_status' as const,
+                httpStatus: 404,
+              },
+            };
+      });
     avatarSpy = jest
       .spyOn(federationService, 'downloadAndStoreAvatar')
-      .mockResolvedValue({ fileId: 'new-file-id', notModified: false });
+      .mockResolvedValue({ fileId: 'new-file-id', notModified: false, color: '#ee4b16' });
   });
 
   afterEach(() => {
     webfingerSpy.mockRestore();
-    actorSpy.mockRestore();
+    actorResultSpy.mockRestore();
     avatarSpy.mockRestore();
   });
 
@@ -440,8 +460,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     await settleBackgroundWork();
 
     const row = await storedUser(userId);
-    expect(row?.bio).toBe('');
-    expect(row?.description).toBe('');
+    expect(row?.bio).toBeNull();
+    expect(row?.description).toBeNull();
   });
 
   it('clears the unavailable tombstone on a successful background refresh', async () => {
@@ -617,6 +637,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       bio: 'bio',
       description: 'bio',
       avatar: 'new-file-id',
+      // A federated account wears its avatar's colour.
+      color: '#ee4b16',
       unavailableAt: null,
       unavailableReason: null,
     });
@@ -798,6 +820,108 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     } finally {
       clock.mockRestore();
     }
+  });
+
+  it('serves a just-discovered bridged account on every handle form, without asking the bridge again', async () => {
+    actorCounter += 1;
+    const local = `elctrix${actorCounter}`;
+    const actorUri = `https://bird.makeup/users/${local}`;
+    webfingerSpy.mockResolvedValue({ actorUri, subjectAcct: `${local}@bird.makeup` });
+    actorSpy.mockResolvedValue({
+      actorUri,
+      domain: 'x.com',
+      username: `${local}@x.com`,
+      transportAcct: `${local}@bird.makeup`,
+      protocol: 'activitypub',
+      evidenceLinks: [],
+      displayName: 'Rita',
+      bio: '',
+    });
+
+    const discovered = await federationService.resolveExternalIdentity({
+      handle: `@${local.toUpperCase()}@X.com`,
+    });
+    expect(discovered?.externalIdentity).toMatchObject({
+      canonicalAcct: `${local}@x.com`,
+      actorUri,
+    });
+
+    // bird.makeup now answers 404, as it does for most requests to a fresh mirror.
+    webfingerSpy.mockResolvedValue(null);
+    actorSpy.mockResolvedValue(null);
+    webfingerSpy.mockClear();
+    actorSpy.mockClear();
+    for (const handle of [`@${local}@x.com`, `${local.toUpperCase()}@x.com`]) {
+      const resolved = await federationService.resolveExternalIdentity({ handle });
+      expect(resolved?.user.id).toBe(discovered?.user.id);
+    }
+    expect(webfingerSpy).not.toHaveBeenCalled();
+    expect(actorSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not remember a failed discovery through a bridge whose 404 is intermittent', async () => {
+    actorCounter += 1;
+    const local = `flaky${actorCounter}`;
+    const actorUri = `https://bird.makeup/users/${local}`;
+    webfingerSpy.mockResolvedValueOnce(null);
+    expect(await federationService.resolveAndUpsert(`${local}@x.com`)).toBeNull();
+
+    webfingerSpy.mockResolvedValue({ actorUri, subjectAcct: `${local}@bird.makeup` });
+    actorSpy.mockResolvedValue({
+      actorUri,
+      domain: 'x.com',
+      username: `${local}@x.com`,
+      transportAcct: `${local}@bird.makeup`,
+      protocol: 'activitypub',
+      evidenceLinks: [],
+      displayName: 'Flaky',
+      bio: '',
+    });
+    expect((await federationService.resolveAndUpsert(`${local}@x.com`))?.username).toBe(
+      `${local}@x.com`,
+    );
+  });
+
+  it('registers the routed bridge of an account first seen through another bridge', async () => {
+    actorCounter += 1;
+    const local = `twobridges${actorCounter}`;
+    const other = `https://mastox.eu/users/${local}`;
+    const routed = `https://bird.makeup/users/${local}`;
+    const profileOf = (actorUri: string, host: string) => ({
+      actorUri,
+      domain: 'x.com',
+      username: `${local}@x.com`,
+      transportAcct: `${local}@${host}`,
+      protocol: 'activitypub',
+      evidenceLinks: [],
+      displayName: 'Two Bridges',
+      bio: '',
+    });
+    webfingerSpy.mockImplementation(async (acct: string) =>
+      acct === `${local}@bird.makeup` ? { actorUri: routed, subjectAcct: acct } : null,
+    );
+    actorSpy.mockImplementation(async (actorUri: string) =>
+      actorUri === other
+        ? profileOf(other, 'mastox.eu')
+        : actorUri === routed
+          ? profileOf(routed, 'bird.makeup')
+          : null,
+    );
+
+    await federationService.resolveExternalIdentity({ actorUri: other });
+
+    const transports = async () =>
+      (
+        await getDb()
+          .select({ actorUri: externalIdentityActors.actorUri })
+          .from(externalIdentityActors)
+          .where(eq(externalIdentityActors.canonicalAcct, `${local}@x.com`))
+      )
+        .map((row) => row.actorUri)
+        .sort();
+    for (let attempt = 0; attempt < 50 && (await transports()).length < 2; attempt += 1)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(await transports()).toEqual([routed, other].sort());
   });
 
   it('never consults the failed-discovery cache for a handle it already stores', async () => {
@@ -1256,7 +1380,8 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
     preferredUsername: string,
     extra?: Record<string, unknown>,
   ) {
-    mockSafeFetch.mockResolvedValue(
+    // A fresh stream per request: a body is read once.
+    mockSafeFetch.mockImplementation(async () =>
       makeSafeFetchResult(
         200,
         { 'content-type': 'application/activity+json' },
@@ -1290,6 +1415,20 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
 
     expect(profile?.username).toBe('alice@mastodon.social');
     expect(profile?.domain).toBe('mastodon.social');
+  });
+
+  it('returns the document it verified beside the profile, for the resolve answer', async () => {
+    const actorUri = 'https://mastodon.social/users/carol';
+    serveActor(actorUri, 'carol', { image: { type: 'Image', url: 'https://cdn.example/b.png' } });
+
+    expect(await federationService.fetchActorProfileResult(actorUri)).toMatchObject({
+      ok: true,
+      document: {
+        id: actorUri,
+        inbox: `${actorUri}/inbox`,
+        image: { url: 'https://cdn.example/b.png' },
+      },
+    });
   });
 
   it('derives a bridge identity from the actor Official assertion', async () => {
@@ -1468,4 +1607,81 @@ describe('federation source failure diagnostics', () => {
       );
     },
   );
+});
+
+describe('FederationService.resolveExternalIdentity — an unknown Bluesky handle', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetAssetMocks();
+  });
+
+  /** Bluesky's AppView: `handle` resolves to `did`, whose profile names `handle` back. */
+  function mockBluesky(handle: string, did: string, displayName = 'Frente') {
+    mockSafeFetch.mockImplementation(async (url: string) => {
+      const json = { 'content-type': 'application/json' };
+      if (url.includes('com.atproto.identity.resolveHandle'))
+        return new URL(url).searchParams.get('handle') === handle
+          ? makeSafeFetchResult(200, json, JSON.stringify({ did }))
+          : makeSafeFetchResult(400, json, '{}');
+      if (url.includes('app.bsky.actor.getProfile'))
+        return makeSafeFetchResult(200, json, JSON.stringify({ did, handle, displayName }));
+      return makeSafeFetchResult(404, {});
+    });
+  }
+
+  it.each([
+    [
+      'a custom-domain handle',
+      (n: number) => `frente${n}.example`,
+      (h: string) => `${h}@bsky.social`,
+    ],
+    [
+      'a bsky.social handle',
+      (n: number) => `frente${n}.bsky.social`,
+      (h: string) => h.replace('.bsky.social', '@bsky.social'),
+    ],
+  ])('discovers %s through its DID', async (_label, makeHandle, acctOf) => {
+    actorCounter += 1;
+    const handle = makeHandle(actorCounter);
+    const did = `did:plc:frente${actorCounter}`;
+    mockBluesky(handle, did);
+
+    for (const input of [handle, acctOf(handle)]) {
+      const resolved = await federationService.resolveExternalIdentity({ handle: input });
+      expect(resolved?.externalIdentity).toMatchObject({
+        actorUri: did,
+        canonicalAcct: acctOf(handle),
+      });
+    }
+  });
+
+  it("names an account whose handle does not verify by its DID, never Bluesky's shared sentinel", async () => {
+    for (const did of [
+      `did:plc:unverified${++actorCounter}`,
+      `did:plc:unverified${++actorCounter}`,
+    ]) {
+      mockBluesky('handle.invalid', did);
+      const resolved = await federationService.resolveExternalIdentity({ handle: did });
+      expect(resolved?.externalIdentity.canonicalAcct).toBe(`${did}@bsky.social`);
+    }
+  });
+
+  it('background-refreshes a stale cached Bluesky account through its DID', async () => {
+    actorCounter += 1;
+    const handle = `frente${actorCounter}.bsky.social`;
+    const did = `did:plc:frente${actorCounter}`;
+    mockBluesky(handle, did);
+    const resolved = await federationService.resolveExternalIdentity({ handle });
+    const userId = resolved?.externalIdentity.userId ?? '';
+    await getDb()
+      .update(users)
+      .set({ updatedAt: new Date(Date.now() - STALE_AGE_MS) })
+      .where(eq(users.id, userId));
+
+    mockBluesky(handle, did, 'Frente Renamed');
+    await federationService.resolveAndUpsert(handle);
+    await settleBackgroundWork();
+
+    expect((await storedUser(userId))?.nameFirst).toBe('Frente Renamed');
+  });
 });

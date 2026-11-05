@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
-import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
+import {
+  IdentityAlreadyExistsError,
+  IdentityUnavailableError,
+  KeyManager,
+} from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus';
 import { IdentityMayExistError, isUsernameTakenError } from '@/hooks/identity/identityErrors';
@@ -12,6 +16,7 @@ import { extractAuthErrorMessage, isUsernameRequiredError } from '@/utils/auth/e
 import { CREATING_PROGRESS_INTERVAL_MS, CREATING_FINAL_DELAY_MS } from '@/constants/auth';
 import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 import { useIdentity } from '@/hooks/useIdentity';
+import { getRecoveryPhraseAcknowledgedFromStorage } from '@/hooks/identity/identityStore';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -30,6 +35,21 @@ import { useTranslation } from '@/lib/i18n';
  * The recovery phrase is stashed in `useAuthFlowContext().recoveryPhraseRef`
  * for the next screen to read. It is never persisted to storage.
  */
+/**
+ * The stored recovery phrase of the identity on this device, when the user has
+ * not yet confirmed writing it down; `null` otherwise (acknowledged, never
+ * stored, or unreadable). Only a phrase that derives the current key counts.
+ */
+async function unacknowledgedPhraseToShow(): Promise<string[] | null> {
+  if (await getRecoveryPhraseAcknowledgedFromStorage()) return null;
+  try {
+    const mnemonic = await KeyManager.getRecoveryMnemonicForCurrentIdentity();
+    return mnemonic ? mnemonic.trim().split(/\s+/) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function CreateIdentityScreen() {
   const router = useRouter();
   const colors = useColors();
@@ -162,9 +182,21 @@ export default function CreateIdentityScreen() {
       if (hasNavigatedResumeRef.current) return;
       hasNavigatedResumeRef.current = true;
 
-      void resumeToUsername().then((resumed) => {
+      void (async () => {
+        // The app was closed before the phrase was acknowledged (killed on the
+        // phrase screen, or before it). Resuming at the username step finished
+        // onboarding without the user ever writing the phrase down. The phrase
+        // was stored at creation, so show it again first.
+        const words = await unacknowledgedPhraseToShow();
+        if (!isMountedRef.current) return;
+        if (words) {
+          recoveryPhraseRef.current = words;
+          router.replace('/(auth)/create-identity/recovery-phrase');
+          return;
+        }
+        const resumed = await resumeToUsername();
         if (!resumed) hasNavigatedResumeRef.current = false;
-      });
+      })();
       return;
     }
 

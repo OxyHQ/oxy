@@ -4,6 +4,20 @@ name: Repair video renditions
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'Encode a sample, or seed durable application backlog (no encoding in this task)'
+        required: true
+        type: choice
+        options: [encode, backlog]
+        default: encode
+      application_id:
+        description: 'Required for backlog mode: only files owned/referenced by this application'
+        required: false
+        type: string
+      max_groups:
+        description: 'Backlog groups per invocation (1–100000; default 1000); limit is the page size'
+        required: false
+        type: string
       dry_run:
         description: 'Inspect candidates without encoding or writing'
         required: true
@@ -14,7 +28,7 @@ on:
         required: false
         type: string
       after:
-        description: 'Resume cursor from previous result (including failed groups)'
+        description: 'Resume cursor from previous result for the selected mode'
         required: false
         type: string
       limit:
@@ -53,11 +67,26 @@ jobs:
 
       - name: Reject a limit that is not a plain positive integer
         env:
+          MODE: ${{ inputs.mode }}
+          APPLICATION_ID: ${{ inputs.application_id }}
+          MAX_GROUPS: ${{ inputs.max_groups }}
           LIMIT: ${{ inputs.limit }}
           FILE_ID: ${{ inputs.file_id }}
           AFTER: ${{ inputs.after }}
         run: |
           set -euo pipefail
+          if [[ "$MODE" != encode && "$MODE" != backlog ]]; then
+            echo "::error::mode must be encode or backlog"; exit 1
+          fi
+          if [[ "$MODE" == backlog && ( -z "$APPLICATION_ID" || -n "$FILE_ID" ) ]]; then
+            echo "::error::backlog mode requires application_id and no file_id"; exit 1
+          fi
+          if [[ "$MODE" == encode && ( -n "$APPLICATION_ID" || -n "$MAX_GROUPS" ) ]]; then
+            echo "::error::application_id and max_groups are only for backlog mode"; exit 1
+          fi
+          if [ -n "$MAX_GROUPS" ] && { ! [[ "$MAX_GROUPS" =~ ^[1-9][0-9]{0,5}$ ]] || [ "$MAX_GROUPS" -gt 100000 ]; }; then
+            echo "::error::max_groups must be 1–100000"; exit 1
+          fi
           if [ -n "$LIMIT" ] && { ! [[ "$LIMIT" =~ ^[1-9][0-9]{0,3}$ ]] || [ "$LIMIT" -gt 1000 ]; }; then
             echo "::error::limit must be a positive integer (1-1000); got '$LIMIT'."
             exit 1
@@ -90,6 +119,9 @@ jobs:
         env:
           IMAGE: ${{ steps.image.outputs.image }}
           DRY_RUN: ${{ inputs.dry_run }}
+          MODE: ${{ inputs.mode }}
+          APPLICATION_ID: ${{ inputs.application_id }}
+          MAX_GROUPS: ${{ inputs.max_groups }}
           LIMIT: ${{ inputs.limit }}
           FILE_ID: ${{ inputs.file_id }}
           AFTER: ${{ inputs.after }}
@@ -113,6 +145,24 @@ jobs:
           aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
             --query 'taskDefinition' --output json > live-taskdef.json
 
+          # Ownership tags authorize cleanup only for this production family.
+          # Refuse a drifted service/role before registering or running anything.
+          if [[ "$CLUSTER" != oxy-cluster || "$SERVICE" != oxy-api ]] ||
+            ! [[ "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]] ||
+            ! jq -e '
+              .family == "oxy-oxy-api" and
+              .taskRoleArn == "arn:aws:iam::237343248947:role/oxy-oxy-api-task" and
+              .executionRoleArn == "arn:aws:iam::237343248947:role/oxy-ecs-execution"
+            ' live-taskdef.json >/dev/null; then
+            echo "::error::Video repair requires the reviewed Oxy API family and roles."
+            exit 1
+          fi
+          TASK_TAGS=$(jq -nc --arg run "$GITHUB_RUN_ID" '[
+            {key:"OxyOperation",value:"VideoRenditionRepair"},
+            {key:"OxyTaskFamily",value:"oxy-oxy-api"},
+            {key:"OxyRunId",value:$run}
+          ]')
+
           CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
 
           # A throwaway revision differing from the live one ONLY by the image.
@@ -128,7 +178,14 @@ jobs:
 
           echo "repair task definition: $REPAIR_TASK_DEF"
 
+          SCRIPT="packages/api/src/scripts/repair-video-renditions.ts"
+          if [[ "$MODE" == backlog ]]; then
+            SCRIPT="packages/api/src/scripts/seed-video-rendition-backlog.ts"
+          fi
           OVERRIDES=$(jq -nc \
+            --arg script "$SCRIPT" \
+            --arg app "$APPLICATION_ID" \
+            --arg max "$MAX_GROUPS" \
             --arg file "$FILE_ID" \
             --arg after "$AFTER" \
             --arg name "$CONTAINER" \
@@ -136,8 +193,10 @@ jobs:
             --arg batch "$LIMIT" \
             '{containerOverrides:[{
                name: $name,
-               command: ["bun","run","packages/api/src/scripts/repair-video-renditions.ts"],
+               command: ["bun","run",$script],
                environment: ([{name:"DRY_RUN", value:$dry}] +
+                 (if $app != "" then [{name:"APPLICATION_ID", value:$app}] else [] end) +
+                 (if $max != "" then [{name:"MAX_GROUPS", value:$max}] else [] end) +
                  (if $batch != "" then [{name:"LIMIT", value:$batch}] else [] end) +
                  (if $file != "" then [{name:"FILE_ID", value:$file}] else [] end) +
                  (if $after != "" then [{name:"AFTER", value:$after}] else [] end))
@@ -170,6 +229,7 @@ jobs:
               "${placement[@]}" \
               --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
               --overrides "$OVERRIDES" \
+              --tags "$TASK_TAGS" \
               --started-by "gh-video-rendition-repair")
             if [ "$(jq '.failures | length' <<<"$RUN_JSON")" = "0" ]; then
               break
@@ -205,13 +265,19 @@ jobs:
           # Always stop the task we own if this step is cancelled or times out.
           stop_owned_task() {
             aws ecs stop-task --cluster "$CLUSTER" --task "$TASK_ARN" \
-              --reason "Video repair workflow ended" >/dev/null || true
+              --reason "Video repair workflow ended" >/dev/null
           }
           finish_repair() {
-            stop_owned_task
+            result=$?
+            trap - EXIT
+            if ! stop_owned_task; then
+              echo "::error::Could not stop owned video repair task $TASK_ARN; operator cleanup required."
+              if [ "$result" -eq 0 ]; then result=1; fi
+            fi
             aws logs get-log-events --log-group-name "$LOG_GROUP" \
               --log-stream-name "$LOG_PREFIX/$CONTAINER/$TASK_ID" --start-from-head \
               --query 'events[].message' --output text || true
+            exit "$result"
           }
           trap finish_repair EXIT
           trap 'exit 130' INT TERM

@@ -61,6 +61,7 @@ import {
 import { isAllowedRedirectUri } from '../utils/oauthRedirect';
 import type { AccountRole } from '../utils/accountRoles';
 import { logger } from '../utils/logger';
+import { isTrustedApplication } from '../utils/trustedApplication';
 
 /**
  * An `auth_sessions` row as this module reads it — every column EXCEPT the
@@ -291,7 +292,11 @@ export async function resolveApprovalOperator(
   }
   const db = getDb();
   const [approving] = await db
-    .select({ userId: sessions.userId, operatedByUserId: sessions.operatedByUserId })
+    .select({
+      userId: sessions.userId,
+      operatedByUserId: sessions.operatedByUserId,
+      applicationId: sessions.applicationId,
+    })
     .from(sessions)
     .where(
       and(
@@ -301,7 +306,8 @@ export async function resolveApprovalOperator(
       ),
     )
     .limit(1);
-  if (!approving || approving.userId !== subjectAccountId) {
+  // An isolated OAuth bearer cannot approve another connection or join the shared device.
+  if (!approving || approving.applicationId || approving.userId !== subjectAccountId) {
     return { ok: false, reason: 'approving_session_unreadable' };
   }
   let authMethod: AgentKeyBinding | undefined;
@@ -847,6 +853,12 @@ export async function finalizeOAuthAuthorization(
       useCache: false,
     });
     if (!live) return { ok: false, reason: 'not_authorized' };
+    const [source] = await db
+      .select({ applicationId: sessions.applicationId })
+      .from(sessions)
+      .where(eq(sessions.sessionId, existing.approvedBySessionId))
+      .limit(1);
+    if (!source || source.applicationId) return { ok: false, reason: 'not_authorized' };
     try {
       authMethod = await readSessionAgentBinding(existing.approvedBySessionId, identityUserId);
     } catch {
@@ -874,6 +886,10 @@ export async function finalizeOAuthAuthorization(
     .limit(1);
   if (!app) {
     return { ok: false, reason: 'application_unavailable' };
+  }
+  const authority = isTrustedApplication(app) ? 'first_party' : 'external';
+  if (existing.oauthAuthority !== authority) {
+    return { ok: false, reason: 'not_authorized' };
   }
   if (!isAllowedRedirectUri(app, oauth.redirectUri)) {
     return { ok: false, reason: 'redirect_uri_unregistered' };
@@ -944,6 +960,7 @@ export async function finalizeOAuthAuthorization(
         codeChallenge: oauth.codeChallenge,
         codeChallengeMethod: 'S256',
         scopes: effectiveScopes,
+        authority,
         ...(subjectAccountId ? { operatedByUserId: identityUserId } : {}),
         ...(authMethod ? { authMethod } : {}),
         // Thread the originating RP device so the token exchange lands on the

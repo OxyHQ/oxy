@@ -8,11 +8,16 @@
  */
 
 import { context, trace } from '@opentelemetry/api';
-import { NodeSDK, tracing } from '@opentelemetry/sdk-node';
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import {
+  InMemorySpanExporter,
+  type ReadableSpan,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace';
 import { isInsideTracedFetch, TRACED_FETCH_TRACER_NAME, tracedFetch } from '../tracedFetch';
 
 const realFetch = globalThis.fetch;
-const exporter = new tracing.InMemorySpanExporter();
+const exporter = new InMemorySpanExporter();
 let sdk: NodeSDK | null = null;
 
 type FetchArgs = [RequestInfo | URL, RequestInit | undefined];
@@ -27,7 +32,7 @@ function headerOf(init: RequestInit | undefined, name: string): string | null {
   return new Headers(init?.headers).get(name);
 }
 
-function attr(span: tracing.ReadableSpan, key: string): unknown {
+function attr(span: ReadableSpan, key: string): unknown {
   return span.attributes[key];
 }
 
@@ -54,13 +59,39 @@ describe('tracedFetch with the SDK started', () => {
   beforeAll(() => {
     sdk = new NodeSDK({
       serviceName: 'traced-fetch-test',
-      spanProcessors: [new tracing.SimpleSpanProcessor(exporter)],
+      spanProcessors: [new SimpleSpanProcessor({ exporter })],
       instrumentations: [],
       // The default detectors are async, and SimpleSpanProcessor holds a span's
       // export until they settle; with none, every span is exported on end().
       resourceDetectors: [],
     });
     sdk.start();
+  });
+
+  it('traces a shared authenticated transport without bypassing it or copying a bearer', async () => {
+    const globalFetch = stubFetch(async () => {
+      throw new Error('Must not bypass transport');
+    });
+    const transport = {
+      fetch: jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        expect(isInsideTracedFetch()).toBe(true);
+        expect(headerOf(init, 'traceparent')).toMatch(/^00-/);
+        expect(headerOf(init, 'authorization')).toBeNull();
+        return new Response(null, { status: 202 });
+      }),
+    };
+    await tracedFetch(
+      'https://api.alia.onl/webhooks/oxy',
+      { method: 'POST', body: '{}' },
+      transport,
+    );
+    expect(transport.fetch).toHaveBeenCalledTimes(1);
+    expect(globalFetch).not.toHaveBeenCalled();
+    const spans = exporter
+      .getFinishedSpans()
+      .filter((span) => span.instrumentationScope.name === TRACED_FETCH_TRACER_NAME);
+    expect(spans).toHaveLength(1);
+    expect(spans[0].attributes['http.response.status_code']).toBe(202);
   });
 
   it('records one CLIENT span with the undici attribute set and injects its traceparent', async () => {

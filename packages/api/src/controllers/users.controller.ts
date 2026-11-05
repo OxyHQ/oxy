@@ -15,6 +15,7 @@ import { sendSuccess } from '../utils/asyncHandler';
 import {
   normalizePeopleSearchTerm,
   peopleSearchMatch,
+  peopleSearchOrder,
   peopleSearchPredicate,
 } from '../utils/profileQuery';
 import { publicUserColumns, toPublicUserView } from '../utils/publicUserProjection';
@@ -51,6 +52,10 @@ export class UsersController {
         .select(publicUserColumns)
         .from(users)
         .where(and(peopleSearchPredicate(), peopleSearchMatch(term)))
+        // The same relevance ranking as `GET /profiles/search`, so the five an
+        // autocomplete shows are the five best, in the same order every time —
+        // without an ORDER BY they were whichever five the scan reached first.
+        .orderBy(...peopleSearchOrder(term))
         .limit(5);
 
       const formattedUsers = rows

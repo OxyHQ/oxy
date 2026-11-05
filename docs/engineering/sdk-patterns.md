@@ -7,6 +7,37 @@
 - `queryFn` must be pure — never call `useAuthStore.setUser()` inside a `queryFn`.
 - Side effects on fresh query data belong in a `useEffect` on `query.data` outside the queryFn.
 
+## Public rendition URL identity (core)
+
+Build public video HLS URLs with
+`assets.publicUrl(id, 'hls_master', undefined, { revision: hlsReadyAt })`, using
+the authoritative `hlsReadyAt` returned by service asset metadata. Omit HLS
+entirely when that field is absent. Store and refresh this timestamp when a
+rendition is regenerated; do not use the current time or a random query value.
+
+The SDK normalizes the ready timestamp to UTC. The CDN resolver partitions its
+cache by file, variant and revision, while retaining the file cache tag for
+purges. Oxy's metadata response and resolver read the same variant `readyAt`:
+a matching generation keeps the normal one-hour redirect freshness. An older
+timestamp still resolves to the current public rendition with `no-store`, so
+older post snapshots keep playing. Malformed revisions return 400 without
+caching, and status/visibility checks still apply. Original URLs and calls
+without a revision retain their existing behavior.
+
+Deploy the API and CDN Worker support before publishing the SDK and updating
+consumers. Purging the edge does not invalidate redirects already stored in a
+browser; the semantic revision is what gives a repaired rendition a new URL.
+
+## Asset URLs in render paths (core, services)
+
+Apps keep no file-id → URL cache of their own. A render path (an image
+resolver, a list row) calls `assets.renderUrl(ref, variant)`: an absolute URL
+as-is, else what `assets.url` already resolved for this caller (the SDK's
+identity-scoped GET cache, `assets.cachedUrl`), else `publicUrl`. A component
+that must show a private asset uses services' `useFileDownloadUrl`, which
+answers a cached resolution in its first render and calls `assets.url` only on
+a miss.
+
 ## SDK Cache Sweep on Profile Writes (core)
 
 `oxyServices.users.updateMe()` invalidates, in one `http.invalidateCache` pass:
@@ -60,8 +91,11 @@ The regression is covered by `httpServiceCacheInvalidation.test.ts`.
 ## Offline-First Persistence (services)
 
 - `@tanstack/react-query-persist-client` wired in `@oxy.so/services` (AsyncStorage; localStorage-backed on web).
-- Query whitelist: `accounts`, `users`, `sessions`, `devices`, `privacy`, `payments` queries are persisted; mutations always persisted; 30-day TTL; 1s throttle; v1 cache cleanup on startup.
+- The SDK-managed shared persister writes its whitelisted queries and mutations not owned by an account; account mutation policy can exclude records from that shared blob. It uses a 30-day TTL and 1s throttle, with v1 cache cleanup on startup.
 - `OxyProvider` awaits `restored` before exposing the QueryClient → first paint serves cached data, not a loading spinner.
+- Per-account data: `accountQueries` roots, or ONE query marked `meta: { persist: 'account' }` (`AccountQueryMeta`; no declaration). Stored per account, dropped on a switch, deleted on sign-out; a painted cold boot resolves auth only after it is restored (`whenReady`). A persister serializes only when one of ITS queries changes. Mark the reads that shape a returning user's first paint, never lists — `accountQueryPersistence.ts`.
+- Apps whose queries are viewer-dependent but mostly ephemeral can opt into `accountQueries: { roots: [], memoryOnlyRoots: 'all', persistMarkedQueries: true, clearUnregisteredMutations: true }`. Only explicitly marked queries survive a restart; SDK memory-only roots stay off disk. Registered paused mutations use per-account storage, while unregistered mutations are neither persisted nor retained across transitions. Removing mutation records does not cancel running requests or callbacks: scope their effects to their originating account. The app still owns its sockets, local stores and databases. A host-provided `QueryClient` skips the provider's shared-cache persistence.
+- `memoryOnlyMutationKeys` opts exact mutation keys into account ownership without persisting them, even if also listed in `mutationKeys`. It excludes matching records from both caches and removes them on an account transition. A previously persisted operation for a newly memory-only key is not restored, and a later snapshot can overwrite it; audit any existing queue before enabling this option. It does not cancel execution or callbacks; a paused operation has no durable replay. Existing blobs are not immediately erased, and unkeyed or differently keyed legacy mutations are not covered.
 - `useOnlineStatus()` hook in `@oxy.so/services` — built on `useSyncExternalStore` over `onlineManager`; use for offline banners in app UIs.
 - TanStack Query must use a consistent `^5.x` major version across services, console, and test-app-expo — check each workspace's `package.json` for the pinned range.
 
@@ -73,6 +107,7 @@ The regression is covered by `httpServiceCacheInvalidation.test.ts`.
 
 ## BottomSheet Gesture Patterns (services)
 
+- The lean `ui` and `ui/client` entries load account screens when the first surface opens, not when `OxyProvider` mounts. The surface remains dismissible during loading and offers retry if the chunk fails; the root entry still registers screens synchronously.
 - `closeGenerationRef` bumped on each `open()`; every close callback captures the generation at commit time — stale callbacks from cancelled close cycles no-op.
 - Body pan uses `manualActivation()` with `simultaneousWithExternalGesture(scrollViewRef)` — only activates when scroll is at top AND downward movement >8dp. Handle pan is unconditional.
 - Modal contents **must** wrap children in `<GestureHandlerRootView>` — RN's `Modal` renders into its own window; the app-root GHRV does not extend into it.
@@ -139,3 +174,17 @@ profile identity. The shared account chooser uses the same resolution.
 Deployment expands the SQL constraint before rollout, then renames legacy
 `amber` to `yellow` and contracts it after the new server is running. Other
 persisted choices and exact hex values are preserved.
+
+### Product socket handshakes
+
+A product frontend creates one `oxy.createLinkedClient({ baseURL })` for its
+backend. Use `linked.fetch` for HTTP and call
+`linked.getAccessToken(socketTarget, { signal })` afresh for every socket
+handshake or reconnect. The shared SDK refreshes the session and rejects account
+switches, logout, disposal and cancellation during that work. HTTP/WS schemes
+must preserve TLS, host and port (`https`/`wss`, `http`/`ws`); other origins are
+rejected before refresh. A caller cancelling its wait does not cancel another
+caller's shared refresh. Dispose the linked client when its owning product
+client is released. Product cryptographic signatures and instance/account
+checks remain in the product; never persist a captured bearer in a socket
+configuration or replace it with a service token.

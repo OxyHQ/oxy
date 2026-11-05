@@ -1,11 +1,12 @@
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
-import { View, StyleSheet, TextInput, Platform, type LayoutChangeEvent } from 'react-native';
+import { View, StyleSheet, Platform, type LayoutChangeEvent } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import {
   ImportantBanner,
   KeyboardAwareScrollViewWrapper,
@@ -34,7 +35,8 @@ const KEYBOARD_CLEARANCE = 16;
  *
  * Permanent, irreversible. The API requires a cryptographic signature
  * produced by this device's identity private key — there is no password.
- * The user must also type their username verbatim as a confirmation.
+ * The user must also type their username verbatim, and then confirm once more
+ * in a dialog whose action is styled destructive, like the button itself.
  */
 export default function DeleteAccountScreen() {
   const colors = useColors();
@@ -60,7 +62,7 @@ export default function DeleteAccountScreen() {
   const username = user?.username ?? '';
   const isConfirmValid = confirmText === username && username.length > 0;
 
-  const handleDelete = useCallback(async () => {
+  const runDelete = useCallback(async () => {
     if (!isConfirmValid || !oxyServices) return;
 
     setIsDeleting(true);
@@ -132,7 +134,24 @@ export default function DeleteAccountScreen() {
     } finally {
       setIsDeleting(false);
     }
-  }, [isConfirmValid, oxyServices, confirmText, logoutAll, router, alert, t, queryClient]);
+  }, [isConfirmValid, oxyServices, confirmText, logoutAll, router, t, queryClient]);
+
+  /** The last word before an irreversible act: a destructive confirmation. */
+  const handleDelete = useCallback(() => {
+    if (!isConfirmValid || isDeleting) return;
+    alert(
+      t('data.deleteAccount.confirmDialogTitle'),
+      t('data.deleteAccount.confirmDialogBody', { name: username }),
+      [
+        { text: t('data.deleteAccount.cancel'), style: 'cancel' },
+        {
+          text: t('data.deleteAccount.deleteCta'),
+          style: 'destructive',
+          onPress: () => void runDelete(),
+        },
+      ],
+    );
+  }, [isConfirmValid, isDeleting, runDelete, t, username]);
 
   if (oxyLoading) {
     return (
@@ -176,27 +195,18 @@ export default function DeleteAccountScreen() {
           {t('data.deleteAccount.typeUsername')}{' '}
           <Text style={[styles.usernameHint, { color: colors.error }]}>{username}</Text>
         </Text>
-        <View
-          style={[
-            styles.inputWrapper,
-            {
-              backgroundColor: colors.card,
-              borderColor: confirmText.length > 0 && !isConfirmValid ? colors.error : colors.border,
-            },
-          ]}
-        >
-          <TextInput
-            style={[styles.input, { color: colors.text }]}
-            value={confirmText}
-            onChangeText={setConfirmText}
-            placeholder={username}
-            placeholderTextColor={colors.textSecondary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isDeleting}
-            accessibilityLabel={t('data.deleteAccount.confirmInputLabel')}
-          />
-        </View>
+        <TextFieldInput
+          label={t('data.deleteAccount.confirmInputLabel')}
+          value={confirmText}
+          onChangeText={setConfirmText}
+          placeholder={username}
+          autoCapitalize="none"
+          autoCorrect={false}
+          disabled={isDeleting}
+          invalid={confirmText.length > 0 && !isConfirmValid}
+          accessibilityLabel={t('data.deleteAccount.confirmInputLabel')}
+          testID="delete-account-confirm-input"
+        />
         <View testID="delete-account-below-input" onLayout={handleBelowInputLayout}>
           {confirmText.length > 0 && !isConfirmValid && (
             <Text style={[styles.errorText, { color: colors.error }]}>
@@ -216,8 +226,9 @@ export default function DeleteAccountScreen() {
             </Button>
             <Button
               appearance="solid"
-              tone="accent"
+              tone="danger"
               onPress={handleDelete}
+              testID="delete-account-cta"
               loading={isDeleting}
               disabled={!isConfirmValid || isDeleting}
               className="flex-1"
@@ -291,15 +302,6 @@ const styles = StyleSheet.create({
   },
   usernameHint: {
     fontWeight: '700',
-  },
-  inputWrapper: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-  },
-  input: {
-    fontSize: 16,
-    paddingVertical: 12,
   },
   errorText: {
     fontSize: 12,

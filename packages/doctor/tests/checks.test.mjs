@@ -8,6 +8,7 @@ import {
   DEFAULT_GRACE_DAYS,
   inspectRepository,
   isFirstPartyPackage,
+  isNativeModulePackage,
   lockfileVersions,
   rangeIncludesVersion,
 } from '../src/checks.mjs';
@@ -131,6 +132,154 @@ describe('Oxy Doctor checks', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+  describe('required native peers of @oxy.so/services', () => {
+    const SERVICES = {
+      name: '@oxy.so/services',
+      version: '13.5.0',
+      peerDependencies: {
+        'expo-crypto': '>=15.0.0 <59.0.0',
+        'expo-secure-store': '>=15.0.0 <59.0.0',
+        'expo-haptics': '>=15.0.0 <59.0.0',
+        zustand: '^5.0.0',
+      },
+      peerDependenciesMeta: { 'expo-haptics': { optional: true } },
+    };
+    /** A repo with `frontend` on services and the given packages installed at the root. */
+    async function appRepo(frontendDependencies, installed) {
+      const root = await mkdtemp(join(tmpdir(), 'oxy-doctor-'));
+      const write = async (dir, file, contents) => {
+        await mkdir(join(root, dir), { recursive: true });
+        await writeFile(join(root, dir, file), contents);
+      };
+      await write(
+        '.',
+        'package.json',
+        JSON.stringify({ name: 'app', workspaces: { packages: ['packages/*'] } }),
+      );
+      await write(
+        'packages/frontend',
+        'package.json',
+        JSON.stringify({ dependencies: { expo: '~58.0.14', ...frontendDependencies } }),
+      );
+      await writeFile(join(root, 'bun.lock'), '{}');
+      for (const [name, kind] of Object.entries(installed)) {
+        const dir = join('node_modules', name);
+        await write(
+          dir,
+          'package.json',
+          JSON.stringify(name === '@oxy.so/services' ? SERVICES : { name }),
+        );
+        if (kind === 'expo') await write(dir, 'expo-module.config.json', '{}');
+        if (kind === 'android') await mkdir(join(root, dir, 'android'), { recursive: true });
+      }
+      return root;
+    }
+    const current = release('13.5.0', '2026-10-24T00:00:00.000Z');
+
+    test('a missing required native peer is an error that names the install line', async () => {
+      const root = await appRepo(
+        { '@oxy.so/services': '^13.5.0', 'expo-secure-store': '~58.0.2' },
+        {
+          '@oxy.so/services': 'js',
+          'expo-crypto': 'expo',
+          'expo-secure-store': 'expo',
+          'expo-haptics': 'expo',
+          zustand: 'js',
+        },
+      );
+      try {
+        const report = await inspectRepository(root, current);
+        expect(report.findings).toEqual([
+          expect.objectContaining({
+            severity: 'error',
+            code: 'undeclared-native-peer',
+            manifest: 'packages/frontend/package.json',
+            missing: ['expo-crypto'],
+          }),
+        ]);
+        expect(report.findings[0].message).toContain('npx expo install expo-crypto');
+        expect(report.nativePeersUnverified).toEqual([]);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+
+    test('declared peers, optional ones and JS-only ones report nothing', async () => {
+      const root = await appRepo(
+        {
+          '@oxy.so/services': '^13.5.0',
+          'expo-crypto': '~58.0.7',
+          'expo-secure-store': '~58.0.2',
+        },
+        {
+          '@oxy.so/services': 'js',
+          'expo-crypto': 'android',
+          'expo-secure-store': 'expo',
+          'expo-haptics': 'expo',
+          zustand: 'js',
+        },
+      );
+      try {
+        expect((await inspectRepository(root, current)).findings).toEqual([]);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+
+    test('a required peer that is not installed at all is reported too', async () => {
+      const root = await appRepo(
+        { '@oxy.so/services': '^13.5.0', 'expo-secure-store': '~58.0.2' },
+        { '@oxy.so/services': 'js', 'expo-secure-store': 'expo', zustand: 'js' },
+      );
+      try {
+        const [finding] = (await inspectRepository(root, current)).findings;
+        expect(finding.missing).toEqual(['expo-crypto']);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+
+    test('without an install the manifest is unverified, not passed', async () => {
+      const root = await appRepo({ '@oxy.so/services': '^13.5.0' }, {});
+      try {
+        const report = await inspectRepository(root, current);
+        expect(report.findings).toEqual([]);
+        expect(report.nativePeersUnverified).toEqual(['packages/frontend/package.json']);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+
+    test('a manifest that is not an Expo or React Native app is not checked', async () => {
+      const root = await appRepo({ '@oxy.so/services': '^13.5.0' }, { '@oxy.so/services': 'js' });
+      try {
+        await writeFile(
+          join(root, 'package.json'),
+          JSON.stringify({
+            name: 'app',
+            workspaces: { packages: [] },
+            dependencies: { '@oxy.so/services': '^13.5.0' },
+          }),
+        );
+        const report = await inspectRepository(root, current);
+        expect(report.findings).toEqual([]);
+        expect(report.nativePeersUnverified).toEqual([]);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+
+    test('recognises a native module by its autolinking markers', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'oxy-doctor-pkg-'));
+      try {
+        expect(isNativeModulePackage(dir)).toBe(false);
+        await writeFile(join(dir, 'Thing.podspec'), '');
+        expect(isNativeModulePackage(dir)).toBe(true);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
   });
   test('the default grace window is fourteen days', () => {
     expect(DEFAULT_GRACE_DAYS).toBe(14);

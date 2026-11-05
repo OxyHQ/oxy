@@ -18,6 +18,9 @@ const dict = {
       caption: 'امسح باستخدام Commons لتسجيل الدخول',
       renew: 'عرض رمز جديد',
     },
+    device: {
+      codeHint: 'تأكد من أن هاتفك يعرض هذا الرمز',
+    },
     errors: {
       rateLimited: 'محاولات كثيرة جدًا. حاول مرة أخرى بعد {{seconds}} ث.',
       invalidCredentials:

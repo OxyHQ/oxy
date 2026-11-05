@@ -1,5 +1,26 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.6.1
+
+### Changed
+
+- `createNodeApp` runs on Express 5 (already in the peer range): the blob read infers its `:hash` param from the route instead of typing the request by hand. Repeated query params (`?limit=2&limit=99`) still read as their first value under either Express's query parser.
+
+## 1.6.0
+
+### Changed
+
+- `@noble/curves` 2. The secp256k1 wire formats are unchanged: signing and verification pass `prehash: false` (the input is already a SHA-256 digest; noble 2 hashes by default) and `format: 'der'`, and the historical high-S and low-S DER vectors still match byte for byte.
+- `@noble/curves` 2 ships ESM only, so the CommonJS build `require`s an ES module: `engines.node` is `^20.19.0 || >=22.12.0`, the Node lines with `require(esm)` (bundlers and the ESM build are unaffected).
+- `@react-native-async-storage/async-storage` peer is `<4.0.0`: 3.x is supported, 2.x still is.
+
+## 1.5.1
+
+### Changed
+
+- Remove the unused Zod dependency; protocol validation continues through the shared client checks.
+- Package against contracts 6. Protocol exports and signed wire formats are unchanged.
+
 ## 1.5.0
 
 Same `@oxy.so/contracts`.

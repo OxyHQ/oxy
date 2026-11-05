@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import type { ReauthAction, ReauthProof } from '@oxy.so/contracts';
-import { EMAIL_CODE_LENGTH, TOTP_DIGITS } from '@oxy.so/contracts/client';
+import { EMAIL_CODE_LENGTH, PASSWORD_MAX_LENGTH, TOTP_DIGITS } from '@oxy.so/contracts/client';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
 import { SubtleLink } from '../authChooser/primitives';
@@ -25,8 +25,9 @@ import {
   AccountFlowNote,
   AccountFlowNotice,
   BACKUP_CODE_LENGTH,
-  describeSignInError,
+  isCompleteSecondFactorCode,
 } from './accountFlowParts';
+import { describeApiError } from '../../utils/apiErrorMessage';
 
 export interface ReauthStepProps {
   title: string;
@@ -86,7 +87,7 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
     setError(null);
     setPending(true);
     work()
-      .catch((reason: unknown) => setError(describeSignInError(reason, t)))
+      .catch((reason: unknown) => setError(describeApiError(reason, t)))
       .finally(() => setPending(false));
   };
 
@@ -110,6 +111,10 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
     const totp = totpCode.trim();
     if (totpEnabled && !totp) {
       setError(t('reauth.errors.totpRequired'));
+      return;
+    }
+    if (totp && !isCompleteSecondFactorCode(totp, useBackupCode)) {
+      setError(t('signin.errors.secondFactorInvalid'));
       return;
     }
     let proof: ReauthProof;
@@ -146,6 +151,7 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
           disabled={pending}
           autoComplete="current-password"
           secureTextEntry
+          maxLength={PASSWORD_MAX_LENGTH}
           autoFocus={false}
           testID="reauth-password"
         />

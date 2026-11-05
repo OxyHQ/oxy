@@ -1,3 +1,4 @@
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Account graph wire contracts — the account-kind vocabulary, the account
  * category taxonomy, and the create-account input.
@@ -105,9 +106,9 @@ export const accountCategoriesSchema = z
  */
 export const accountNameSchema = z
   .object({
-    first: z.string().trim().max(100).optional(),
-    last: z.string().trim().max(100).optional(),
-    displayName: z.string().trim().max(ACCOUNT_TITLE_MAX_LENGTH).optional(),
+    first: z.string().trim().check(utf16MaxLength(100)).optional(),
+    last: z.string().trim().check(utf16MaxLength(100)).optional(),
+    displayName: z.string().trim().check(utf16MaxLength(ACCOUNT_TITLE_MAX_LENGTH)).optional(),
   })
   .optional();
 
@@ -124,7 +125,7 @@ export const accountNameSchema = z
  */
 export const createAccountRequestSchema = z
   .object({
-    parentAccountId: z.string().trim().min(1).optional(),
+    parentAccountId: z.string().trim().check(utf16MinLength(1)).optional(),
     kind: childAccountKindSchema,
     /**
      * The SAME policy a person's handle is held to. `users.username` is one unique
@@ -139,9 +140,9 @@ export const createAccountRequestSchema = z
      */
     username: usernameSchema,
     name: accountNameSchema,
-    bio: z.string().trim().max(500).optional(),
+    bio: z.string().trim().check(utf16MaxLength(500)).optional(),
     avatar: z.string().optional(),
-    description: z.string().trim().max(1000).optional(),
+    description: z.string().trim().check(utf16MaxLength(1000)).optional(),
     /**
      * A named color preset KEY (`"blue"`, `"mint"`, …), never a hex value.
      *
@@ -158,7 +159,7 @@ export const createAccountRequestSchema = z
      * would drift apart silently. What this shape does is keep an over-long or
      * non-string value from reaching the service at all.
      */
-    color: z.string().trim().max(32).optional(),
+    color: z.string().trim().check(utf16MaxLength(32)).optional(),
     /** Ordered, PRIMARY FIRST — see rule 2 above {@link ACCOUNT_CATEGORY_IDS}. */
     accountCategories: accountCategoriesSchema.optional(),
     organizationType: z.enum(ORGANIZATION_TYPES).optional(),

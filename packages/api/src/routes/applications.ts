@@ -2,6 +2,12 @@ import { invalidateApplicationTrust } from '../services/applicationTrust.service
 import { revokeApplicationCredential } from '../services/applicationCredentialRevocation.service';
 import { applicationStoredBytes } from '../services/storageQuota.service';
 import { generateCredentialMaterial } from '../utils/credentialMaterial';
+import {
+  deleteTrustedPublisher,
+  listTrustedPublishers,
+  registerTrustedPublisher,
+  serializeTrustedPublisher,
+} from '../services/githubTrustedPublishing.service';
 import express from 'express';
 import crypto from 'crypto';
 import type { z } from 'zod';
@@ -52,6 +58,8 @@ import {
   appAgentParams,
   appIdRouteParams,
   appCredentialParams,
+  appTrustedPublisherParams,
+  createTrustedPublisherSchema,
   appRoleGrantParams,
   listApplicationRolePermissionsQuerySchema,
   credentialAuditQuerySchema,
@@ -97,9 +105,10 @@ import {
 import {
   declarePermissions,
   grantPermission,
+  isOwnApplicationType,
   listGrants,
   listPermissions,
-  permissionsHeldBy,
+  resolveApplicationPermissions,
   revokeGrant,
 } from '../services/applicationRoles.service';
 import {
@@ -727,6 +736,22 @@ function requireAppPermission(permission: ApplicationPermission) {
     }
     next();
   });
+}
+
+/**
+ * Refuse a Console write to the vocabulary or the grants of one of Oxy's own
+ * applications: its operator keys and the roles holding them are declared in
+ * code (ADR 0056). Runs after the `roles:manage` gate, so a caller who could not
+ * manage the roles anyway is still told that first.
+ */
+function refuseOwnApplicationRoleWrite(application: { type: string }): void {
+  if (isOwnApplicationType(application.type)) {
+    throw new ApiError(
+      409,
+      "This is one of Oxy's own applications: its operator permissions and the roles holding them are declared in code (ADR 0056), not granted in the Console",
+      APPLICATION_ROLE_ERROR_CODES.firstPartyRolesInCode,
+    );
+  }
 }
 
 // ============================================================================
@@ -1542,6 +1567,80 @@ router.delete(
   }),
 );
 
+// ============================================================================
+// Trusted publishers (GitHub Actions OIDC, ADR 0057)
+// ============================================================================
+//
+// The GitHub Actions workflows that may publish this application's OTA updates
+// with no stored secret. Managed with the credential permissions, because a
+// publisher is what a publish credential used to be: who may create a
+// credential may register one, who may revoke one may delete one. An Oxy
+// application's publishers are declared in code and applied by the seed, so
+// writes to one are refused with 409 (as its operator keys are, ADR 0056);
+// reading them is not.
+
+router.get(
+  '/:appId/trusted-publishers',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('credentials:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = req.application;
+    if (!application) {
+      throw new NotFoundError('Application not found');
+    }
+    const rows = await listTrustedPublishers(application.id);
+    res.json({ trustedPublishers: rows.map(serializeTrustedPublisher) });
+  }),
+);
+
+router.post(
+  '/:appId/trusted-publishers',
+  validate({ params: appIdRouteParams, body: createTrustedPublisherSchema }),
+  requireAppPermission('credentials:create'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = req.application;
+    if (!application) {
+      throw new NotFoundError('Application not found');
+    }
+    const body = req.body as {
+      repository: string;
+      repositoryId?: string;
+      ref?: string;
+      workflow?: string;
+    };
+    const row = await registerTrustedPublisher({
+      application,
+      repository: body.repository,
+      repositoryId: body.repositoryId,
+      ref: body.ref,
+      workflow: body.workflow,
+      actorUserId: requireUserId(req),
+    });
+    res.status(201).json({ trustedPublisher: serializeTrustedPublisher(row) });
+  }),
+);
+
+router.delete(
+  '/:appId/trusted-publishers/:publisherId',
+  validate({ params: appTrustedPublisherParams }),
+  requireAppPermission('credentials:revoke'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = req.application;
+    if (!application) {
+      throw new NotFoundError('Application not found');
+    }
+    const deleted = await deleteTrustedPublisher({
+      application,
+      publisherId: req.params.publisherId,
+      actorUserId: requireUserId(req),
+    });
+    if (!deleted) {
+      throw new NotFoundError('Trusted publisher not found');
+    }
+    res.json({ success: true });
+  }),
+);
+
 /**
  * `GET /applications/:appId/credentials/:credId/audit`
  *
@@ -2023,7 +2122,8 @@ router.delete(
  *
  * The one roles read open to every signed-in person, about themselves only:
  * no membership of the owning account is needed, because the answer is the
- * caller's own grants. The person is the operator (`resolveOperatorId`), so
+ * caller's own grants plus, on one of Oxy's own applications, the keys their
+ * role in the owning account holds (ADR 0056). The person is the operator (`resolveOperatorId`), so
  * someone acting as their organization is answered for themselves.
  *
  * A bearer whose session belongs to ONE application (a third-party OAuth
@@ -2045,22 +2145,11 @@ router.get(
         APPLICATION_ROLE_ERROR_CODES.sessionApplicationMismatch,
       );
     }
-    const operatorId = await resolveOperatorId(req);
-
-    const [application] = await getDb()
-      .select({ id: applications.id })
-      .from(applications)
-      .where(and(eq(applications.id, appId), ne(applications.status, 'deleted')))
-      .limit(1);
-    if (!application) {
+    const body: z.infer<typeof applicationRolesMeSchema> | null =
+      await resolveApplicationPermissions(appId, await resolveOperatorId(req));
+    if (!body) {
       throw new NotFoundError('Application not found');
     }
-
-    const body: z.infer<typeof applicationRolesMeSchema> = {
-      applicationId: application.id,
-      userId: operatorId,
-      permissions: await permissionsHeldBy(application.id, operatorId),
-    };
     res.setHeader('Cache-Control', 'no-store');
     res.json(body);
   }),
@@ -2090,7 +2179,9 @@ router.get(
 /**
  * Declare the application's WHOLE permission vocabulary. New keys are added,
  * kept keys take the new description, missing keys are retired and every live
- * grant of them is revoked, in one transaction. Idempotent.
+ * grant of them is revoked, in one transaction. Idempotent. One of Oxy's own
+ * applications declares its keys in code instead (ADR 0056): `409
+ * FIRST_PARTY_ROLES_IN_CODE`.
  *
  * @response 200 declareApplicationPermissionsResponseSchema The live vocabulary and what changed.
  */
@@ -2104,6 +2195,7 @@ router.put(
     if (!access) {
       throw new NotFoundError('Application not found');
     }
+    refuseOwnApplicationRoleWrite(requireApplication(req));
     const result: z.infer<typeof declareApplicationPermissionsResponseSchema> =
       await declarePermissions({
         applicationId: requireApplication(req).id,
@@ -2144,7 +2236,9 @@ router.get(
 /**
  * Grant a declared key to a person (by `userId` or `username`). A grant to
  * yourself is refused unless the application is owned by your own personal
- * account (`SELF_GRANT_FORBIDDEN`).
+ * account (`SELF_GRANT_FORBIDDEN`). One of Oxy's own applications has no
+ * per-person grants — its keys are held by role (ADR 0056): `409
+ * FIRST_PARTY_ROLES_IN_CODE`.
  *
  * @response 201 applicationRoleGrantSchema The new grant.
  */
@@ -2159,6 +2253,7 @@ router.post(
       throw new NotFoundError('Application not found');
     }
     const application = requireApplication(req);
+    refuseOwnApplicationRoleWrite(application);
     const grant: z.infer<typeof applicationRoleGrantSchema> = await grantPermission({
       application: { id: application.id, ownerAccountId: application.ownerAccountId },
       actorId: access.operatorId,

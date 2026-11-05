@@ -12,8 +12,11 @@ interface ImportantBannerProps {
   children: React.ReactNode;
   title?: string;
   style?: StyleProp<ViewStyle>;
-  /** `warning` (the default) or `error`, for something already irreversible. */
-  type?: 'warning' | 'error';
+  /**
+   * `warning` (the default), `error` for something already irreversible, or
+   * `info` for an offer the person may simply decline.
+   */
+  type?: 'warning' | 'error' | 'info';
 }
 
 /**

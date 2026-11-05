@@ -41,17 +41,11 @@
  *
  *   - every request for renditions is a row of `file_rendition_requests`
  *     (`services/renditionRequests.ts`), the durable backlog;
- *   - an upload adds its job directly only while the queue is shorter than
- *     {@link ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH}, so a user's upload is not
- *     stuck behind a bulk import; otherwise it leaves the request due;
- *   - the worker process runs a scheduler that, under a Postgres advisory lock
- *     (one of the fleet at a time), tops the queue up to
- *     {@link ASSET_VARIANT_QUEUE_TARGET_DEPTH} from the oldest due requests at a
- *     lower priority, and takes any job beyond the direct bound back into the
- *     table (the backlog a pre-bound producer left);
- *   - a job settles its request when it is built or given up on; a request is
- *     LEASED while its job is queued, so a job lost with Redis is found again
- *     when the lease runs out.
+ *   - all normal producers record due fresh requests and wake one dispatcher;
+ *   - the dispatcher leases fair 30:1:1 rounds of fresh uploads, targeted repairs
+ *     and legacy bulk, oldest inside each lane, with at most 64 jobs waiting;
+ *   - Redis FIFO preserves that order; legacy excess is recorded durably before
+ *     removal, and existing retries retain their attempt counts and delays.
  *
  * Completed and failed jobs are not kept in Redis (`removeOnComplete`/
  * `removeOnFail`): the table and the logs are the record, and a kept job would
@@ -71,8 +65,8 @@ import { createHash } from 'node:crypto';
 import { normalizeInfrastructureRegion } from '@oxy.so/telemetry/collector';
 import { sql } from 'drizzle-orm';
 import { observeAssetJob } from '../services/workerActivity.service';
-import { Queue, Worker, type Job, type JobsOptions } from 'bullmq';
-import { getDb } from '../config/postgres';
+import { ErrorCode, Queue, Worker, type Job, type JobsOptions } from 'bullmq';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { logger } from '../utils/logger';
 import { getAssetVariantQueueConnectionOptions, getAssetVariantQueueUrl } from './connection';
 import { VariantService } from '../services/variantService';
@@ -83,6 +77,7 @@ import {
   countRenditionRequests,
   oldestRenditionRequestAt,
   recordRenditionRequest,
+  RENDITION_DISPATCH_ROUND,
   releaseRenditionRequest,
   type RenditionRequest,
   settleRenditionRequest,
@@ -136,23 +131,14 @@ export const ASSET_VARIANT_WORKER_CONCURRENCY = 1;
 const ASSET_VARIANT_JOB_ATTEMPTS = 3;
 const ASSET_VARIANT_BACKOFF_MS = 30_000;
 
-/**
- * The depth (waiting, prioritized and delayed jobs) the scheduler keeps the
- * queue topped up to from `file_rendition_requests`. About a megabyte of Redis.
- */
-export const ASSET_VARIANT_QUEUE_TARGET_DEPTH = 1_000;
-/**
- * Below this depth an upload adds its own job (ahead of the scheduler's, which
- * carry a lower priority); at or above it the upload leaves its request to the
- * scheduler. Jobs beyond it are taken back into the table.
- */
-export const ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH = 2_000;
+/** A small FIFO window keeps dispatch decisions close to available workers. */
+export const ASSET_VARIANT_QUEUE_TARGET_DEPTH = 2 * RENDITION_DISPATCH_ROUND.length;
 /** How long a queued job holds its request before the request is due again. */
 export const ASSET_VARIANT_REQUEST_LEASE_MS = 30 * 60_000;
-/** Jobs beyond the direct bound taken back into the table per scheduler pass. */
+/** Legacy oversized queues are returned to durable storage in bounded pages. */
 export const ASSET_VARIANT_ADOPTION_BATCH = 2_000;
-/** Priority of the scheduler's backlog jobs (BullMQ: unprioritized jobs go first). */
-export const ASSET_VARIANT_BACKLOG_PRIORITY = 10;
+/** Every lane uses FIFO after the scheduler decides its fair dispatch order. */
+export const ASSET_VARIANT_JOB_PRIORITY = 0;
 
 const SCHEDULER_INTERVAL_MS = 10_000;
 /** The next pass when the last one still took jobs back: the backlog drains briskly. */
@@ -269,10 +255,9 @@ function isAssetVariantQueueEnabled(): boolean {
 
 /** Jobs the queue holds that are not yet running: what bounds its memory. */
 async function queueDepth(q: Queue<AssetVariantsJobData>): Promise<number> {
-  const counts = await q.getJobCounts('waiting', 'prioritized', 'delayed', 'paused');
-  return (
-    (counts.waiting ?? 0) + (counts.prioritized ?? 0) + (counts.delayed ?? 0) + (counts.paused ?? 0)
-  );
+  // A paused queue's jobs count as `waiting` (BullMQ 6 has no `paused` state).
+  const counts = await q.getJobCounts('waiting', 'prioritized', 'delayed');
+  return (counts.waiting ?? 0) + (counts.prioritized ?? 0) + (counts.delayed ?? 0);
 }
 
 /**
@@ -371,7 +356,7 @@ export function backOffOnWorkerErrors(
     void w.pause(true).catch((pauseErr: unknown) => errors.note(pauseErr, { step: 'pause' }));
     resumeTimer = setTimeout(() => {
       resumeTimer = null;
-      w.resume();
+      void w.resume().catch((resumeErr: unknown) => errors.note(resumeErr, { step: 'resume' }));
     }, wait);
     resumeTimer.unref();
   });
@@ -394,15 +379,57 @@ export interface SchedulerPass {
 }
 
 /**
+ * A retained terminal job can outlive its old request and reserve the stable
+ * file ID forever. Durable admissions share the scheduler lock; the best-effort
+ * outage producer only adds/deduplicates and never retries terminal jobs. There
+ * is no application terminal-retry API. Manual recovery must coordinate with
+ * this lock (or stop admission), since getState/remove is not a Redis state CAS.
+ * BullMQ refuses active worker locks; that failure rolls this pass's leases back.
+ * Return false when the retained result already settles this exact request.
+ */
+async function reconcileTerminalRenditionJob(
+  request: RenditionRequest,
+  job: Job<AssetVariantsJobData> | undefined,
+  tx: DatabaseOrTransaction,
+): Promise<boolean> {
+  if (!job || job.data.fileId !== request.fileId) return true;
+  const previous = requestOf(job.data);
+  const previousAt =
+    previous?.requestedAt.getTime() ??
+    (job.data.requestedAt === undefined ? job.timestamp : Number.NaN);
+  if (!Number.isFinite(previousAt) || previousAt <= 0 || previousAt > request.requestedAt.getTime())
+    return true;
+  const state = await job.getState();
+  if (state !== 'completed' && state !== 'failed') return true;
+  if (previous && previousAt === request.requestedAt.getTime()) {
+    // Completed and exhausted jobs already consumed this request. Preserve the
+    // terminal record/attempt budget and use the same versioned settlement as
+    // the worker, rather than starting another retry cycle.
+    await settleRenditionRequest(request, tx);
+    return false;
+  }
+  // A legacy job without request identity needs an older creation timestamp;
+  // equality cannot prove that it belongs to a superseded request.
+  if (previousAt === request.requestedAt.getTime()) return true;
+  await job.remove({ removeChildren: false });
+  logger.info('Obsolete terminal asset variant job retired', {
+    component: 'assetVariants',
+    fileId: request.fileId,
+    state,
+  });
+  return true;
+}
+
+/**
  * One scheduler pass, under a transaction-scoped advisory lock so the fleet
  * runs one at a time:
  *
- *  1. Jobs beyond {@link ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH} in the waiting
+ *  1. Jobs beyond {@link ASSET_VARIANT_QUEUE_TARGET_DEPTH} in the waiting
  *     list (the oldest stay) are recorded as due requests — committed first —
  *     and then removed from Redis. A job that started meanwhile cannot be
  *     removed and simply runs; its request is then built twice at worst.
- *  2. The queue is topped up to {@link ASSET_VARIANT_QUEUE_TARGET_DEPTH} with
- *     the oldest due requests, leased in this transaction. If the add fails the
+ *  2. The queue is topped up in full weighted rounds to
+ *     {@link ASSET_VARIANT_QUEUE_TARGET_DEPTH}, leased in this transaction. If the add fails the
  *     transaction rolls back and the requests stay due.
  */
 export async function runAssetVariantSchedulerPass(
@@ -414,18 +441,45 @@ export async function runAssetVariantSchedulerPass(
     );
     if (!lock?.locked) return { skipped: true, adopted: 0, enqueued: 0 };
 
+    // A rolling deployment can leave legacy priority-10 jobs, including
+    // delayed retries. Change only their priority: preserve retry counts/delay.
+    for (const job of await q.getJobs(
+      ['prioritized', 'delayed'],
+      0,
+      ASSET_VARIANT_ADOPTION_BATCH - 1,
+      true,
+    )) {
+      if (job && job.priority > 0) {
+        try {
+          await job.changePriority({ priority: ASSET_VARIANT_JOB_PRIORITY });
+        } catch (error) {
+          // A worker may finish/remove a job between the census and this change.
+          if (
+            !(error instanceof Error) ||
+            !('code' in error) ||
+            error.code !== ErrorCode.JobNotExist
+          )
+            throw error;
+        }
+      }
+    }
     let adopted = 0;
     const { waiting = 0 } = await q.getJobCounts('waiting');
-    if (waiting > ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH) {
+    if (waiting > ASSET_VARIANT_QUEUE_TARGET_DEPTH) {
       const excess = (
         await q.getJobs(
           ['waiting'],
-          ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH,
-          ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH + ASSET_VARIANT_ADOPTION_BATCH - 1,
+          ASSET_VARIANT_QUEUE_TARGET_DEPTH,
+          ASSET_VARIANT_QUEUE_TARGET_DEPTH + ASSET_VARIANT_ADOPTION_BATCH - 1,
           true,
         )
-      ).filter((job): job is Job<AssetVariantsJobData> => Boolean(job?.data?.fileId));
-      // Outside the transaction: the requests must be durable BEFORE the jobs go.
+      ).filter(
+        (job): job is Job<AssetVariantsJobData> =>
+          Boolean(job?.data?.fileId) && job.attemptsMade === 0,
+      );
+      // Commit durable ownership BEFORE deleting Redis jobs. A job that became
+      // active cannot be removed; its existing lease/request safely survives.
+      // Retried jobs stay queued so migration cannot reset their attempt budget.
       await adoptRenditionRequests(
         excess.map((job) => ({
           fileId: job.data.fileId,
@@ -444,7 +498,19 @@ export async function runAssetVariantSchedulerPass(
     }
 
     const room = ASSET_VARIANT_QUEUE_TARGET_DEPTH - (await queueDepth(q));
-    const due = await claimDueRenditionRequests(room, ASSET_VARIANT_REQUEST_LEASE_MS, tx);
+    // Never restart a weighted round for each single vacancy: that would serve
+    // only fresh uploads under sustained load. One full round grants all lanes
+    // a turn. Empty/capped lanes donate only to lanes with admission headroom.
+    const capacity =
+      Math.floor(room / RENDITION_DISPATCH_ROUND.length) * RENDITION_DISPATCH_ROUND.length;
+    const claimed = await claimDueRenditionRequests(capacity, ASSET_VARIANT_REQUEST_LEASE_MS, tx);
+    const existing = await Promise.all(
+      claimed.map((request) => q.getJob(assetVariantsJobId(request.fileId))),
+    );
+    const due: RenditionRequest[] = [];
+    for (const [index, request] of claimed.entries())
+      if (await reconcileTerminalRenditionJob(request, existing[index], tx)) due.push(request);
+    let enqueued = due.length;
     if (due.length > 0) {
       await q.addBulk(
         due.map((request) => ({
@@ -453,12 +519,28 @@ export async function runAssetVariantSchedulerPass(
           opts: {
             ...JOB_OPTIONS,
             jobId: assetVariantsJobId(request.fileId),
-            priority: ASSET_VARIANT_BACKLOG_PRIORITY,
+            priority: ASSET_VARIANT_JOB_PRIORITY,
           },
         })),
       );
+      // BullMQ deduplicates by file ID, including an older request still active.
+      // Its addBulk return value contains the supplied data, not the stored job.
+      // Confirm the actual queued version before granting this request a lease;
+      // otherwise a renewed upload could wait 30 minutes after the old job ends.
+      const storedJobs = await Promise.all(
+        due.map((request) => q.getJob(assetVariantsJobId(request.fileId))),
+      );
+      for (const [index, request] of due.entries()) {
+        if (
+          storedJobs[index]?.data.fileId !== request.fileId ||
+          storedJobs[index]?.data.requestedAt !== request.requestedAt.toISOString()
+        ) {
+          await releaseRenditionRequest(request, tx);
+          enqueued--;
+        }
+      }
     }
-    return { skipped: false, adopted, enqueued: due.length };
+    return { skipped: false, adopted, enqueued };
   });
 }
 
@@ -561,9 +643,9 @@ async function drainInProcess(): Promise<void> {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Record the request, and add its job when the queue has room — a user's upload
- * then goes ahead of the backlog. With no room, or when the queue cannot be
- * reached, the request stays due and the scheduler adds it. A request that
+ * Record a fresh request and wake the unified dispatcher. Fresh uploads get
+ * most dispatch slots without starving repair/bulk. With no full round of room,
+ * or when Redis cannot be reached, the request stays due for a later pass. A request that
  * could not be recorded still gets its job when there is room (it then settles
  * nothing, like a pre-bound job).
  */
@@ -572,31 +654,31 @@ async function requestRenditions(
   fileId: string,
   region: string | undefined,
 ): Promise<void> {
-  let room = false;
   try {
-    room = (await queueDepth(q)) < ASSET_VARIANT_DIRECT_ENQUEUE_MAX_DEPTH;
-  } catch (err) {
-    producerErrors.note(err, { step: 'depth' });
-  }
-  let request: RenditionRequest | null = null;
-  try {
-    request = await recordRenditionRequest(fileId, room ? ASSET_VARIANT_REQUEST_LEASE_MS : null);
+    await recordRenditionRequest(fileId, null);
   } catch (err) {
     producerErrors.note(err, { step: 'record' });
-  }
-  if (!room) return;
-  try {
-    await q.add(ASSET_VARIANTS_JOB, jobData(fileId, request, region), {
-      ...JOB_OPTIONS,
-      jobId: assetVariantsJobId(fileId),
-    });
-  } catch (err) {
-    producerErrors.note(err, { step: 'add' });
-    if (request) {
-      await releaseRenditionRequest(request).catch((releaseErr: unknown) =>
-        producerErrors.note(releaseErr, { step: 'release' }),
-      );
+    // Preserve the existing best-effort outage path, still inside the small
+    // window. Normal uploads always go through durable, fair admission.
+    try {
+      if ((await queueDepth(q)) < ASSET_VARIANT_QUEUE_TARGET_DEPTH) {
+        await q.add(ASSET_VARIANTS_JOB, jobData(fileId, null, region), {
+          ...JOB_OPTIONS,
+          jobId: assetVariantsJobId(fileId),
+          priority: ASSET_VARIANT_JOB_PRIORITY,
+        });
+      }
+    } catch (addErr) {
+      producerErrors.note(addErr, { step: 'add' });
     }
+    return;
+  }
+  try {
+    // Wake admission immediately for an idle queue instead of making an upload
+    // wait for the periodic worker tick. The same PG lock serializes every caller.
+    await runAssetVariantSchedulerPass(q);
+  } catch (err) {
+    producerErrors.note(err, { step: 'dispatch' });
   }
 }
 

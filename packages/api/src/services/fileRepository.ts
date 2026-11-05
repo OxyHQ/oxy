@@ -521,12 +521,26 @@ export async function findVariantTwin(
   sha256: string,
   excludeFileId: string,
   visibility: FileRecord['visibility'],
+  videoProfile?: string,
 ): Promise<FileRecord | null> {
   const rows = await getDb()
     .select({ file: files })
     .from(files)
     .innerJoin(fileVariants, eq(fileVariants.fileId, files.id))
-    .where(and(eq(files.sha256, sha256), ne(files.id, excludeFileId), ne(files.status, 'deleted')))
+    .where(
+      and(
+        eq(files.sha256, sha256),
+        ne(files.id, excludeFileId),
+        ne(files.status, 'deleted'),
+        videoProfile
+          ? and(
+              eq(fileVariants.type, 'hls_master'),
+              isNotNull(fileVariants.readyAt),
+              sql`${fileVariants.metadata}->>'encodingProfile' = ${videoProfile}`,
+            )
+          : undefined,
+      ),
+    )
     .groupBy(files.id)
     .orderBy(asc(files.createdAt), asc(files.id))
     .limit(TWIN_CANDIDATES);

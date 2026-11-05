@@ -128,6 +128,7 @@ export function CredentialTrail({
             emptyState={t('applications.credentials.trailEmpty')}
             pageSize={10}
             minWidth={600}
+            bordered={false}
           />
         </View>
       )}

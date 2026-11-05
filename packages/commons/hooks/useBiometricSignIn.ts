@@ -16,7 +16,7 @@ import { useCallback } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { User } from '@oxy.so/core';
-import { authenticate, canUseBiometrics, getErrorMessage } from '@/lib/biometricAuth';
+import { authenticate, hasLocalConfirmation, getErrorMessage } from '@/lib/biometricAuth';
 import { useSilentKeySignIn } from './useSilentKeySignIn';
 
 export function useBiometricSignIn() {
@@ -30,7 +30,7 @@ export function useBiometricSignIn() {
           const biometricEnabled = await AsyncStorage.getItem('oxy_biometric_enabled');
           if (biometricEnabled === 'true') {
             // Check if biometrics can be used
-            const canUse = await canUseBiometrics();
+            const canUse = await hasLocalConfirmation();
             if (canUse) {
               // Perform biometric authentication
               const authResult = await authenticate("Verify it's you to continue");

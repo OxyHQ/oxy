@@ -6,6 +6,8 @@ jest.mock(
   'expo/config-plugins',
   () => ({
     withAndroidManifest: (config: unknown, action: (c: unknown) => unknown) => action(config),
+    // The release-signing edit it also applies is covered by withOxyReleaseSigning.test.ts.
+    withAppBuildGradle: (config: unknown) => config,
   }),
   { virtual: true },
 );

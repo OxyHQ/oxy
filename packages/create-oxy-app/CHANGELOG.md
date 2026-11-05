@@ -1,5 +1,26 @@
 # Changelog: `create-oxy-app`
 
+## 0.9.0
+
+### Changed
+
+- The generated frontend declares every required native peer of
+  `@oxy.so/services`: `expo-crypto`, `expo-secure-store`, `expo-file-system`,
+  `@expo/app-integrity` and `@react-native-community/netinfo` join the ones it
+  already listed. Expo's autolinking skips optional peers and an undeclared
+  native module installs at whatever version the package manager picks; an app
+  without `expo-crypto` built and then had no CSPRNG and no sign-in.
+
+## 0.8.2
+
+### Fixed
+
+- A generated app no longer mounts its own `KeyboardProvider` above
+  `OxyProvider`, which mounts react-native-keyboard-controller's one root
+  provider. The second provider took the native keyboard events, so every
+  `KeyboardAvoidingView`, `KeyboardStickyView` and keyboard hook under
+  `OxyProvider` read a closed keyboard.
+
 ## 0.8.1
 
 ### Changed

@@ -95,8 +95,7 @@ The census excluded `node_modules`, `dist` and worktrees.
 
 | Caller | Endpoint | Effect |
 |---|---|---|
-| Mention `services/mtn/PostMaterializer.ts:227` | by-sha256 | Unchanged: it still gets the oldest row. It maps `sha256 -> id` into post media, so it should pass the record author's `ownerUserId` once core is released. |
-| Mention `services/mtn/mtnNodeBlobMirror.ts:121` | by-sha256 | Unchanged. It treats "any owner has it" as "already mirrored". With `ownerUserId` it would upload the author's own row instead, and the bytes would still be stored once. |
+| ~~Mention `services/mtn/PostMaterializer.ts`, `services/mtn/mtnNodeBlobMirror.ts`~~ | by-sha256 | Removed with Mention nodes and the MTN record chain (OxyHQ/Mention#1805); no by-sha256 caller remains in Mention. |
 | Mention `mediaCache/cacheWorker.ts:376`, `mediaCache/oxyMediaStore.ts:403`, `connectors/*` | `/service/federation` | A different owner's bytes now return `200` with a new row instead of a `409`. The cache worker currently retries a 409 indefinitely, so this fixes that loop. |
 | Mention `cacheWorker.ts:216`, `gifLibraryService.ts:472`, eviction and purge scripts | `/service/cache`, `DELETE /service/cache/:id` | Unchanged. The cache namespace still keeps one row per hash, so two cache entries with the same bytes share an id. |
 | Mention `utils/oxyHelpers.ts:195`, Move `utils/oxyHelpers.ts:64` | `/service/user-media` | Another user's bytes now give the caller its own row instead of a `409`. |
@@ -167,9 +166,9 @@ the final `DROP INDEX`, which queues them behind any long-running query on
    `--max-batches`, and `--after=<lastLinkId>` to resume). Keep the JSONL
    output: it is the `(sourceFileId, ownerUserId) -> fileId` mapping the
    consuming apps need.
-5. **Consumers switch their stored ids** using that mapping, and Mention passes
-   `ownerUserId` to by-sha256. Both need a release of `@oxy.so/core`, which this
-   change does not publish.
+5. **Consumers switch their stored ids** using that mapping. That needs a
+   release of `@oxy.so/core`, which this change does not publish. (Mention no
+   longer calls by-sha256, so it has nothing to pass `ownerUserId` to.)
 6. **Repoint links per application** with
    `--apply=repoint-links --app=<name>`, and only for an app that now stores the
    new ids. Until then, the foreign link on the original is what keeps
@@ -207,6 +206,35 @@ one tier calculation; HLS has aligned two-second segments. MP4 stores its index
 at the beginning of the file. The HLS master advertises the encoded dimensions
 and measured segment bandwidth.
 
+A background generation acquires its original once through the configured R2
+S3-compatible GET (including Sippy hydration), then probes and decodes that
+seekable local file through an inherited descriptor. The input protocol allows
+only that descriptor, so uploaded containers cannot open nested local paths or
+network URLs. On-demand poster reads retain their bounded remote range path.
+The download has a 15-minute overall deadline, the existing 8 GiB upload ceiling,
+and one restart for an interrupted body; SDK retries own HTTP/status failures.
+Temporary originals are removed on success or failure. A live disk check before
+GET and at 1 MiB body intervals preserves 2 GiB of shared host headroom. This is
+an acquisition guard, not an isolated disk quota or a reservation for encoder
+outputs; low space remains an operational error under the normal queue policy.
+
+File uploads use the existing bounded multipart upload manager (5 MiB parts,
+four in flight). Each request can replay buffered bytes on transient storage
+errors; terminal failures abort incomplete multipart uploads. Caller cancellation
+rejects immediately; SDK multipart cleanup follows after outstanding parts settle.
+Storage connections have a 10-second connection limit and 120-second socket
+inactivity limit, so a silent part cannot defer that cleanup indefinitely. Queue attempts and
+backoff remain unchanged. Probes and poster output are bounded, and failures
+retain process status plus safe local-source diagnostics without signed URLs.
+
+Each tier is encoded once into a local faststart MP4 with closed GOPs and
+keyframes at two-second boundaries. HLS remuxes that same H.264/AAC stream
+without another decode or encode; the retained MP4 is removed after remuxing,
+and the generation's temporary directory is removed on success or failure.
+Lazy MP4 creation uses the same encoder without building HLS. This optimization
+preserves the `video-v2` playback contract: existing valid generations remain
+current and are not regenerated merely because the encoder does less work.
+
 A complete video set uses a `video-v2/<generation>` directory. Segments upload
 before rendition playlists; the master uploads last. Only after the whole set
 succeeds does one transaction replace the video rows and intrinsic metadata.
@@ -214,6 +242,27 @@ Old playable objects and the original remain untouched. A finished master’s
 `metadata.encodingProfile` is the completion marker; legacy twin sets cannot
 satisfy it. The same completed set is shared only with live twins of the same
 visibility spelling, and each public file resolver is purged.
+
+Service metadata does not advertise a legacy HLS ladder whose ready tiers
+have a different aspect ratio from the persisted original (allowing even-pixel
+rounding), when the original is known MP4/M4V with H.264 and AAC audio.
+Instead, `hlsRejectedReadyAt` names that exact master generation; `hlsReadyAt`
+is absent. This is an authoritative playback selection fact, not deletion:
+objects and HLS resolver semantics remain intact. Current `video-v2` sets,
+compatible legacy geometry, and unknown original codecs or dimensions retain
+their existing readiness behavior. Original dimensions must come from source
+metadata, never from a rendition fallback.
+
+A consumer clears an observed stored readiness stamp no newer than the rejected
+current generation, using file/row identity and equality with the observed
+stamp to guard the write, then invalidates its hydrated post caches. An older
+revision URL resolves the current generation, not historical bytes: retaining
+an older stamp would still select the rejected ladder.
+Missing responses and absent rejection fields never authorize clearing. A
+newer repaired generation must survive a delayed rejection response. Use the
+normal original URL directly (which supports byte ranges); do not redirect an
+HLS URL to MP4 bytes. The original may be larger or lack a faststart index, so
+this restores correct framing while background repair supplies efficient HLS.
 
 The file’s intrinsic `metadata.video.storageRoots` retains validated SHA roots
 from previous generations and twins. Subsequent generations reuse a known root
@@ -251,3 +300,128 @@ response allows one hour of freshness and up to one day of stale revalidation.
 Validate both a cold client and a resolver that has expired/revalidated; do not
 report instant convergence for clients still holding an earlier redirect.
 The repair adds no hydration request and no random query parameter.
+
+### Durable application-scoped backfill
+
+For a corpus, use the same workflow with `mode=backlog`. This task only inserts
+requests into the existing `file_rendition_requests` table. It does not download
+originals or run encoders. The normal worker fleet processes these requests
+after the seeder exits, with its existing leases, deduplicated job IDs, three
+attempts with backoff, and bounded Redis window. Migration 0216 adds durable
+request lanes to this existing table; there is no separate repair queue.
+Deploy the idempotent video worker before seeding: ordinary video jobs skip an
+already complete current generation and copy it to outdated same-spelling twins.
+An explicit `reencode` still rebuilds from the original.
+
+An application ID is required. Candidates must be active videos owned by that
+application or named by an actual `file_references` row for it; old descriptive
+`metadata.serviceAppId` alone is insufficient. Each content/visibility group
+gets one representative request. Existing pending requests keep their timestamps
+and leases. Existing bulk requests move to the repair lane; fresh upload
+requests keep their fresh lane. Portrait groups are seeded first, using ordinary request timestamps,
+then the other shapes. Finished current masters are excluded.
+
+For Mention, start with a dry run using:
+
+```bash
+gh workflow run run-video-rendition-repair.yml --repo OxyHQ/oxy --ref main \
+  -f mode=backlog -f dry_run=true \
+  -f application_id=6a2f851751b784a86fd0e916 -f limit=1000 -f max_groups=100000
+```
+
+Review the scope and counts, then use `dry_run=false` for the intended seed.
+`limit` bounds each database page (maximum 1,000); `max_groups` bounds the whole
+invocation (maximum 100,000). One image build can seed the full intended corpus.
+Each page logs considered/inserted/promoted counts and an `after` cursor of the form
+`0:<sha256>:public` (portrait) or `1:<sha256>:public` (other). Resume an interrupted
+seed with that cursor, or rerun from the beginning: existing requests keep their
+identity and leases while bulk requests are promoted, and finished videos are skipped. Never pass a sample-encode cursor to a
+backlog run, or a backlog cursor to an encode run.
+
+Every normal upload enters the same dispatcher: there is no direct 2,000-job
+prefill. It leases full 32-slot rounds of 30 fresh uploads, 1 targeted repair and
+1 legacy bulk request, oldest within each lane. Each background lane can hold
+only one unexpired durable lease, including waiting, active and delayed retry
+jobs. Empty or capped lanes donate slots to eligible lanes; an idle fresh lane
+cannot fill the queue with slow background jobs before uploads arrive. Redis
+holds at most 64 waiting/delayed jobs (two complete rounds) under the new fleet; all use equal
+BullMQ priority so FIFO preserves the dispatch order. Refilling only full rounds
+prevents continuous one-slot vacancies from resetting the quota to fresh uploads.
+An idle upload wakes admission immediately; otherwise workers tick every 10 seconds.
+
+Deploy migration 0216 before the new API/workers. Existing rows and old writers
+that omit `lane` default to bulk. During rolling deployment, the new dispatcher
+normalizes old priority 10 jobs without resetting attempts/delay and commits excess
+waiting work back to PostgreSQL before removing it from Redis. Active jobs and
+already-attempted retries remain owned by their existing jobs. Such retained
+retries can temporarily keep the window above 64 until they drain; do not reset
+their retry budget to shrink it. Verify all old API/worker revisions are gone and
+the queue has converged before bulk seeding. The fair-slot guarantee applies to
+the complete new fleet, not while old dispatchers can still refill 1,000 jobs.
+
+A repair at its lane's head with no outstanding lease waits behind at most
+64 already-admitted jobs plus its reserved slot in the next 32-job round
+(position 31). A lane's previous lease must settle or expire before another
+request can be admitted. Existing over-cap leases drain naturally; retries,
+request renewal and lease-expiry recovery retain their existing ownership rules.
+The cap limits unexpired durable ownership, not absolute concurrent execution
+after recovery or during a rolling deployment.
+
+The 30:1:1 dispatch ratio alone does not allocate CPU fairly: observed video jobs
+can take much longer than images. Limiting each background lane to one lease
+leaves capacity for normal uploads while continuing background repairs. Both
+weights and the two-round window are dispatch policy, not a latency or completion
+SLA. Measure fresh backlog age, arrivals and completions after rollout rather
+than converting job counts into a promised repair ETA.
+
+Inspect `Oxy/Queues` `QueueDepth`, `PendingRenditionRequests`,
+`OldestWaitingJobAgeSeconds` and `PermanentJobFailures`, worker completion logs,
+and lane counts before estimating completion. For read-only operational progress:
+
+```sql
+SELECT lane, count(*) AS pending,
+       count(*) FILTER (WHERE enqueued_until > now()) AS leased,
+       min(requested_at) AS oldest
+FROM file_rendition_requests GROUP BY lane ORDER BY lane;
+```
+
+An active older Redis job can deduplicate a renewed request for the same file.
+Admission checks the stored job version and releases only the newly claimed
+request's lease if it is not actually represented, so it becomes runnable after
+the older job finishes instead of waiting for the 30-minute lease expiry.
+A crash after a partial Redis write rolls the claim back; stable job IDs suppress
+duplicate queued work on restart. Seeding remains distinct from successful repair.
+
+Cancellation of the seeding workflow stops further inserts, but requests already
+committed continue through the worker fleet. A fleet stop is the existing
+operational stop for encoding and affects all rendition work; there is no
+independent per-backfill cancel mechanism. Do not delete requests shared with
+normal uploads to simulate cancellation. Failed jobs log file IDs and settle
+after their final attempt; unresolved videos still lack the current marker and
+can be selected again for an explicit retry. Compare the remaining scoped
+candidate count and recorded failures with the initial count to monitor progress.
+
+After completed generations publish, consumers that persist rendition metadata
+must reconcile the new `hls_master.readyAt` value. Oxy's original is unchanged,
+and completing a rendition does not currently emit an application file event.
+
+
+### Retained terminal rendition jobs
+
+A pre-durable BullMQ job can remain in `completed` or `failed` and reserve the
+stable per-file ID. Admission reconciles that record under the fleet scheduler
+lock before adding a due request: an explicitly older terminal request (or an
+unstamped legacy job created before the durable request) is removed through
+BullMQ, while a matching terminal result settles only that exact PostgreSQL
+request. This does not reset the completed/exhausted request's retry budget.
+Active, waiting, paused and delayed jobs retain their ownership and attempts;
+newer or invalid request identities are not retired. A failed removal/add rolls
+back the lease, leaving durable work available to the next pass.
+
+Normal producers share admission ownership; the database-outage fallback only
+adds/deduplicates and does not retry terminal jobs. There is no application API
+for manually retrying these jobs. Any future manual recovery must coordinate
+with the scheduler lock or stop admission: BullMQ removal refuses an active
+worker lock, but `getState()` followed by `remove()` is not an atomic comparison
+against arbitrary administrative state changes. Do not bulk-delete or re-seed
+the queue to recover a retained terminal head.

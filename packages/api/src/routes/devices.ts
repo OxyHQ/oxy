@@ -17,8 +17,8 @@ router.use(authMiddleware);
  *       - Devices
  *     summary: List the user's devices
  *     description: >
- *       Return every device that has at least one active session for the
- *       authenticated user. Useful for "Where am I signed in?" screens.
+ *       Return devices with active sessions for the authenticated principal and
+ *       account. Application-bound sessions return only their current device.
  *     responses:
  *       200:
  *         description: List of devices.
@@ -45,6 +45,8 @@ router.use(authMiddleware);
  *                     sessionCount: 1
  *       401:
  *         description: Missing or invalid bearer token.
+ *       403:
+ *         description: The acting session changed during the request.
  */
 router.get('/', DevicesController.getUserDevices);
 
@@ -77,9 +79,9 @@ router.get('/security', DevicesController.getSecurityInfo);
  *       - Devices
  *     summary: Remove a device
  *     description: >
- *       Revoke every active session attached to the given device. The user
- *       on that device will be signed out the next time their client tries
- *       to refresh its access token.
+ *       Revoke active sessions of the authenticated principal and account on
+ *       the given remote device. Application-bound sessions cannot remove
+ *       remote devices.
  *     parameters:
  *       - name: deviceId
  *         in: path
@@ -92,6 +94,10 @@ router.get('/security', DevicesController.getSecurityInfo);
  *         description: Device removed.
  *       401:
  *         description: Missing or invalid bearer token.
+ *       400:
+ *         description: The target is the current device or the id is invalid.
+ *       403:
+ *         description: The application cannot remove devices, or the acting session changed.
  *       404:
  *         description: Device not found.
  */

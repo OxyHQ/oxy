@@ -7,7 +7,7 @@ import {
   type CapabilityCatalogBinding,
 } from '@oxy.so/contracts';
 import { z } from 'zod';
-import { postOxyServiceJson, type OxyMcpServiceRequestOptions } from './serviceRequest';
+import { postOxyServiceJson, type OxyMcpServiceAuthentication } from './serviceRequest';
 
 const registrationResponseSchema = z
   .object({
@@ -19,12 +19,12 @@ const registrationResponseSchema = z
   })
   .passthrough();
 
-export interface RegisterCapabilityCatalogOptions
-  extends Omit<OxyMcpServiceRequestOptions, 'endpoint'> {
+export type RegisterCapabilityCatalogOptions = OxyMcpServiceAuthentication & {
   /** Oxy API origin for this environment, e.g. `https://api.oxy.so`. */
   oxyApiUrl: string;
   deployedAt?: Date;
-}
+  timeoutMs?: number;
+};
 
 /** The digest Oxy and the internal transport both compute for a catalogue. */
 export function capabilityCatalogDigest(catalog: AppCapabilityCatalog): string {

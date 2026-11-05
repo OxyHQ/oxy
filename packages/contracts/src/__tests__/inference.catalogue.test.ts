@@ -201,7 +201,7 @@ describe('catalogueModelSchema', () => {
   });
 
   it('carries no provider, region or price — those belong to a deployment', () => {
-    const modelKeys = Object.keys(catalogueModelSchema.innerType().shape);
+    const modelKeys = Object.keys(catalogueModelSchema.shape);
     expect(modelKeys).not.toContain('provider');
     expect(modelKeys).not.toContain('regions');
     expect(modelKeys).not.toContain('priceVersionId');

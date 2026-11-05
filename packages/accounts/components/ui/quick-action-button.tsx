@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { darkenColor } from '@/utils/color-utils';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import type { MaterialCommunityIconName } from '@/types/icons';
 
 /** Default diameter of the circular badge, used by the bottom action bars. */
@@ -42,7 +42,7 @@ export function QuickActionButton({
   size = DEFAULT_BADGE_SIZE,
   iconNode,
 }: QuickActionButtonProps) {
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   return (
     <TouchableOpacity

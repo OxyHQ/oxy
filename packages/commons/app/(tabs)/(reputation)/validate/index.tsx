@@ -1,11 +1,8 @@
-import React, { useCallback } from 'react';
-import { Text } from '@oxy.so/bloom/typography';
+import { useCallback } from 'react';
 import { Icons } from '@/constants/icons';
 import { Badge } from '@oxy.so/bloom/badge';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useColors } from '@/hooks/useColors';
 import {
   Screen,
   StackHeader,
@@ -27,7 +24,6 @@ import { useTranslation } from '@/lib/i18n';
  * vote screen invalidates this query after a vote/recusal. Flat, hairline rows.
  */
 export default function ValidatorInboxScreen() {
-  const colors = useColors();
   const router = useRouter();
   const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useValidatorInbox();
@@ -48,15 +44,7 @@ export default function ValidatorInboxScreen() {
           icon={Icons.alert}
           title={t('civic.validate.inbox.error.title')}
           description={t('civic.validate.inbox.error.body')}
-          footer={
-            <TouchableOpacity
-              style={[styles.retry, { backgroundColor: colors.tint }]}
-              onPress={() => refetch()}
-              accessibilityRole="button"
-            >
-              <Text style={styles.retryText}>{t('common.retry')}</Text>
-            </TouchableOpacity>
-          }
+          action={{ label: t('common.retry'), onPress: () => void refetch() }}
           minHeight={STATE_MIN_HEIGHT}
         />
       );
@@ -112,18 +100,3 @@ export default function ValidatorInboxScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  retry: {
-    marginTop: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 16,
-    borderCurve: 'continuous',
-  },
-  retryText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-});

@@ -102,7 +102,7 @@ function fakeCache() {
 
 function harness(
   objects: Record<string, Stored>,
-  upstream?: (url: string) => Response,
+  upstream?: (url: string, init?: RequestInit) => Response,
   websiteObjects: Record<string, Stored> = {},
   beforeFullRead?: () => Promise<void>,
 ) {
@@ -111,6 +111,7 @@ function harness(
   const { cache, entries } = fakeCache();
   const pending: Promise<unknown>[] = [];
   const fetched: string[] = [];
+  const sent: Headers[] = [];
   const env: Env = {
     FILES: bucket,
     WEBSITE_LEGACY: website.bucket,
@@ -119,10 +120,13 @@ function harness(
   const deps: Deps = {
     cache,
     waitUntil: (promise) => pending.push(promise),
-    fetch: async (input: string) => {
+    fetch: async (input: string, init?: RequestInit) => {
       const url = String(input);
       fetched.push(url);
-      return upstream ? upstream(url) : new Response('{"error":"NOT_FOUND"}', { status: 404 });
+      sent.push(new Headers(init?.headers));
+      return upstream
+        ? upstream(url, init)
+        : new Response('{"error":"NOT_FOUND"}', { status: 404 });
     },
   };
   const get = async (path: string, init?: RequestInit) => {
@@ -130,7 +134,7 @@ function harness(
     await Promise.all(pending);
     return response;
   };
-  return { get, reads, entries, fetched, env, deps, pending };
+  return { get, reads, entries, fetched, sent, env, deps, pending };
 }
 
 describe('routing: the CloudFront behaviors, in order', () => {
@@ -404,11 +408,123 @@ describe('the by-id resolver', () => {
     expect(hit.headers.get('cache-tag')).toBeNull();
   });
 
+  it("names the visitor to oxy-api through Cloudflare's x-real-ip, never X-Forwarded-For", async () => {
+    const { get, sent } = harness({}, redirect);
+    await get('/abc?variant=w96', { headers: { 'cf-connecting-ip': '203.0.113.7' } });
+    expect(sent[0]?.get('x-real-ip')).toBe('203.0.113.7');
+    expect(sent[0]?.has('x-forwarded-for')).toBe(false);
+  });
+
+  it('hands a refusal on uncached, with when to ask again', async () => {
+    const { get, entries } = harness(
+      {},
+      () =>
+        new Response('{"error":"RATE_LIMITED"}', {
+          status: 429,
+          headers: { 'retry-after': '120', 'content-type': 'application/json' },
+        }),
+    );
+    const response = await get('/abc?variant=w96');
+    expect(response.status).toBe(429);
+    expect(response.headers.get('retry-after')).toBe('120');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(entries.size).toBe(0);
+  });
+
+  it('bounds the resolve, answering a timeout with an uncached 504', async () => {
+    const { get, entries } = harness({}, (_url, init) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      throw new DOMException('The operation timed out.', 'TimeoutError');
+    });
+    const response = await get('/abc?variant=w96');
+    expect(response.status).toBe(504);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(entries.size).toBe(0);
+  });
+
   it('never keeps a 404, so a file published a moment later resolves at once', async () => {
     const { get, entries } = harness({});
     const response = await get('/abc');
     expect(response.status).toBe(404);
     expect(entries.size).toBe(0);
+  });
+
+  it('isolates successive ready generations from an already cached redirect', async () => {
+    const oldRevision = '2026-10-22T10:14:15.123Z';
+    const newRevision = '2026-10-23T10:14:15.456Z';
+    let currentRevision = oldRevision;
+    const path = (revision?: string) =>
+      `/video?variant=hls_master${revision ? `&revision=${encodeURIComponent(revision)}` : ''}`;
+    const { get, entries, fetched } = harness({}, (url) => {
+      const revision = new URL(url).searchParams.get('revision');
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: `https://cloud.oxy.so/variants/${currentRevision}/hls_master.m3u8`,
+          'cache-control':
+            revision === null || revision === currentRevision ? 'public, max-age=3600' : 'no-store',
+        },
+      });
+    });
+    const oldTarget = (await get(path())).headers.get('location');
+    expect((await get(path(oldRevision))).headers.get('location')).toBe(oldTarget);
+    currentRevision = newRevision;
+    // Existing redirect caches remain warm, just as they do in a browser.
+    expect((await get(path())).headers.get('location')).toBe(oldTarget);
+    expect((await get(path(oldRevision))).headers.get('location')).toBe(oldTarget);
+    const fresh = await get(`${path(newRevision)}&utm=first`);
+    expect(fresh.headers.get('location')).toContain(newRevision);
+    expect(fresh.headers.get('location')).not.toBe(oldTarget);
+    expect((await get(`${path(newRevision)}&utm=second`)).headers.get('location')).toBe(
+      fresh.headers.get('location'),
+    );
+    expect(fetched).toHaveLength(3);
+    const upstreamUrl = fetched[2];
+    if (!upstreamUrl) throw new Error('Expected a fresh generation lookup');
+    expect(new URL(upstreamUrl).searchParams.get('revision')).toBe(newRevision);
+    expect(new URL(upstreamUrl).searchParams.has('utm')).toBe(false);
+    expect(entries.size).toBe(3);
+    for (const cached of entries.values()) {
+      expect(cached.headers.get('cache-tag')).toBe('file:video');
+    }
+  });
+
+  it('does not cache an obsolete revision resolved with no-store', async () => {
+    const { get, entries, fetched } = harness(
+      {},
+      () =>
+        new Response(null, {
+          status: 302,
+          headers: {
+            location: 'https://cloud.oxy.so/variants/current.m3u8',
+            'cache-control': 'no-store',
+          },
+        }),
+    );
+    const path = '/video?variant=hls_master&revision=2026-10-22T10%3A14%3A15.123Z';
+    expect((await get(path)).status).toBe(302);
+    expect((await get(path)).headers.get('cache-control')).toBe('no-store');
+    expect(entries.size).toBe(0);
+    expect(fetched).toHaveLength(2);
+  });
+
+  it('rejects invalid or repeated revisions before looking up or filling the cache', async () => {
+    const { get, entries, fetched } = harness({}, redirect);
+    for (const path of [
+      '/video?variant=hls_master&revision=random',
+      '/video?variant=hls_master&revision=',
+      '/video?variant=hls_master&revision=2026-02-30T10%3A14%3A15.123Z',
+      '/video?variant=hls_master&revision=2026-10-23T10%3A14%3A15Z',
+      '/video?revision=2026-10-23T10%3A14%3A15.123Z',
+      '/video?variant=hls_master&revision=2026-10-23T10%3A14%3A15.123Z&revision=2026-10-23T10%3A14%3A15.123Z',
+      `/video?variant=hls_master&revision=${'x'.repeat(256)}`,
+    ]) {
+      const response = await get(path);
+      expect(response.status).toBe(400);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+    }
+    expect(entries.size).toBe(0);
+    expect(fetched).toHaveLength(0);
   });
 });
 

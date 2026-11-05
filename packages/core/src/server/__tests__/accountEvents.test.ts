@@ -100,6 +100,7 @@ describe('verifyAccountEvent', () => {
 
   it('defaults the audience to the appId of the configured service credential', async () => {
     const oxy = client();
+    oxy.configureServiceAuth('event-key', 'event-secret');
     const serviceToken = `${b64url(JSON.stringify({ alg: 'EdDSA' }))}.${b64url(JSON.stringify({ appId: 'app-mention' }))}.sig`;
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue(serviceToken);
 
@@ -205,7 +206,10 @@ describe('listAccountEvents', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('reads the pull feed with the service token and passes the cursor', async () => {
-    const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
+    const oxy = new OxyServer({
+      baseURL: 'https://api.oxy.test',
+      serviceAuth: { apiKey: 'external-key', apiSecret: 'external-secret' },
+    });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('service-token');
     const page = { events: [], nextCursor: 'cursor-1' };
     const request = jest.spyOn(oxy, 'request').mockResolvedValue(page as never);
@@ -213,7 +217,7 @@ describe('listAccountEvents', () => {
     await expect(oxy.accountEvents.list({ after: 'cursor-1', limit: 50 })).resolves.toEqual(page);
     expect(request).toHaveBeenCalledWith(
       'GET',
-      '/account-events',
+      'https://api.oxy.test/account-events',
       { after: 'cursor-1', limit: '50' },
       expect.objectContaining({ cache: false, headers: { Authorization: 'Bearer service-token' } }),
     );

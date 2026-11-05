@@ -77,9 +77,13 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({
       totpEnabled={totpEnabled}
       submitLabel={t('deleteAccount.keyless.action')}
       destructive
-      validate={() =>
-        confirmText.trim() === username ? null : t('deleteAccount.confirmLabel', { username })
-      }
+      validate={() => {
+        const typed = confirmText.trim();
+        if (typed === username) return null;
+        return typed
+          ? t('deleteAccount.confirmMismatch', { username })
+          : t('deleteAccount.confirmLabel', { username });
+      }}
       onSubmit={async (proof) => {
         // The last word before it is gone: the proof is ready, and nothing has
         // been sent yet. Cancelling keeps the screen as it is, code and all.

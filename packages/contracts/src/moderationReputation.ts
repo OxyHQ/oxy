@@ -1,3 +1,5 @@
+import { integerCheck } from './numberChecks';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Oxy Trust — the moderation reputation bridge (CrowdSource → Oxy Trust).
  *
@@ -245,11 +247,11 @@ export interface ModerationFinding {
 }
 
 export const moderationFindingSchema: z.ZodType<ModerationFinding> = z.object({
-  code: z.string().trim().min(1).max(200),
+  code: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
   severity: moderationSeveritySchema,
   scope: moderationFindingScopeSchema,
   attribution: moderationAttributionSchema,
-  family: z.string().trim().min(1).max(100),
+  family: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)),
 });
 
 /** The principal a decision is about, and the proof it is who the emitter says. */
@@ -269,8 +271,8 @@ export interface ModerationDecisionEventSubject {
 export const moderationDecisionEventSubjectSchema: z.ZodType<ModerationDecisionEventSubject> =
   z.object({
     principalType: z.literal('oxy_user'),
-    principalId: z.string().trim().min(1),
-    bindingProofId: z.string().trim().min(1),
+    principalId: z.string().trim().check(utf16MinLength(1)),
+    bindingProofId: z.string().trim().check(utf16MinLength(1)),
   });
 
 /**
@@ -287,9 +289,9 @@ export interface ModerationPolicyVersions {
 }
 
 export const moderationPolicyVersionsSchema: z.ZodType<ModerationPolicyVersions> = z.object({
-  universal: z.string().trim().min(1).max(100),
-  application: z.string().trim().min(1).max(100),
-  oxyConduct: z.string().trim().min(1).max(100),
+  universal: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)),
+  application: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)),
+  oxyConduct: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)),
 });
 
 /**
@@ -347,19 +349,19 @@ export interface ModerationDecisionEvent {
 }
 
 export const moderationDecisionEventSchema: z.ZodType<ModerationDecisionEvent> = z.object({
-  eventId: z.string().trim().min(1).max(200),
-  reportedApplicationId: z.string().trim().min(1).max(200),
-  type: z.string().trim().min(1).max(200),
-  caseId: z.string().trim().min(1).max(200),
-  incidentId: z.string().trim().min(1).max(200),
-  decisionId: z.string().trim().min(1).max(200),
-  decisionRevision: z.number().int().min(1),
+  eventId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  reportedApplicationId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  type: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  caseId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  incidentId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  decisionId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  decisionRevision: z.number().check(integerCheck()).min(1),
   subject: moderationDecisionEventSubjectSchema,
   findings: z.array(moderationFindingSchema).min(1).max(20),
   decisionStatus: moderationDecisionStatusSchema,
   policyVersions: moderationPolicyVersionsSchema,
-  occurredAt: z.string().trim().min(1),
-  proofHash: z.string().trim().min(1).max(200),
+  occurredAt: z.string().trim().check(utf16MinLength(1)),
+  proofHash: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
 });
 
 /**
@@ -375,8 +377,8 @@ export interface FinalizeModerationDecisionInput {
 
 export const finalizeModerationDecisionSchema: z.ZodType<FinalizeModerationDecisionInput> =
   z.object({
-    decisionId: z.string().trim().min(1).max(200),
-    decisionRevision: z.number().int().min(1),
+    decisionId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+    decisionRevision: z.number().check(integerCheck()).min(1),
   });
 
 /**
@@ -392,9 +394,9 @@ export interface ReverseModerationEffectInput extends FinalizeModerationDecision
 }
 
 export const reverseModerationEffectSchema: z.ZodType<ReverseModerationEffectInput> = z.object({
-  decisionId: z.string().trim().min(1).max(200),
-  decisionRevision: z.number().int().min(1),
-  reason: z.string().trim().min(1).max(500),
+  decisionId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  decisionRevision: z.number().check(integerCheck()).min(1),
+  reason: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(500)),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -531,8 +533,8 @@ export interface RegisterIdentityBindingInput {
 }
 
 export const registerIdentityBindingSchema: z.ZodType<RegisterIdentityBindingInput> = z.object({
-  localPrincipalId: z.string().trim().min(1).max(200),
-  userProofToken: z.string().trim().min(1),
+  localPrincipalId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(200)),
+  userProofToken: z.string().trim().check(utf16MinLength(1)),
 });
 
 /**
@@ -672,8 +674,8 @@ export interface ReputationReviewing {
 
 export const reputationReviewingSchema: z.ZodType<ReputationReviewing> = z.object({
   globalReliability: z.number(),
-  categoryReliability: z.record(z.number()),
-  languageReliability: z.record(z.number()),
+  categoryReliability: z.record(z.string(), z.number()),
+  languageReliability: z.record(z.string(), z.number()),
 });
 
 /**

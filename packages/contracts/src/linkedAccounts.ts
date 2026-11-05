@@ -1,3 +1,4 @@
+import { isoDateTime, urlCheck, utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * Wire contract for Oxy linked accounts — external accounts (any Mastodon-API
  * server, Bluesky) a LOCAL Oxy user has proven they own by completing an OAuth
@@ -30,10 +31,10 @@ export const linkedAccountNetworkSchema = z.enum(LINKED_ACCOUNT_NETWORKS);
  */
 export const startLinkedAccountRequestSchema = z
   .object({
-    instance: z.string().trim().min(1).max(320).optional(),
-    handle: z.string().trim().min(1).max(320).optional(),
-    clientId: z.string().trim().min(1).max(256),
-    returnTo: z.string().trim().min(1).max(2048),
+    instance: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(320)).optional(),
+    handle: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(320)).optional(),
+    clientId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+    returnTo: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(2048)),
   })
   .strict();
 
@@ -41,8 +42,8 @@ export type StartLinkedAccountRequest = z.infer<typeof startLinkedAccountRequest
 
 export const startLinkedAccountResponseSchema = z
   .object({
-    authorizeUrl: z.string().url(),
-    expiresAt: z.string().datetime(),
+    authorizeUrl: z.string().check(urlCheck()),
+    expiresAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -55,7 +56,7 @@ export type StartLinkedAccountResponse = z.infer<typeof startLinkedAccountRespon
  * other user it is refused (403) and burned.
  */
 export const completeLinkedAccountRequestSchema = z
-  .object({ code: z.string().trim().min(1).max(256) })
+  .object({ code: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)) })
   .strict();
 
 export type CompleteLinkedAccountRequest = z.infer<typeof completeLinkedAccountRequestSchema>;
@@ -63,17 +64,17 @@ export type CompleteLinkedAccountRequest = z.infer<typeof completeLinkedAccountR
 /** One live linked account, as its owner sees it. */
 export const linkedAccountSchema = z
   .object({
-    id: z.string().min(1),
+    id: z.string().check(utf16MinLength(1)),
     network: linkedAccountNetworkSchema,
     /** `username@domain` for ActivityPub; the DID for atproto. */
-    accountKey: z.string().min(1),
+    accountKey: z.string().check(utf16MinLength(1)),
     /** ActivityPub actor id, or the DID for atproto. */
-    actorUri: z.string().min(1),
-    handle: z.string().min(1),
-    host: z.string().min(1),
+    actorUri: z.string().check(utf16MinLength(1)),
+    handle: z.string().check(utf16MinLength(1)),
+    host: z.string().check(utf16MinLength(1)),
     proofMethod: z.literal('oauth'),
-    verifiedAt: z.string().datetime(),
-    createdAt: z.string().datetime(),
+    verifiedAt: z.string().check(isoDateTime()),
+    createdAt: z.string().check(isoDateTime()),
   })
   .strict();
 
@@ -98,13 +99,16 @@ export type LinkedAccountListResponse = z.infer<typeof linkedAccountListResponse
  * content Oxy federated in before the account was linked.
  */
 export const serviceLinkedAccountSchema = linkedAccountSchema
-  .extend({ federatedUserId: z.string().min(1).nullable() })
+  .extend({ federatedUserId: z.string().check(utf16MinLength(1)).nullable() })
   .strict();
 
 export type ServiceLinkedAccount = z.infer<typeof serviceLinkedAccountSchema>;
 
 export const serviceLinkedAccountListResponseSchema = z
-  .object({ userId: z.string().min(1), linkedAccounts: z.array(serviceLinkedAccountSchema) })
+  .object({
+    userId: z.string().check(utf16MinLength(1)),
+    linkedAccounts: z.array(serviceLinkedAccountSchema),
+  })
   .strict();
 
 export type ServiceLinkedAccountListResponse = z.infer<

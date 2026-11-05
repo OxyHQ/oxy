@@ -1,254 +1,134 @@
 import {
   cancelOwnedPeableSubscription,
-  PEABLE_ONE_READINESS,
-  personalFinalInvoiceSchema,
-  validatePersonalInvoiceForAction,
+  readNativeSubscription,
+  type PeableSubscription,
 } from '../peablePersonalBilling.service';
-import type { Peable } from '@peable.to/sdk';
-const owned = {
-  payerAccountId: 'payer',
-  providerSubscriptionId: 'sub_test',
-  providerCustomerId: 'cus_test',
-  providerPriceId: 'price_test',
-  storeId: 'store',
-  planId: 'one-v1',
-  livemode: false,
-};
-const subscription = {
-  ...owned,
-  status: 'active',
-  cancelAtPeriodEnd: false,
-  currentPeriodStart: '2026-10-01T00:00:00Z',
-  currentPeriodEnd: '2026-11-01T00:00:00Z',
-};
+import { nativePeable } from '../__fixtures__/nativePeable';
+
+const unix = (iso: string) => Date.parse(iso) / 1000;
+const period = { start: unix('2026-10-01T00:00:00Z'), end: unix('2026-11-01T00:00:00Z') };
+
 function fixture() {
-  let current = subscription;
-  const retrieveSubscription = jest.fn(async () => current);
-  const cancelAtPeriodEnd = jest.fn(async () => {
-    current = { ...subscription, cancelAtPeriodEnd: true };
-    return current;
+  const peable = nativePeable({
+    merchant: { id: 'merch_fixture', oxy_app_id: 'app', environment: 'test' },
+    livemode: false,
   });
-  return {
-    client: { billing: { retrieveSubscription, cancelAtPeriodEnd } } as unknown as Pick<
-      Peable,
-      'billing'
-    >,
-    retrieveSubscription,
-    cancelAtPeriodEnd,
+  const price = peable.price({ unitAmount: 599, interval: 'month' });
+  peable.raw.customers.set('cus_payer', {
+    id: 'cus_payer',
+    object: 'customer',
+    livemode: false,
+    metadata: { oxy_account_id: 'payer' },
+  });
+  const session = peable.raw.sessions;
+  session.set('cs_fixture', {
+    id: 'cs_fixture',
+    customer: 'cus_payer',
+    price: price.id,
+    status: 'open',
+    metadata: {},
+  });
+  const { subscription } = peable.complete('cs_fixture', period);
+  const owned = {
+    payerAccountId: 'payer',
+    providerSubscriptionId: subscription.id as string,
+    providerCustomerId: 'cus_payer',
+    providerPriceId: price.id,
+    livemode: false,
   };
+  const update = jest.spyOn(peable.client.subscriptions, 'update');
+  const retrieve = jest.spyOn(peable.client.subscriptions, 'retrieve');
+  return { peable, owned, update, retrieve, subscription };
 }
-it('verifies payer and exact Peable ownership before cancellation', async () => {
-  const f = fixture();
-  await expect(cancelOwnedPeableSubscription(f.client, 'other', owned, 'action_1')).rejects.toThrow(
-    'payer',
-  );
-  expect(f.retrieveSubscription).not.toHaveBeenCalled();
-  f.retrieveSubscription.mockResolvedValue({ ...subscription, storeId: 'another' });
-  await expect(cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).rejects.toThrow(
-    'ownership',
-  );
-  expect(f.cancelAtPeriodEnd).not.toHaveBeenCalled();
-});
-it('schedules existing period with stable replay key and never extends it', async () => {
-  const f = fixture();
-  expect(
-    (await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).cancelAtPeriodEnd,
-  ).toBe(true);
-  expect(f.cancelAtPeriodEnd).toHaveBeenCalledWith('sub_test', {
-    idempotencyKey: expect.stringMatching(/^oxy-one-cancel:[a-f0-9]{64}$/),
-  });
-  f.retrieveSubscription.mockResolvedValue(subscription);
-  f.cancelAtPeriodEnd.mockResolvedValue({
-    ...subscription,
-    cancelAtPeriodEnd: true,
-    currentPeriodEnd: '2026-12-01T00:00:00Z',
-  });
-  await expect(cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).rejects.toThrow(
-    'period differs',
-  );
-  f.retrieveSubscription.mockResolvedValue({ ...subscription, cancelAtPeriodEnd: true });
-  f.cancelAtPeriodEnd.mockClear();
-  await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1');
-  expect(f.cancelAtPeriodEnd).not.toHaveBeenCalled();
-});
-const context = {
-  payerAccountId: 'payer',
-  beneficiaryAccountId: 'payer',
-  providerSubscriptionId: 'sub_test',
-  offerId: 'one',
-  offerVersion: 1,
-  periodStart: '2026-10-01T00:00:00Z',
-  periodEnd: '2026-11-01T00:00:00Z',
-  mode: 'test' as const,
-  environment: 'development' as const,
-};
-const invoice = {
-  context,
-  platform: 'peable',
-  currency: 'USD',
-  grossMinorUnits: 2999,
-  netMinorUnits: 2500,
-  taxMinorUnits: 499,
-  merchantFeeMinorUnits: 0,
-  taxTreatment: 'inclusive',
-  sellerId: 'seller',
-  invoiceIssuerId: 'issuer',
-  taxQuoteId: 'tax',
-  customerLocationEvidenceId: 'location',
-  taxRateEvidenceId: 'rate',
-  issuedAt: '2026-10-05T00:00:00Z',
-  expiresAt: '2026-10-05T00:05:00Z',
-};
-it('requires inclusive final invoice evidence without added fees or assumed zero tax', () => {
-  expect(personalFinalInvoiceSchema.safeParse(invoice).success).toBe(true);
-  for (const changed of [
-    { taxMinorUnits: 0 },
-    { merchantFeeMinorUnits: 1 },
-    { grossMinorUnits: 3000 },
-    { taxQuoteId: undefined },
-    { sellerId: undefined },
-    { expiresAt: invoice.issuedAt },
-  ])
-    expect(personalFinalInvoiceSchema.safeParse({ ...invoice, ...changed }).success).toBe(false);
-  expect(
-    personalFinalInvoiceSchema.safeParse({
-      ...invoice,
-      faircoinQuote: {
-        id: 'fx',
-        amountBaseUnits: '1',
-        quotedAt: invoice.issuedAt,
-        expiresAt: '2026-10-05T00:06:00Z',
-        roundingEvidenceId: 'rounding',
-      },
-    }).success,
-  ).toBe(false);
-});
-it('does not substitute one-off Faircoin for recurring purchase', () => {
-  expect(PEABLE_ONE_READINESS.platform).toBe('peable');
-  expect(PEABLE_ONE_READINESS.purchase).toBe('unavailable');
-  expect(PEABLE_ONE_READINESS.blockers).toContain(
-    'configured_watch_only_merchant_and_verified_chain_access',
-  );
-});
 
-it('rejects invalid provider period snapshots before financial calls', async () => {
+it('verifies payer and exact native ownership before cancellation', async () => {
   const f = fixture();
-  f.retrieveSubscription.mockResolvedValue({ ...subscription, currentPeriodEnd: 'invalid' });
-  await expect(cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).rejects.toThrow(
-    'period unavailable',
-  );
-  expect(f.cancelAtPeriodEnd).not.toHaveBeenCalled();
-});
-
-it('separates historical parsing from action-time ownership and expiry', () => {
-  const now = new Date('2026-10-05T00:01:00Z');
-  expect(validatePersonalInvoiceForAction(invoice, context, 'card', now)).toMatchObject({
-    grossMinorUnits: 2999,
-  });
-  expect(() => validatePersonalInvoiceForAction(invoice, context, 'faircoin', now)).toThrow(
-    'Faircoin quote',
-  );
-  for (const changed of [
-    { payerAccountId: 'other' },
-    { offerVersion: 2 },
-    { environment: 'production' as const },
-    { periodEnd: '2026-12-01T00:00:00Z' },
-  ])
-    expect(() =>
-      validatePersonalInvoiceForAction(invoice, { ...context, ...changed }, 'card', now),
-    ).toThrow('context');
-  expect(personalFinalInvoiceSchema.safeParse(invoice).success).toBe(true);
-  expect(() =>
-    validatePersonalInvoiceForAction(invoice, context, 'card', new Date(invoice.expiresAt)),
-  ).toThrow();
-  expect(() =>
-    validatePersonalInvoiceForAction(invoice, context, 'card', new Date('2026-10-04T00:00:00Z')),
-  ).toThrow();
-});
-it('cannot accept cached success after external resume', async () => {
-  const f = fixture();
-  f.retrieveSubscription.mockResolvedValue(subscription);
-  f.cancelAtPeriodEnd.mockResolvedValue({ ...subscription, cancelAtPeriodEnd: true });
-  await expect(cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).rejects.toThrow(
-    'reconciliation required',
-  );
-});
-
-it('requires a current Faircoin quote rather than accepting future or expired FX evidence', () => {
-  const now = new Date('2026-10-05T00:01:00Z');
-  const quote = {
-    id: 'synthetic_fx',
-    amountBaseUnits: '1234',
-    quotedAt: invoice.issuedAt,
-    expiresAt: invoice.expiresAt,
-    roundingEvidenceId: 'synthetic_rounding',
-  };
-  expect(
-    validatePersonalInvoiceForAction({ ...invoice, faircoinQuote: quote }, context, 'faircoin', now)
-      .faircoinQuote?.id,
-  ).toBe('synthetic_fx');
-  expect(() =>
-    validatePersonalInvoiceForAction(
-      { ...invoice, faircoinQuote: { ...quote, quotedAt: '2026-10-05T00:02:00Z' } },
-      context,
-      'faircoin',
-      now,
+  await expect(
+    cancelOwnedPeableSubscription(f.peable.client, 'other', f.owned, 'action_1'),
+  ).rejects.toThrow('payer');
+  expect(f.retrieve).not.toHaveBeenCalled();
+  for (const field of ['providerCustomerId', 'providerPriceId'] as const) {
+    await expect(
+      cancelOwnedPeableSubscription(
+        f.peable.client,
+        'payer',
+        { ...f.owned, [field]: 'other' },
+        'action_1',
+      ),
+    ).rejects.toThrow('ownership');
+  }
+  await expect(
+    cancelOwnedPeableSubscription(
+      f.peable.client,
+      'payer',
+      { ...f.owned, livemode: true },
+      'a_1234567',
     ),
-  ).toThrow();
-  expect(() =>
-    validatePersonalInvoiceForAction(
-      { ...invoice, faircoinQuote: { ...quote, expiresAt: now.toISOString() } },
-      context,
-      'faircoin',
-      now,
-    ),
-  ).toThrow();
+  ).rejects.toThrow('ownership');
+  expect(f.update).not.toHaveBeenCalled();
 });
 
-it.each(['past_due', 'unpaid'])(
-  'allows owned %s subscriptions to cancel without granting access',
+it('schedules the existing period with a stable replay key and never extends it', async () => {
+  const f = fixture();
+  const first = await cancelOwnedPeableSubscription(f.peable.client, 'payer', f.owned, 'action_1');
+  expect(first.cancelAtPeriodEnd).toBe(true);
+  expect(first.currentPeriodEnd).toBe(period.end);
+  expect(f.update).toHaveBeenCalledTimes(1);
+  const [, params, options] = f.update.mock.calls[0];
+  expect(params).toEqual({ cancel_at_period_end: true });
+  expect(options?.idempotencyKey).toMatch(/^oxy-personal-cancel:[0-9a-f]{64}$/);
+  // Already scheduled: a replay reads and returns without a second write.
+  await cancelOwnedPeableSubscription(f.peable.client, 'payer', f.owned, 'action_1');
+  expect(f.update).toHaveBeenCalledTimes(1);
+});
+
+it.each(['canceled', 'incomplete', 'incomplete_expired', 'paused'])(
+  'refuses to schedule cancellation of a %s subscription',
   async (status) => {
     const f = fixture();
-    const canceled = { ...subscription, status, cancelAtPeriodEnd: true };
-    f.retrieveSubscription
-      .mockResolvedValueOnce({ ...subscription, status })
-      .mockResolvedValueOnce(canceled);
-    f.cancelAtPeriodEnd.mockResolvedValue(canceled);
-    expect(
-      (await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1')).cancelAtPeriodEnd,
-    ).toBe(true);
+    f.peable.setSubscription(f.owned.providerSubscriptionId, { status });
+    await expect(
+      cancelOwnedPeableSubscription(f.peable.client, 'payer', f.owned, 'action_1'),
+    ).rejects.toThrow('period unavailable');
+    expect(f.update).not.toHaveBeenCalled();
   },
 );
 
-it('recovers a paid invoice after FX expiry without authorizing a new stale-quote payment', () => {
-  const fresh = {
-    ...invoice,
-    faircoinQuote: {
-      id: 'fx',
-      amountBaseUnits: '1234',
-      quotedAt: '2026-10-05T00:00:00Z',
-      expiresAt: '2026-10-05T00:01:00Z',
-      roundingEvidenceId: 'round',
+it('refuses a cancellation the engine answered for another period', async () => {
+  const f = fixture();
+  f.update.mockImplementationOnce(async () => ({
+    ...(f.subscription as unknown as PeableSubscription),
+    cancel_at_period_end: true,
+    current_period_end: period.end + 86_400,
+  }));
+  await expect(
+    cancelOwnedPeableSubscription(f.peable.client, 'payer', f.owned, 'action_1'),
+  ).rejects.toThrow('period differs');
+});
+
+it('reads only a one-item, quantity-one, single-interval subscription', () => {
+  const { subscription } = fixture();
+  const base = subscription as unknown as PeableSubscription;
+  expect(readNativeSubscription(base).checkoutSessionId).toBe('cs_fixture');
+  const item = base.items.data[0];
+  for (const broken of [
+    { ...base, items: { ...base.items, data: [item, item] } },
+    { ...base, items: { ...base.items, data: [{ ...item, quantity: 2 }] } },
+    {
+      ...base,
+      items: {
+        ...base.items,
+        data: [
+          {
+            ...item,
+            price: { ...item.price, recurring: { ...item.price.recurring, interval_count: 3 } },
+          },
+        ],
+      },
     },
-  };
-  const now = new Date('2026-10-05T00:02:00Z');
-  expect(
-    validatePersonalInvoiceForAction(
-      fresh,
-      context,
-      'faircoin',
-      now,
-      new Date('2026-10-05T00:00:30Z'),
-    ),
-  ).toMatchObject({ faircoinQuote: { id: 'fx' } });
-  expect(() => validatePersonalInvoiceForAction(fresh, context, 'faircoin', now)).toThrow('quote');
-  expect(() =>
-    validatePersonalInvoiceForAction(
-      fresh,
-      context,
-      'faircoin',
-      now,
-      new Date(fresh.faircoinQuote.expiresAt),
-    ),
-  ).toThrow('quote');
+    { ...base, current_period_end: base.current_period_start },
+  ])
+    expect(() => readNativeSubscription(broken as PeableSubscription)).toThrow(
+      'not a personal plan subscription',
+    );
 });

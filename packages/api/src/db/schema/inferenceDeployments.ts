@@ -1,3 +1,4 @@
+import { enumValues } from './enumValues';
 /**
  * `inference_deployments` — one concrete servable route.
  *
@@ -85,7 +86,7 @@ import { users } from './users';
  * rather than restated. The temporary storage superset immediately below is the
  * only deliberate exception while the rolling rename is expanded.
  */
-export const AVAILABILITY_SCOPES = availabilityScopeSchema.options;
+export const AVAILABILITY_SCOPES = enumValues(availabilityScopeSchema.options);
 
 /**
  * Storage-only compatibility for the first half of the rolling rename.
@@ -110,7 +111,7 @@ export function normalizeInferenceDeploymentAvailabilityScope(value: string): Av
 }
 
 /** The commercial basis on which Oxy may serve a route. Same derivation. */
-export const COMMERCIAL_PERMISSIONS = commercialPermissionSchema.options;
+export const COMMERCIAL_PERMISSIONS = enumValues(commercialPermissionSchema.options);
 
 /**
  * The catalogue's own decision about whether a route may be offered.

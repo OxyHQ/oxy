@@ -30,6 +30,7 @@ export default function AppDetailLayout() {
   if (!application) {
     return (
       <Screen
+        scroll="content"
         header={
           <PageHeader
             safeArea={false}
@@ -59,7 +60,10 @@ export default function AppDetailLayout() {
 
   return (
     <AppDetailProvider application={application} access={access}>
-      <Screen header={<ApplicationHeader application={application} access={access} />}>
+      <Screen
+        scroll="content"
+        header={<ApplicationHeader application={application} access={access} />}
+      >
         <ScreenScrollView
           contentContainerClassName="w-full max-w-5xl gap-6 p-4 pb-12"
           keyboardShouldPersistTaps="handled"

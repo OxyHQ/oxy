@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/contracts",
-  "version": "5.7.0",
+  "version": "6.9.0",
   "description": "OxyHQ API contracts \u2014 single source of truth for request/response Zod schemas and inferred types, shared by the backend and the client SDKs",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -47,8 +47,10 @@
   "files": [
     "NOTICE",
     "dist",
-    "!dist/**/*.tsbuildinfo"
+    "!dist/**/*.tsbuildinfo",
+    "!dist/.oxy-source-digest"
   ],
+  "oxySourceStamp": "dist",
   "keywords": [
     "oxyhq",
     "sdk",
@@ -69,7 +71,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run check:profile-colors && bun run build:cjs && bun run build:esm && bun run build:types",
+    "build": "bun run check:profile-colors && bun run build:cjs && bun run build:esm && bun run build:types && node -e \"const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())\"",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
     "build:types": "tsc -p tsconfig.types.json",
@@ -81,12 +83,12 @@
     "check:profile-colors": "node scripts/generate-profile-colors.mjs --check"
   },
   "dependencies": {
-    "zod": "^3.25.64"
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^20.19.43",
-    "jest": "^30.5.1",
-    "typescript": "^5.9.2",
+    "@types/node": "catalog:",
+    "jest": "^30.5.2",
+    "typescript": "catalog:",
     "@oxy.so/bloom": "catalog:"
   }
 }

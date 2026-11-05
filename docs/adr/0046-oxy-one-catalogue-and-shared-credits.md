@@ -31,14 +31,28 @@ route supplies Oxy content and navigation. Catalogue preview is available now.
 The purchase action is disabled, as requested for preview, and no existing
 subscription or allowance is changed.
 
-Commercial activation is not complete. The existing Peable adapter and signed
-invoice validation are pinned to the old 29.99 USD monthly offer and deliberately
-refuse production purchases. They need the expanded versioned mappings, shared
-credit accounting, supported annual/family/business lifecycle semantics and
-verified fiscal configuration. See `docs/products/oxy-one-launch-readiness.md`.
+Commercial activation is not complete. The Peable adapter is pinned to the old
+29.99 USD monthly offer and refuses production purchases. It needs the expanded
+versioned mappings, shared credit accounting, supported annual/family/business
+lifecycle semantics and verified fiscal configuration. See
+`docs/products/oxy-one-launch-readiness.md`.
 Existing product integrations cannot be assumed to support all new tier mappings:
 Alia's adapter currently selects one configured plan; Mention uses its specific
 mono capability; Noted uses shared storage. Inbox/Schedio/Clarity/Homiio/Mercaria
 need their corresponding product mappings and capability enforcement verified.
 No new app entitlements, live prices, subscriptions, migrations or deployments
 were activated by the preview work.
+
+## As built: native Orbit billing (2026-11-04)
+
+Peable retired its Stripe-Billing proxy, so the adapter no longer exists in its
+signed-quote/invoice-authority form. Plans are Orbit catalog rows (one product,
+one tax-inclusive recurring price and one feature per benefit, created by
+`packages/api/scripts/sync-peable-catalogue.ts`), checkout is a native
+`subscription`-mode Checkout Session on Peable's own checkout, management is
+native cancellation plus Peable's customer portal, and paid periods and refunds
+are read from native invoices and their payments, woken by Peable webhooks. Oxy's
+product-access ledger stays the access answer: it carries what Peable's flat
+per-customer entitlements cannot (quota windows, credit attribution, refund and
+closure fences, ancestor inheritance); the Orbit features mirror its benefits.
+Nothing was enabled: production has no runtime, no bound price and purchases off.

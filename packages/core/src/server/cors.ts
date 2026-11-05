@@ -198,6 +198,67 @@ export function matchesAllowedOrigin(explicit: ReadonlySet<string>, origin: stri
 }
 
 /**
+ * The origin predicate `createOxyCors` applies, for any other transport that
+ * must admit the same browsers: the built-in HTTPS Oxy apex family plus the
+ * exact `appOrigins`, never an opaque origin (`exp://`, `file:`, …).
+ *
+ * ```ts
+ * const allowed = createOxyOriginCheck(['https://app.example.com']);
+ * allowed('https://mention.oxy.so'); // true
+ * ```
+ */
+export function createOxyOriginCheck(appOrigins: string[] = []): (origin: string) => boolean {
+  const explicit = normalizeAppOrigins(appOrigins);
+  return (origin: string) => matchesAllowedOrigin(explicit, origin);
+}
+
+/** Options of {@link createOxySocketCors}. */
+export interface OxySocketCorsOptions {
+  /** Explicit additional allowed origins, as {@link OxyCorsOptions.appOrigins}. */
+  appOrigins?: string[];
+  /** Whether the polling transport sends `Access-Control-Allow-Credentials: true`. Default `true`. */
+  allowCredentials?: boolean;
+}
+
+/**
+ * The Socket.IO server options that admit exactly the origins `createOxyCors`
+ * admits — spread them into `new Server(httpServer, { ...createOxySocketCors(…) })`.
+ *
+ * Two halves, because Socket.IO has two transports: `cors` answers the
+ * long-polling requests (which browsers check), and `allowRequest` refuses a
+ * handshake from any other browser origin, which is the only check a WebSocket
+ * upgrade gets — browsers apply no CORS to it. A request with no `Origin`
+ * header (a native app, a server) is not a browser cross-origin request and is
+ * admitted; authenticate it with `oxy.middleware.socket()` as every socket.
+ */
+export function createOxySocketCors(options: OxySocketCorsOptions = {}): {
+  cors: {
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => void;
+    credentials: boolean;
+    methods: string[];
+  };
+  allowRequest: (
+    req: { headers: Record<string, string | string[] | undefined> },
+    callback: (error: string | null | undefined, success: boolean) => void,
+  ) => void;
+} {
+  const allowed = createOxyOriginCheck(options.appOrigins);
+  const admits = (origin: string | string[] | undefined): boolean =>
+    origin === undefined || (typeof origin === 'string' && (origin === '' || allowed(origin)));
+  return {
+    cors: {
+      origin: (origin, callback) => callback(null, admits(origin)),
+      credentials: options.allowCredentials ?? true,
+      methods: ['GET', 'POST'],
+    },
+    allowRequest: (req, callback) => callback(null, admits(req.headers.origin)),
+  };
+}
+
+/**
  * Create a strict Oxy CORS middleware. See module docs.
  *
  * @example
@@ -215,7 +276,7 @@ export function createOxyCors(options: OxyCorsOptions = {}): RequestHandler {
     maxAgeSeconds = DEFAULT_MAX_AGE_SECONDS,
   } = options;
 
-  const explicitOrigins = normalizeAppOrigins(appOrigins);
+  const allowed = createOxyOriginCheck(appOrigins);
   const methodsHeader = methods.join(', ');
   const allowedHeadersHeader = allowedHeaders.join(', ');
   const exposedHeadersHeader = exposedHeaders.join(', ');
@@ -237,7 +298,7 @@ export function createOxyCors(options: OxyCorsOptions = {}): RequestHandler {
     // Origin is present. Caching correctness: this response varies by Origin.
     res.setHeader('Vary', 'Origin');
 
-    if (!matchesAllowedOrigin(explicitOrigins, origin)) {
+    if (!allowed(origin)) {
       // DENY: do NOT reflect the origin, do NOT emit a wildcard. The browser
       // will block the cross-origin read. Preflights for denied origins get a
       // 204 with no CORS headers (the actual request then fails CORS).

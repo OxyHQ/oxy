@@ -1,5 +1,4 @@
 import { OxySupportContext } from '../context/oxySupportContext';
-import { loadScreens } from '../navigation/routes';
 import { useEffect, useRef, useState, useMemo, type FC } from 'react';
 import { AppState, Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -20,17 +19,9 @@ import { isNetConnectivityOnline } from '../utils/netConnectivity';
 import { KeyboardBoundary } from './KeyboardBoundary';
 import { SafeAreaRoot } from './SafeAreaRoot';
 import { ProductAnalyticsObserver } from '../analytics/productAnalytics';
-import { LanguageBridge } from './LanguageBridge';
+import { AccountLanguageBoundary } from './AccountLanguageBoundary';
 import { BloomLocaleBridge } from './BloomLocaleBridge';
-import { useOxy } from '../context/oxyRuntimeContext';
-import { useCurrentUser } from '../hooks/queries/useAccountQueries';
-
-/** Hydrate owner preferences after the bearer is ready, including on cold boot. */
-function AccountProfileObserver() {
-  const { canUsePrivateApi } = useOxy();
-  useCurrentUser({ enabled: canUsePrivateApi });
-  return null;
-}
+import { SupervisionStateObserver } from '../hooks/queries/useSupervision';
 
 const bootStyles = StyleSheet.create({
   providerRoot: {
@@ -113,15 +104,12 @@ const OxyProvider: FC<OxyProviderProps> = ({
   requireAuth = 'off',
   backgroundSession = false,
   language,
+  campaignAttribution = false,
 }) => {
   const support = useMemo(
     () => ({ onAskAlia, documentationUrl, aliaAvatar, oxyOneArtwork }),
     [onAskAlia, documentationUrl, aliaAvatar, oxyOneArtwork],
   );
-  useEffect(() => {
-    // The root entry registers the screens itself; `ui` and `ui/client` warm their chunk here.
-    void loadScreens().catch(() => undefined);
-  }, []);
   // Storage + persistence wiring.
   //
   // The QueryClient exists synchronously so cache I/O can never delay the app
@@ -278,25 +266,28 @@ const OxyProvider: FC<OxyProviderProps> = ({
         sessionMode={sessionMode}
         webAuthMode={webAuthMode}
         backgroundSession={backgroundSession}
+        legacyLanguageKeys={language?.legacyStorageKeys}
+        captureCampaignAttribution={campaignAttribution}
         platformStorage={platformStorage}
         accountQueries={accountQueries}
         onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
       >
-        <AccountProfileObserver />
+        <SupervisionStateObserver />
         {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
-        {language ? <LanguageBridge {...language} /> : null}
-        <BloomLocaleBridge>
-          <OxySupportContext.Provider value={support}>
-            <SurfaceProvider>
-              {requireAuth === 'off' ? (
-                children
-              ) : (
-                <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
-              )}
-            </SurfaceProvider>
-          </OxySupportContext.Provider>
-          <ToastOutlet />
-        </BloomLocaleBridge>
+        <AccountLanguageBoundary language={language}>
+          <BloomLocaleBridge>
+            <OxySupportContext.Provider value={support}>
+              <SurfaceProvider>
+                {requireAuth === 'off' ? (
+                  children
+                ) : (
+                  <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
+                )}
+              </SurfaceProvider>
+            </OxySupportContext.Provider>
+            <ToastOutlet />
+          </BloomLocaleBridge>
+        </AccountLanguageBoundary>
       </OxyRuntimeProvider>
     </QueryClientProvider>
   );

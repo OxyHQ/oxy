@@ -1,10 +1,18 @@
 /**
  * @oxy.so/app-preset — Babel config factory.
  *
- * The standard Babel config every Oxy Expo app shares: babel-preset-expo with
- * `unstable_transformImportMeta`, the `@ → ./` module-resolver alias, and the
- * `react-native-worklets/plugin` LAST (Reanimated 4 re-exports it — it must be
- * the final plugin).
+ * In development the config is exactly `babel-preset-expo`, nothing else.
+ * Expo's oxc transformer (Noxcturnal, `experiments.noxcturnalTransformWorker`,
+ * which the preset's config plugin turns on) runs only when the project's Babel
+ * config resolves to the bare Expo preset; one extra plugin or preset option
+ * sends every file back to Babel. Everything the config used to add is covered
+ * without it in SDK 58: `babel-preset-expo` adds `react-native-worklets/plugin`
+ * and the `import.meta` transform itself, and Metro resolves `@/` from the
+ * app's `tsconfig.json` paths.
+ *
+ * A production build adds the build-id inliner (`./inline-oxy-build-id`).
+ * Production stays on Babel either way: Noxcturnal keeps the requires of dead
+ * platform branches, pulling native-only packages into a web bundle.
  *
  * Usage — a one-line babel.config.js:
  *
@@ -22,11 +30,11 @@
  * workletsBundleMode: true })`). `importForwarding` (worklets'
  * `moduleNames`/`relativePaths`) names the modules whose imports a worklet
  * runs ON its runtime; an import not forwarded stays on the RN runtime and a
- * synchronous call to it from a worker runtime throws.
+ * synchronous call to it from a worker runtime throws. Its plugin options make
+ * the config non-default, so a Bundle Mode app stays on Babel.
  *
- * The peer packages (`babel-preset-expo`, `babel-plugin-module-resolver`,
- * `react-native-worklets`) resolve from the consuming app's node_modules, where
- * Expo already installs them.
+ * The peer packages (`babel-preset-expo`, `react-native-worklets`) resolve from
+ * the consuming app's node_modules, where Expo already installs them.
  */
 
 const FORWARDING_KEYS = ['moduleNames', 'relativePaths'];
@@ -78,33 +86,17 @@ function bundleModeOptions(value) {
 function createOxyBabelConfig(options = {}) {
   const bundleMode = bundleModeOptions(options.workletsBundleMode);
   return function oxyBabelPreset(api) {
-    api.cache(true);
+    const production = api.cache.using(() => process.env.NODE_ENV === 'production');
+    const plugins = [
+      // The build id `@oxy.so/services` busts its persisted caches on.
+      ...(production ? [require.resolve('./inline-oxy-build-id')] : []),
+      // In Bundle Mode the worklets plugin needs its options, so
+      // babel-preset-expo must not add a second, option-less copy.
+      ...(bundleMode ? [['react-native-worklets/plugin', bundleMode]] : []),
+    ];
     return {
-      presets: [
-        [
-          'babel-preset-expo',
-          // In Bundle Mode the worklets plugin needs its options, so
-          // babel-preset-expo must not add a second, option-less copy.
-          bundleMode
-            ? { unstable_transformImportMeta: true, worklets: false }
-            : { unstable_transformImportMeta: true },
-        ],
-      ],
-      plugins: [
-        // The module-resolver must come first for correct module resolution.
-        [
-          'module-resolver',
-          {
-            root: ['./'],
-            alias: { '@': './' },
-            extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.svg'],
-          },
-        ],
-        // The build id `@oxy.so/services` busts its persisted caches on.
-        require.resolve('./inline-oxy-build-id'),
-        // Must be LAST.
-        bundleMode ? ['react-native-worklets/plugin', bundleMode] : 'react-native-worklets/plugin',
-      ],
+      presets: [bundleMode ? ['babel-preset-expo', { worklets: false }] : 'babel-preset-expo'],
+      plugins,
     };
   };
 }

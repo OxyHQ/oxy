@@ -199,7 +199,7 @@ async function seed(): Promise<void> {
       provider: 'aws-iam',
       subject: attestedSubject,
       description: `publication suite ${tag}`,
-      scopes: [],
+      environment: 'development',
     })
     .returning({ id: applicationWorkloadIdentities.id });
   attestedBindingId = attestedBinding.id;
@@ -224,8 +224,9 @@ async function seed(): Promise<void> {
     // cannot keep passing after the derivation moves.
     credentialId: workloadAttestationHandle(attestedSubject),
     ownerAccountId: account.id,
-    environment: 'production',
-    scopes: ['inference:invoke'],
+    authority: 'first_party',
+    tier: 'internal',
+    environment: 'development',
     iss: 'oxy-auth',
     aud: 'oxy-api',
     iat: attestedInternalTokenIssuedAt,

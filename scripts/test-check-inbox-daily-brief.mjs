@@ -201,10 +201,23 @@ try {
   mutate(
     unboundedLocale,
     'packages/contracts/src/inference/inbox.ts',
-    '.max(35).optional(),',
+    '.check(utf16MaxLength(35)).optional(),',
     '.optional(),',
   );
   verdict(unboundedLocale, 1);
+
+  for (const [from, to] of [
+    ['startAt: inboxUtcTimestampSchema,', 'startAt: inboxUtcTimestampSchema.optional(),'],
+    ['endAt: inboxUtcTimestampSchema,', 'endAt: inboxUtcTimestampSchema.optional(),'],
+    ['.check(utf16MaxLength(35)).optional(),', '.check(utf16MaxLength(350)).optional(),'],
+    ['.check(utf16MaxLength(35)).optional(),', '.check(utf16MaxLength(35)),'],
+    ['[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*', '[A-Za-z0-9-]+'],
+  ]) {
+    const weakenedContract = fixture();
+    roots.push(weakenedContract);
+    mutate(weakenedContract, 'packages/contracts/src/inference/inbox.ts', from, to);
+    verdict(weakenedContract, 1);
+  }
 
   const subjectCode = fixture();
   roots.push(subjectCode);

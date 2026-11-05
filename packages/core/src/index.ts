@@ -23,21 +23,28 @@
 // The crypto shim MUST stay the first import. The root itself ships no crypto
 // library (`__tests__/rootEntryGraph.test.ts`), but `@oxy.so/protocol`'s root
 // entry (reached by the OAuth/PKCE and device helpers) does, and Metro does not
-// tree-shake: on Hermes, `@noble/hashes` would capture an absent
-// `globalThis.crypto` at evaluation. See the note in `./crypto/polyfill`.
+// tree-shake: on Hermes, the shim has to exist before any of it evaluates. See
+// the note in `./crypto/polyfill`.
 import './crypto/polyfill';
 
 // ---------------------------------------------------------------------------
 // API client
 // ---------------------------------------------------------------------------
 export { OxyServices, OXY_API_URL, OXY_CLOUD_URL } from './OxyServices';
-export type { OxyConfig, LinkedHttpClient } from './OxyServices';
+export type {
+  OxyConfig,
+  LinkedHttpClient,
+  OxyCallScope,
+  OxyCallScopeNamespace,
+} from './OxyServices';
+export type { CallOptions } from './client/callOptions';
 export {
   OxyApiError,
   OxyAuthenticationError,
   OxyAuthenticationTimeoutError,
   AssetUrlResolutionError,
   ServiceAssetMetadataError,
+  retryAfterSecondsOf,
 } from './OxyServices.errors';
 export type { HttpMethod } from './client/context';
 export type {
@@ -48,7 +55,15 @@ export type {
   AuthenticatedResponseRequest,
   AuthRefreshReason,
   AuthRefreshHandler,
+  CredentialGeneration,
 } from './HttpService';
+export { sameHolderIdentity } from './api/holderEvidence';
+export type {
+  HolderEvidence,
+  HolderEvidenceIdentity,
+  HolderEvidenceResult,
+  HolderEvidenceUnavailableReason,
+} from './api/holderEvidence';
 
 // The namespaces — their classes (for typing) and their input/output types.
 export type { SessionApi, DeviceCredentialProvider, SessionValidation } from './api/session';
@@ -73,6 +88,7 @@ export type {
   ClaimedSession,
 } from './api/auth';
 export type { UsersApi, ResolveExternalUserInput, DeleteAccountProof } from './api/users';
+export type { BatchLookup } from './utils/batchLookup';
 export type {
   FollowsApi,
   FollowMutationResult,
@@ -91,6 +107,11 @@ export type {
   RegisterPushTokenInput,
 } from './api/notifications';
 export { ASSET_MULTIPART_UPLOAD_MAX_BYTES, assetUrlCacheTTL, MAX_UPLOAD_BYTES } from './api/assets';
+export type {
+  AssetFileAdapter,
+  AssetFileSource,
+  AssetFilePartRequest,
+} from './api/assetFileSource';
 export { DirectUploadInterruptedError } from './api/directUpload';
 export type { DirectUploadProgress } from './api/directUpload';
 export type {
@@ -99,6 +120,7 @@ export type {
   UploadedAsset,
   AssetLinkState,
   AssetUploadOptions,
+  AssetUploadStageProgress,
   AssetLinkTarget,
   AssetDeleteResult,
   CompletedAssetUpload,
@@ -144,6 +166,7 @@ export type {
   AppsApi,
   AppAssertionsApi,
   Application,
+  ApplicationCallerMembership,
   ApplicationType,
   ApplicationStatus,
   ApplicationCredential,
@@ -199,6 +222,21 @@ export type {
   StorePageOptions,
   StoreReviewsOptions,
 } from './api/store';
+// The store's installer (ADR 0053): what a runtime that installs applications registers beside
+// `oxy.store`, and what a store asks it.
+export {
+  getStoreInstaller,
+  setStoreInstaller,
+  StoreInstallerError,
+} from './api/storeInstaller';
+export type {
+  StoreInstallState,
+  StoreInstaller,
+  StoreInstallerFailure,
+  StoreUpdate,
+  StoreUpdates,
+  StoreUpdatesSource,
+} from './api/storeInstaller';
 export type {
   BillingApi,
   SubscriptionPlan,
@@ -376,6 +414,10 @@ export type {
   ServiceReferenceInventoryItem,
   ServiceReferenceReconcileResult,
   ServiceUserMediaFile,
+  ServiceMediaCacheUpload,
+  ServiceFederatedMediaUpload,
+  ServiceFederatedMediaDeleteResult,
+  ServiceFederatedMediaDeletion,
   FileImportOutcome,
   FileImportSource,
   FileImportOptions,

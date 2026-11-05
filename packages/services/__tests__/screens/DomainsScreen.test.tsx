@@ -88,6 +88,18 @@ describe('DomainsScreen', () => {
     expect(screen.queryByTestId('domains-verify')).toBeNull();
   });
 
+  it.each(['https://example.com/', 'my site.com', 'localhost', '-x.com'])(
+    'says %p is not a domain, without asking the server',
+    async (typed) => {
+      renderScreen();
+      fireEvent.change(await screen.findByTestId('domains-input'), { target: { value: typed } });
+      fireEvent.click(screen.getByTestId('domains-request'));
+
+      expect(await screen.findByText('domains.errors.invalid')).toBeTruthy();
+      expect(domains.requestVerification).not.toHaveBeenCalled();
+    },
+  );
+
   it('keeps the proof on screen when the domain is not verified yet', async () => {
     domains.verify.mockResolvedValueOnce({
       verified: false,

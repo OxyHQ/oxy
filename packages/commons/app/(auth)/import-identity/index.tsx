@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import {
   RecoveryPhraseService,
   IdentityAlreadyExistsError,
   IdentityUnavailableError,
 } from '@oxy.so/core/crypto';
+import { readPastedPhrase, WRONG_WORD_COUNT_KEY } from '@/lib/recovery-phrase/paste';
 import { useColors } from '@/hooks/useColors';
 import { ImportPhraseStep } from '@/components/auth/ImportPhraseStep';
 import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';
@@ -14,6 +15,7 @@ import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useIdentityStore, persistOnboardingFlow } from '@/hooks/identity/identityStore';
 import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
+import { shortenKey } from '@/utils/shorten-key';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -70,12 +72,18 @@ export default function ImportIdentityPhraseScreen() {
     [setAuthError],
   );
 
-  const handlePaste = useCallback((text: string) => {
-    const words = text.trim().toLowerCase().split(/\s+/);
-    if (words.length === RECOVERY_PHRASE_LENGTH || words.length === 24) {
-      setPhraseWords(words.slice(0, RECOVERY_PHRASE_LENGTH));
-    }
-  }, []);
+  const handlePaste = useCallback(
+    (text: string) => {
+      const pasted = readPastedPhrase(text);
+      if (pasted.ok) {
+        setPhraseWords(pasted.words);
+        setAuthError(null);
+      } else {
+        setAuthError(t(WRONG_WORD_COUNT_KEY, { count: pasted.count }));
+      }
+    },
+    [setAuthError, t],
+  );
 
   const handleImport = useCallback(async () => {
     const phrase = phraseWords.join(' ');
@@ -113,7 +121,11 @@ export default function ImportIdentityPhraseScreen() {
       router.replace('/(auth)/import-identity/username');
     } catch (err: unknown) {
       if (err instanceof IdentityMayExistError) {
-        router.replace('/(auth)/recover-identity');
+        // This phone held a DIFFERENT identity, which is still recoverable, and
+        // importing would overwrite it. Say so here, with the key it holds,
+        // instead of silently bouncing back to the recovery screen: the person
+        // can correct the words, or go back and choose Start over.
+        setAuthError(t('recovery.differentIdentity', { key: shortenKey(err.markerPublicKey) }));
         return;
       }
       if (err instanceof IdentityUnavailableError) {

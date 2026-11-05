@@ -34,7 +34,6 @@ function PersonalPlansContent() {
   const [busy, setBusy] = useState(false);
   const actions = useRef(new Map<string, string>());
   const [message, setMessage] = useState('');
-  const [paymentReview, setPaymentReview] = useState(false);
   const [refreshWarning, setRefreshWarning] = useState(false);
   const scope = useRef({ active: false });
   useLayoutEffect(() => {
@@ -54,7 +53,6 @@ function PersonalPlansContent() {
     if (!isCurrent()) return;
     setBusy(true);
     setMessage('');
-    setPaymentReview(false);
     try {
       const idempotencyKey = await getPersonalPlanCheckoutKey(user.id, offerId, offerVersion);
       if (!isCurrent()) return;
@@ -84,64 +82,30 @@ function PersonalPlansContent() {
         setMessage(
           t(`payments.one.${result.state === 'unconfigured' ? 'unconfigured' : 'pending'}`),
         );
-    } catch (error) {
-      if (isCurrent()) {
-        const needsReview =
-          error instanceof Error &&
-          (error.message === 'PAYMENT_REVIEW_REQUIRED' ||
-            ('code' in error && error.code === 'PAYMENT_REVIEW_REQUIRED'));
-        setPaymentReview(needsReview);
-        setMessage(t(needsReview ? 'payments.one.paymentReview' : 'payments.one.checkoutFailed'));
-      }
+    } catch {
+      if (isCurrent()) setMessage(t('payments.one.checkoutFailed'));
     } finally {
       if (isCurrent()) setBusy(false);
     }
   }
-  async function renew(sourceId: string, periodEnd: string) {
+  async function manage(sourceId: string) {
     if (!user?.id || !isAuthenticated || busy) return;
     const isCurrent = captureScope();
     if (!isCurrent()) return;
     setBusy(true);
     setMessage('');
-    setPaymentReview(false);
-    const operation = `renew:${sourceId}:${periodEnd}`;
     try {
-      const idempotencyKey = await getPersonalPlanCheckoutKey(user.id, operation, 1);
-      if (!isCurrent()) return;
       const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
         if (!isCurrent()) throw new Error('Account changed');
-        return oxyServices.billing.renewProductSubscription({
+        return oxyServices.billing.openProductSubscriptionPortal({
           expectedSubjectAccountId: oxyAccountIdSchema.parse(user.id),
           sourceId,
-          idempotencyKey,
         });
       });
       if (!isCurrent()) return;
-      if (result.state === 'pending' && result.checkoutUrl) {
-        const url = new URL(result.checkoutUrl);
-        url.searchParams.set('displayCurrency', display.currency);
-        await Linking.openURL(url.toString());
-      } else if (result.state === 'fulfilled' || result.state === 'closed') {
-        await clearPersonalPlanCheckoutKey(user.id, operation, 1);
-        if (!isCurrent()) return;
-        await sources.refetch();
-        if (!isCurrent()) return;
-        setMessage(
-          t(`payments.one.${result.state === 'fulfilled' ? 'checkoutComplete' : 'checkoutClosed'}`),
-        );
-      } else
-        setMessage(
-          t(`payments.one.${result.state === 'unconfigured' ? 'unconfigured' : 'pending'}`),
-        );
-    } catch (error) {
-      if (isCurrent()) {
-        const needsReview =
-          error instanceof Error &&
-          (error.message === 'PAYMENT_REVIEW_REQUIRED' ||
-            ('code' in error && error.code === 'PAYMENT_REVIEW_REQUIRED'));
-        setPaymentReview(needsReview);
-        setMessage(t(needsReview ? 'payments.one.paymentReview' : 'payments.one.checkoutFailed'));
-      }
+      await Linking.openURL(result.url);
+    } catch {
+      if (isCurrent()) setMessage(t('payments.one.manageFailed'));
     } finally {
       if (isCurrent()) setBusy(false);
     }
@@ -254,13 +218,13 @@ function PersonalPlansContent() {
                     {offer.current ? t('payments.one.current') : t('payments.one.history')}
                   </ThemedText>
                 ))}
-                {source.canRenew && (
+                {source.canManage && (
                   <Pressable
                     accessibilityRole="button"
                     disabled={busy}
-                    onPress={() => renew(source.sourceId, source.period.end)}
+                    onPress={() => manage(source.sourceId)}
                   >
-                    <ThemedText>{t('payments.one.renew')}</ThemedText>
+                    <ThemedText>{t('payments.one.manage')}</ThemedText>
                   </Pressable>
                 )}
                 {source.canCancel &&
@@ -300,11 +264,6 @@ function PersonalPlansContent() {
             <ThemedText>{t('payments.one.noSources')}</ThemedText>
           ))}
         {!!message && <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>}
-        {paymentReview && (
-          <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://peable.to')}>
-            <ThemedText>{t('payments.one.reviewPayment')}</ThemedText>
-          </Pressable>
-        )}
         {refreshWarning && <ThemedText>{t('payments.one.refreshFailed')}</ThemedText>}
       </View>
     </Section>

@@ -82,6 +82,23 @@ describe('requestOAuthConsent', () => {
     jest.restoreAllMocks();
   });
 
+  it.each(['first_party', 'internal', 'system'])(
+    'does not request consent for an own %s application',
+    async (type) => {
+      const context = makeContext('native');
+      const apps = context.oxyServices.apps.getPublic as jest.Mock;
+      apps.mockResolvedValue({ id: 'own-app', type, scopes: [...EXACT_SCOPES] });
+      expect(
+        await requestOAuthConsent(context, {
+          redirectUri: NATIVE_REDIRECT_URI,
+          scopes: EXACT_SCOPES,
+        }),
+      ).toEqual({ status: 'unsupported', reason: 'first-party-application' });
+      expect(openNative).not.toHaveBeenCalled();
+      expect(context.commitSession).not.toHaveBeenCalled();
+    },
+  );
+
   it('uses the existing web popup transport with exact scopes and redirect', async () => {
     const popup = fakePopup();
     jest.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);

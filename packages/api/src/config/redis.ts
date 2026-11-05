@@ -13,6 +13,51 @@ let pingInterval: ReturnType<typeof setInterval> | null = null;
 let closing = false;
 
 /**
+ * How long ioredis waits before its next reconnect attempt: a backoff that
+ * grows 200 ms per attempt and stays at 5 s, FOREVER.
+ *
+ * It used to answer `null` after 20 attempts (about 42 s), which tells ioredis
+ * to stop reconnecting for good: the client ends, every later command fails
+ * with "Connection is closed", and nothing but a new task brings it back. So a
+ * Valkey outage a little longer than that outlived itself on every task, until
+ * a deploy, while `/health` kept answering 200. A down Valkey costs one
+ * connection attempt per task every 5 s; giving up costs the cache, the
+ * subscribers and the queues until someone notices.
+ *
+ * Shared by every ioredis client the API builds: this one, its `duplicate()`
+ * subscribers (which inherit it), and the BullMQ connections
+ * (`queue/connection.ts`).
+ */
+export function redisRetryStrategy(times: number): number {
+  return Math.min(times * 200, 5000);
+}
+
+/**
+ * How long one command on the shared client may take, from the moment it is
+ * sent: queued while the client connects or reconnects, then waiting for its
+ * reply. Past it the command is rejected ("Command timed out") and the caller
+ * falls back (every caller does: a cache reads the database, a limiter admits
+ * uncounted, the lockout counts in memory).
+ *
+ * Without it, a command sent while Valkey is down waits in ioredis's offline
+ * queue until `maxRetriesPerRequest` reconnect attempts have failed: 4 cycles
+ * of up to 5 s backoff plus a connect attempt (10 s against a host that does not
+ * answer), so up to a minute per command. Now that the client never gives up
+ * (`redisRetryStrategy`), that would be every command for the whole outage,
+ * where before it gave up after about 42 s and failed every command at once.
+ * It also bounds a connection that is up but not answering, which nothing
+ * else does.
+ *
+ * Why a timeout and not `enableOfflineQueue: false`: ioredis reads that option
+ * on every command, so it would also reject what is sent before the FIRST
+ * connect completes, and the server sends plenty then (every limiter's script
+ * load, the subscriptions). The offline queue still buffers that, for at most
+ * this long. A healthy in-VPC Valkey answers in well under a millisecond, so a
+ * second is headroom for a starved event loop, not for Valkey.
+ */
+export const REDIS_COMMAND_TIMEOUT_MS = 1_000;
+
+/**
  * Get a shared Redis/Valkey client.
  * Returns null when REDIS_URL is not set — all consumers
  * should gracefully fall back to in-memory stores.
@@ -25,16 +70,14 @@ export function getRedisClient(): Redis | null {
     closing = false;
     const url = process.env.REDIS_URL;
     const opts: RedisOptions = {
+      commandTimeout: REDIS_COMMAND_TIMEOUT_MS,
       maxRetriesPerRequest: 3,
       lazyConnect: true,
       enableReadyCheck: true,
       keepAlive: 10000,
       tls: url.startsWith('rediss://') ? {} : undefined,
 
-      retryStrategy(times: number) {
-        if (times > 20) return null;
-        return Math.min(times * 200, 5000);
-      },
+      retryStrategy: redisRetryStrategy,
 
       reconnectOnError(err: Error) {
         return err.message.includes('READONLY');
@@ -70,6 +113,20 @@ export function getRedisClient(): Redis | null {
   }
 
   return redis;
+}
+
+/**
+ * A dedicated pub/sub connection on the shared client's settings, for a
+ * subscriber (the shared client must stay publish-capable).
+ *
+ * It keeps the offline queue and drops the command timeout: its only commands
+ * are its own SUBSCRIBEs, sent once at start, and a timeout would report a
+ * subscription as failed that ioredis completes as soon as it connects. After
+ * a reconnect, ioredis subscribes it again to every channel it held
+ * (`autoResubscribe`, stated here so nobody turns it off by accident).
+ */
+export function duplicateRedisSubscriber(redis: Redis): Redis {
+  return redis.duplicate({ commandTimeout: undefined, autoResubscribe: true });
 }
 
 /**

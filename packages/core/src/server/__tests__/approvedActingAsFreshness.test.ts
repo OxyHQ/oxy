@@ -12,7 +12,10 @@ const verify = (server: OxyServer, options?: VerifyOptions) =>
 const grant = (epoch: string) => ({ authorized: true, scopes: ['user:read'], epoch });
 
 function fixture() {
-  const server = new OxyServer({ baseURL: 'https://test.invalid' });
+  const server = new OxyServer({
+    baseURL: 'https://test.invalid',
+    serviceAuth: { apiKey: 'verifier-key', apiSecret: 'verifier-secret' },
+  });
   jest.spyOn(server, 'serviceToken').mockResolvedValue('verifier');
   const request = jest.spyOn(server as unknown as { request: jest.Mock }, 'request');
   return { server, request };

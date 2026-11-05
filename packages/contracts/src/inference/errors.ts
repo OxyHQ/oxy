@@ -1,3 +1,5 @@
+import { integerCheck, safeNumberCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 /**
  * Inference errors and retryability.
  *
@@ -247,8 +249,8 @@ const CREDENTIAL_PATTERNS: readonly RegExp[] = [
  */
 export const safeErrorTextSchema = z
   .string()
-  .min(1)
-  .max(2000)
+  .check(utf16MinLength(1))
+  .check(utf16MaxLength(2000))
   .refine(
     (value) => !CREDENTIAL_PATTERNS.some((pattern) => pattern.test(value)),
     'error text must not contain credential-shaped material',
@@ -287,9 +289,9 @@ export const providerErrorPassthroughSchema = z
   .object({
     provider: inferenceProviderSlugSchema,
     /** The upstream HTTP status, when the upstream spoke HTTP. */
-    status: z.number().int().min(100).max(599).optional(),
+    status: z.number().check(integerCheck()).min(100).max(599).optional(),
     /** The upstream's own error code, verbatim and uninterpreted. */
-    code: z.string().max(128).optional(),
+    code: z.string().check(utf16MaxLength(128)).optional(),
     /** The upstream's message, subject to the same credential refusal. */
     message: safeErrorTextSchema.optional(),
   })
@@ -311,9 +313,14 @@ export const inferenceErrorSchema = z
     retryable: z.boolean(),
     requestId: requestIdSchema,
     /** How long to wait before retrying. Only meaningful when `retryable`. */
-    retryAfterMs: z.number().int().nonnegative().safe().optional(),
+    retryAfterMs: z
+      .number()
+      .check(integerCheck())
+      .nonnegative()
+      .check(safeNumberCheck())
+      .optional(),
     /** The request field at fault, for `invalid_request`. */
-    param: z.string().max(128).optional(),
+    param: z.string().check(utf16MaxLength(128)).optional(),
     /** Present only when an upstream provider was reached and failed. */
     upstreamCategory: upstreamErrorCategorySchema.optional(),
     providerError: providerErrorPassthroughSchema.optional(),

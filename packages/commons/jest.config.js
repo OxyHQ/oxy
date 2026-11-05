@@ -1,3 +1,9 @@
+const {
+  NOBLE_ESM_PACKAGES,
+  esmOnlyTransform,
+  esmOnlyTransformIgnorePattern,
+} = require('../../scripts/jest-esm-only.cjs');
+
 /** @type {import('jest').Config} */
 module.exports = {
   testEnvironment: 'jsdom',
@@ -11,7 +17,7 @@ module.exports = {
         tsconfig: {
           jsx: 'react-jsx',
           module: 'commonjs',
-          moduleResolution: 'node',
+          moduleResolution: 'bundler',
           esModuleInterop: true,
           allowSyntheticDefaultImports: true,
           strict: true,
@@ -23,7 +29,9 @@ module.exports = {
         },
       },
     ],
+    ...esmOnlyTransform(NOBLE_ESM_PACKAGES),
   },
+  transformIgnorePatterns: [esmOnlyTransformIgnorePattern(NOBLE_ESM_PACKAGES)],
   testMatch: ['<rootDir>/__tests__/**/*.(test|spec).(ts|tsx)'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
@@ -47,6 +55,10 @@ module.exports = {
     '\\.(woff2?|ttf|otf|eot|png|jpe?g|gif|webp|svg|lottie)$': '<rootDir>/__mocks__/file-asset.js',
     '^react-native-svg$': '<rootDir>/__mocks__/react-native-svg.js',
     '^@oxy.so/bloom/button$': '<rootDir>/__mocks__/bloom-button.tsx',
+    '^@oxy.so/bloom/text-field$': '<rootDir>/__mocks__/bloom-text-field.tsx',
+    '^@oxy.so/bloom/textarea$': '<rootDir>/__mocks__/bloom-text-field.tsx',
+    '^@oxy.so/bloom/checkbox$': '<rootDir>/__mocks__/bloom-checkbox.tsx',
+    '^@oxy.so/bloom/page-header$': '<rootDir>/__mocks__/bloom-page-header.tsx',
     '^@oxy.so/bloom/badge$': '<rootDir>/__mocks__/bloom-badge.tsx',
     '^@oxy.so/bloom/admonition$': '<rootDir>/__mocks__/bloom-admonition.tsx',
     '^@oxy.so/bloom/typography$': '<rootDir>/__mocks__/bloom-typography.tsx',

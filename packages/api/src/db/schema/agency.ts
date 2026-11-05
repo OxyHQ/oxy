@@ -200,10 +200,68 @@ export const agentRequesterCeilings = pgTable(
 
 export type AgentRequesterCeilingRow = typeof agentRequesterCeilings.$inferSelect;
 
+/** Context stays inspectable for thirty days after expiry or revocation. */
+export const FIRST_PARTY_TASK_RETENTION_SECONDS = 30 * 86400;
+
+/** Durable context for an Oxy-owned request, goal or schedule. No app permissions. */
+export const firstPartyTasks = pgTable(
+  'first_party_tasks',
+  {
+    id: generatedId(),
+    originKind: text({ enum: ['request', 'goal', 'automation'] }).notNull(),
+    originId: text().notNull(),
+    requesterAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    effectiveAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    requesterSessionId: text().notNull(),
+    requesterSessionBindingDigest: text().notNull(),
+    requesterAuthMethodId: text(),
+    coordinatorApplicationId: text()
+      .notNull()
+      .references(() => applications.id, { onDelete: 'cascade' }),
+    coordinatorCredentialId: text()
+      .notNull()
+      .references(() => applicationCredentials.id, { onDelete: 'cascade' }),
+    actorType: text({ enum: ['alia', 'agent', 'requester'] }).notNull(),
+    actorAccountId: text().references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamptz().notNull(),
+    revokedAt: timestamptz(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      'first_party_tasks_origin_check',
+      sql`${t.originKind} in ('request', 'goal', 'automation')`,
+    ),
+    check(
+      'first_party_tasks_digest_check',
+      sql`${t.requesterSessionBindingDigest} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'first_party_tasks_actor_check',
+      sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} in ('agent', 'requester') and ${t.actorAccountId} is not null)`,
+    ),
+    foreignKey({
+      name: 'first_party_tasks_requester_method_fk',
+      columns: [t.requesterAuthMethodId, t.requesterAccountId],
+      foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
+    }).onDelete('restrict'),
+    index('first_party_tasks_expiry_idx').on(t.expiresAt),
+    index('first_party_tasks_revoked_idx').on(t.revokedAt),
+    index('first_party_tasks_requester_idx').on(t.requesterAccountId, t.createdAt),
+    index('first_party_tasks_origin_idx').on(t.coordinatorApplicationId, t.originKind, t.originId),
+  ],
+);
+
 export const capabilityExecutionAuthorizations = pgTable(
   'capability_execution_authorizations',
   {
     id: generatedId(),
+    authority: text({ enum: ['first_party', 'external'] }),
+    taskId: text().references(() => firstPartyTasks.id, { onDelete: 'cascade' }),
     kind: text({ enum: ['direct_request', 'automation'] }).notNull(),
     requesterAccountId: text()
       .notNull()
@@ -252,6 +310,10 @@ export const capabilityExecutionAuthorizations = pgTable(
   },
   (t) => [
     check(
+      'capability_execution_authority_check',
+      sql`${t.authority} in ('first_party', 'external')`,
+    ),
+    check(
       'capability_execution_ceiling_scope_check',
       sql`${t.ceilingId} is null or (
         ${t.actorType} = 'agent'
@@ -280,24 +342,31 @@ export const capabilityExecutionAuthorizations = pgTable(
     check(
       'capability_execution_requester_session_check',
       sql`
-      (${t.actorType} = 'requester' and ${t.requesterSessionId} is not null and length(${t.requesterSessionId}) > 0
+      case when coalesce(${t.authority}, 'external') = 'first_party' then
+        (${t.requesterSessionId} is not null and length(${t.requesterSessionId}) > 0
+         and ${t.requesterSessionBindingDigest} is not null and ${t.requesterSessionBindingDigest} ~ '^[a-f0-9]{64}$' and ${t.ceilingId} is null)
+      else (${t.actorType} = 'requester' and ${t.requesterSessionId} is not null and length(${t.requesterSessionId}) > 0
        and ${t.requesterSessionBindingDigest} is not null
        and ${t.requesterSessionBindingDigest} ~ '^[a-f0-9]{64}$'
        and ${t.kind} = 'direct_request' and ${t.maximumAutonomy} = 'read_only'
        and ${t.actorAccountId} = ${t.requesterAccountId})
-      or (${t.actorType} <> 'requester' and ${t.requesterSessionId} is null and ${t.requesterSessionBindingDigest} is null)`,
+      or (${t.actorType} <> 'requester' and ${t.requesterSessionId} is null and ${t.requesterSessionBindingDigest} is null) end`,
     ),
     check(
       'capability_execution_requester_catalog_check',
       sql`
-      (${t.actorType} = 'requester' and (
+      case when coalesce(${t.authority}, 'external') = 'first_party' then
+        (${t.requesterCatalogRegistrationId} is not null and length(${t.requesterCatalogRegistrationId}) > 0
+         and ${t.requesterCatalogVersion} is not null and length(${t.requesterCatalogVersion}) > 0
+         and ${t.requesterCatalogDigest} is not null and ${t.requesterCatalogDigest} ~ '^[a-f0-9]{64}$')
+      else (${t.actorType} = 'requester' and (
         (${t.requesterCatalogRegistrationId} is not null and length(${t.requesterCatalogRegistrationId}) > 0
          and ${t.requesterCatalogVersion} is not null and length(${t.requesterCatalogVersion}) > 0
          and ${t.requesterCatalogDigest} is not null and ${t.requesterCatalogDigest} ~ '^[a-f0-9]{64}$')
         or (${t.revokedAt} is not null and ${t.requesterCatalogRegistrationId} is null
          and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null)))
       or (${t.actorType} <> 'requester' and ${t.requesterCatalogRegistrationId} is null
-       and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null)`,
+       and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null) end`,
     ),
     check(
       'capability_execution_authorizations_automation_check',

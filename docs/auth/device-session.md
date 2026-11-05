@@ -121,7 +121,7 @@ The API validates its output against these schemas and `SessionClient` validates
 
 ## REST API — `/session/device/*`
 
-Router: `packages/api/src/routes/sessionDevice.ts`, mounted at `/session/device` in `server.ts`. `POST /session/device/token` is **public** (no bearer, no cookies) — possession of the `deviceSecret` is the proof. Every other route shares two gates:
+Router: `packages/api/src/routes/sessionDevice.ts`, mounted at `/session/device` in `server.ts`. The two holder-proven mint endpoints are **public** (no bearer, no cookies) — possession of the `deviceSecret` is the proof. The browser bridge endpoints below are also public. Authenticated device-management routes share two gates:
 
 1. **`requireSameSiteOrigin`** — browser-enforced CSRF guard (`Origin` allowlist / `Sec-Fetch-Site` fallback).
 2. **Bearer auth** (`authMiddleware`). The `deviceId` is always read from the **bearer JWT's `deviceId` claim** — never from the body, query, or a header. There is no way to address another device's state.
@@ -129,13 +129,16 @@ Router: `packages/api/src/routes/sessionDevice.ts`, mounted at `/session/device`
 | Method | Path | Body | Behavior |
 |--------|------|------|----------|
 | POST | `/session/device/token` | `{ deviceId, deviceSecret, accountId? }` | **Zero-cookie mint** — public. Looks `sha256(deviceSecret)` up among the device's holder credentials (`device_credentials`, one per app/origin that joined the device — ADR 0029 D2), mints a short access token for the active account, and returns the proven secret unchanged as `nextDeviceSecret` (stable — nothing rotates, so every holder refreshes concurrently). `401 invalid_device_secret` on a bad secret; `401 no_active_session` when the device is known but has no live session (credential unchanged). Per-device lockout + `rl:session:device-token:` rate limit. **Optional `accountId`** (issue #691 Phase 1) PINS the mint to that one account of the device's set instead of whichever is active — it NEVER mutates `activeAccountId`/`revision` and never broadcasts, and the returned `state` still reports the device's true active account; a non-member account or one whose session is dead answers `401 account_not_on_device`, deliberately indistinguishable so a pinned miss can't become an account-existence oracle. Used by `sessionMode: 'identity'` (Commons) — see [SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § Cold boot. |
+| POST | `/session/device/context-token-v1` | `{ deviceId, deviceSecret }` | Opt-in account-mode holder mint returning a bearer bound to the active context. Returns `401 invalid_device_secret` for a bad holder and `409 binding_unavailable` without a bearer when the binding is missing or changes during mint. Rejects `accountId`; identity-pinned clients retain the `/token` contract. Shares the `/token` rate-limit and lockout budgets. |
 | POST | `/session/device/register`, `/session/device/join-code`, `/session/device/join` | see [SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § REST surface | **The browser bridge** (ADR 0029 D2) — public (no bearer). `register` and `join-code` answer auth.oxy.so (and loopback) only; `join` answers the app's own origin. An official app joins the browser's device with a one-use, ~60 s, PKCE-bound code and gets its own holder credential. |
 | GET | `/session/device/state` | — | Returns the FLAT device set for the caller's JWT device. `401` when the bearer carries no `deviceId` claim. |
 | GET | `/session/device/directory` | — | The **directory** (issue #937, ADR 0002) — principals, their contexts, and the live switchability verdict per context. Returns `{ data: DeviceDirectory }`. Rate limit `rl:session:device-directory:`, keyed per device. See § The directory below. |
-| POST | `/session/device/activate` | `{ contextId }` | Activates one `principal → account` context. `400 accountId_not_accepted` when the body carries an `accountId` at all; `404` when the context is not on this device; `403` plus a healed-state broadcast when it is stale or revoked. Returns `{ data: DeviceActivateResponse }` = `{ directory, activeToken }`. Rate limit `rl:session:device-activate:`. |
+| POST | `/session/device/activate` | `{ contextId }` | Activates one `principal → account` context. `400 accountId_not_accepted` when the body carries an `accountId` at all; `404` when the context is not on this device; `403` plus a healed-state broadcast when it is stale or revoked; `409 context_superseded` when another transition overtakes the activation before its result is assembled. Success returns `{ data: DeviceActivateResponse }` = `{ directory, activeToken }`. Rate limit `rl:session:device-activate:`. |
 | POST | `/session/device/add` | — | Registers the **caller's own bearer session** (account id from `req.user`, session id from the JWT) into the device set. Idempotent: re-registering the same account+session (the reload handoff) is a pure no-op — no active flip, no revision bump, no broadcast. A different sessionId for an existing account replaces the entry and deactivates the displaced session. `401` when the session record is expired/revoked. |
 | POST | `/session/device/switch` | `{ accountId }` | Sets `activeAccountId` after re-validating the target session. `404` when the account is not on this device; `403` (plus a broadcast of the healed state) when the target session was revoked. |
 | POST | `/session/device/signout` | `{ accountId }`, `{ all: true }`, `{ contextId }` or `{ principalId }` | The four removal meanings. `accountId` removes that account however it is reached, plus the operator cascade, and `all` removes the whole device set and deletes every holder credential. Every removal applies to every app on the device (the browser's one shared DeviceSession, ADR 0029 D2); holder credentials survive while any account remains and are all deleted when none does. `contextId` removes ONE `principal → account` pair and leaves another principal's route to the same account alone; `principalId` removes ONE person and every context they reach, and nobody else's. The last two elect a replacement active context in the documented order (same principal's personal, then another of that principal's, then the next principal's personal, then none) and answer `{ data: { directory, state, activeToken } }`. Asking for a `contextId` AND a `principalId` in one body is `400` — they are different operations. |
+
+The `context-token-v1` success body is `{ data: { version: 1, deviceId, deviceSessionId, revision, contextId, actorId, accountId, sessionId, accessToken, expiresAt } }`. It returns `Cache-Control: no-store` and never echoes the holder secret. `expiresAt` is the earlier of the verified bearer's `exp` and the session expiry observed in the final read; revocation can make it unusable sooner. The server verifies the token's signature and binding, checks principal/session and delegated authority, then re-reads the holder, device incarnation, active context, session and stored token in one database statement before responding. It applies the canonical access-token binding check to the session read there, including issuer, audience, client and scopes. A stale transition, missing binding, revoked holder, changed token or inactive session produces no bearer. Delegation is checked separately before that final statement; a concurrent revocation can occur afterward. Account graph and permission data may change separately; the response is not a transactionally frozen directory or a grant of future authorization, and a change after that final read can race its delivery. The endpoint does not activate a context or make client snapshots atomic. Clients must not treat an unrecognized version, a transport error or `binding_unavailable` as permission to downgrade strict behavior.
 
 **Response shape (the flat routes):** `{ data: DeviceSessionSync }` — i.e. `{ data: { state, activeToken } }` validating `deviceSessionSyncSchema`. `activeToken` is minted per response after re-validating the active account's session; it is `null` rather than stale when the session cannot mint. `/directory` and `/activate` speak `deviceDirectorySchema` / `deviceActivateResponseSchema` instead, and both are validated against the contract before they ship.
 
@@ -151,12 +154,40 @@ Router: `packages/api/src/routes/sessionDevice.ts`, mounted at `/session/device`
 
 **Broadcast discipline:** every route broadcasts `session_state` to the device room after a *real* change (`changed === true`); idempotent no-ops stay silent so reload storms do not fan out.
 
+An activation overtaken after it commits returns `409 context_superseded` without a bearer. If its device row still exists and it changed the device, the route broadcasts the latest observed state; if the row was deleted or replaced before that read, it sends no broadcast. The read and the subsequent socket emission are not atomic, so this does not fence a device deleted and recreated between those two steps. The client must also check its current context when applying a response.
+
 Registration also happens server-side outside this router:
 
 - `POST /accounts/:id/switch` (account graph, `packages/api/src/routes/accounts.ts`) registers the freshly-minted managed session into the operator's device set with `activate: 'always'` and broadcasts.
 - Every first-party sign-in (`/auth/login`, `/auth/signup`, `/auth/verify`, `/security/2fa/verify-login`) registers itself into its device set with `activate: 'if-empty'` and mints the `deviceSecret` for the response (`finalizeDeviceLogin`, `packages/api/src/services/deviceLogin.service.ts`) — add-only, never steals the device's current active selection.
 
 > **Do not confuse** these routes with the older fingerprint-based listing at `GET /session/device/sessions/:sessionId` / `POST /session/device/logout-all/:sessionId` (routes in `packages/api/src/routes/session.ts`, DTO `DeviceLinkedSession*` in contracts). Those enumerate `sessions` rows that share a device fingerprint for the security screen; they are **not** the device set and do not carry `revision`/`activeAccountId`.
+
+The older logout, logout-all and device-management routes require the acting
+`sessionId` to match the authenticated bearer session. A mismatch returns
+`403 ACTING_SESSION_MISMATCH` before the supplied id is looked up. The explicit
+`targetSessionId` on the logout route retains its existing target rules. If a
+client's session projection and bearer temporarily disagree, these operations
+are unavailable until they agree; this response does not mean the bearer expired.
+
+Session listing and sign-out on those routes are scoped to the authenticated
+principal and effective account. The list also includes sessions of that account
+on the acting device, and an explicit logout target may be any session on that
+device. There is no separate administrator-wide session operation
+in this contract. Bulk sign-out emits one existing session-revocation event per
+session actually ended, rather than an account-wide event; consumers must handle
+the session-specific event form. These session sign-out routes do not send the
+legacy `session_removed` or `sessions_removed` events to the subject-wide socket
+room, which is shared by operators. Older SDKs relying on those events may not
+observe remote sign-out immediately; server-side session validation and the
+service revocation feed continue to reject and invalidate revoked sessions.
+
+The lists are read while the acting session is locked and describe the state
+observed by that read; the device can change again after the read or response.
+Mutations lock the acting session through the database write. Concurrent requests
+can deadlock; PostgreSQL aborts one transaction and the operation returns 500,
+with no database change from that aborted transaction. For other 500 responses,
+clients should refresh state before retrying because completion may be uncertain.
 
 ---
 

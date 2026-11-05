@@ -28,6 +28,16 @@
  *    response; without one, a server that sends its headers and stalls holds
  *    any other reader open.
  *
+ * NOT FOR OXY'S OWN HOSTS
+ * -----------------------
+ * `safeFetch` is for UNTRUSTED or caller-influenced URLs only. Never use it to
+ * reach a first-party host (`api.oxy.so`, any `*.oxy.so`, an Oxy product's
+ * API): inside the VPC those names resolve to the internal load balancer
+ * (split-horizon DNS), a private address this module refuses by design. Call
+ * Oxy through `OxyServer` — its namespaces, `serviceRequest`, or
+ * `createServiceClient({ baseURL, audience }).fetch` for another Oxy product.
+ * A refusal of such a host says so in its message.
+ *
  * Node-only: this module imports `node:http`/`node:https`/`node:dns` and is
  * exported solely from `@oxy.so/core/server`. It MUST NOT be reachable from the
  * browser `@oxy.so/core` entry.
@@ -40,6 +50,7 @@ import type { LookupAddress, LookupAllOptions, LookupOneOptions } from 'node:dns
 import type { LookupFunction } from 'node:net';
 import { isIP } from 'node:net';
 import { URL } from 'node:url';
+import { isLoopbackOrigin, isOfficialWebOrigin } from '../utils/officialOrigins';
 import { withDeadline } from './deadline';
 import { extractEmbeddedIpv4, ipv4InCidr, ipv6InCidr } from './ipCidr';
 
@@ -153,6 +164,30 @@ export interface SsrfCheckFail {
 export type SsrfCheckResult = SsrfCheckOk | SsrfCheckFail;
 
 /**
+ * Every successful check {@link assertSafePublicUrl} returned, and the exact
+ * URL it checked. `safeFetch({ validated })` accepts only these, for that URL:
+ * a hand-built `{ ok: true, ip }`, or a check of another URL, never pins a
+ * connection.
+ */
+const issuedChecks = new WeakMap<SsrfCheckOk, string>();
+
+/** `rawUrl`'s normalized form, or `null` when it is not a URL. */
+function normalizedUrl(rawUrl: string): string | null {
+  try {
+    return new URL(rawUrl).href;
+  } catch {
+    return null;
+  }
+}
+
+/** A successful check of `href`, registered as one this module issued. */
+function issueCheck(href: string, ip: string, family: 4 | 6): SsrfCheckOk {
+  const check: SsrfCheckOk = { ok: true, ip, family };
+  issuedChecks.set(check, href);
+  return check;
+}
+
+/**
  * Return true if a literal IP address is private/loopback/link-local/reserved/
  * multicast/metadata and therefore must NOT be contacted.
  */
@@ -245,7 +280,7 @@ export async function assertSafePublicUrl(
     if (isBlockedIp(literalHost)) {
       return { ok: false, reason: 'literal ip in blocked range' };
     }
-    return { ok: true, ip: literalHost, family: literalFamily === 4 ? 4 : 6 };
+    return issueCheck(parsed.href, literalHost, literalFamily === 4 ? 4 : 6);
   }
 
   // Reject ambiguous numeric host forms BEFORE touching the resolver. `isIP`
@@ -290,11 +325,24 @@ export async function assertSafePublicUrl(
 
   // All records are public. Pin the connection to the first one.
   const chosen = records[0];
-  return {
-    ok: true,
-    ip: chosen.address,
-    family: chosen.family === 4 ? 4 : 6,
-  };
+  return issueCheck(parsed.href, chosen.address, chosen.family === 4 ? 4 : 6);
+}
+
+/** What a refusal of a first-party Oxy host adds to its reason. */
+const FIRST_PARTY_HOST_HINT =
+  'first-party Oxy host: inside the VPC it resolves to a private address, which safeFetch refuses by design; call it through OxyServer (its namespaces, serviceRequest, or createServiceClient().fetch), not safeFetch';
+
+/** `reason`, plus the first-party hint when `rawUrl` names an official Oxy host. */
+function rejectionReason(rawUrl: string, reason: string): string {
+  let origin: string;
+  try {
+    origin = new URL(rawUrl).origin;
+  } catch {
+    return reason;
+  }
+  return isOfficialWebOrigin(origin) && !isLoopbackOrigin(origin)
+    ? `${reason} (${FIRST_PARTY_HOST_HINT})`
+    : reason;
 }
 
 /** Marker error for a blocked SSRF target (map to 403 at the route layer). */
@@ -344,6 +392,22 @@ export interface SafeFetchOptions {
    * destroyed.
    */
   signal?: AbortSignal;
+  /**
+   * The check of this very URL the caller already made with
+   * {@link assertSafePublicUrl} (to refuse a URL before it reaches a cache, a
+   * queue or a database, say): the first hop connects to the address it
+   * validated instead of resolving the name again. Only a check
+   * `assertSafePublicUrl` returned for exactly `rawUrl` is accepted; anything
+   * else is a programming error and throws a `TypeError` before any request.
+   * Every redirect hop is still resolved and checked afresh.
+   */
+  validated?: SsrfCheckOk;
+  /**
+   * Refuse ({@link SsrfRejection}) any hop that is not https — the first, and
+   * every redirect — so no request of the chain is sent in the clear. Without
+   * it, http and https are both allowed on every hop.
+   */
+  requireHttps?: boolean;
 }
 
 /**
@@ -457,7 +521,18 @@ export async function safeFetch(
     redirect = 'follow',
     headersTimeoutMs = UPSTREAM_HEADERS_TIMEOUT_MS,
     signal,
+    validated,
+    requireHttps = false,
   } = options;
+
+  if (validated !== undefined) {
+    const checked = issuedChecks.get(validated);
+    if (checked === undefined || checked !== normalizedUrl(rawUrl)) {
+      throw new TypeError(
+        'safeFetch: `validated` must be the check assertSafePublicUrl returned for this exact URL',
+      );
+    }
+  }
 
   // Normalize a case-insensitive header map and ensure a User-Agent default.
   const baseHeaders: Record<string, string> = {};
@@ -478,13 +553,26 @@ export async function safeFetch(
       throw new UpstreamError('request aborted');
     }
 
-    // The lookup shares the headers deadline and the caller's signal.
-    const guard = await assertSafePublicUrl(currentUrl, {
-      lookupTimeoutMs: headersTimeoutMs,
-      signal,
-    });
+    if (requireHttps && !normalizedUrl(currentUrl)?.startsWith('https:')) {
+      throw new SsrfRejection(
+        hop === 0 ? 'https required' : 'https required: redirect to a non-https url',
+      );
+    }
+
+    // Hop 0 may reuse the caller's check of this exact URL; a redirect hop
+    // targets a new URL and is always checked here. The lookup shares the
+    // headers deadline and the caller's signal.
+    const guard =
+      hop === 0 && validated
+        ? validated
+        : await assertSafePublicUrl(currentUrl, {
+            lookupTimeoutMs: headersTimeoutMs,
+            signal,
+          });
     if (!guard.ok) {
-      throw guard.incomplete ? new UpstreamError(guard.reason) : new SsrfRejection(guard.reason);
+      throw guard.incomplete
+        ? new UpstreamError(guard.reason)
+        : new SsrfRejection(rejectionReason(currentUrl, guard.reason));
     }
 
     const target = new URL(currentUrl);

@@ -14,12 +14,11 @@ and JSON.
 
 | Piece | Import | Replaces |
 | --- | --- | --- |
-| Config plugin | `['@oxy.so/app-preset', {}]` | iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withOxySharedPermissions` |
-| Android release build | `@oxy.so/app-preset/plugin/withOxyAndroidRelease` | R8 `-optimize` ProGuard file + shared-keystore release signing (opt-in, see below) |
+| Config plugin | `['@oxy.so/app-preset', {}]` | iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withOxySharedPermissions` (which signs every release with the ecosystem key, see below) + the R8 `-optimize` ProGuard file |
 | Android WebP resources | `@oxy.so/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
-| Oxy Updates (OTA) | `@oxy.so/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate (opt-in, see below) |
+| Oxy Updates (OTA) | `@oxy.so/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate, required (opt-in, see below) |
 | Metro | `@oxy.so/app-preset/metro` | monorepo watch folders, block list, symlink + package-exports resolution, web-font/wasm asset exts, release minifier, NativeWind wrapper |
-| Babel | `@oxy.so/app-preset/babel` | `babel-preset-expo` + `module-resolver` + `react-native-worklets/plugin` |
+| Babel | `@oxy.so/app-preset/babel` | `babel-preset-expo` alone in development, so Expo's oxc transformer (Noxcturnal) runs; the build-id inliner in production |
 | ESLint | `@oxy.so/app-preset/eslint` | `eslint-config-expo/flat` + `dist/*` ignore |
 | CSS base | `@oxy.so/app-preset/base.css` | Tailwind v4 + NativeWind + Bloom design-token imports + SDK `@source` globs |
 | tsconfig | `@oxy.so/app-preset/tsconfig/{base,frontend,backend}.json` | the shared strict/composite TypeScript bases |
@@ -34,7 +33,8 @@ module.exports = createOxyMetroConfig(__dirname, {
 });
 ```
 
-Expo Router's renderer in `@expo/router-server` 58.0.14–58.0.16 renders the app
+Expo Router's renderer in `@expo/router-server` 58.0.14–58.0.16 and 58.0.18–58.0.21
+(Expo 58.0.23, expo-router 58.0.30) renders the app
 inside `+html`, but the browser hydrates only `#root`. Document siblings then
 change React `useId` paths. An ID in text (for example Bloom's scoped stylesheet)
 causes React to replace the workspace during hydration.
@@ -120,17 +120,75 @@ react-native's `Image` renders nothing for it, with no error. The keys exist fro
 `expo-build-properties` 58 (Expo SDK 58); older versions ignore them silently.
 
 The `sharedUserId` and `sharedIdentityReader` options were removed in 3.0.0 and
-throw if passed. `@oxy.so/services` 11+ is a required peer.
+throw if passed. `@oxy.so/services` 13.4.0+ is a required peer (the preset refuses an older one: it would declare the permissions without release signing).
 
 `webgpu: true` (opt-in, 3.2.0+) also applies `react-native-webgpu`'s config
 plugin, for an app that draws with WebGPU on native. Install
 `react-native-webgpu` in the app first; the option throws without it.
 
-#### Android release-build plugins (opt-in)
+#### Android release signing (always on, fails closed)
 
-These two are deliberately NOT part of `['@oxy.so/app-preset', {}]`: one writes a
-signing config and the other needs `sharp` installed, so both are registered
-explicitly by apps that ship to Play.
+Every Oxy Android release is signed with the ONE ecosystem key (certificate
+SHA-256 `b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d`,
+alias `oxy`). It is not a preset plugin: `@oxy.so/services/plugins/withOxySharedPermissions`
+applies `withOxyReleaseSigning` (services 13.4.0+), because the signature
+permissions it declares are what make the certificate load-bearing. A release
+signed with anything else takes ownership of `so.oxy.permission.IDENTITY` /
+`DEVICE_SESSION`, after which every correctly signed Oxy app fails to install
+(`INSTALL_FAILED_DUPLICATE_PERMISSION`), and Commons refuses it. So every app
+that declares the permissions, through the preset or directly, gets the rule;
+**list no signing plugin**.
+
+The keystore comes from Gradle properties (`~/.gradle/gradle.properties`, `-P`,
+or `ORG_GRADLE_PROJECT_<name>` environment variables), never from the repo:
+
+```properties
+OXY_UPLOAD_STORE_FILE=~/.config/oxy/oxy-ecosystem-release.keystore
+OXY_UPLOAD_STORE_PASSWORD_FILE=~/.config/oxy/oxy-ecosystem-release-keystore.pass
+OXY_UPLOAD_KEY_ALIAS=oxy
+```
+
+`OXY_UPLOAD_STORE_PASSWORD` takes the password itself instead of a file;
+`OXY_UPLOAD_KEY_PASSWORD` (or `_FILE`) is needed only when the key's password
+differs from the store's. `~/` is expanded, a password file is trimmed.
+
+Release always uses `signingConfigs.release`; nothing falls back to the debug
+key. A task, `oxyVerifyReleaseSigning`, runs before every release variant
+(`pre…ReleaseBuild`, `validateSigning…Release`, so `assembleRelease`,
+`bundleRelease`, `expo run:android --variant release` and EAS's release
+builds) and fails the build, saying how to provide the key, unless the release
+buildType's EFFECTIVE signing config opens and its certificate is the ecosystem
+one. It checks the outcome, not the properties, so it also refuses EAS-managed
+or per-app keys and a wrong alias. Debug builds never run it. There is no
+opt-out for release.
+
+Debug builds keep Expo's debug key unless `OXY_UPLOAD_SIGN_DEBUG=true` is set:
+then debug is signed with the same key and checked by the same task, so a dev
+client can be installed next to real Oxy apps and be granted the permissions
+(this replaces Willo's `withOxyDebugSigning`, which prebuild now refuses). An app
+that declares no Oxy permission (Authenticator) lists
+`@oxy.so/services/plugins/withOxyReleaseSigning` directly for the same release
+signing.
+
+`withOxyAndroidRelease` was removed in 5.0.0; listing it throws and says to delete it.
+
+#### Store build number (always on, 6.0.0+)
+
+The preset derives Android `versionCode` and iOS `buildNumber` from the app's
+`version`: `major * 1_000_000 + minor * 1_000 + patch` (1.2.3 → 1002003; minor
+and patch ≤ 999). Every later version gets a strictly higher number, which is
+what Google Play and the App Store require, and nobody keeps it by hand. An app
+config that still sets `android.versionCode` or `ios.buildNumber` fails to
+load: delete them. `version` must be `MAJOR.MINOR.PATCH`.
+
+`version` is also the OTA boundary (`withOxyUpdates`, `appVersion` policy):
+bump it for a native change and the next push to main releases a new binary
+(oxy's `android-release.yml`, docs/engineering/build-and-deploy.md#native-android-releases);
+a JS-only change keeps the version and ships as an OTA update.
+
+#### Android WebP resources (opt-in)
+
+`withOxyAndroidWebp` needs `sharp` installed, so it is registered explicitly:
 
 ```js
 plugins: [
@@ -138,16 +196,8 @@ plugins: [
   // order, and this has to run after every image generator (splash included).
   '@oxy.so/app-preset/plugin/withOxyAndroidWebp',
   // …app-specific plugins…
-  '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
 ]
 ```
-
-`withOxyAndroidRelease` reads the release keystore from four Gradle properties
-(`OXY_UPLOAD_STORE_FILE`, `OXY_UPLOAD_STORE_PASSWORD`, `OXY_UPLOAD_KEY_ALIAS`,
-`OXY_UPLOAD_KEY_PASSWORD`) in `~/.gradle/gradle.properties` or CI secrets — never
-from the repo. When they are absent the release buildType falls back to the debug
-keystore, so **always verify the artefact's certificate** (`keytool -printcert
--jarfile <aab>`, `apksigner verify --print-certs <apk>`) instead of assuming.
 
 `withOxyAndroidWebp` requires `sharp` as a devDependency of the app.
 
@@ -191,15 +241,33 @@ receive JS assuming native modules they do not have.
 
 **Code signing is one certificate for the whole ecosystem**, shipped in this
 package at `certs/oxy-updates-code-signing.pem` rather than copied into each app
-repo, so a rotation is one preset bump. See `certs/README.md` for how it is
-generated and rotated. Until that file exists, `withOxyUpdates` fails the build
-by default rather than producing a binary that accepts unsigned manifests for
-its whole lifetime. Development builds may explicitly pass
+repo, so a rotation is one preset bump. See `certs/README.md` for how it was
+generated, where its private key lives, and how to rotate it. `withOxyUpdates`
+fails the build (5.2.0+; before that the code defaulted to a warning) when the
+certificate is missing or is not a PEM certificate, rather than producing a
+binary that accepts unsigned manifests for its whole lifetime. The server side
+matches: oxy-api signs every manifest and directive and serves nothing, and
+accepts no publish, without its key. Development builds may explicitly pass
 `{ codeSigning: 'auto' }` to receive platform warnings, or
 `{ codeSigning: false }` to opt out of verification.
 
-Publishing is `oxy-ship` (`@oxy.so/ship`); see that package's README and its
-`templates/publish-update.yml` CI workflow.
+Publishing is `oxy-ship` (`@oxy.so/ship`) from GitHub Actions, with **no stored
+secret** (oxy ADR 0057, GitHub trusted publishing). Per app repository:
+
+1. Declare the repository as the app's trusted publisher: an Oxy app adds
+   `trustedPublishers: [otaPublisher('OxyHQ/<Repo>', '<numeric id>')]` to its
+   entry in oxy's `seedOxyApplicationsSpecs.ts` and runs the seed; a
+   third-party app registers it with
+   `POST https://api.oxy.so/applications/<appId>/trusted-publishers`.
+2. Add `@oxy.so/ship` as a devDependency.
+3. Copy `@oxy.so/ship/templates/publish-update.yml` to
+   `.github/workflows/publish-update.yml` and set `OXY_CLIENT_ID` in it to the
+   same public client id passed to `withOxyUpdates` above.
+
+Every push to `main` then publishes to `production`; the job's GitHub OIDC
+token (`permissions: id-token: write`) is exchanged for a five-minute
+`updates:publish` token of that app only. Pull requests never publish. See the
+`@oxy.so/ship` README for the exchange and the registration fields.
 
 ### 2. Metro (`metro.config.js`)
 
@@ -232,11 +300,71 @@ paths are escaped and block only their descendants. `extraNodeModules`,
 `extraWatchFolders`, `extraAssetExts`, and `extraSourceExts` extend the shared
 defaults without replacing them.
 
+#### Native CSS runtime identity (5.2.1+)
+
+Native bundles resolve `react-native-css` runtime imports and stylesheet injection
+through the app's CommonJS export condition. The package's ESM and CommonJS builds
+own separate root-variable registries; loading both can leave variable-based
+utilities such as `text-white` without their registered color. The resolver runs
+below NativeWind so redirected component imports share the same runtime, while
+preserving native component export conditions. Web resolution is unchanged.
+
+When validating a packed dependency on Android, force Metro to regenerate the
+release bundle: Gradle can otherwise reuse its previous bundle despite a changed
+package install. Inspect the regenerated source map for a single CSS runtime
+before comparing device behavior.
+
+#### `react-native` on native: the complete NativeWind shim (4.1.0+)
+
+On native, NativeWind's resolver sends every `import … from 'react-native'`
+outside React Native itself to `react-native-css/components`, a shim that
+re-exports a FIXED list of React Native's API. A name React Native adds and the
+list lacks reads as `undefined`: React Native 0.88 added `AssetRegistry`, Expo
+SDK 58's `expo-asset` imports it from `'react-native'`, every `useFonts` failed
+(`Cannot read property 'getAssetByID' of undefined`), Bloom's font loader never
+rendered its children, and Android release builds showed a blank screen with no
+visible error (upstream: nativewind/react-native-css#506, #504).
+
+`createOxyMetroConfig` returns `metro/react-native.js` wherever NativeWind
+resolved `react-native` to that shim: the shim's own properties, copied as they
+are (so `className` behaves exactly as NativeWind makes it), plus every other
+name of React Native's index, forwarded to React Native. Only a request for
+exactly `react-native` that NativeWind resolved to the shim is touched; web,
+deep `react-native/…` imports and every other module resolve as before. No
+`node_modules` patch is needed, and a name React Native adds later is covered
+without one. An app that wraps the returned `resolveRequest` in its own (Allo's
+`@hpke` and harness aliases) sits above this one, which is fine as long as it
+hands `react-native` and `react-native-css/components` down unchanged.
+
+An app that still composes `withNativeWind` itself gets the same fix by
+wrapping its finished config, LAST (over worklets' Bundle Mode too):
+
+```js
+const { withCompleteReactNative } = require('@oxy.so/app-preset/metro');
+
+module.exports = withCompleteReactNative(withNativeWind(config, options), __dirname);
+```
+
 ### 3. Babel (`babel.config.js`)
 
 ```js
 module.exports = require('@oxy.so/app-preset/babel');
 ```
+
+In development this is exactly `babel-preset-expo`. Expo's oxc transformer,
+Noxcturnal, runs only when the Babel config resolves to the bare Expo preset;
+one extra plugin or preset option sends every file back to Babel. The config
+plugin turns the experiment (`experiments.noxcturnalTransformWorker`) on for
+development; `noxcturnal: false` opts out. Production builds stay on Babel,
+with the build-id inliner, because Noxcturnal keeps the requires of dead
+platform branches and pulls native-only packages into a web bundle.
+
+`@/` resolves from the app's `tsconfig.json` paths (`"@/*": ["./*"]`), not from
+Babel. Jest needs the same alias in `moduleNameMapper`
+(`"^@/(.*)$": "<rootDir>/$1"`). `babel-preset-expo` adds
+`react-native-worklets/plugin` and the `import.meta` transform itself. An app
+that adds its own Babel plugins, or a custom `babelTransformerPath` such as
+`react-native-svg-transformer`, keeps every file on Babel.
 
 With Bundle Mode (opt-in, 3.2.0+), a worker runtime runs the app's own modules:
 
@@ -290,6 +418,5 @@ Requires **Expo SDK 56+**; validated against **Expo SDK 58 / React Native 0.88**
 (the current Oxy ecosystem target) with a clean `expo prebuild` of `test-app-expo`,
 `accounts` and `commons` (Android and iOS). SDK 58's Android template already
 uses `proguard-android-optimize.txt` and turns R8 on through `gradle.properties`
-(`android.enableMinifyInReleaseBuilds`), so on SDK 58 `withOxyAndroidRelease`
-only adds the release signing config; on SDK 56/57 it also swaps in the
-`-optimize` ProGuard file.
+(`android.enableMinifyInReleaseBuilds`), so the preset's `-optimize` ProGuard
+swap only changes anything on SDK 56/57.

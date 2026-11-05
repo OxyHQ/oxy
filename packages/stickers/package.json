@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/stickers",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Oxy's shared sticker catalogue: a client for apps and backends, and React hooks.",
   "type": "module",
   "main": "dist/cjs/index.js",
@@ -84,14 +84,14 @@
   },
   "devDependencies": {
     "@tanstack/react-query": "catalog:",
-    "@testing-library/react": "^16.3.2",
+    "@testing-library/react": "^16.3.3",
     "@types/jest": "^30.0.0",
     "@types/react": "*",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "jest-environment-jsdom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "ts-jest": "^29.4.12",
-    "typescript": "^5.9.2"
+    "ts-jest": "^29.4.15",
+    "typescript": "catalog:"
   }
 }

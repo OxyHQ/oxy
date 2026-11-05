@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
-import { Image as ExpoImage } from 'expo-image';
+import { ExpoImage } from '../ExpoImage';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import type { FileMetadata } from '@oxy.so/core';

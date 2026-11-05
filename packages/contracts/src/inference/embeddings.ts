@@ -1,16 +1,18 @@
+import { integerCheck } from '../numberChecks';
+import { utf16MaxLength, utf16MinLength } from '../stringChecks';
 import { z } from 'zod';
 import { inferenceErrorSchema } from './errors';
 
 export const embeddingVectorSchema = z
   .object({
-    index: z.number().int().nonnegative(),
+    index: z.number().check(integerCheck()).nonnegative(),
     embedding: z.array(z.number().finite()).min(1).max(1024),
   })
   .strict();
 export const embeddingUsageSchema = z
   .object({
-    inputTokens: z.number().int().nonnegative(),
-    totalTokens: z.number().int().nonnegative(),
+    inputTokens: z.number().check(integerCheck()).nonnegative(),
+    totalTokens: z.number().check(integerCheck()).nonnegative(),
   })
   .strict()
   .refine((usage) => usage.totalTokens >= usage.inputTokens, {
@@ -20,9 +22,9 @@ export const embeddingUsageSchema = z
 export const embeddingSuccessSchema = z
   .object({
     schemaVersion: z.literal(1),
-    requestId: z.string().min(1).max(128),
-    model: z.string().min(1).max(255),
-    dimension: z.number().int().positive().max(1024),
+    requestId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    model: z.string().check(utf16MinLength(1)).check(utf16MaxLength(255)),
+    dimension: z.number().check(integerCheck()).positive().max(1024),
     data: z.array(embeddingVectorSchema).min(1).max(2048),
     usage: embeddingUsageSchema,
   })
@@ -48,7 +50,7 @@ export const embeddingSuccessSchema = z
 export const embeddingFailureSchema = z
   .object({
     schemaVersion: z.literal(1),
-    requestId: z.string().min(1).max(128),
+    requestId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
     error: inferenceErrorSchema,
   })
   .strict();

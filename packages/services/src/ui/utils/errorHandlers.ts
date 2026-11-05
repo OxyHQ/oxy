@@ -1,4 +1,5 @@
 import type { ApiError } from '@oxy.so/core';
+import { isSessionChangedError } from './sessionChangedError';
 
 type ErrorWithMessage = {
   message?: string;
@@ -52,6 +53,7 @@ const getResponseStatus = (error: unknown): number | undefined => {
  * This centralizes 401 detection across different fetch clients.
  */
 export const isInvalidSessionError = (error: unknown): boolean => {
+  if (isSessionChangedError(error)) return false;
   const status = getResponseStatus(error);
   if (status === 401) {
     return true;

@@ -1,0 +1,309 @@
+{
+  "sourceSha": "714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+  "scope": "Mercaria cookie-free commerce rollout and public transport acceptance; no global v1 retirement authorization.",
+  "production": {
+    "observedAt": "2026-10-25T16:57:45.164124+00:00",
+    "taskDefinition": "oxy-mercaria:146",
+    "desired": 1,
+    "running": 1,
+    "sourceImageDigest": "sha256:7a009a17bf0da3c40c4bccba07a5479b2fa2f347e2e01b33b0d6a59167c584c1",
+    "runtimeImageDigest": "sha256:7a009a17bf0da3c40c4bccba07a5479b2fa2f347e2e01b33b0d6a59167c584c1",
+    "allTargetsHealthy": true,
+    "oldDeploymentDrained": true
+  },
+  "workflows": [
+    {
+      "name": "main CI",
+      "url": "https://github.com/OxyHQ/Mercaria/actions/runs/40211664494",
+      "conclusion": "SUCCESS",
+      "headSha": "714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+      "actualSteps": []
+    },
+    {
+      "name": "API deployment",
+      "url": "https://github.com/OxyHQ/Mercaria/actions/runs/40213492751",
+      "conclusion": "SUCCESS",
+      "actualRollingDeployment": true,
+      "headSha": "714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+      "actualSteps": [
+        {
+          "name": "Outcome: rollout performed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Shipped commit 714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "storefront deployment",
+      "url": "https://github.com/OxyHQ/Mercaria/actions/runs/40213492875",
+      "conclusion": "SUCCESS",
+      "shippedCommit": "714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+      "headSha": "714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+      "actualSteps": [
+        {
+          "name": "Deploy to Cloudflare Workers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Shipped commit 714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "dashboard deployment",
+      "url": "https://github.com/OxyHQ/Mercaria/actions/runs/40213492844",
+      "conclusion": "SUCCESS",
+      "shippedCommit": "714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+      "headSha": "714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+      "actualSteps": [
+        {
+          "name": "Deploy to Cloudflare Workers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Shipped commit 714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "POS deployment",
+      "url": "https://github.com/OxyHQ/Mercaria/actions/runs/40213492781",
+      "conclusion": "SUCCESS",
+      "shippedCommit": "714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+      "headSha": "714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+      "actualSteps": [
+        {
+          "name": "Deploy to Cloudflare Workers",
+          "conclusion": "success"
+        },
+        {
+          "name": "Shipped commit 714f3ec411b9abcaaa465278ad42a4fb75823a2b",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "premergePreflight": {
+    "observedAt": "2026-10-25T16:09:57.356Z",
+    "sourceTaskDefinition": "oxy-mercaria:145",
+    "readOnly": true,
+    "selectedIds": false,
+    "selectedTokens": false,
+    "counts": {
+      "guestCheckouts": {
+        "total": 0
+      },
+      "guestOrders": {
+        "guest_origin": 0
+      },
+      "guestSessions": {
+        "total": 0,
+        "active_all_transports": 0,
+        "active_web_cookie_candidates": 0
+      },
+      "carts": {
+        "total": 3,
+        "guest_owned": 0,
+        "oxy_owned": 3,
+        "active_guest_owned": 0
+      },
+      "portalGrants": {
+        "total": 0,
+        "active_portal_all_transports": 0,
+        "active_exchange": 0
+      },
+      "idleDays": 30
+    },
+    "configObservedAt": "2026-10-25T16:09:47.692041+00:00",
+    "flags": {
+      "GUEST_COMMERCE_ENABLED": "absent",
+      "REFERRALS_ENABLED": "absent"
+    },
+    "flagSecretReferencesAbsent": true,
+    "diagnosticTaskStatus": "STOPPED",
+    "diagnosticExitCode": 0,
+    "diagnosticDefinitionStatus": "INACTIVE",
+    "cleanupObservedAt": "2026-10-25T16:11:11.970992+00:00"
+  },
+  "postdeployConfig": {
+    "observedAt": "2026-10-25T16:57:59.541955+00:00",
+    "taskDefinition": "oxy-mercaria:146",
+    "flags": {
+      "GUEST_COMMERCE_ENABLED": "absent",
+      "REFERRALS_ENABLED": "absent"
+    },
+    "flagSecretReferencesAbsent": true,
+    "secretValuesRead": false
+  },
+  "publicAcceptance": {
+    "success": true,
+    "completedAt": "2026-10-25T16:58:19.383Z",
+    "operatorSha256": "a92b55402212be2eb276030f847803ae78e7ff1abefc928e82d3e028deb5e4be",
+    "browserVersion": "156.0.8078.4",
+    "checks": [
+      {
+        "label": "ordinary-preflight",
+        "transport": "HTTP",
+        "method": "OPTIONS",
+        "path": "/cart",
+        "status": 200,
+        "headers": {
+          "allowOrigin": "https://mercaria.co",
+          "allowCredentials": false,
+          "noStore": false,
+          "setCookiePresent": false,
+          "credentialHeadersPresent": []
+        }
+      },
+      {
+        "label": "ordinary-anonymous",
+        "transport": "HTTP",
+        "method": "GET",
+        "path": "/cart",
+        "status": 200,
+        "headers": {
+          "allowOrigin": "https://mercaria.co",
+          "allowCredentials": false,
+          "noStore": true,
+          "setCookiePresent": false,
+          "credentialHeadersPresent": []
+        }
+      },
+      {
+        "label": "legacy-cookie-refusal",
+        "transport": "HTTP",
+        "method": "GET",
+        "path": "/cart",
+        "status": 426,
+        "headers": {
+          "allowOrigin": "https://mercaria.co",
+          "allowCredentials": false,
+          "noStore": true,
+          "setCookiePresent": false,
+          "credentialHeadersPresent": []
+        }
+      },
+      {
+        "label": "invalid-authorization-no-downgrade",
+        "transport": "HTTP",
+        "method": "GET",
+        "path": "/cart",
+        "status": 401,
+        "headers": {
+          "allowOrigin": "https://mercaria.co",
+          "allowCredentials": false,
+          "noStore": true,
+          "setCookiePresent": false,
+          "credentialHeadersPresent": []
+        }
+      },
+      {
+        "label": "bridge-preflight",
+        "transport": "HTTP",
+        "method": "OPTIONS",
+        "path": "/referrals/legacy-cookie-exchange",
+        "status": 200,
+        "headers": {
+          "allowOrigin": "https://mercaria.co",
+          "allowCredentials": true,
+          "noStore": false,
+          "setCookiePresent": false,
+          "credentialHeadersPresent": []
+        }
+      },
+      {
+        "label": "bridge-empty-no-data",
+        "transport": "HTTP",
+        "method": "POST",
+        "path": "/referrals/legacy-cookie-exchange",
+        "status": 204,
+        "headers": {
+          "allowOrigin": "https://mercaria.co",
+          "allowCredentials": true,
+          "noStore": true,
+          "setCookiePresent": false,
+          "credentialHeadersPresent": []
+        }
+      },
+      {
+        "label": "foreign-preflight",
+        "transport": "HTTP",
+        "method": "OPTIONS",
+        "path": "/referrals/legacy-cookie-exchange",
+        "status": 500,
+        "headers": {
+          "allowOrigin": null,
+          "allowCredentials": false,
+          "noStore": false,
+          "setCookiePresent": false,
+          "credentialHeadersPresent": []
+        }
+      },
+      {
+        "label": "browser-ordinary-omit",
+        "transport": "Chromium-observed",
+        "status": 200,
+        "outcome": "response"
+      },
+      {
+        "label": "browser-old-bundle-safe-refusal",
+        "transport": "Chromium-observed",
+        "outcome": "TypeError"
+      },
+      {
+        "label": "browser-empty-bridge",
+        "transport": "Chromium-observed",
+        "status": 204,
+        "outcome": "response"
+      },
+      {
+        "label": "browser-foreign-refusal",
+        "transport": "Chromium-observed",
+        "outcome": "TypeError"
+      }
+    ],
+    "limitations": [
+      "Synthetic Chromium page exercises production HTTP/CORS; it does not execute the deployed storefront bundle.",
+      "No real identity or native acceptance, durable storage validation, or live guest/portal issuance is established by this public probe.",
+      "The initial operator attempt stopped before network access because a local receipt filename was incorrect; this successful attempt was the first network execution."
+    ]
+  },
+  "sourceReceipts": [
+    {
+      "file": "mercaria-runtime-714f3ec411b9-20261025.json",
+      "sha256": "a9689931543d1f5ef2e0c82884bc3c18471bc999cde34d3f37198ed8aa70fc84"
+    },
+    {
+      "file": "mercaria-cookie-postdeploy-config-20261025.json",
+      "sha256": "3532cc1df522cd0ff58fbf1e98e3bdbd1a7ae6e883953c7a0032205f8c37718a"
+    },
+    {
+      "file": "mercaria-cookie-rollout-preflight-readback-20261025.json",
+      "sha256": "46cf094d7f53aaa38c6826c8092bcababdd359c6823ef1d7dae5ef6693ef99e2"
+    },
+    {
+      "file": "mercaria-cookie-rollout-preflight-cleanup-20261025.json",
+      "sha256": "60307e2d2c1d613c3f6f000868651a1921cbf8a04483d9d42880c7c16e5b1c26"
+    },
+    {
+      "file": "mercaria-cookie-rollout-preflight-config-readback-20261025.json",
+      "sha256": "efd5ad8871cee1f205953be0139640eb51d242cfb2469d3208f452db296b8770"
+    },
+    {
+      "file": "mercaria-public-acceptance-714f3ec411b9-attempt2/receipt.json",
+      "sha256": "f2af1ac7635c475c43bede1faa84903e0fa77fb28ecf97937a2967d9370c531d"
+    },
+    {
+      "file": "mercaria-cookie-free-rollout-20261025.json",
+      "sha256": "63293f544b462376d482f8909436c8cccf7c7f93300587710056e7c2b20c17e9"
+    }
+  ],
+  "remainingGate": "Schedio zone access/DNS/ACM and final release/inventory/token-drain gates remain; Oxy PR1984 stays draft.",
+  "workflowEvidenceObservedAt": "2026-10-25T16:59:18.152735+00:00",
+  "globalV1Retired": false
+}

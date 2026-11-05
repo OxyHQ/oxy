@@ -1,4 +1,5 @@
 import { accountInvitations } from './schema/accountInvitations';
+import { firstPartyTasks, FIRST_PARTY_TASK_RETENTION_SECONDS } from './schema/agency';
 /**
  * Expiry Sweep Registry — row expiry for this schema
  *
@@ -160,6 +161,20 @@ export const EXPIRY_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
  * entry here is never swept.
  */
 export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
+  {
+    table: firstPartyTasks,
+    column: firstPartyTasks.expiresAt,
+    retentionSeconds: FIRST_PARTY_TASK_RETENTION_SECONDS,
+    reason:
+      'Thirty days after expiry to inspect the original requester context. Derived execution authority cascades; capability audit events, idempotency receipts and product history are independent and remain. Every use checks expiry before the sweep.',
+  },
+  {
+    table: firstPartyTasks,
+    column: firstPartyTasks.revokedAt,
+    retentionSeconds: FIRST_PARTY_TASK_RETENTION_SECONDS,
+    reason:
+      'Cancelled roots keep the same thirty-day inspection window, even when their original expiry is later. NULL live roots never match. Derived execution authority cascades without deleting audit events or product history.',
+  },
   {
     table: authChallenges,
     column: authChallenges.expiresAt,

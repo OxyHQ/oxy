@@ -57,7 +57,7 @@ describe('OxyServer service lane', () => {
 
     expect(request).toHaveBeenCalledWith(
       'GET',
-      '/thing',
+      'http://test.invalid/thing',
       { q: 1 },
       {
         cache: false,
@@ -99,7 +99,7 @@ describe('OxyServer service-only namespace methods', () => {
 
     await expect(oxy.notifications.create(data as never)).resolves.toEqual({ id: 'n1' });
 
-    expect(request).toHaveBeenCalledWith('POST', '/notifications', data, {
+    expect(request).toHaveBeenCalledWith('POST', 'http://test.invalid/notifications', data, {
       cache: false,
       headers: { Authorization: 'Bearer svc-token' },
     });
@@ -111,10 +111,15 @@ describe('OxyServer service-only namespace methods', () => {
 
     await oxy.linkedAccounts.forUser('user/1');
 
-    expect(request).toHaveBeenCalledWith('GET', '/linked-accounts/by-user/user%2F1', undefined, {
-      cache: false,
-      headers: { Authorization: 'Bearer svc-token' },
-    });
+    expect(request).toHaveBeenCalledWith(
+      'GET',
+      'http://test.invalid/linked-accounts/by-user/user%2F1',
+      undefined,
+      {
+        cache: false,
+        headers: { Authorization: 'Bearer svc-token' },
+      },
+    );
   });
 
   it('reputation.award posts with the service token and drops cached reputation reads', async () => {

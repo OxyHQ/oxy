@@ -131,11 +131,15 @@ installed in each service before this can represent the whole ecosystem.
 The authenticated publisher is `createEcosystemTraffic` from `@oxy.so/core/server`.
 It exposes HTTP middleware, `wrapFetch`, `record` for explicit transport events,
 and `stop` for graceful removal. It requires a known infrastructure region (or
-explicit infrastructure coordinates) and one of three ways to authenticate: an
-`OXY_ACTIVITY_API_KEY`/`OXY_ACTIVITY_API_SECRET` pair, an
-`OXY_SERVICE_API_KEY`/`OXY_SERVICE_API_SECRET` pair, or no credential at all
-where the process can attest its workload identity (ADR 0026). Credentials, user
-metadata and paths never enter public snapshots.
+explicit infrastructure coordinates) and registered temporary workload identity
+for own service publication ([ADR 0049](../../docs/adr/0049-first-party-platform-authority.md)).
+The shared OxyServer performs attestation and live binding checks. A process can
+supply `workloadCredentials` from `createAwsWorkloadCredentialProvider()`
+(`@oxy.so/core/server/aws`) for the supported temporary AWS provider chain.
+There is no activity-key or service-key fallback for own publication. External
+customer API credentials remain separate and do not become first-party authority.
+Credentials, user metadata and paths never enter public snapshots. Activity's
+internal/external `scope` field classifies traffic; it is not an OAuth permission.
 
 ## Operational metrics (CloudWatch EMF)
 

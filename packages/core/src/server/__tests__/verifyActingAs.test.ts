@@ -12,6 +12,8 @@
  */
 
 import { OxyServer } from '../OxyServer';
+import * as workloadIdentity from '../workloadIdentity';
+import { logger } from '../../logger';
 import type { RequestOptions } from '../../types';
 
 const APP = 'delegating-app';
@@ -46,7 +48,10 @@ describe('verifyActingAs', () => {
   let oxy: OxyServer;
 
   beforeEach(() => {
-    oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'verifier-key', apiSecret: 'verifier-secret' },
+    });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('verifier-service-token');
   });
 
@@ -191,7 +196,10 @@ describe('verifyActingAs cache', () => {
   });
 
   it('shares one lookup between concurrent checks of the same pair', async () => {
-    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'verifier-key', apiSecret: 'verifier-secret' },
+    });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('verifier-service-token');
     let release: (value: unknown) => void = () => {};
     const request = jest.spyOn(oxy, 'request').mockImplementation(
@@ -212,7 +220,10 @@ describe('verifyActingAs cache', () => {
   });
 
   it('forgets the least recently used pair past 1000 entries', async () => {
-    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'verifier-key', apiSecret: 'verifier-secret' },
+    });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('verifier-service-token');
     const request = jest
       .spyOn(oxy, 'request')
@@ -229,4 +240,66 @@ describe('verifyActingAs cache', () => {
     await oxy.verifyActingAs(APP, 'user-0', { cache: true });
     expect(request).toHaveBeenCalledTimes(1002);
   });
+});
+
+it('never logs requester proofs echoed in a failed transport error', async () => {
+  const oxy = new OxyServer({
+    baseURL: 'http://test.invalid',
+    serviceAuth: { apiKey: 'verifier-key', apiSecret: 'verifier-secret' },
+  });
+  const proof = 'private-requester-token';
+  jest.spyOn(oxy, 'serviceToken').mockResolvedValue('service-token');
+  captureRequests(oxy, new Error(proof));
+  const warning = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+  expect(await oxy.verifyActingAs(APP, USER, { requesterToken: proof })).toBeNull();
+  expect(warning).toHaveBeenCalled();
+  expect(JSON.stringify(warning.mock.calls)).not.toContain(proof);
+  jest.restoreAllMocks();
+});
+
+it('sends original service and requester proofs only as headers and never caches a derived own context', async () => {
+  const oxy = new OxyServer({
+    baseURL: 'http://test.invalid',
+    workloadCredentials: async () => ({ AccessKeyId: 'ASIATEST', SecretAccessKey: 'test' }),
+  });
+  jest.spyOn(workloadIdentity, 'requestWorkloadServiceToken').mockResolvedValue({
+    token: 'receiver-workload',
+    expiresIn: 300,
+    appName: 'receiver',
+  });
+  const calls = captureRequests(oxy, {
+    authorized: true,
+    authority: 'first_party',
+    epoch: '0',
+    requesterContext: 'derived-receiver-context',
+  });
+  const options = {
+    cache: true,
+    requesterContext: 'caller-context',
+    presentedServiceToken: 'caller-service-jwt',
+    credentialId: 'wl_caller',
+    ownerAccountId: 'owner',
+    environment: 'production',
+  };
+  try {
+    expect(await oxy.verifyActingAs(APP, USER, options)).toMatchObject({
+      authority: 'first_party',
+      requesterContext: 'derived-receiver-context',
+    });
+    await oxy.verifyActingAs(APP, USER, options);
+    expect(calls).toHaveLength(2);
+    expect(JSON.stringify(calls[0].data)).not.toContain('caller-context');
+    expect(JSON.stringify(calls[0].data)).not.toContain('caller-service-jwt');
+    expect(calls[0].options?.headers).toMatchObject({
+      'X-Oxy-Presented-Requester-Context': 'caller-context',
+      'X-Oxy-Presented-Service-Token': 'caller-service-jwt',
+    });
+    jest
+      .mocked(oxy.request)
+      .mockResolvedValue({ authorized: true, authority: 'first_party', epoch: '0' } as never);
+    expect(await oxy.verifyActingAs(APP, USER, options)).toBeNull();
+  } finally {
+    oxy.dispose();
+    jest.restoreAllMocks();
+  }
 });

@@ -14,21 +14,21 @@ const FALLBACK = 'en-US';
  * is the fallback for every missing key, so it is always present.
  */
 const LOADERS: Record<string, () => Promise<{ default: LocaleDict }>> = {
-  'es-ES': () => import('./locales/es-ES'),
-  'ca-ES': () => import('./locales/ca-ES'),
-  'fr-FR': () => import('./locales/fr-FR'),
-  'de-DE': () => import('./locales/de-DE'),
-  'it-IT': () => import('./locales/it-IT'),
-  'pt-PT': () => import('./locales/pt-PT'),
-  'ja-JP': () => import('./locales/ja-JP'),
-  'ko-KR': () => import('./locales/ko-KR'),
-  'zh-CN': () => import('./locales/zh-CN'),
-  'ar-SA': () => import('./locales/ar-SA'),
-  'bn-BD': () => import('./locales/bn-BD'),
-  'hi-IN': () => import('./locales/hi-IN'),
-  'id-ID': () => import('./locales/id-ID'),
-  'ru-RU': () => import('./locales/ru-RU'),
-  'tr-TR': () => import('./locales/tr-TR'),
+  'es-ES': () => import('./locales/compact/es-ES.generated'),
+  'ca-ES': () => import('./locales/compact/ca-ES.generated'),
+  'fr-FR': () => import('./locales/compact/fr-FR.generated'),
+  'de-DE': () => import('./locales/compact/de-DE.generated'),
+  'it-IT': () => import('./locales/compact/it-IT.generated'),
+  'pt-PT': () => import('./locales/compact/pt-PT.generated'),
+  'ja-JP': () => import('./locales/compact/ja-JP.generated'),
+  'ko-KR': () => import('./locales/compact/ko-KR.generated'),
+  'zh-CN': () => import('./locales/compact/zh-CN.generated'),
+  'ar-SA': () => import('./locales/compact/ar-SA.generated'),
+  'bn-BD': () => import('./locales/compact/bn-BD.generated'),
+  'hi-IN': () => import('./locales/compact/hi-IN.generated'),
+  'id-ID': () => import('./locales/compact/id-ID.generated'),
+  'ru-RU': () => import('./locales/compact/ru-RU.generated'),
+  'tr-TR': () => import('./locales/compact/tr-TR.generated'),
 };
 
 /** Base subtag → the dictionary that serves it. */

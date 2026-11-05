@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { withAlpha } from '@oxy.so/bloom/theme';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -10,7 +11,7 @@ import {
 } from '@oxy.so/core';
 import { canSwitchIntoAccount } from '@oxy.so/core/session';
 import { useColors, type AppColors } from '@/hooks/useColors';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useTranslation } from '@/lib/i18n';
 import type { GroupedItem } from '@/components/sections/types';
 
@@ -75,7 +76,7 @@ function AccountRowContent({
   onArchive,
 }: AccountRowContentProps) {
   const colors = useColors();
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
   const { t } = useTranslation();
 
   const role = getNodeRole(node);
@@ -97,7 +98,10 @@ function AccountRowContent({
       <View
         style={[
           styles.roleBadge,
-          { backgroundColor: `${badgeColor}20`, borderColor: `${badgeColor}40` },
+          {
+            backgroundColor: withAlpha(badgeColor, 0.125),
+            borderColor: withAlpha(badgeColor, 0.25),
+          },
         ]}
       >
         <Text style={[styles.roleBadgeText, { color: badgeColor }]}>{role}</Text>

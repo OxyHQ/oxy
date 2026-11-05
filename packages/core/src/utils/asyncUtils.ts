@@ -3,6 +3,7 @@
  */
 
 import { ErrorCodes, isCancelledError } from './errorUtils';
+import { isSessionChangedError } from '../shared/utils/errorUtils';
 
 /** Options for {@link retryAsync}. */
 export interface RetryOptions {
@@ -143,6 +144,12 @@ export async function retryAsync<T>(
       // custom predicate is for deciding which FAILURES are worth another
       // attempt, and it has no business overriding an explicit abort.
       if (isCancelledError(error)) {
+        break;
+      }
+
+      // A changed authentication context is a cancellation of this work, even
+      // if the caller's custom predicate would retry ordinary 401 responses.
+      if (isSessionChangedError(error)) {
         break;
       }
 

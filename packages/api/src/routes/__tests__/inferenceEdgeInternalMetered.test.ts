@@ -10,6 +10,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import express from 'express';
+import { OxyInferenceClient } from '@oxy.so/core/inference';
 import {
   normalizeResponsesRequest,
   responsesRequestSchema,
@@ -22,6 +23,8 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { InferenceRequest } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { ALIA_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenceEconomicPolicy';
+import { overrideDeclaredCatalogueSource } from '../../services/kaanaDeclaredCatalogue.service';
+import type { DeclaredModel } from '@kaana.ai/contracts/internal';
 import {
   KAANA_SPEECH_DEPLOYMENT_ID,
   KAANA_SPEECH_MODEL_REFERENCE,
@@ -116,6 +119,155 @@ beforeEach(() => {
 
 /* -------------------------------------------------------------------------- */
 /*  Harness                                                                   */
+describe('pilot image input (Oxy ADR 0051)', () => {
+  const PNG =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  let caller: Caller;
+  let imageRoute: economicPolicy.InternalMeteredPilotDeployment;
+  let restoreCatalogue: () => void;
+
+  beforeAll(async () => {
+    caller = await alia();
+    const line = await makeRoute(caller.accountId, caller.applicationId, false);
+    const [publisherSlug, slug] = line.split('/');
+    const db = getDb();
+    const [model] = await db
+      .update(inferenceModels)
+      .set({ inputModalities: ['image', 'text'] })
+      .where(and(eq(inferenceModels.publisherSlug, publisherSlug), eq(inferenceModels.slug, slug)))
+      .returning({ id: inferenceModels.id });
+    const [deployment] = await db
+      .select({
+        deploymentId: inferenceDeployments.internalRouteId,
+        provider: inferenceDeployments.providerSlug,
+        revision: inferenceModelRevisions.revision,
+      })
+      .from(inferenceDeployments)
+      .innerJoin(
+        inferenceModelRevisions,
+        eq(inferenceModelRevisions.id, inferenceDeployments.modelRevisionId),
+      )
+      .where(eq(inferenceModelRevisions.modelId, model.id));
+    imageRoute = {
+      deploymentId: deployment.deploymentId,
+      modelReference: `${line}@${deployment.revision}`,
+      provider: deployment.provider,
+    };
+    restoreCatalogue = overrideDeclaredCatalogueSource({
+      current: async () => ({
+        status: 'observed',
+        models: new Map([
+          [
+            line,
+            {
+              modelId: line,
+              imageInput: { maxInputTokensPerImage: 1_568 },
+            } as unknown as DeclaredModel,
+          ],
+        ]),
+        changedPriceVersions: new Set(),
+        observedAt: Date.now(),
+      }),
+      priceVersion: () => undefined,
+    });
+  });
+  afterAll(() => restoreCatalogue());
+
+  /** Alia's production relationship with its image terms replaced (or removed). */
+  const withImageTerms = (
+    imageInput: economicPolicy.InternalMeteredImageInputPilot | undefined,
+  ): void => {
+    jest.spyOn(economicPolicy, 'resolveEconomicTreatment').mockImplementation((principal) =>
+      resolveProductionEconomics(
+        principal,
+        undefined,
+        economicPolicy.INTERNAL_METERED_RELATIONSHIPS.map((relationship) => {
+          if (relationship.relationshipId !== 'alia-kaana' || relationship.pilot === undefined)
+            return relationship;
+          const { imageInput: _images, ...pilot } = relationship.pilot;
+          return {
+            ...relationship,
+            pilot: imageInput === undefined ? pilot : { ...pilot, imageInput },
+          } as economicPolicy.InternalMeteredRelationship;
+        }),
+      ),
+    );
+  };
+  const look = (images: number) =>
+    post(
+      {
+        model: imageRoute.modelReference.split('@')[0],
+        maxOutputTokens: 100,
+        input: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'What does the tab show?' },
+              ...Array.from({ length: images }, () => ({
+                type: 'image',
+                source: { kind: 'inline', mediaType: 'image/png', data: PNG },
+              })),
+            ],
+          },
+        ],
+      },
+      bearer(serviceToken(caller)),
+    );
+
+  it('serves images on the image terms’ route alone, metered without money', async () => {
+    withImageTerms({ maxImages: 2, maxPricePerRequestUsd: '0.15', deployments: [imageRoute] });
+    const response = await look(2);
+    expect(response.status).toBe(200);
+    expect(executions).toBe(1);
+    expect(pilotEnvelopes[0]?.authorizedRoutes.map((route) => route.deploymentId)).toEqual([
+      imageRoute.deploymentId,
+    ]);
+    expect(await meteredFor(response.body.requestId)).toMatchObject({
+      economicTreatment: 'internal_metered',
+      economicRelationshipId: 'alia-kaana',
+    });
+    expect((await moneyRowsFor(caller.accountId)).reservations).toEqual([]);
+  });
+
+  it('refuses one image over the terms’ count before any claim or execution', async () => {
+    withImageTerms({ maxImages: 2, maxPricePerRequestUsd: '0.15', deployments: [imageRoute] });
+    const response = await look(3);
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ code: 'invalid_request', param: 'input' });
+    expect(executions).toBe(0);
+  });
+
+  it('refuses images for a pilot without image terms', async () => {
+    withImageTerms(undefined);
+    const response = await look(1);
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({
+      code: 'unsupported_modality',
+      param: 'input',
+      message: 'Images are outside the controlled internal pilot.',
+    });
+    expect(executions).toBe(0);
+  });
+
+  it('never signs an image request on a route outside the image terms', async () => {
+    withImageTerms({
+      maxImages: 2,
+      maxPricePerRequestUsd: '0.15',
+      deployments: [{ ...imageRoute, deploymentId: 'dep_not_the_image_route' }],
+    });
+    const response = await look(1);
+    expect(response.status).not.toBe(200);
+    expect(executions).toBe(0);
+  });
+
+  it('refuses a quote over the image ceiling before any claim', async () => {
+    withImageTerms({ maxImages: 2, maxPricePerRequestUsd: '0.000001', deployments: [imageRoute] });
+    const response = await look(1);
+    expect(response.body).toMatchObject({ code: 'policy_violation' });
+    expect(executions).toBe(0);
+  });
+});
+
 /* -------------------------------------------------------------------------- */
 
 interface RawResponse {
@@ -2087,6 +2239,34 @@ describe('original-key receipt recovery', () => {
     expect(executions).toBe(1);
     expect(await readOriginal(caller, `unknown-${tag()}`)).toMatchObject({ status: 404 });
     expect(await readOriginal(caller, '')).toMatchObject({ status: 400 });
+  });
+
+  it('composes the public SDK recovery with the real edge and preserves caller isolation', async () => {
+    const caller = await recoveryCaller();
+    const foreign = await recoveryCaller();
+    const key = `sdk-lost-${tag()}`;
+    const first = await post(body(caller), {
+      ...bearer(caller.machineToken),
+      'Idempotency-Key': key,
+    });
+    expect(first.status).toBe(200);
+    const baseURL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const client = new OxyInferenceClient({ baseURL, credential: caller.machineToken });
+    const before = await moneyRowsFor(caller.accountId);
+    const record = await client.getGenerationRecordByIdempotencyKey(key);
+    expect(record.requestId).toBe(first.body.requestId);
+    expect(record.schemaVersion).toBe(1);
+    await expect(
+      new OxyInferenceClient({
+        baseURL,
+        credential: foreign.machineToken,
+      }).getGenerationRecordByIdempotencyKey(key),
+    ).rejects.toMatchObject({ status: 404, code: 'model_not_found' });
+    await expect(
+      client.getGenerationRecordByIdempotencyKey(key, { delegatedUserId: 'different-user' }),
+    ).rejects.toMatchObject({ status: 404, code: 'model_not_found' });
+    expect(await moneyRowsFor(caller.accountId)).toEqual(before);
+    expect(executions).toBe(1);
   });
   it('separates identical keys across apps, credentials and delegation', async () => {
     const caller = await recoveryCaller();

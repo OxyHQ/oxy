@@ -228,6 +228,15 @@ const settle = async (): Promise<void> => {
 };
 
 describe('createOxyRuntime — the snapshot', () => {
+  it('clears an old loading state at sign-out while allowing a new operation to load', () => {
+    const harness = buildHarness();
+    harness.runtime.setLoading(true);
+    harness.runtime.clearSession();
+    expect(harness.runtime.getSnapshot().isLoading).toBe(false);
+    harness.runtime.setLoading(true);
+    expect(harness.runtime.getSnapshot().isLoading).toBe(true);
+    harness.dispose();
+  });
   it('starts booting, signed out, with no bearer', () => {
     const harness = buildHarness();
     const snapshot = harness.runtime.getSnapshot();
@@ -298,6 +307,102 @@ describe('createOxyRuntime — the snapshot', () => {
     // sessions + activeSessionId + account + deviceState all moved.
     expect(notifications).toBe(1);
     unsubscribe();
+    harness.dispose();
+  });
+
+  it('advances its account revision synchronously through batched ABA without subscribers', () => {
+    const first = buildHarness();
+    const second = buildHarness();
+    expect(first.runtime.getAccountSessionRevision()).toBe(0);
+    first.runtime.setAccount(buildUser('a1'));
+    const a = first.runtime.getAccountSessionRevision();
+    const oldCallbackOwnsAccount = () => first.runtime.getAccountSessionRevision() === a;
+    first.runtime.setAccount({ ...buildUser('a1'), username: 'renamed' });
+    expect(first.runtime.getAccountSessionRevision()).toBe(a);
+    first.runtime.batch(() => {
+      first.runtime.setAccount(buildUser('a2'));
+      expect(first.runtime.getAccountSessionRevision()).toBe(a + 1);
+      // The published snapshot is deliberately delayed until this batch ends.
+      expect(first.runtime.getSnapshot().account?.id).toBe('a1');
+      expect(oldCallbackOwnsAccount()).toBe(false);
+      expect(first.runtime.getAccountSessionIdentity()).toEqual({
+        accountId: 'a2',
+        sessionId: null,
+        revision: a + 1,
+      });
+      first.runtime.setAccount(buildUser('a1'));
+      expect(first.runtime.getAccountSessionRevision()).toBe(a + 2);
+      expect(oldCallbackOwnsAccount()).toBe(false);
+      expect(first.runtime.getAccountSessionIdentity()).toEqual({
+        accountId: 'a1',
+        sessionId: null,
+        revision: a + 2,
+      });
+    });
+    expect(first.runtime.getSnapshot().account?.id).toBe('a1');
+    expect(first.runtime.getAccountSessionRevision()).toBe(a + 2);
+    expect(second.runtime.getAccountSessionRevision()).toBe(0);
+    first.runtime.clearSession();
+    expect(first.runtime.getAccountSessionRevision()).toBe(a + 3);
+    first.runtime.clearSession();
+    expect(first.runtime.getAccountSessionRevision()).toBe(a + 3);
+    first.dispose();
+    second.dispose();
+  });
+
+  it('advances through same-account session ABA even before its batch publishes', () => {
+    const harness = buildHarness();
+    harness.runtime.setAccount(buildUser('a2'));
+    harness.runtime.setActiveSessionId('session-one');
+    const initial = harness.runtime.getAccountSessionIdentity();
+    harness.runtime.setActiveSessionId('session-one');
+    expect(harness.runtime.getAccountSessionIdentity()).toEqual(initial);
+    harness.runtime.batch(() => {
+      harness.runtime.setActiveSessionId('session-two');
+      expect(harness.runtime.getSnapshot().activeSessionId).toBe('session-one');
+      expect(harness.runtime.getAccountSessionIdentity()).toEqual({
+        ...initial,
+        sessionId: 'session-two',
+        revision: initial.revision + 1,
+      });
+      harness.runtime.setActiveSessionId('session-one');
+      expect(harness.runtime.getAccountSessionIdentity()).toEqual({
+        ...initial,
+        revision: initial.revision + 2,
+      });
+    });
+    harness.dispose();
+  });
+
+  it('does not treat a different actor for the same account and session as a revision', async () => {
+    const harness = buildHarness();
+    harness.runtime.setAccount(buildUser('a2'));
+    harness.runtime.setActiveSessionId('session-one');
+    const initial = harness.runtime.getAccountSessionIdentity();
+    const directory = buildDirectory('ctx-nate-collective');
+    const principal = directory.principals[0];
+    const collective = principal.contexts[1];
+    const twoActors: DeviceDirectory = {
+      ...directory,
+      principals: [
+        ...directory.principals,
+        {
+          ...principal,
+          id: 'p-other',
+          userId: 'a3',
+          user: { ...principal.user, id: 'a3', username: 'other' },
+          contexts: [{ ...collective, id: 'ctx-other-collective' }],
+        },
+      ],
+    };
+    harness.setDirectory(twoActors);
+    await harness.runtime.refreshDirectory();
+    expect(harness.runtime.getSnapshot().activeContext?.actor.userId).toBe('a1');
+    harness.setDirectory({ ...twoActors, activeContextId: 'ctx-other-collective' });
+    await harness.runtime.refreshDirectory();
+    expect(harness.runtime.getSnapshot().activeContext?.actor.userId).toBe('a3');
+    expect(harness.runtime.getSnapshot().activeContext?.subject.accountId).toBe('a2');
+    expect(harness.runtime.getAccountSessionIdentity()).toEqual(initial);
     harness.dispose();
   });
 });

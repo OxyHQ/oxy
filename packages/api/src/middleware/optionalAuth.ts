@@ -1,3 +1,8 @@
+import { hasExternalMcpMediaProof } from '../services/externalMcpMediaRequester.service';
+import { ForbiddenError } from '../utils/error';
+import { resolveServiceRequester } from '../services/serviceRequester.service';
+import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
+import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
 import { OptionalAuthenticationPolicyError } from './optionalAuthError';
 /**
  * Optional Authentication Middleware
@@ -125,11 +130,9 @@ export function getMediaViewerUserId(req: AuthenticatedRequest): string | undefi
 const OXY_USER_ID_HEADER = 'x-oxy-user-id';
 
 /**
- * Scope a service credential must hold to supply a personalization viewer via
- * `X-Oxy-User-Id`. `user:read` is the minimal existing scope every first-party
- * consumer (e.g. Mention) already holds; it authorises reading public user data
- * — which is exactly what a personalized (re-ordered public profiles) ranking
- * is. It does NOT grant acting-as-user mutation authority.
+ * External credentials need the live `user:read` scope to personalize public
+ * profile ranking. Own workloads instead require a verified requester proof.
+ * Neither lane grants acting-as-user mutation authority.
  */
 const VIEWER_DELEGATION_SCOPE = 'user:read';
 
@@ -141,6 +144,7 @@ const VIEWER_DELEGATION_SCOPE = 'user:read';
  */
 export interface OptionalUserOrServiceRequest extends AuthenticatedRequest {
   serviceApp?: ServiceTokenPayload;
+  serviceRequester?: ForegroundRequesterBinding;
 }
 
 /**
@@ -148,9 +152,9 @@ export interface OptionalUserOrServiceRequest extends AuthenticatedRequest {
  *
  * Resolution order, all NON-BLOCKING (an unauthenticated/invalid caller is
  * simply treated as anonymous — the request is never rejected here):
- *  1. If the bearer token is a VALID service token, attach `req.serviceApp`.
- *     The viewer is resolved later from `X-Oxy-User-Id` (see {@link resolveViewerId})
- *     only when the credential holds the delegation scope.
+ *  1. Revalidate a signed service token against its current registered identity.
+ *     Own viewers require session/task/context proof; external ranking retains
+ *     the narrowed live scope check in {@link resolveViewerId}.
  *  2. Otherwise fall back to the existing optional user-session auth, attaching
  *     `req.user` when a valid session token is present.
  *
@@ -169,9 +173,24 @@ export async function optionalUserOrServiceAuth(
     if (token) {
       const verification = verifyServiceToken(token);
       if (verification.ok) {
+        if (hasExternalMcpMediaProof(req.headers))
+          throw new ForbiddenError('External media proof is restricted to its media operation.');
+        const live = await resolveLiveServiceTokenAuthority(verification.payload);
+        if (!live) {
+          res.status(401).json({ error: 'invalid_service_identity' });
+          return;
+        }
+        if (verification.payload.authority === 'first_party') {
+          const principal = live.principal;
+          req.serviceRequester = await resolveServiceRequester(
+            principal,
+            req.headers,
+            ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? 'read' : 'write',
+          );
+        }
         // Valid service token → service principal. Do NOT also attempt user
         // session auth (a service token has no session).
-        req.serviceApp = verification.payload;
+        req.serviceApp = live.payload;
         logger.debug('Optional dual auth: service principal', {
           appId: verification.payload.appId,
         });
@@ -195,6 +214,10 @@ export async function optionalUserOrServiceAuth(
     }
     next();
   } catch (error) {
+    if (error instanceof ForbiddenError) {
+      res.status(403).json({ error: 'invalid_requester_proof' });
+      return;
+    }
     if (error instanceof OptionalAuthenticationPolicyError) {
       res.status(error.status).json({
         error: {
@@ -263,7 +286,8 @@ export function resolveViewerId(req: OptionalUserOrServiceRequest): string | und
     return undefined;
   }
 
-  if (!serviceApp.scopes.includes(VIEWER_DELEGATION_SCOPE)) {
+  if (serviceApp.authority === 'first_party') return req.serviceRequester?.subjectAccountId;
+  if (!serviceApp.scopes?.includes(VIEWER_DELEGATION_SCOPE)) {
     logger.debug('resolveViewerId: service lacks viewer-delegation scope', {
       appId: serviceApp.appId,
     });

@@ -1,12 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { KeyManager } from '@oxy.so/core/crypto';
 import { Button } from '@oxy.so/bloom/button';
-import { Screen, StackHeader } from '@/components/ui';
+import { Screen, StackHeader, SettingsListItem } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 
@@ -21,7 +21,8 @@ import { useTranslation } from '@/lib/i18n';
  * phrase, and the phrase cannot be re-derived from the key.
  *
  * Rather than show two dead rows to those users, the hub reads whether a phrase
- * was ever captured on this device ({@link KeyManager.getRecoveryMnemonic}) and
+ * for the CURRENT key is on this device
+ * ({@link KeyManager.getRecoveryMnemonicForCurrentIdentity}) and
  * tells the honest story: phrase-backed identities get both actions; key-imported
  * identities are told why they're unavailable and pointed at key rotation (which
  * mints a fresh phrase-backed key). The existence check never renders or logs the
@@ -39,7 +40,7 @@ export default function BackupRecoveryScreen() {
     let active = true;
     (async () => {
       try {
-        const mnemonic = await KeyManager.getRecoveryMnemonic();
+        const mnemonic = await KeyManager.getRecoveryMnemonicForCurrentIdentity();
         if (active) setStatus(mnemonic ? 'present' : 'absent');
       } catch {
         // A locked/unreadable keychain can't confirm absence — assume present so
@@ -68,26 +69,22 @@ export default function BackupRecoveryScreen() {
   const noPhrase = status === 'absent';
 
   return (
-    // Flush column — Bloom's SettingsListGroup owns its horizontal gutter; the
-    // header and status callouts are padded to align with it (see settings index).
-    <Screen contentStyle={styles.flush} gap={16}>
-      <View style={styles.header}>
-        <StackHeader
-          title={t('backupRecovery.title')}
-          subtitle={t('backupRecovery.subtitle')}
-          onBack={() => router.back()}
-          backAccessibilityLabel={t('common.back')}
-        />
-      </View>
+    <Screen gap={16}>
+      <StackHeader
+        title={t('backupRecovery.title')}
+        subtitle={t('backupRecovery.subtitle')}
+        onBack={() => router.back()}
+        backAccessibilityLabel={t('common.back')}
+      />
 
       {status === 'present' && (
-        <View style={styles.gutter}>
+        <View>
           <Admonition type="info">{t('backupRecovery.statusPresent')}</Admonition>
         </View>
       )}
 
       {noPhrase && (
-        <View style={[styles.gutter, styles.stack]}>
+        <View style={styles.stack}>
           <Admonition type="warning">{t('backupRecovery.statusAbsent')}</Admonition>
           <Button appearance="solid" tone="accent" onPress={handleRotateKey}>
             {t('backupRecovery.rotateCta')}
@@ -124,8 +121,5 @@ export default function BackupRecoveryScreen() {
 }
 
 const styles = StyleSheet.create({
-  flush: { paddingHorizontal: 0 },
-  header: { paddingHorizontal: 20, marginBottom: 16 },
-  gutter: { paddingHorizontal: 20 },
   stack: { gap: 12 },
 });

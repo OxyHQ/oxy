@@ -131,8 +131,7 @@ function resolveUser(payload: unknown, path = '/users/resolve'): Promise<JsonRes
 /** A `safeFetch` result carrying a WebFinger JRD body. */
 function webFingerResult(status: number, body: unknown) {
   const buffer = Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
-  const response = Readable.from([buffer]) as Readable & { destroy: jest.Mock };
-  response.destroy = jest.fn();
+  const response = Readable.from([buffer]);
   return {
     status,
     headers: { 'content-type': 'application/jrd+json' },
@@ -312,7 +311,7 @@ describe('PUT /users/resolve — Oxy identity authority', () => {
     expect(first.status).toBe(200);
     expect(((await first.json()) as { data: unknown }).data).toBeNull();
     expect(discovery).toHaveBeenCalledTimes(1);
-    expect(discovery).toHaveBeenCalledWith(uri);
+    expect(discovery).toHaveBeenCalledWith(uri, undefined);
     await discovery.mock.results[0].value;
 
     const second = await getPath(path);

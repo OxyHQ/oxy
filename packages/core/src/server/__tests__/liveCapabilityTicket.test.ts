@@ -66,6 +66,10 @@ it('fails closed on timeout and abort while introspection is in flight', async (
   expect(signals[0].aborted).toBe(true);
   const abort = new AbortController();
   const pending = verify(ticket(), { signal: abort.signal });
+  // The key is looked up first (it may be asynchronous); abort once the
+  // introspection is in flight.
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(signals).toHaveLength(2);
   abort.abort(new Error('request cancelled'));
   await expect(pending).rejects.toThrow('request cancelled');
   expect(signals[1].aborted).toBe(true);
@@ -121,4 +125,41 @@ it('rechecks expiry after the live response and rejects legacy or tampered proof
   } finally {
     jest.useRealTimers();
   }
+});
+
+describe('an asynchronous key lookup (createOxyJwksKeyResolver)', () => {
+  it('is awaited with the ticket kid, once per verification', async () => {
+    const value = ticket();
+    const claims = verifyCapabilityTicket(value, verification);
+    const resolvePublicKey = jest.fn(async (keyId: string) =>
+      keyId === 'key' ? keys.publicKey : undefined,
+    );
+    const introspect = jest.fn(async () => ({ active: true, claims }));
+    const verify = createLiveCapabilityTicketVerifier({
+      ...verification,
+      resolvePublicKey,
+      introspect,
+    });
+    await expect(verify(value)).resolves.toEqual(claims);
+    expect(resolvePublicKey).toHaveBeenCalledTimes(1);
+    expect(resolvePublicKey).toHaveBeenCalledWith('key');
+  });
+
+  it('fails closed as unknown_key, before any live call, when the key set cannot be read', async () => {
+    const introspect = jest.fn();
+    for (const resolvePublicKey of [
+      async () => undefined,
+      async () => {
+        throw new Error('jwks unreachable');
+      },
+    ]) {
+      const verify = createLiveCapabilityTicketVerifier({
+        ...verification,
+        resolvePublicKey,
+        introspect,
+      });
+      await expect(verify(ticket())).rejects.toMatchObject({ code: 'unknown_key' });
+    }
+    expect(introspect).not.toHaveBeenCalled();
+  });
 });

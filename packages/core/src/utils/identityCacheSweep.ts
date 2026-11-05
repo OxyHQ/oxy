@@ -75,11 +75,19 @@ export const OXY_IDENTITY_CACHE_PREFIXES: readonly string[] = [
 ];
 
 /**
+ * The path `getUserById` reads, its id encoded. Built in one place so the
+ * request and every key that evicts it cannot spell the id differently.
+ */
+export function oxyUserByIdPath(userId: string): string {
+  return `/users/${encodeURIComponent(userId)}`;
+}
+
+/**
  * Build the exact cache key `getUserById` reads under. The only identity key
  * derivable from a user id, so the only one that does not need a prefix sweep.
  */
 export function oxyUserByIdCacheKey(userId: string): string {
-  return `GET:/users/${userId}`;
+  return `GET:${oxyUserByIdPath(userId)}`;
 }
 
 /**

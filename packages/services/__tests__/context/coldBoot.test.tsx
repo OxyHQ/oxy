@@ -22,13 +22,27 @@
 
 import React from 'react';
 import { render, waitFor, act, fireEvent, type RenderResult } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AppState } from 'react-native';
 import { AUTH_STATE_STORAGE_KEY, createNativeAuthStateStore } from '@oxy.so/core/session';
 import { type User } from '@oxy.so/core';
 
 let mockWebBrowser = true;
 jest.mock('../../src/ui/utils/isWebBrowser', () => ({ isWebBrowser: () => mockWebBrowser }));
+type BootOptions = Parameters<
+  typeof import('../../src/ui/boot/runProviderColdBoot').runProviderColdBoot
+>[0];
+let mockCommitFromBoot: BootOptions['commitSession'] | null = null;
+jest.mock('../../src/ui/boot/runProviderColdBoot', () => {
+  const actual = jest.requireActual('../../src/ui/boot/runProviderColdBoot');
+  return {
+    ...actual,
+    runProviderColdBoot: (options: BootOptions) => {
+      mockCommitFromBoot = options.commitSession;
+      return actual.runProviderColdBoot(options);
+    },
+  };
+});
 const mockOAuthCompletion = jest.fn();
 jest.mock('../../src/ui/oauth/browserAuthTransport', () => {
   const actual = jest.requireActual('../../src/ui/oauth/browserAuthTransport');
@@ -89,6 +103,8 @@ import { useAuthStore } from '../../src/ui/stores/authStore';
 import { useAuth } from '../../src/ui/hooks/useAuth';
 import OxySignInButton from '../../src/ui/components/OxySignInButton';
 import { KeyManager } from '@oxy.so/core/crypto';
+import { ACCOUNT_QUERY_CACHE_KEY } from '../../src/ui/hooks/accountQueryPersistence';
+import { snapshot } from '../../src/ui/hooks/persistedQueryCache';
 
 const API_BASE_URL = 'https://api.oxy.so';
 const USER_ID = 'user_cb_1';
@@ -180,7 +196,7 @@ function Capture() {
 
 function renderProvider(
   oxyServices: unknown,
-  options: { button?: boolean; onError?: jest.Mock } = {},
+  options: { button?: boolean; onError?: jest.Mock; children?: React.ReactNode } = {},
 ): RenderResult {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -193,6 +209,7 @@ function renderProvider(
       >
         <Capture />
         {options.button && <OxySignInButton text="Retry sign in" />}
+        {options.children}
       </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
@@ -284,6 +301,53 @@ describe('OxyContext cold boot (device-first)', () => {
     expect(stub.users.me).toHaveBeenCalled();
     expect(capturedContext?.user?.id).toBe(USER_ID);
     expect(redirectToAuthorize).not.toHaveBeenCalled();
+  });
+
+  it("paints a saved session with the account's cached queries already restored", async () => {
+    const prefs = ['viewer', USER_ID, 'prefs'];
+    const seed = new QueryClient();
+    await seed.fetchQuery({
+      queryKey: prefs,
+      queryFn: async () => ['tabs'],
+      meta: { persist: 'account' },
+    });
+    window.localStorage.setItem(
+      `${ACCOUNT_QUERY_CACHE_KEY}:${USER_ID}`,
+      snapshot(seed, { persistsQuery: () => true, shouldDehydrateMutation: () => false }),
+    );
+    window.localStorage.setItem(
+      'oxy_session_boot_lane',
+      JSON.stringify({ v: 1, clientId: 'oxy_test_client', lane: 'device' }),
+    );
+    window.localStorage.setItem(
+      'oxy_session_boot_account',
+      JSON.stringify({ v: 1, user: { id: USER_ID, username: 'cbuser' } }),
+    );
+    window.localStorage.setItem(
+      AUTH_STATE_STORAGE_KEY,
+      JSON.stringify({
+        sessionId: 'sess_cb',
+        userId: USER_ID,
+        deviceId: 'dev-cb',
+        deviceSecret: 'cb.device.secret',
+      }),
+    );
+    const { stub } = buildStub();
+    // The registry never answers: only the cached paint can resolve auth.
+    stub.apps.getPublic.mockImplementation(() => new Promise(() => {}));
+    const firstPaint: unknown[] = [];
+    function FirstPaint() {
+      const { isAuthResolved } = useOxy();
+      const client = useQueryClient();
+      if (isAuthResolved && firstPaint.length === 0) firstPaint.push(client.getQueryData(prefs));
+      return null;
+    }
+
+    renderProvider(stub, { children: <FirstPaint /> });
+
+    await waitFor(() => expect(firstPaint).toHaveLength(1));
+    expect(firstPaint[0]).toEqual(['tabs']);
+    expect(capturedContext?.user?.id).toBe(USER_ID);
   });
 
   it('restores a session from the persisted store (device-secret mint) and hands off to the SessionClient', async () => {
@@ -933,4 +997,112 @@ describe('native foreground device-state reconciliation', () => {
     expect(fakeSessionClient.bootstrap).not.toHaveBeenCalled();
     expect(listeners.size).toBe(0);
   });
+});
+
+it('audit: normal commit exposes prior user while new bearer waits for credential storage', async () => {
+  let holdStorage = false;
+  let release = () => {};
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const module = jest.requireMock('../../src/ui/session');
+  module.createPlatformAuthStateStore.mockImplementation((...args: unknown[]) => {
+    const store = jest.requireActual('../../src/ui/session').createPlatformAuthStateStore(...args);
+    return {
+      ...store,
+      load: async () => {
+        if (holdStorage) await blocked;
+        return store.load();
+      },
+    };
+  });
+  const { stub } = buildStub();
+  Object.defineProperty(stub.session, 'userId', {
+    get: () =>
+      ['a-token', 'a-refresh'].includes(stub.session.accessToken ?? '')
+        ? USER_ID
+        : stub.session.accessToken === 'b-token'
+          ? 'user-b'
+          : null,
+  });
+  const listeners = new Set<(token: string | null) => void>();
+  stub.session.onChange = ((listener: (token: string | null) => void) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }) as typeof stub.session.onChange;
+  const setAccessToken = stub.session.setAccessToken;
+  stub.session.setAccessToken = (token: string) => {
+    setAccessToken(token);
+    for (const listener of listeners) listener(token);
+  };
+  renderProvider(stub);
+  await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+  if (!mockCommitFromBoot) throw new Error('cold boot did not capture commit');
+  const commit = mockCommitFromBoot;
+  await act(async () => {
+    await commit(
+      {
+        sessionId: 'a-session',
+        accessToken: 'a-token',
+        userId: USER_ID,
+        user: { id: USER_ID, username: 'cbuser' },
+      },
+      { activate: true },
+    );
+  });
+  await waitFor(() => expect(capturedContext?.user?.id).toBe(USER_ID));
+  expect(capturedContext?.canUsePrivateApi).toBe(true);
+  expect(capturedAuth?.canUsePrivateApi).toBe(true);
+  await act(async () => {
+    stub.session.setAccessToken('a-refresh');
+  });
+  expect(capturedContext?.canUsePrivateApi).toBe(true);
+  expect(capturedAuth?.canUsePrivateApi).toBe(true);
+  await act(async () => {
+    stub.session.setAccessToken('opaque-token');
+  });
+  expect(capturedContext?.canUsePrivateApi).toBe(true);
+  expect(capturedAuth?.canUsePrivateApi).toBe(true);
+  await act(async () => {
+    stub.session.setAccessToken('a-token');
+  });
+  expect(capturedContext?.canUsePrivateApi).toBe(true);
+  expect(capturedAuth?.canUsePrivateApi).toBe(true);
+  const retainedContext = capturedContext;
+  const retainedAction = () => ({
+    user: retainedContext?.user?.id,
+    canUsePrivateApi: retainedContext?.canUsePrivateApi,
+    bearer: stub.session.accessToken,
+  });
+  holdStorage = true;
+  let pending: Promise<void> = Promise.resolve();
+  await act(async () => {
+    pending = commit(
+      {
+        sessionId: 'b-session',
+        accessToken: 'b-token',
+        userId: 'user-b',
+        user: { id: 'user-b', username: 'b' },
+        deviceId: 'device',
+        deviceSecret: 'secret',
+      },
+      { activate: true },
+    );
+    await Promise.resolve();
+  });
+  expect(stub.session.accessToken).toBe('b-token');
+  expect(capturedContext?.user?.id).toBe(USER_ID);
+  expect(capturedContext?.canUsePrivateApi).toBe(false);
+  expect(capturedContext?.isPrivateApiPending).toBe(true);
+  expect(capturedAuth?.canUsePrivateApi).toBe(false);
+  expect(capturedAuth?.isPrivateApiPending).toBe(true);
+  expect(retainedAction()).toEqual({ user: USER_ID, canUsePrivateApi: true, bearer: 'b-token' });
+  stub.users.me.mockResolvedValueOnce({ id: 'user-b', username: 'b' } as User);
+  release();
+  await act(async () => {
+    await pending;
+  });
+  await waitFor(() => expect(capturedContext?.user?.id).toBe('user-b'));
+  expect(capturedContext?.canUsePrivateApi).toBe(true);
+  expect(capturedAuth?.canUsePrivateApi).toBe(true);
 });

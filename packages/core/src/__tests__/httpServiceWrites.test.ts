@@ -152,7 +152,7 @@ describe('HttpService writes', () => {
     expect(calls.map((call) => call.url)).toEqual(['https://api.mention.earth/posts']);
   });
 
-  it('includes credentials for configured API origin requests', async () => {
+  it('omits ambient cookies and rejects redirects for configured API origin requests', async () => {
     const calls = recordFetches();
 
     const http = new HttpService({ baseURL: 'https://api.oxy.so', enableRetry: false });
@@ -161,7 +161,8 @@ describe('HttpService writes', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('https://api.oxy.so/users/me');
-    expect(calls[0].init?.credentials).toBe('include');
+    expect(calls[0].init?.credentials).toBe('omit');
+    expect(calls[0].init?.redirect).toBe('error');
   });
 
   it('omits credentials for caller-supplied absolute URLs outside the configured API origin', async () => {

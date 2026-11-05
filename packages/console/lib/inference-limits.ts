@@ -22,9 +22,9 @@ export function limitsToForm(limits: ApplicationInferenceLimits): LimitsForm {
 export function limitsFromForm(
   form: LimitsForm,
 ): { readonly limits: ApplicationInferenceLimits } | { readonly error: string } {
-  const limits: Record<string, number | null> = {};
-  for (const [key, raw] of Object.entries(form)) {
-    const text = raw.trim();
+  const limits = {} as { -readonly [K in keyof ApplicationInferenceLimits]: number | null };
+  for (const key of Object.keys(form) as Array<keyof LimitsForm>) {
+    const text = form[key].trim();
     if (text.length === 0) {
       limits[key] = null;
       continue;
@@ -36,7 +36,7 @@ export function limitsFromForm(
     }
     limits[key] = value;
   }
-  const result = limits as unknown as ApplicationInferenceLimits;
+  const result: ApplicationInferenceLimits = limits;
   if (
     result.maxConcurrentRealtimeSessions !== null &&
     result.maxConcurrentRealtimeSessionsPerCredential !== null &&

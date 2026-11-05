@@ -29,6 +29,7 @@ import type {
   ReauthAction,
   ReauthProof,
   SignInMethods,
+  SignUpRequest,
   SignInStepResult,
   TotpEnrollResponse,
 } from '@oxy.so/contracts';
@@ -217,6 +218,12 @@ export interface CommonsSignInHandle {
   authorizeCode: string;
   /** Ready-to-render deep-link / universal-link string (`oxycommons://approve?...`). */
   qrPayload: string;
+  /**
+   * The same request as the IdP's https approval page
+   * (`https://auth.oxy.so/device?user_code=…`): what a device with no keyboard
+   * shows as its QR, since any phone camera opens it, with or without Commons.
+   */
+  approvalUrl: string;
   /** Server-authoritative expiry (epoch milliseconds). */
   expiresAt: number;
   /** Session lifecycle status as reported by the server (e.g. `'pending'`). */
@@ -452,6 +459,7 @@ export interface CommonsOAuthFinalizeResult {
 interface CommonsSessionCreateResponse {
   authorizeCode: string;
   qrPayload: string;
+  approvalUrl: string;
   status: string;
   /** Optional server-authoritative expiry; falls back to the client-proposed value. */
   expiresAt?: number;
@@ -998,6 +1006,7 @@ export class AuthCommonsApi {
       sessionToken,
       authorizeCode: res.authorizeCode,
       qrPayload: res.qrPayload,
+      approvalUrl: res.approvalUrl,
       expiresAt: res.expiresAt ?? expiresAt,
       status: res.status,
     };
@@ -1448,11 +1457,9 @@ export class AuthApi {
       { cache: false, skipAuth: true, ...requestOptions },
     );
 
-    // Plant the freshly-minted tokens, mirroring `auth.claimSession`.
-    // `/auth/verify` returns the first access token (and refresh token) in
-    // its body, so installing it here means callers get an authenticated
-    // client without a second round-trip. Refresh stays in the httpOnly
-    // cookie slot set by the API.
+    // Install the returned access bearer, mirroring `auth.claimSession`,
+    // without a second round-trip. Session renewal uses the shared SDK's
+    // explicit credential transport; this flow neither sets nor reads cookies.
     if (res?.accessToken && options.plantTokens !== false) {
       this.ctx.oxy.session.setAccessToken(res.accessToken);
     }
@@ -1485,7 +1492,7 @@ export class AuthApi {
    * `POST /auth/session/authorize/{sessionToken}` (bearer-authed) and
    * the auth socket / poll loop notifies this client, the client
    * exchanges its `sessionToken` here for the first access token,
-   * refresh token, sessionId, and the authorized user.
+   * sessionId, and the authorized user.
    *
    * This call requires no Authorization header — the high-entropy
    * `sessionToken` IS the credential (RFC 8628 §3.4). The exchange is
@@ -1615,10 +1622,15 @@ export class AuthApi {
    */
   async checkUsername(username: string): Promise<{ available: boolean; message: string }> {
     // Public availability lookup (pre-session) — skip the bearer preflight.
-    return this.ctx.request('GET', `/auth/check-username/${username}`, undefined, {
-      cache: false,
-      skipAuth: true,
-    });
+    return this.ctx.request(
+      'GET',
+      `/auth/check-username/${encodeURIComponent(username)}`,
+      undefined,
+      {
+        cache: false,
+        skipAuth: true,
+      },
+    );
   }
 
   /**
@@ -1640,13 +1652,24 @@ export class AuthApi {
   }
 
   async signUp(
-    request: { username: string; email: string; emailTicket: string } & SignInDeviceOptions,
+    request: Pick<
+      SignUpRequest,
+      'username' | 'email' | 'emailTicket' | 'languages' | 'campaignAttribution'
+    > &
+      SignInDeviceOptions,
   ): Promise<LoginResult> {
-    const { username, email, emailTicket, ...options } = request;
+    const { username, email, emailTicket, languages, campaignAttribution, ...options } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
       '/auth/signup',
-      { username, email, emailTicket, ...(await signInEnvelope(this.ctx, options)) },
+      {
+        username,
+        email,
+        emailTicket,
+        ...(languages ? { languages } : {}),
+        ...(campaignAttribution ? { campaignAttribution } : {}),
+        ...(await signInEnvelope(this.ctx, options)),
+      },
       { cache: false, skipAuth: true },
     );
     return plantSession(this.ctx, res, 'auth/signup');

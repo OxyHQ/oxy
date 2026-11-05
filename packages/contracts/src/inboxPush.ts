@@ -1,3 +1,4 @@
+import { utf16MinLength } from './stringChecks';
 /**
  * Canonical contract for Inbox new-mail push notifications.
  *
@@ -20,8 +21,8 @@ export const INBOX_EMAIL_PUSH_TYPE = 'oxy_inbox_new_message';
 
 export const inboxEmailPushDataSchema = z.object({
   type: z.literal(INBOX_EMAIL_PUSH_TYPE),
-  messageId: z.string().min(1),
-  mailboxId: z.string().min(1),
+  messageId: z.string().check(utf16MinLength(1)),
+  mailboxId: z.string().check(utf16MinLength(1)),
 });
 
 export type InboxEmailPushData = z.infer<typeof inboxEmailPushDataSchema>;

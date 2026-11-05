@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { UsernameStep } from '@/components/auth/UsernameStep';
-import { useNetworkStatus } from '@/hooks/auth/useNetworkStatus';
+import { useNetworkStatus } from '@oxy.so/bloom/connection-status';
 import { useUsernameStep } from '@/hooks/auth/useUsernameStep';
 import { persistPendingUsername } from '@/hooks/identity/identityStore';
 
@@ -18,16 +18,16 @@ import { persistPendingUsername } from '@/hooks/identity/identityStore';
 export default function ImportIdentityUsernameScreen() {
   const router = useRouter();
   const colors = useColors();
-  const { isOffline } = useNetworkStatus();
+  const { online } = useNetworkStatus();
   const onDone = useCallback(() => {
-    router.replace('/(auth)/import-identity/notifications');
+    router.replace('/enable-notifications');
   }, [router]);
   const { username, setUsername, handleContinue, oxyServices, isUpdating, updateError } =
     useUsernameStep({ onDone });
 
   const handleSkip = useCallback(() => {
     void persistPendingUsername(null);
-    router.replace('/(auth)/import-identity/notifications');
+    router.replace('/enable-notifications');
   }, [router]);
 
   return (
@@ -35,8 +35,8 @@ export default function ImportIdentityUsernameScreen() {
       username={username}
       onUsernameChange={setUsername}
       onContinue={handleContinue}
-      onSkip={isOffline ? handleSkip : undefined}
-      isOffline={isOffline}
+      onSkip={online ? undefined : handleSkip}
+      isOffline={!online}
       oxyServices={oxyServices}
       backgroundColor={colors.background}
       textColor={colors.text}

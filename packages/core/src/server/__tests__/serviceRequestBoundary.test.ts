@@ -1,0 +1,219 @@
+jest.mock('../workloadIdentity', () => ({
+  canAttestWorkloadIdentity: () => true,
+  requestWorkloadServiceToken: jest.fn(async () => ({
+    token: 'service-credential',
+    expiresIn: 300,
+    appName: 'test',
+  })),
+}));
+import { requestWorkloadServiceToken } from '../workloadIdentity';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { HttpService } from '../../HttpService';
+import { OxyServer } from '../OxyServer';
+
+async function listen(server: Server): Promise<string> {
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+}
+async function close(server: Server): Promise<void> {
+  server.closeAllConnections();
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
+}
+
+afterEach(() => jest.restoreAllMocks());
+
+it('rejects foreign service URLs before minting credentials', async () => {
+  const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
+  const mint = requestWorkloadServiceToken as jest.Mock;
+  mint.mockClear();
+  try {
+    await expect(
+      oxy.serviceRequest(
+        'POST',
+        'https://other.example/collect',
+        {},
+        {
+          requesterToken: 'private-proof',
+          actAs: 'person',
+        },
+      ),
+    ).rejects.toThrow('configured API origin');
+    expect(mint).not.toHaveBeenCalled();
+  } finally {
+    oxy.dispose();
+  }
+});
+
+it('rejects foreign ordinary requests carrying requester proofs', async () => {
+  const http = new HttpService({ baseURL: 'https://api.oxy.so' });
+  const fetch = jest.spyOn(globalThis, 'fetch');
+  try {
+    await expect(
+      http.request({
+        method: 'POST',
+        url: 'https://other.example/collect',
+        headers: {
+          'X-Oxy-Requester-Token': 'private-proof',
+        },
+      }),
+    ).rejects.toThrow('configured API origin');
+    expect(fetch).not.toHaveBeenCalled();
+  } finally {
+    http.dispose();
+  }
+});
+
+it.each([302, 307])(
+  'never forwards requester proof across a real HTTP %s redirect',
+  async (status) => {
+    let received = 0;
+    const destination = createServer((_req, res) => {
+      received++;
+      res.end('{}');
+    });
+    const destinationUrl = await listen(destination);
+    let originalProof: string | undefined;
+    const origin = createServer((req, res) => {
+      originalProof = req.headers['x-oxy-requester-token'] as string | undefined;
+      res.writeHead(status, { location: `${destinationUrl}/collect` });
+      res.end();
+    });
+    const baseURL = await listen(origin);
+    const oxy = new OxyServer({ baseURL });
+    try {
+      await expect(
+        oxy.serviceRequest(
+          'POST',
+          '/redirect',
+          {},
+          {
+            requesterToken: 'private-proof',
+            actAs: 'person',
+            retry: false,
+          },
+        ),
+      ).rejects.toBeDefined();
+      expect(originalProof).toBe('private-proof');
+      expect(received).toBe(0);
+    } finally {
+      oxy.dispose();
+      await Promise.all([close(origin), close(destination)]);
+    }
+  },
+);
+
+it('keeps concurrent requester responses separate and reads revocation on every call', async () => {
+  const subjects: string[] = [];
+  let revoked = false;
+  const server = createServer((req, res) => {
+    const subject = req.headers['x-oxy-user-id'] as string;
+    subjects.push(subject);
+    if (revoked) {
+      res.writeHead(403);
+      res.end('{}');
+      return;
+    }
+    setTimeout(() => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data: { subject } }));
+    }, 20);
+  });
+  const oxy = new OxyServer({ baseURL: await listen(server) });
+  const read = (subject: string) =>
+    oxy.serviceRequest<{ subject: string }>('GET', '/private', undefined, {
+      actAs: subject,
+      taskId: `task-${subject}`,
+      cache: true,
+      deduplicate: true,
+      retry: false,
+    });
+  try {
+    expect(await Promise.all([read('A'), read('B')])).toEqual([{ subject: 'A' }, { subject: 'B' }]);
+    revoked = true;
+    await expect(read('A')).rejects.toBeDefined();
+    expect(subjects.slice(0, 2).sort()).toEqual(['A', 'B']);
+    expect(subjects.slice(2)).toEqual(['A']);
+  } finally {
+    oxy.dispose();
+    await close(server);
+  }
+});
+
+it.each([
+  'X-Oxy-Capability-Ticket',
+  'X-Oxy-Mcp-Media-Token',
+  'X-Oxy-Requester-Context',
+  'X-Oxy-Presented-Requester-Context',
+  'X-Oxy-Presented-Service-Token',
+])('isolates %s authority and refuses foreign destinations before sending', async (header) => {
+  let revoked = false;
+  const seen: string[] = [];
+  const server = createServer((req, res) => {
+    const proof = String(req.headers[header.toLowerCase()]);
+    seen.push(proof);
+    if (revoked) {
+      res.writeHead(403);
+      res.end('{}');
+      return;
+    }
+    setTimeout(() => {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ data: { proof } }));
+    }, 10);
+  });
+  const http = new HttpService({ baseURL: await listen(server), enableRetry: false });
+  const read = (proof: string) =>
+    http.request({
+      method: 'GET',
+      url: '/private',
+      headers: { [header]: proof },
+      cache: true,
+      deduplicate: true,
+    });
+  try {
+    expect(await Promise.all([read('A'), read('B')])).toEqual([{ proof: 'A' }, { proof: 'B' }]);
+    revoked = true;
+    await expect(read('A')).rejects.toBeDefined();
+    await expect(
+      http.request({
+        method: 'POST',
+        url: 'https://other.example/collect',
+        headers: { [header]: 'private-proof' },
+      }),
+    ).rejects.toThrow('configured API origin');
+    expect(seen.slice(0, 2).sort()).toEqual(['A', 'B']);
+    expect(seen.slice(2)).toEqual(['A']);
+  } finally {
+    http.dispose();
+    await close(server);
+  }
+});
+
+it('isolates linked-account requester facades and never caches revocable reads', async () => {
+  const received: Array<{ path: string; proof: string | undefined }> = [];
+  const server = createServer((req, res) => {
+    received.push({
+      path: req.url ?? '',
+      proof: req.headers['x-oxy-requester-token'] as string | undefined,
+    });
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ userId: req.url?.split('/').at(-1), linkedAccounts: [] }));
+  });
+  const baseURL = await listen(server);
+  const oxy = new OxyServer({ baseURL });
+  try {
+    const a = oxy.linkedAccounts.withRequester({ requesterToken: 'proof-a' });
+    const b = oxy.linkedAccounts.withRequester({ requesterToken: 'proof-b' });
+    await Promise.all([a.forUser('person'), b.forUser('person')]);
+    await a.forUser('person');
+    expect(received).toHaveLength(3);
+    expect(received.map((entry) => entry.proof).sort()).toEqual(['proof-a', 'proof-a', 'proof-b']);
+    expect(received.every((entry) => entry.path === '/linked-accounts/by-user/person')).toBe(true);
+  } finally {
+    oxy.dispose();
+    await close(server);
+  }
+});

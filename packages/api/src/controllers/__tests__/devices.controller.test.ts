@@ -27,10 +27,10 @@
  */
 
 import express from 'express';
-import http from 'http';
+import type http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
-import { eq } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 
 /** The account each request authenticates as, and the session its token names. */
 let currentUserId = '';
@@ -41,11 +41,21 @@ const mockDeactivateSession = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: { id: string; _id: string; email?: string } },
+    req: {
+      user?: { id: string; _id: string; email?: string };
+      sessionId?: string;
+      oxyToken?: unknown;
+    },
     _res: unknown,
     next: () => void,
   ) => {
     req.user = { id: currentUserId, _id: currentUserId, email: 'owner@example.test' };
+    req.sessionId = currentSessionId ?? 'fixture-acting-session';
+    req.oxyToken = {
+      sessionId: req.sessionId,
+      subjectAccountId: currentUserId,
+      principalUserId: currentUserId,
+    };
     next();
   },
 }));
@@ -135,10 +145,25 @@ async function request(method: string, path: string): Promise<JsonResponse> {
 beforeAll(async () => {
   await connectPostgres();
   jest
-    .spyOn(sessionService, 'deactivateSession')
-    .mockImplementation(async (...args: Parameters<typeof sessionService.deactivateSession>) => {
-      mockDeactivateSession(...args);
-      return true;
+    .spyOn(sessionService, 'withActingSession')
+    .mockImplementation(async (_acting, read) => read(getDb()));
+  jest
+    .spyOn(sessionService, 'deactivateActorSessionsOnDevice')
+    .mockImplementation(async (acting, deviceId) => {
+      const revoked = await getDb()
+        .update(sessions)
+        .set({ isActive: false })
+        .where(
+          and(
+            eq(sessions.userId, acting.subjectId),
+            eq(sessions.deviceId, deviceId),
+            eq(sessions.isActive, true),
+            gt(sessions.expiresAt, new Date()),
+          ),
+        )
+        .returning({ sessionId: sessions.sessionId, userId: sessions.userId });
+      for (const row of revoked) mockDeactivateSession(row.sessionId);
+      return revoked;
     });
   jest
     .spyOn(sessionService, 'validateSessionById')
@@ -147,10 +172,13 @@ beforeAll(async () => {
         .select({ deviceId: sessions.deviceId })
         .from(sessions)
         .where(eq(sessions.sessionId, sessionId));
-      if (!row) return null;
-      return { session: { deviceId: row.deviceId } } as Awaited<
-        ReturnType<typeof sessionService.validateSessionById>
-      >;
+      return {
+        session: {
+          deviceId: row?.deviceId ?? 'synthetic-device',
+          userId: currentUserId,
+          operatedByUserId: null,
+        },
+      } as Awaited<ReturnType<typeof sessionService.validateSessionById>>;
     });
 
   const app = express();
@@ -313,17 +341,13 @@ describe('DELETE /devices/:deviceId', () => {
     expect(deactivated).toEqual([mine, alsoMine].sort());
   });
 
-  it('emits the socket notification for the requesting account only', async () => {
+  it('does not emit session ids to the subject-wide room', async () => {
     const deviceId = randomUUID();
-    const sessionId = await insertSession({ userId: currentUserId, deviceId });
+    await insertSession({ userId: currentUserId, deviceId });
 
     await request('DELETE', `/devices/${deviceId}`);
 
-    expect(mockEmitSessionUpdate).toHaveBeenCalledWith(currentUserId, {
-      type: 'device_removed',
-      deviceId,
-      sessionIds: [sessionId],
-    });
+    expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
   });
 
   it("404s when the device holds no session of the caller's, even if someone else is on it", async () => {

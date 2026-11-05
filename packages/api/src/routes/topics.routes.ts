@@ -90,7 +90,7 @@ router.get('/search', async (req: Request, res: Response) => {
  * GET /:slug
  * Single topic by slug.
  */
-router.get('/:slug', async (req: Request, res: Response) => {
+router.get('/:slug', async (req, res) => {
   try {
     const topic = await topicService.getBySlug(req.params.slug);
     if (!topic) {
@@ -143,7 +143,7 @@ router.post('/resolve', requireStaff, async (req: Request, res: Response) => {
  * PATCH /:slug
  * Update topic metadata (description, translations, icon, image, aliases).
  */
-router.patch('/:slug', requireStaff, async (req: Request, res: Response) => {
+router.patch('/:slug', requireStaff, async (req, res) => {
   try {
     const { slug } = req.params;
     // An explicit per-column whitelist, never a spread of `req.body`: drizzle

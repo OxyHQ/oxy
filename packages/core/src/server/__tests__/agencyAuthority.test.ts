@@ -22,14 +22,19 @@ it('discovers catalogues live on the service lane without cache, deduplication o
   ]);
   await oxy.agency.serviceCatalogs({ appId: 'app/1' });
   expect(request).toHaveBeenCalledTimes(2);
-  expect(request).toHaveBeenCalledWith('GET', '/capabilities/catalogs?appId=app%2F1', undefined, {
-    cache: false,
-    deduplicate: false,
-    retry: false,
-    skipAuth: true,
-    timeout: 5000,
-    headers: { Authorization: 'Bearer fixture-service-token' },
-  });
+  expect(request).toHaveBeenCalledWith(
+    'GET',
+    'http://test.invalid/capabilities/catalogs?appId=app%2F1',
+    undefined,
+    {
+      cache: false,
+      deduplicate: false,
+      retry: false,
+      skipAuth: true,
+      timeout: 5000,
+      headers: { Authorization: 'Bearer fixture-service-token' },
+    },
+  );
 });
 
 it('preserves the expected catalogue and forwards an abort signal on ticket issuance/introspection', async () => {
@@ -46,13 +51,13 @@ it('preserves the expected catalogue and forwards an abort signal on ticket issu
   await oxy.agency.introspectCapabilityTicket('fixture-ticket', { signal: abort.signal });
   expect(request.mock.calls[0]).toEqual([
     'POST',
-    '/capabilities/tickets',
+    'http://test.invalid/capabilities/tickets',
     { executionAuthorizationId: 'authorization-1', expectedCatalog: pin },
     expect.objectContaining({ cache: false, retry: false, skipAuth: true, signal: abort.signal }),
   ]);
   expect(request.mock.calls[1]).toEqual([
     'POST',
-    '/capabilities/tickets/introspect',
+    'http://test.invalid/capabilities/tickets/introspect',
     { ticket: 'fixture-ticket' },
     expect.objectContaining({ cache: false, retry: false, signal: abort.signal }),
   ]);
@@ -133,7 +138,7 @@ it('sends foreground requester proof only to the configured Oxy authority alongs
   expect(token).toHaveBeenCalledTimes(1);
   expect(request).toHaveBeenCalledWith(
     'POST',
-    '/capabilities/foreground-execution-authorizations',
+    'http://test.invalid/capabilities/foreground-execution-authorizations',
     { ...input, subjectToken: 'current-requester-token' },
     {
       cache: false,
@@ -217,7 +222,7 @@ describe('agentAvailability (ADR 0044)', () => {
     });
     expect(request).toHaveBeenCalledWith(
       'GET',
-      '/capabilities/agent-availability/bot%2F1',
+      'http://test.invalid/capabilities/agent-availability/bot%2F1',
       undefined,
       {
         cache: false,
@@ -254,4 +259,85 @@ describe('agentAvailability (ADR 0044)', () => {
     );
     expect(request).not.toHaveBeenCalled();
   });
+});
+
+it('creates a durable own task with user proof, then derives tools and revokes using only its handle', async () => {
+  const { oxy, request } = fixture();
+  request.mockResolvedValue({ task: { id: 'task-1' } } as never);
+  const task = await oxy.agency.createTask(
+    {
+      origin: { kind: 'goal', id: 'goal-1' },
+      actor: { type: 'agent', accountId: 'bot' },
+      effectiveAccountId: 'person',
+      expiresAt: '2026-12-01T00:00:00Z',
+    },
+    { requesterToken: 'proof' },
+  );
+  expect(task.id).toBe('task-1');
+  expect(request.mock.calls[0][2]).toMatchObject({
+    subjectToken: 'proof',
+    effectiveAccountId: 'person',
+  });
+  request.mockResolvedValue({ authorization: { id: 'auth-1' } } as never);
+  await oxy.agency.createTaskExecutionAuthorization(task.id, {
+    authority: 'first_party',
+    kind: 'direct_request',
+    actor: { type: 'agent', accountId: 'child-bot' },
+    resource: {
+      appId: 'inbox',
+      effectiveAccountId: 'person',
+      resourceType: 'account',
+      resourceId: 'person',
+    },
+    tool: 'read',
+    expectedCatalog: pin,
+    runId: 'run',
+    limits: [],
+    expiresAt: '2026-12-01T00:00:00Z',
+  });
+  expect(request.mock.calls[1][1]).toBe(
+    'http://test.invalid/capabilities/tasks/task-1/execution-authorizations',
+  );
+  expect(JSON.stringify(request.mock.calls[1])).not.toContain('proof');
+  expect(request.mock.calls[1][2]).not.toHaveProperty('maximumAutonomy');
+  request.mockResolvedValue(undefined as never);
+  await oxy.agency.revokeTask(task.id);
+  expect(request.mock.calls[2][1]).toBe('http://test.invalid/capabilities/tasks/task-1');
+  oxy.dispose();
+});
+
+it('isolates requester proof across Files facades without mutating the shared client', async () => {
+  const { oxy, request } = fixture();
+  request.mockResolvedValue({ file: { id: 'file' } } as never);
+  const own = oxy.assets.withRequester({ taskId: 'task-file' });
+  await own.uploadUserMedia('person', new Uint8Array([1]), 'image/png');
+  expect(request.mock.calls[0][3]).toMatchObject({
+    headers: { 'X-Oxy-Task-Id': 'task-file', 'x-owner-user-id': 'person' },
+  });
+  await oxy.assets.uploadUserMedia('person', new Uint8Array([1]), 'image/png');
+  expect((request.mock.calls[1][3] as { headers: object }).headers).not.toHaveProperty(
+    'X-Oxy-Task-Id',
+  );
+  oxy.dispose();
+});
+
+it('snapshots the explicit Files account and never caches requester-dependent reads', async () => {
+  const { oxy, request } = fixture();
+  request.mockResolvedValue({ file: { id: 'file' } } as never);
+  const proof = { taskId: 'task-original', accountId: 'bot-original' };
+  const files = oxy.assets.withRequester(proof);
+  proof.taskId = 'task-substitution';
+  proof.accountId = 'bot-substitution';
+  await files.uploadUserMedia('bot-original', new Uint8Array([1]), 'image/png');
+  expect(request.mock.calls[0][3]).toMatchObject({
+    cache: false,
+    deduplicate: false,
+    retry: false,
+    headers: {
+      'X-Oxy-Task-Id': 'task-original',
+      'X-Oxy-User-Id': 'bot-original',
+      'x-owner-user-id': 'bot-original',
+    },
+  });
+  oxy.dispose();
 });

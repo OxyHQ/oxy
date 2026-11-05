@@ -1,3 +1,4 @@
+import type { CampaignAttribution } from '@oxy.so/contracts';
 import type {
   StartNativeOAuthSignInOptions,
   NativeOAuthSignInResult,
@@ -49,7 +50,13 @@ export interface OxyContextState {
   isLoading: boolean;
   isTokenReady: boolean;
   hasAccessToken: boolean;
+  /**
+   * False while a known bearer subject differs from the projected user. Bearers without `userId` or `id` claims, including opaque or sub-only
+   * tokens, retain their existing behavior. This is a render snapshot, not a
+   * synchronous guard for callbacks retained across a session transition.
+   */
   canUsePrivateApi: boolean;
+  /** True while auth, the bearer or a known account mismatch is resolving. */
   isPrivateApiPending: boolean;
   /**
    * Whether the initial auth determination has concluded.
@@ -85,6 +92,8 @@ export interface OxyContextState {
   error: string | null;
   /** Active UI locale (`language-REGION`): the account's primary locale when signed in, else the guest/device locale. */
   currentLanguage: string;
+  isLanguageReady: boolean;
+  campaignAttribution?: CampaignAttribution;
   /** Ordered account locales (primary first) when signed in, or the single guest override when signed out. */
   currentLanguages: string[];
   currentLanguageMetadata: ReturnType<typeof useLanguageManagement>['metadata'];
@@ -129,7 +138,8 @@ export interface OxyContextState {
 
   /**
    * Ask the already-authenticated user for explicit OAuth consent to exact
-   * application scopes. Must be called from a user gesture. Works on web and
+   * external application scopes. Own Oxy apps do not use this operation.
+   * Must be called from a user gesture. Works on web and
    * native and commits only a callback bound to the same user, state, PKCE pair
    * and byte-exact redirect URI.
    */
@@ -179,6 +189,8 @@ export interface OxyContextState {
 }
 
 export interface OxyRuntimeProviderProps {
+  legacyLanguageKeys?: readonly string[];
+  captureCampaignAttribution?: boolean;
   children: ReactNode;
   oxyServices?: OxyServices;
   baseURL?: string;

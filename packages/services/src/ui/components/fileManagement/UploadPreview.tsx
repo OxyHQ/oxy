@@ -3,7 +3,7 @@ import { View, ScrollView, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { Text } from '@oxy.so/bloom/typography';
-import { Image as ExpoImage } from 'expo-image';
+import { ExpoImage } from '../ExpoImage';
 import Ionicons from '../../icons/Ionicons';
 import { Dialog, type DialogControlProps } from '@oxy.so/bloom/dialog';
 import { useTheme } from '@oxy.so/bloom/theme';

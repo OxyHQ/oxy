@@ -15,7 +15,7 @@ import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 import { useOxy } from '@oxy.so/services';
 import { alert, toast } from '@oxy.so/bloom';
 import type { ConnectedApp } from '@oxy.so/core';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useTranslation } from '@/lib/i18n';
 import { ConnectedAppRow } from '@/components/connected-apps/connected-app-row';
 import { Section } from '@/components/section';
@@ -55,7 +55,7 @@ export default function ThirdPartyConnectionsScreen() {
   const revokeMcp = useRevokeConnectedMcpClient();
   const apps = useMemo(() => data ?? [], [data]);
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([refetch(), mcpClients.refetch()]);

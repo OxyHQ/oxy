@@ -77,4 +77,45 @@ describe('KeyboardAwareScrollViewWrapper', () => {
     );
     expect(captured[captured.length - 1]?.bottomOffset).toBe(120);
   });
+
+  // The tab bar's footprint used to come BEFORE the caller's style, so the
+  // `padding: 22` every tab screen passes replaced it, and Delete account,
+  // Create backup and Continue sat under the floating tab bar.
+  describe('bottom padding', () => {
+    // useScreenBottomPad = footprint (82) + SCREEN_BOTTOM_CLEARANCE (44).
+    const TAB_SCREEN_PAD = 82 + 44;
+
+    it("adds the tab bar's footprint to the caller's own padding", () => {
+      render(
+        <KeyboardAwareScrollViewWrapper
+          reserveTabBarFootprint
+          contentContainerStyle={{ padding: 22 }}
+        >
+          {null}
+        </KeyboardAwareScrollViewWrapper>,
+      );
+      expect(effectiveContentStyle().paddingBottom).toBe(TAB_SCREEN_PAD + 22);
+    });
+
+    it('honours an explicit paddingBottom over the shorthand', () => {
+      render(
+        <KeyboardAwareScrollViewWrapper
+          reserveTabBarFootprint
+          contentContainerStyle={{ padding: 22, paddingBottom: 8 }}
+        >
+          {null}
+        </KeyboardAwareScrollViewWrapper>,
+      );
+      expect(effectiveContentStyle().paddingBottom).toBe(TAB_SCREEN_PAD + 8);
+    });
+
+    it('off the tab bar, adds the bottom safe-area inset instead', () => {
+      render(
+        <KeyboardAwareScrollViewWrapper contentContainerStyle={{ padding: 24 }}>
+          {null}
+        </KeyboardAwareScrollViewWrapper>,
+      );
+      expect(effectiveContentStyle().paddingBottom).toBe(34 + 24);
+    });
+  });
 });

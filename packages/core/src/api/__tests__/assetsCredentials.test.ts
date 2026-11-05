@@ -7,8 +7,7 @@ interface FetchCall {
 
 /**
  * `assets.text` / `assets.blob` resolve the asset's download URL through the
- * API, then fetch that URL directly. Cookies go only to the API's own origin —
- * never to whatever host the resolved URL names.
+ * API, then fetch that URL directly without cookies on any origin.
  */
 describe('asset content fetch credentials', () => {
   const originalFetch = globalThis.fetch;
@@ -38,9 +37,9 @@ describe('asset content fetch credentials', () => {
     expect(call.init?.credentials).toBe('omit');
   });
 
-  it('includes credentials for a URL on the configured API origin', async () => {
+  it('omits credentials for a URL on the configured API origin', async () => {
     const call = await contentFetchFor('https://api.oxy.so/assets/private-file/stream');
     expect(call.url).toBe('https://api.oxy.so/assets/private-file/stream');
-    expect(call.init?.credentials).toBe('include');
+    expect(call.init?.credentials).toBe('omit');
   });
 });

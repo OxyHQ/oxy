@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Icons } from '@/constants/icons';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import { Redirect, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -206,15 +207,15 @@ export default function AuthIndexScreen() {
           fontSize={16}
           textStyle={[styles.tapText, { color: textColor }]}
         />
-        <TouchableOpacity
-          className="mt-space-24 py-space-8 px-space-16"
+        <Button
+          appearance="plain"
+          tone="neutral"
+          className="mt-space-24"
           onPress={handleRestore}
-          activeOpacity={0.7}
-          accessibilityRole="button"
           accessibilityLabel={t('auth.indexRestore')}
         >
-          <Text style={[styles.restoreText, { color: textColor }]}>{t('auth.indexRestore')}</Text>
-        </TouchableOpacity>
+          {t('auth.indexRestore')}
+        </Button>
       </Animated.View>
     </Pressable>
   );

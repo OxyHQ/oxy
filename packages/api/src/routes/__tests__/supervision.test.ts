@@ -11,6 +11,7 @@ jest.mock('../../server', () => ({ emitSessionUpdate: jest.fn() }));
 jest.mock('../../utils/socket', () => ({
   broadcastDeviceState: jest.fn(),
   broadcastSessionAccountsChanged: jest.fn(),
+  broadcastSupervisionChanged: jest.fn(),
 }));
 jest.mock('../../services/securityActivityService', () => ({
   __esModule: true,
@@ -326,6 +327,31 @@ it('lets supervised people list and upload only their own private files without 
   }
   await getDb().update(users).set({ reputationTier: 'restricted' }).where(eq(users.id, child));
   expect((await fetch(`${origin}/assets/${own.id}`, { headers })).status).toBe(401);
+});
+
+it('decides notification delivery across an adult block in either direction, only with reviewed authority', async () => {
+  const { app } = await consumer();
+  const actor = await person(),
+    recipient = await person(),
+    stranger = await person();
+  await getDb().insert(blocks).values({ userId: recipient, blockedId: actor });
+  const input = {
+    items: [
+      { resourceId: 'blocked', actorAccountId: actor, recipientAccountId: recipient },
+      { resourceId: 'reverse', actorAccountId: recipient, recipientAccountId: actor },
+      { resourceId: 'clear', actorAccountId: stranger, recipientAccountId: recipient },
+    ],
+  };
+  expect((await post('/service/notification-access-batch', input)).status).toBe(403);
+  await getDb()
+    .update(applications)
+    .set({ capabilities: ['safety:notification-delivery:v1'] })
+    .where(eq(applications.id, app));
+  const response = await post('/service/notification-access-batch', input);
+  expect(response.status).toBe(200);
+  expect(
+    response.body.items.map((item: { decision: { reason: string } }) => item.decision.reason),
+  ).toEqual(['blocked', 'blocked', 'allowed']);
 });
 
 it('authenticates batches once and distinguishes user decisions from reviewed background delivery', async () => {

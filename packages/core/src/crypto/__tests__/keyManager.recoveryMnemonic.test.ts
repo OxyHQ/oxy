@@ -136,4 +136,40 @@ describe('KeyManager recovery mnemonic storage', () => {
     await KeyManager.deleteIdentity(true, true, true);
     expect(await KeyManager.getRecoveryMnemonic()).toBeNull();
   });
+
+  describe('getRecoveryMnemonicForCurrentIdentity', () => {
+    const OTHER_PHRASE =
+      'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+
+    it('returns the phrase when it derives the identity on this device', async () => {
+      const { RecoveryPhraseService } = await import('../recoveryPhrase');
+      await RecoveryPhraseService.restoreFromPhrase(PHRASE);
+      await KeyManager.storeRecoveryMnemonic(PHRASE);
+      expect(await KeyManager.getRecoveryMnemonicForCurrentIdentity()).toBe(PHRASE);
+    });
+
+    // A rotation used to leave the replaced key's phrase in the slot.
+    it('returns null for a stored phrase of a different key', async () => {
+      const { RecoveryPhraseService } = await import('../recoveryPhrase');
+      await RecoveryPhraseService.restoreFromPhrase(PHRASE);
+      await KeyManager.storeRecoveryMnemonic(OTHER_PHRASE);
+      expect(await KeyManager.getRecoveryMnemonic()).toBe(OTHER_PHRASE);
+      expect(await KeyManager.getRecoveryMnemonicForCurrentIdentity()).toBeNull();
+    });
+
+    it('returns null when there is no identity to check the phrase against', async () => {
+      await KeyManager.storeRecoveryMnemonic(PHRASE);
+      expect(await KeyManager.getRecoveryMnemonicForCurrentIdentity()).toBeNull();
+    });
+
+    it('throws IdentityUnavailableError when the phrase slot cannot be read', async () => {
+      await KeyManager.storeRecoveryMnemonic(PHRASE);
+      ss.__failPlan__.failOp = 'get';
+      ss.__failPlan__.failKey = MNEMONIC_KEY;
+      ss.__failPlan__.failService = MNEMONIC_SVC;
+      await expect(KeyManager.getRecoveryMnemonicForCurrentIdentity()).rejects.toBeInstanceOf(
+        IdentityUnavailableError,
+      );
+    });
+  });
 });

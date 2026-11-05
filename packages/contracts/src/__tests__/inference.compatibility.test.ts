@@ -82,18 +82,9 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   version,
 };
 
-/** Strip the wrappers `.superRefine()`, `.strict()` and `.brand()` leave behind. */
-const unwrapSchema = (schema: z.ZodTypeAny): z.ZodTypeAny => {
-  let current = schema;
-  while (current instanceof z.ZodEffects || current instanceof z.ZodBranded) {
-    current = current instanceof z.ZodEffects ? current.innerType() : current.unwrap();
-  }
-  return current;
-};
-
 /** The `schemaVersion` literal of an object schema, or null when it has none. */
 const versionOf = (schema: z.ZodTypeAny): number | null => {
-  const unwrapped = unwrapSchema(schema);
+  const unwrapped = schema;
   if (!(unwrapped instanceof z.ZodObject)) return null;
   const field = (unwrapped.shape as Record<string, z.ZodTypeAny | undefined>).schemaVersion;
   if (field === undefined) return null;
@@ -112,7 +103,7 @@ for (const module of Object.values(INFERENCE_MODULES)) {
   for (const [name, exported] of Object.entries(module)) {
     if (!(exported instanceof z.ZodType)) continue;
 
-    const unwrapped = unwrapSchema(exported);
+    const unwrapped = exported;
 
     if (unwrapped instanceof z.ZodDiscriminatedUnion || unwrapped instanceof z.ZodUnion) {
       censusUnions.push({ name, options: unwrapped.options as z.ZodTypeAny[] });
@@ -259,7 +250,6 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
 const FROZEN_EMBEDDED_SHAPES: string[] = [
   'aliaReleaseArtifactSchema',
   'aliaReleaseSignatureSchema',
-  'authenticatedPrincipalSchema',
   'autoRechargeSchema',
   'billingPrincipalSchema',
   'catalogueServingProviderSummarySchema',
@@ -331,6 +321,7 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
  * is that the SET of unions is a decision somebody makes on purpose.
  */
 const FROZEN_UNION_SHAPES: string[] = [
+  'authenticatedPrincipalSchema',
   // The routes the control plane authorized, and how each one is authorized
   'authorizedRouteSchema',
   'embeddingResponseSchema',

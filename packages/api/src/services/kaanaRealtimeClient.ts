@@ -248,6 +248,6 @@ function rawText(data: RawData): string {
   return Buffer.from(data).toString('utf8');
 }
 
-function issuePath(path: readonly (string | number)[] | undefined): string {
-  return path === undefined || path.length === 0 ? 'unknown field' : path.join('.');
+function issuePath(path: readonly PropertyKey[] | undefined): string {
+  return path === undefined || path.length === 0 ? 'unknown field' : path.map(String).join('.');
 }

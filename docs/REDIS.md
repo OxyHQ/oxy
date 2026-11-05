@@ -8,7 +8,7 @@ The Oxy API uses **AWS ElastiCache (Valkey)** — cluster `oxy-valkey` in `eu-we
 |---------|---------------|------------|
 | Rate limiting | In-memory (resets on restart, per-instance) | Shared across instances, survives restarts |
 | Socket.IO | Single-instance only | Cross-instance broadcast via pub/sub |
-| Health check | Reports `"not configured"` | Reports `"connected"` / `"disconnected"` |
+| Health check | Reports `"not configured"` | Reports `"connected"` / `"disconnected"`; `503` once the client has ended |
 
 ## Configuration
 
@@ -47,6 +47,31 @@ export async function closeRedis(): Promise<void> {
 }
 ```
 
+### When Valkey is down
+
+- The client never stops reconnecting (`redisRetryStrategy`: +200 ms per attempt, capped at 5 s).
+  Its `duplicate()` subscribers inherit it and the BullMQ connections (`queue/connection.ts`) use
+  it. It used to give up after 20 attempts (about 42 s), after which every command failed with
+  "Connection is closed" until a deploy.
+- Every limiter admits requests uncounted while the connection is not `ready`, and passes a store
+  error from a connected client (`passOnStoreError`) instead of answering 500 — except the live
+  session-authority and holder-evidence budgets, which fail closed with 503
+  (`failClosedOnStoreError`, `runAuthorityBudget`). The in-memory `bruteForceProtection` slow-down
+  never touches Valkey.
+- `/health` answers `200 "degraded"` while the client reconnects (every task sees the same outage;
+  replacing them would not help) and `503` with `redis: "ended"` if this task's client has ended,
+  which only a new task fixes.
+- Every command on the shared client is rejected after `REDIS_COMMAND_TIMEOUT_MS` (1 s), counted
+  from the moment it is sent: queued while the client (re)connects, then awaiting its reply. Every
+  caller falls back on a rejection (caches read the database, the lockout counts in memory, the
+  infrastructure registry keeps its local view, the workload mint answers 503
+  `challenge_store_unavailable`). Without it a command waited in ioredis's offline queue until
+  `maxRetriesPerRequest` reconnect attempts had failed, up to a minute, for the whole outage.
+  `enableOfflineQueue: false` was not used: it also rejects what is sent before the first connect.
+- Subscribers take `duplicateRedisSubscriber(redis)`: the same connection settings without the
+  command timeout, and `autoResubscribe`, so ioredis subscribes them again after a reconnect.
+  BullMQ builds its own connections (`queue/connection.ts`, `maxRetriesPerRequest: null`).
+
 ### Authenticated account cache (`packages/api/src/utils/userCache.ts`)
 
 A local miss returns immediately so the session service can read PostgreSQL; Redis
@@ -66,6 +91,8 @@ Every HTTP limiter — the global budgets in `security.ts` and every route's own
 `rateLimit({ prefix, windowMs, max, … })` from `middleware/rateLimiter.ts`, the only module that
 imports `express-rate-limit` (`rateLimiterRefusal.test.ts` enforces it). It uses a `RedisStore`
 under the limiter's unique `prefix` when Redis is configured, and the in-memory store otherwise.
+A limiter fails open when that store cannot count (see "When Valkey is down" above;
+`rateLimiterStoreOutage.test.ts`).
 
 A refused request is answered the same way by every limiter: `429`, `Retry-After` until the
 caller's window resets, and the API error `{ "error": "RATE_LIMITED", "message", "details":

@@ -105,8 +105,10 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "!dist/.oxy-source-digest"
   ],
+  "oxySourceStamp": "dist",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/OxyHQ/oxy.git",
@@ -119,7 +121,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types",
+    "build": "bun run clean && bun run build:cjs && bun run build:esm && bun run build:types && node -e \"const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())\"",
     "build:cjs": "tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:types": "tsc -p tsconfig.types.json && node scripts/mark-types-cjs.mjs",
@@ -130,11 +132,11 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "jest-environment-jsdom": "catalog:",
-    "socket.io": "^4.8.1",
+    "socket.io": "^4.8.4",
     "socket.io-client": "catalog:",
-    "ts-jest": "^29.4.12",
-    "typescript": "^5.9.2"
+    "ts-jest": "^29.4.15",
+    "typescript": "catalog:"
   }
 }

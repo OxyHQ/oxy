@@ -69,6 +69,42 @@ const buildDeps = (
 });
 
 describe('commitDeviceSetAndResolve — cold boot (activate: false)', () => {
+  it.each([
+    ['cold boot', { activate: false }],
+    ['sign-in', { activate: true }],
+    ['isolated OAuth', { activate: true, isolatedOAuth: true }],
+  ])(
+    'does not restore the old user after a superseded %s profile fetch',
+    async (_name, options) => {
+      const pending = deferred<User | null>();
+      const changed = { code: 'AUTH_SESSION_CHANGED', status: 401 };
+      const deps = buildDeps([], { ...options, getCurrentUser: jest.fn(() => pending.promise) });
+      const work = commitDeviceSetAndResolve(deps);
+      const failure = expect(work).rejects.toBe(changed);
+      await flush();
+      pending.reject(changed);
+      await failure;
+      expect(deps.loginSuccess).not.toHaveBeenCalled();
+      expect(deps.onAuthStateChange).not.toHaveBeenCalled();
+      expect(deps.markAuthResolved).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not hydrate or commit an old sign-in after its registration is superseded', async () => {
+    const pending = deferred<void>();
+    const changed = { code: 'AUTH_SESSION_CHANGED', status: 401 };
+    const deps = buildDeps([], {
+      activate: true,
+      registerAndActivate: jest.fn(() => pending.promise),
+    });
+    const work = commitDeviceSetAndResolve(deps);
+    const failure = expect(work).rejects.toBe(changed);
+    pending.reject(changed);
+    await failure;
+    expect(deps.getCurrentUser).not.toHaveBeenCalled();
+    expect(deps.loginSuccess).not.toHaveBeenCalled();
+    expect(deps.markAuthResolved).not.toHaveBeenCalled();
+  });
   it('does not re-register when the mint already returned authoritative device state', async () => {
     const order: string[] = [];
     const deps = buildDeps(order, { hasDeviceState: true });

@@ -71,12 +71,12 @@ The UI SDK for every React surface — Expo, React Native, and web via React Nat
 bun add @oxy.so/services @oxy.so/core
 ```
 
-**Peer dependencies (Expo):**
+**Peer dependencies (Expo), every native one required:**
 ```bash
-bun add react-native-reanimated react-native-gesture-handler \
-  react-native-safe-area-context react-native-svg \
-  expo expo-font expo-image expo-linear-gradient \
-  @react-navigation/native @tanstack/react-query
+npx expo install expo-crypto expo-secure-store expo-file-system expo-image @expo/app-integrity \
+  @react-native-async-storage/async-storage @react-native-community/netinfo \
+  react-native-reanimated react-native-gesture-handler react-native-keyboard-controller \
+  react-native-safe-area-context react-native-svg
 ```
 
 **Example:**
@@ -104,9 +104,17 @@ export default function App() {
 **Install:**
 ```bash
 bun add @oxy.so/services @oxy.so/core
-bun add react-native-reanimated react-native-gesture-handler \
+npx expo install expo-crypto expo-secure-store expo-file-system expo-image @expo/app-integrity \
+  @react-native-async-storage/async-storage @react-native-community/netinfo \
+  react-native-reanimated react-native-gesture-handler react-native-keyboard-controller \
   react-native-safe-area-context react-native-svg
 ```
+
+Every native module above is a **required** peer: the app must list each one
+itself. Expo's autolinking skips optional peers and installs nothing an app does
+not name at its SDK's version, so an app without `expo-crypto` builds and then
+fails at launch (`Cannot find native module 'ExpoCrypto'`: no CSPRNG, no
+sign-in). `bunx @oxy.so/doctor --ci` fails an app that is missing one.
 
 **Entry file setup:**
 ```javascript

@@ -1,3 +1,4 @@
+import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
 /**
  * App assertions (ADR 0045): how an Oxy app proves which app it is.
  *
@@ -44,13 +45,13 @@ export {
   OXY_APP_ASSERTION_TYPE,
 };
 
-const applicationIdSchema = z.string().trim().min(1).max(255);
+const applicationIdSchema = z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(255));
 const base64Url32Schema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 const base64Schema = (max: number) =>
   z
     .string()
-    .min(4)
-    .max(max)
+    .check(utf16MinLength(4))
+    .check(utf16MaxLength(max))
     .regex(/^[A-Za-z0-9+/]+={0,2}$/);
 
 export const appAssertionPlatformSchema = z.enum(APP_ASSERTION_PLATFORMS);
@@ -73,13 +74,13 @@ export function isExactHttpsOrigin(value: string): boolean {
 /** An exact `https://` origin, in the form a browser sends in `Origin` (`https://mention.earth`). */
 export const applicationWebOriginSchema = z
   .string()
-  .max(255)
+  .check(utf16MaxLength(255))
   .refine(isExactHttpsOrigin, 'Must be an exact https origin, as a browser sends it');
 
 /** A Java-style Android application id, at least two segments. */
 export const androidPackageNameSchema = z
   .string()
-  .max(255)
+  .check(utf16MaxLength(255))
   .regex(/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/, 'Must be an Android package name');
 
 /** A signing certificate's SHA-256, 64 lowercase hex characters (keytool's digest without colons). */
@@ -93,7 +94,7 @@ export const appleTeamIdSchema = z.string().regex(/^[A-Z0-9]{10}$/, 'Must be an 
 /** An Apple bundle id. */
 export const appleBundleIdSchema = z
   .string()
-  .max(255)
+  .check(utf16MaxLength(255))
   .regex(/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/, 'Must be an Apple bundle id');
 
 const unique = (values: readonly string[]) => new Set(values).size === values.length;
@@ -132,7 +133,7 @@ export const applicationRecognitionWriteSchema = z
 export const applicationRecognitionSchema = applicationRecognitionWriteSchema
   .extend({
     applicationId: applicationIdSchema,
-    updatedAt: z.string().datetime().nullable(),
+    updatedAt: z.string().check(isoDateTime()).nullable(),
   })
   .strict();
 
@@ -162,7 +163,7 @@ export const appAssertionChallengeResponseSchema = z
   .object({
     challenge: base64Url32Schema,
     requestHash: base64Url32Schema,
-    expiresAt: z.string().datetime(),
+    expiresAt: z.string().check(isoDateTime()),
     cloudProjectNumber: z
       .string()
       .regex(/^[0-9]{1,20}$/)
@@ -200,7 +201,7 @@ export const appAssertionRequestSchema = z.discriminatedUnion('platform', [
       proof: z
         .object({
           challenge: base64Url32Schema,
-          integrityToken: z.string().min(1).max(16_384),
+          integrityToken: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16_384)),
         })
         .strict(),
     })
@@ -226,7 +227,7 @@ export const appAssertionResponseSchema = z
     assertion: z.string().regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/),
     applicationId: z.string().regex(/^\S{1,255}$/),
     platform: appAssertionPlatformSchema,
-    expiresAt: z.string().datetime(),
+    expiresAt: z.string().check(isoDateTime()),
   })
   .strict();
 

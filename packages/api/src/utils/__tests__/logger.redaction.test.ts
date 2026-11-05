@@ -133,6 +133,9 @@ const CONTROL_VALUE = 'SURVIVES-VERBATIM-5a1c';
 
 describe('the logger redacts credential-shaped field names', () => {
   it.each([
+    ['subjectToken'],
+    ['requesterToken'],
+    ['x-oxy-requester-token'],
     ['authorization'],
     ['apiKey'],
     ['api_key'],
@@ -233,4 +236,99 @@ describe('the logger redacts credential-shaped field names', () => {
     expect(lines).toHaveLength(1);
     expect(lines[0].raw).toContain(value);
   });
+});
+
+it('redacts requester proof headers in request and transport contexts', () => {
+  const value = secret('requester-proof');
+  const lines = capture(
+    () =>
+      logger.info('requester proof probe', {
+        req: { headers: { 'x-oxy-requester-token': value } },
+        headers: { 'X-Oxy-Requester-Token': value },
+        requestId: CONTROL_VALUE,
+      }),
+    'requester proof probe',
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
+});
+
+it('redacts ephemeral task creation proof nested in a request body', () => {
+  const value = secret('task-subject-proof');
+  const lines = capture(
+    () =>
+      logger.info('task proof probe', {
+        req: { body: { subjectToken: value, requesterToken: value } },
+        body: { subjectToken: value, requesterToken: value },
+        requestId: CONTROL_VALUE,
+      }),
+    'task proof probe',
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
+});
+
+it('redacts forwarded operation tickets in both header and Safety requester bodies', () => {
+  const value = secret('operation-ticket');
+  const lines = capture(
+    () =>
+      logger.info('operation proof probe', {
+        capabilityTicket: value,
+        req: {
+          headers: { 'x-oxy-capability-ticket': value },
+          body: { requester: { capabilityTicket: value } },
+        },
+        headers: { 'X-Oxy-Capability-Ticket': value },
+        body: { requester: { capabilityTicket: value } },
+        requestId: CONTROL_VALUE,
+      }),
+    'operation proof probe',
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
+});
+
+it('redacts the external MCP media header and nested connection proof', () => {
+  const value = secret('external-mcp-media');
+  const lines = capture(
+    () =>
+      logger.info('external media proof probe', {
+        req: {
+          headers: { 'x-oxy-mcp-media-token': value },
+          body: { requester: { connectionToken: value } },
+        },
+        requestId: CONTROL_VALUE,
+      }),
+    'external media proof probe',
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
+});
+
+it('redacts derived contexts and the presented caller service JWT at every transport boundary', () => {
+  const value = secret('forwarded-context');
+  const lines = capture(
+    () =>
+      logger.info('forwarded context probe', {
+        requesterContext: value,
+        presentedServiceToken: value,
+        req: {
+          headers: {
+            'x-oxy-requester-context': value,
+            'x-oxy-presented-requester-context': value,
+            'x-oxy-presented-service-token': value,
+          },
+          body: { requester: { requesterContext: value } },
+        },
+        requestId: CONTROL_VALUE,
+      }),
+    'forwarded context probe',
+  );
+  expect(lines).toHaveLength(1);
+  expect(lines[0].raw).not.toContain(value);
+  expect(lines[0].json.requestId).toBe(CONTROL_VALUE);
 });

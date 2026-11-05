@@ -17,6 +17,12 @@
 
 **Every peer range on a THIRD-PARTY package that ships breaking majors needs an UPPER bound. The first-party `@oxy.so/bloom`, `@oxy.so/services` and `@alia.onl/sdk` peers are deliberately open-ended (`>=`) by decision: Oxy apps always run the latest, and a capped range turned every new release into a peer conflict until a republish. The cost is the failure described next, so a breaking release is caught by running the suite against the latest peer, not by a cap.** `"*"` and a bare `">=x"` let a consumer's install silently resolve a major the package cannot work with, with no warning from bun at all — the only thing that catches it is `tsc` reaching into `node_modules`, which it does only because the `react-native` condition points at published `src/`, so an app whose typecheck skips `node_modules` gets a green build and a white screen. Raise a floor only to a version MEASURED to be the first that works (bisect the published tarballs), and re-raise it in the same commit as the code that requires it.
 
+`@oxy.so/services`' framework FLOORS are the Expo SDK 54 stack (React Native 0.81, React 19.1, react-native-web 0.21; react-native-macos 0.81 for Astro), and they are measured, not remembered: `packages/services/compat/expo-54` (`bun run check:compat-expo-54`, a step of `packages-apps`) installs that stack from its own frozen lockfile in a directory OUTSIDE the checkout, unpacks the packed workspace packages into it, and fails if any peer refuses the stack, if services' `src/` does not typecheck against its types, if `<OxyProvider>` does not mount and settle on iOS, web and macOS, or if Metro cannot bundle it for iOS (Hermes) and macOS. Lowering a floor means moving that fixture to the new floor first; a package that throws on import under react-native-macos is imported only behind a `.macos` fork (`__tests__/packaging/macosBoundary.test.ts`).
+
+## Native peers
+
+**Every native module that `@oxy.so/services`, `@oxy.so/core` or `@oxy.so/protocol` needs on iOS/Android for a core flow (sign-in, session, crypto, storage) is a REQUIRED (non-optional) peer of `@oxy.so/services`, and every app lists it itself (`npx expo install …`).** Expo SDK 58's autolinking (`expo-modules-autolinking` `build/dependencies/resolution.js`) walks dependencies, the root's devDependencies and NON-optional peers only, so a native module that only an optional peer names is never linked unless the app names it. `expo-crypto` was that module: optional in core and protocol, absent from services, and Allo's Android release died with `Cannot find native module 'ExpoCrypto'` (no CSPRNG, and "Sign in with Oxy" failed at `generateChallenge()`), while the JavaScript sat in node_modules. Core and protocol keep `expo-crypto`, `expo-secure-store` and AsyncStorage OPTIONAL because they also run in Node, servers and browsers, where a required peer would install an Expo native module into every backend; services is the React Native package every app depends on, so it carries the obligation. A native module stays an optional peer only when the SDK degrades without it (haptics, pickers, clipboard, push on its subpath, third-party OAuth's in-app browser), recorded with that path in `packages/services/__tests__/packaging/requiredNativePeers.test.ts`, which reads every runtime load in all three packages and fails on a native module nobody classified. `oxy-doctor --ci` fails an app missing one, and the `create-oxy-app` frontend template declares them all.
+
 ## ESM builds
 
 Both `@oxy.so/core` and `@oxy.so/contracts` ship dual CJS + ESM builds. The ESM build **must not contain `require()` calls** — Vite and other ESM-only bundlers will crash.
@@ -51,7 +57,7 @@ Why this is especially dangerous for `@oxy.so/core`: core builds with `tsc` (no 
 
 ## Crypto polyfill order
 
-`@noble/hashes` 1.x captures `globalThis.crypto` once, when its `crypto.js` is evaluated, and `randomBytes` keeps that binding for the life of the app. Hermes has no `globalThis.crypto` at startup, so `@oxy.so/core`'s `crypto/polyfill` must install the shim before ANY `@noble/*` module is evaluated. ES imports are evaluated before the importing module's body, so the polyfill may import only modules that reach no crypto library: `buffer` and `@oxy.so/protocol/random` (the platform randomness source and nothing else). Importing `@oxy.so/protocol`'s root entry from the polyfill reached `@noble/curves` through the envelope signer, noble captured `undefined`, and every Android identity creation failed with `crypto.getRandomValues must be defined` (core 1.8.0). Node never shows this: noble's `node` export condition serves `cryptoNode.js`, which does not capture the global. Guards: `packages/core/src/crypto/__tests__/polyfillOrder.test.ts` (loads core with the capturing `crypto.js` and no global), `packages/protocol/src/__tests__/randomEntry.test.ts` (the entry's module graph), `packages/services/__tests__/boot/cryptoPolyfillOrder.test.ts` (services evaluates core first and reaches no crypto library on its own).
+Hermes has no `globalThis.crypto` at startup, so `@oxy.so/core`'s `crypto/polyfill` installs the shim before ANY other module is evaluated. ES imports are evaluated before the importing module's body, so the polyfill may import only modules that reach no crypto library: `buffer` and `@oxy.so/protocol/random` (the platform randomness source and nothing else). Under `@noble/hashes` 1.x this was load-bearing: its `crypto.js` captured `globalThis.crypto` once, at evaluation; importing `@oxy.so/protocol`'s root entry from the polyfill reached `@noble/curves` through the envelope signer, noble captured `undefined`, and every Android identity creation failed with `crypto.getRandomValues must be defined` (core 1.8.0). Noble 2.x (core 7.14.0) reads the global on every call, so that capture is gone; the order is kept so the shim exists before any module body that reads it. Noble 2.x and `@scure/bip39` 2.x ship ESM only: each package's Jest lowers them to CommonJS with `scripts/jest-esm-only.cjs`. Guards: `packages/core/src/crypto/__tests__/polyfillOrder.test.ts` (loads core with no global and draws randomness through noble), `packages/protocol/src/__tests__/randomEntry.test.ts` (the entry's module graph), `packages/services/__tests__/boot/cryptoPolyfillOrder.test.ts` (services evaluates core first and reaches no crypto library on its own).
 
 ## React Compiler
 
@@ -78,6 +84,13 @@ yet, dependencies first, from exactly that commit. There is no typed commit, no 
   commit — a `merge_group` run (the merge queue tested this very tree) or a `push` run — and fails
   closed when it did not, never ran, or GitHub cannot say. **The release runs no tests: CI already
   ran them on this SHA, so a package's gates belong in CI.**
+- The canonical tarball inspector owns its locked `semver` runtime under
+  `.github/scripts/release-runtime`; the build job installs it separately from
+  the caller's dependencies. A packed consumer range may skip a registry check
+  only when the exact workspace version satisfies it and the ordered release
+  publishes that package first. Catalog peers follow the same rule. Unknown,
+  incompatible or later candidates still require a registry answer; plan and
+  OIDC publish do not load the inspector runtime.
 - `build` holds no credential: frozen install, then ONE `build` of each released package and of
   each workspace it links, then the tarball packed from that tree with `bun pm pack
   --ignore-scripts` (no `prepack`/`prepare` rebuild), or the package's own `release:pack <dir>`
@@ -93,7 +106,9 @@ yet, dependencies first, from exactly that commit. There is no typed commit, no 
 - `publish` (environment `npm`, `id-token: write`) runs none of the repository's code: it checks the
   trusted bytes against their SHA-512 and runs `npm publish <tgz> --provenance --access public
   --tag <tag>` for each, in dependency order, with npm trusted publishing (OIDC); there is no
-  `NPM_TOKEN` in any repository. A version already on the registry (a re-run) is skipped.
+  `NPM_TOKEN` in any repository. Immediately before each publish, a fresh registry read compares the exact version and
+  SHA-512 of the trusted tarball. Only identical bytes are skipped; a conflicting version or
+  registry error fails the release. Publish errors, including HTTP 403, remain failures.
 - `tag` (`contents: write`, nothing else) creates the annotated tag `<name>@<version>` at the
   released commit for each package it published — the website's docs sync pins packages by that
   tag — and, when the package's `CHANGELOG.md` has a section for the version, a GitHub release
@@ -147,6 +162,19 @@ Consequences:
 
 What makes a tarball safe from `workspace:`/`catalog:` literals is that **bun** cut it: `inspect`
 refuses any that survives, and services' `verify-package.mjs` re-asserts it from its own pack.
+
+### Keeping consumers on the newest release
+
+`.github/workflows/oxy-autobump.yml` (`workflow_call`) keeps an app on the newest
+`@oxy.so/bloom`, `bloom-editor`, `services`, `core`, `contracts`, `protocol` and
+`app-preset`. Dependabot cannot: it does not read a Bun workspace's root `catalog` or
+`overrides`. A daily run asks npm, rewrites every pin (`.github/scripts/oxy-autobump.mjs`,
+formatting untouched, never a downgrade, `peerDependencies` and the repo's own packages
+skipped), regenerates `bun.lock` with the repo's Bun, force-pushes one branch
+`autobump/oxy-packages`, updates one PR, dispatches the caller's CI on it (a GITHUB_TOKEN
+push starts no `pull_request` run, so the caller's CI needs `workflow_dispatch`) and enables
+auto-merge. A red bump stays open. The caller is a ~15-line `oxy-autobump.yml` with a
+staggered cron; `merge_queue: true` for Mention, oxy and Bloom.
 
 ## Import Conventions
 

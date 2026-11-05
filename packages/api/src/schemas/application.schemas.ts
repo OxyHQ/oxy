@@ -1,4 +1,9 @@
+import { integerCheck, urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
+import {
+  GITHUB_REPOSITORY_PATTERN,
+  GITHUB_WORKFLOW_PATTERN,
+} from '../db/schema/githubTrustedPublishers';
 import { APPLICATION_SCOPES } from '../utils/applicationScopes';
 import {
   CREATABLE_APPLICATION_CREDENTIAL_TYPES,
@@ -7,25 +12,31 @@ import {
 
 /** Route params with :appId. */
 export const appIdRouteParams = z.object({
-  appId: z.string().trim().min(1),
+  appId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Route params with :appId and :credId. */
 export const appCredentialParams = z.object({
-  appId: z.string().trim().min(1),
-  credId: z.string().trim().min(1),
+  appId: z.string().trim().check(utf16MinLength(1)),
+  credId: z.string().trim().check(utf16MinLength(1)),
+});
+
+/** Route params with :appId and :publisherId (GitHub trusted publishers, ADR 0057). */
+export const appTrustedPublisherParams = z.object({
+  appId: z.string().trim().check(utf16MinLength(1)),
+  publisherId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Route params with :appId and :agentAccountId (an application's agents, ADR 0044). */
 export const appAgentParams = z.object({
-  appId: z.string().trim().min(1),
-  agentAccountId: z.string().trim().min(1),
+  appId: z.string().trim().check(utf16MinLength(1)),
+  agentAccountId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Route params with :appId and :grantId (application roles). */
 export const appRoleGrantParams = z.object({
-  appId: z.string().trim().min(1),
-  grantId: z.string().trim().min(1),
+  appId: z.string().trim().check(utf16MinLength(1)),
+  grantId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** `GET /applications/:appId/roles/permissions` query. */
@@ -43,7 +54,7 @@ export const periodQuerySchema = z.object({
   period: z.enum(['24h', '7d', '30d', '90d']).optional(),
 });
 
-const websiteUrlSchema = z.string().url().optional().or(z.literal(''));
+const websiteUrlSchema = z.string().check(urlCheck()).optional().or(z.literal(''));
 /**
  * Public legal URL (privacy policy / terms of service) shown on the OAuth
  * consent screen. Must be an absolute `https://` URL. An empty string clears the
@@ -51,11 +62,11 @@ const websiteUrlSchema = z.string().url().optional().or(z.literal(''));
  */
 const legalUrlSchema = z
   .string()
-  .url()
+  .check(urlCheck())
   .startsWith('https://', 'URL must use https')
   .optional()
   .or(z.literal(''));
-const redirectUrisSchema = z.array(z.string().url()).optional();
+const redirectUrisSchema = z.array(z.string().check(urlCheck())).optional();
 const appScopesSchema = z.array(z.enum(APPLICATION_SCOPES)).optional();
 
 /** POST /applications — create. Staff-only fields are intentionally absent. */
@@ -65,9 +76,9 @@ export const createApplicationSchema = z.object({
    * route defaults to the caller's OWN account (a top-level app they own). When
    * provided the caller must hold `apps:create` over that account.
    */
-  ownerAccountId: z.string().trim().min(1).optional(),
-  name: z.string().trim().min(1).max(100),
-  description: z.string().trim().max(500).optional(),
+  ownerAccountId: z.string().trim().check(utf16MinLength(1)).optional(),
+  name: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)),
+  description: z.string().trim().check(utf16MaxLength(500)).optional(),
   websiteUrl: websiteUrlSchema,
   privacyPolicyUrl: legalUrlSchema,
   termsUrl: legalUrlSchema,
@@ -78,7 +89,7 @@ export const createApplicationSchema = z.object({
 
 /** Optional `?ownerAccountId=` filter on GET /applications. */
 export const listApplicationsQuerySchema = z.object({
-  ownerAccountId: z.string().trim().min(1).optional(),
+  ownerAccountId: z.string().trim().check(utf16MinLength(1)).optional(),
 });
 
 /**
@@ -90,16 +101,16 @@ export const listApplicationsQuerySchema = z.object({
  */
 export const updateApplicationSchema = z
   .object({
-    name: z.string().trim().min(1).max(100).optional(),
-    description: z.string().trim().max(500).optional(),
+    name: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)).optional(),
+    description: z.string().trim().check(utf16MaxLength(500)).optional(),
     websiteUrl: websiteUrlSchema,
     privacyPolicyUrl: legalUrlSchema,
     termsUrl: legalUrlSchema,
     icon: z.string().optional(),
     redirectUris: redirectUrisSchema,
     scopes: appScopesSchema,
-    webhookUrl: z.string().url().optional().or(z.literal('')),
-    devWebhookUrl: z.string().url().optional().or(z.literal('')).nullable(),
+    webhookUrl: z.string().check(urlCheck()).optional().or(z.literal('')),
+    devWebhookUrl: z.string().check(urlCheck()).optional().or(z.literal('')).nullable(),
     status: z.enum(['active', 'suspended', 'pending_review']).optional(),
     type: z.enum(['first_party', 'third_party', 'internal', 'system']).optional(),
     isOfficial: z.boolean().optional(),
@@ -149,13 +160,13 @@ const MAX_ROTATION_GRACE_SECONDS = 30 * 24 * 60 * 60;
  * values beats a 500 from the database.
  */
 export const createCredentialSchema = z.object({
-  name: z.string().trim().min(1).max(100),
+  name: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(100)),
   type: z.enum(CREATABLE_APPLICATION_CREDENTIAL_TYPES),
   environment: z.enum(APPLICATION_CREDENTIAL_ENVIRONMENTS),
   scopes: z.array(z.enum(APPLICATION_SCOPES)).optional(),
   expiresInSeconds: z
     .number()
-    .int()
+    .check(integerCheck())
     .min(MIN_CREDENTIAL_LIFETIME_SECONDS)
     .max(MAX_CREDENTIAL_LIFETIME_SECONDS)
     .optional(),
@@ -173,7 +184,7 @@ export const rotateCredentialSchema = z
   .object({
     graceSeconds: z
       .number()
-      .int()
+      .check(integerCheck())
       .min(MIN_ROTATION_GRACE_SECONDS)
       .max(MAX_ROTATION_GRACE_SECONDS)
       .optional(),
@@ -191,7 +202,7 @@ export const rotateCredentialSchema = z
  * value as text.
  */
 export const credentialAuditQuerySchema = z
-  .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
+  .object({ limit: z.coerce.number().check(integerCheck()).min(1).max(200).default(50) })
   .strict();
 
 /**
@@ -201,7 +212,7 @@ export const credentialAuditQuerySchema = z
  */
 export const deleteApplicationBodySchema = z
   .object({
-    confirmName: z.string().max(500),
+    confirmName: z.string().check(utf16MaxLength(500)),
   })
   .strict();
 
@@ -214,8 +225,32 @@ export const filesWebhookBodySchema = z
   .object({
     url: z
       .string()
-      .max(2048)
-      .url()
+      .check(utf16MaxLength(2048))
+      .check(urlCheck())
       .refine((value) => value.startsWith('https://'), 'The endpoint must be an https URL'),
+  })
+  .strict();
+
+/**
+ * POST /applications/:appId/trusted-publishers — register a GitHub Actions
+ * workflow that may publish this application's OTA updates (ADR 0057).
+ *
+ * `repositoryId` is GitHub's numeric id. Omit it for a public repository and
+ * the API reads it from GitHub; a private repository has to name it.
+ */
+export const createTrustedPublisherSchema = z
+  .object({
+    repository: z.string().trim().regex(new RegExp(GITHUB_REPOSITORY_PATTERN)),
+    repositoryId: z
+      .string()
+      .trim()
+      .regex(/^[1-9][0-9]{0,19}$/)
+      .optional(),
+    ref: z
+      .string()
+      .trim()
+      .regex(/^refs\/(heads|tags)\/\S{1,255}$/)
+      .optional(),
+    workflow: z.string().trim().regex(new RegExp(GITHUB_WORKFLOW_PATTERN)).optional(),
   })
   .strict();

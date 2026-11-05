@@ -51,6 +51,7 @@ import {
   updateChannels,
 } from '../../db/schema';
 import { updateAssetS3Key } from './assetKeys';
+import { assertCodeSigningConfigured } from './signing.service';
 import { BadRequestError, NotFoundError } from '../../utils/error';
 import { logger } from '../../utils/logger';
 
@@ -481,6 +482,10 @@ async function assertAssetsUploaded(db: DbHandle, shas: string[]): Promise<void>
 }
 
 export async function createUpdate(input: CreateUpdateRequest): Promise<Update> {
+  // An update this server could only serve unsigned must not be recorded: the
+  // manifest route refuses to serve without the key (503), and a binary built
+  // without the certificate would run whatever it was given.
+  assertCodeSigningConfigured();
   const referenced = [input.launchAsset.sha256, ...input.assets.map((a) => a.sha256)];
 
   const published = await getDb().transaction(async (tx) => {
@@ -703,6 +708,7 @@ export async function promote(
   toChannelName: string,
   rolloutPercent?: number,
 ): Promise<Update> {
+  assertCodeSigningConfigured();
   const db = getDb();
 
   const [source] = await db

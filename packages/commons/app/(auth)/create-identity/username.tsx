@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { UsernameStep } from '@/components/auth/UsernameStep';
-import { useNetworkStatus } from '@/hooks/auth/useNetworkStatus';
+import { useNetworkStatus } from '@oxy.so/bloom/connection-status';
 import { useUsernameStep } from '@/hooks/auth/useUsernameStep';
 
 /**
@@ -16,9 +16,9 @@ import { useUsernameStep } from '@/hooks/auth/useUsernameStep';
 export default function CreateIdentityUsernameScreen() {
   const router = useRouter();
   const colors = useColors();
-  const { isOffline } = useNetworkStatus();
+  const { online } = useNetworkStatus();
   const onDone = useCallback(() => {
-    router.push('/(auth)/create-identity/notifications');
+    router.replace('/enable-notifications');
   }, [router]);
   const { username, setUsername, handleContinue, oxyServices, isUpdating, updateError } =
     useUsernameStep({ onDone });
@@ -29,7 +29,7 @@ export default function CreateIdentityUsernameScreen() {
       onUsernameChange={setUsername}
       onContinue={handleContinue}
       onSkip={undefined}
-      isOffline={isOffline}
+      isOffline={!online}
       oxyServices={oxyServices}
       backgroundColor={colors.background}
       textColor={colors.text}

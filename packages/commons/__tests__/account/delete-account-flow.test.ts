@@ -116,4 +116,16 @@ describe('runAccountDeletion', () => {
 
     expect(deps.signOutAll).toHaveBeenCalledTimes(1);
   });
+
+  // Offline right after the delete: the sign-out used to reject out of the
+  // flow, so the screen never reset onboarding or left the deleted account.
+  it('resolves when the sign-out fails after a successful delete and purge', async () => {
+    const deps = makeDeps();
+    deps.signOutAll.mockRejectedValue(new Error('Network request failed'));
+
+    await expect(runAccountDeletion(CONFIRM, deps)).resolves.toEqual({
+      localIdentityPurged: true,
+    });
+    expect(deps.purgeIdentity).toHaveBeenCalledTimes(1);
+  });
 });

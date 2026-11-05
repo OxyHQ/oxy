@@ -1,5 +1,6 @@
 import type Redis from 'ioredis';
 
+import { duplicateRedisSubscriber } from '../config/redis';
 import fileCache, {
   FILE_CACHE_INVALIDATION_CHANNEL,
   FILE_CACHE_ORIGIN,
@@ -42,10 +43,10 @@ export function handleFileCacheInvalidationMessage(channel: string, raw: string)
  * other task serving its cached record at once instead of after the cache's
  * five-minute TTL.
  *
- * Uses a dedicated `duplicate()` — the main client must stay publish-capable.
+ * Uses a dedicated subscriber connection (`duplicateRedisSubscriber`).
  */
 export function startFileCacheInvalidationSubscriber(redis: Redis): { stop: () => Promise<void> } {
-  const subscriber = redis.duplicate();
+  const subscriber = duplicateRedisSubscriber(redis);
 
   subscriber.on('message', handleFileCacheInvalidationMessage);
 

@@ -1,3 +1,11 @@
+import { utf16MinLength } from '@oxy.so/contracts';
+import type { NamedRouteParams } from '../types/routeParams';
+import {
+  assertExternalDocumentUpload,
+  assertExternalDocumentContinuation,
+  externalDocumentMetadata,
+} from '../services/externalMcpMediaRequester.service';
+import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { createSupervisedAssetPolicy, isSupervised } from '../services/supervisionPolicy.service';
 import express from 'express';
 import recordingIngestRouter from './recordingIngest';
@@ -179,10 +187,11 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applications, users } from '../db/schema';
 import { resolveFileMediaMetadata } from '../utils/fileMediaMetadata';
+import { resolveVideoHlsReadiness } from '../utils/videoHlsReadiness';
 import { singleQueryValue } from '../utils/queryString';
 import type { ApplicationScope } from '../utils/applicationScopes';
 
-interface AuthenticatedRequest extends express.Request {
+interface AuthenticatedRequest extends express.Request<NamedRouteParams> {
   user?: {
     _id: string;
     [key: string]: any;
@@ -220,7 +229,7 @@ const singleMultipartFile: express.RequestHandler = (req, res, next) => {
   });
 };
 /** Reviewed own-file operations: authentication still proves the original bearer. */
-const ownAssetAuth: express.RequestHandler = (req, res, next) => {
+const ownAssetAuth: express.RequestHandler<NamedRouteParams> = (req, res, next) => {
   res.locals.supervisedSelfOperation = true;
   return authMiddleware(req, res, next);
 };
@@ -293,6 +302,24 @@ async function sessionOwnsFile(req: AuthenticatedRequest, file: FileRecord): Pro
   if (!file.ownerUserId || !req.user?._id) return false;
   if (file.ownerUserId === req.user._id.toString()) return true;
   return file.ownerUserId === (await resolveOperatorId(req));
+}
+
+/** Preserve the verified human owner's library while acting as a managed account.
+ * Scoped media tokens already carry their authorized viewer and cannot assert an operator.
+ */
+async function mediaViewerForFile(
+  req: AuthenticatedRequest,
+  file: FileRecord,
+  viewerId: string | undefined,
+): Promise<string | undefined> {
+  if (
+    viewerId &&
+    req.user?._id?.toString() === viewerId &&
+    file.ownerUserId &&
+    (await sessionOwnsFile(req, file))
+  )
+    return file.ownerUserId;
+  return viewerId;
 }
 
 /**
@@ -369,16 +396,16 @@ const initUploadSchema = z.object({
     .regex(/^[0-9a-fA-F]{64}$/, 'SHA256 must be 64 hexadecimal characters')
     .transform((value) => value.toLowerCase()),
   size: z.number().positive('Size must be positive'),
-  mime: z.string().min(1, 'MIME type is required'),
+  mime: z.string().check(utf16MinLength(1, 'MIME type is required')),
 });
 
 const completeUploadSchema = z.object({
-  fileId: z.string().min(1, 'File ID is required'),
-  originalName: z.string().min(1, 'Original name is required'),
+  fileId: z.string().check(utf16MinLength(1, 'File ID is required')),
+  originalName: z.string().check(utf16MinLength(1, 'Original name is required')),
   size: z.number().positive('Size must be positive'),
-  mime: z.string().min(1, 'MIME type is required'),
+  mime: z.string().check(utf16MinLength(1, 'MIME type is required')),
   visibility: z.enum(['private', 'public', 'unlisted']).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 /**
@@ -608,7 +635,7 @@ router.post(
       validatedData = initUploadSchema.parse(req.body);
     } catch (error: any) {
       if (error.name === 'ZodError') {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -711,7 +738,7 @@ router.post(
       validatedData = completeUploadSchema.parse(req.body);
     } catch (error: any) {
       if (error.name === 'ZodError') {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -962,8 +989,7 @@ const SERVICE_LOOKUP_MAX_PER_MINUTE = 600;
 const USER_MEDIA_WRITE_SCOPE: ApplicationScope = 'files:user-media:write';
 
 function requireServiceScope(req: ServiceAuthRequest, scope: string): void {
-  const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(scope)) {
+  if (!hasServiceAuthority(req.serviceApp, scope)) {
     throw new ForbiddenError(`Missing required scope: ${scope}`);
   }
 }
@@ -1294,18 +1320,14 @@ router.post(
  * authority check — shared by the upload and the import (ADR 0043 D7), so the
  * two can never disagree on who may attribute a file to a person.
  *
- * Attributing a file to a user is cross-tenant act-as authority, not ordinary
- * application-owned file access, so it always needs a staff-granted scope. Two
- * grants carry it:
- *  - `files:user-media:write` — exactly this authority and nothing else (Oxy
- *    Move imports a user's media with it);
- *  - `files:write` + `federation:write` — the original pair, kept unchanged for
- *    Mention's MCP intent-media.
- * `files:write` alone is self-grantable and never enough. The owner is the
- * `x-owner-user-id` header, an existing LOCAL user.
+ * Own workloads use a verified requester session/task account; the explicit
+ * owner must match it. A task may select only its root account or exact self bot
+ * with live operator membership. External credentials retain files:user-media:write
+ * or the legacy files:write + federation:write pair. An owner header alone is
+ * never requester proof for an own workload.
  */
 async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
-  if (!(req.serviceApp?.scopes ?? []).includes(USER_MEDIA_WRITE_SCOPE)) {
+  if (!hasServiceAuthority(req.serviceApp, USER_MEDIA_WRITE_SCOPE)) {
     requireServiceScope(req, 'files:write');
     requireServiceScope(req, 'federation:write');
   }
@@ -1313,6 +1335,14 @@ async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
   const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
   if (!ownerUserId) {
     throw new BadRequestError('x-owner-user-id must be a valid user id');
+  }
+
+  if (
+    req.serviceApp?.authority === 'first_party' &&
+    (req.serviceExternalMedia?.effectiveAccountId ?? req.serviceRequester?.subjectAccountId) !==
+      ownerUserId
+  ) {
+    throw new ForbiddenError('User media requires the authenticated requester account.');
   }
 
   // Same reasoning as `/service/federation` above: a malformed id matches no
@@ -1508,8 +1538,7 @@ async function requireActiveApplication(
   req: ServiceAuthRequest,
   scopes: readonly ApplicationScope[],
 ): Promise<string> {
-  const granted = req.serviceApp?.scopes ?? [];
-  if (!scopes.some((scope) => granted.includes(scope))) {
+  if (!scopes.some((scope) => hasServiceAuthority(req.serviceApp, scope))) {
     throw new ForbiddenError(`Missing required scope: ${scopes.join(' or ')}`);
   }
   const appId = req.serviceApp?.appId;
@@ -2054,6 +2083,10 @@ router.post(
     if (typeof appId !== 'string' || appId.length === 0) {
       throw new ForbiddenError('Service token carries no application id');
     }
+    if (body.reference && req.serviceExternalMedia)
+      throw new ForbiddenError(
+        'External media creation does not authorize application references.',
+      );
     if (body.reference) await requireActiveApplication(req, ['files:references:write']);
 
     const result = await fileImportService.importFromUrl(
@@ -2529,19 +2562,37 @@ function largeUploadHandlers(
 ) {
   const load = async (req: ServiceAuthRequest) => {
     const { owner, uploaderApplicationId } = await admit(req, false);
-    return fileUploadSessionService.load(req.params.uploadId, owner, uploaderApplicationId);
+    const row = await fileUploadSessionService.load(
+      req.params.uploadId,
+      owner,
+      uploaderApplicationId,
+    );
+    assertExternalDocumentContinuation(req.serviceExternalMedia, row);
+    return row;
   };
   return {
     open: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
       const body = req.body as LargeUploadBody;
+      assertExternalDocumentUpload(req.serviceExternalMedia, body);
       const { owner, uploaderApplicationId } = await admit(req, body.reference !== undefined);
       const { audio, metadata, ...rest } = body;
-      const withAudio = withAudioOptions(metadata, audio);
+      const withAudio = externalDocumentMetadata(
+        req.serviceExternalMedia,
+        withAudioOptions(metadata, audio),
+      );
       const view = await fileUploadSessionService.open(owner, uploaderApplicationId, {
         ...rest,
         ...(withAudio ? { metadata: withAudio } : {}),
         visibility: body.visibility ?? defaultVisibility,
       });
+      if (req.serviceExternalMedia?.privateDocument && view.uploadId) {
+        const row = await fileUploadSessionService.load(
+          view.uploadId,
+          owner,
+          uploaderApplicationId,
+        );
+        assertExternalDocumentContinuation(req.serviceExternalMedia, row);
+      }
       sendSuccess(res, serializeLargeUpload(view, kind), view.uploadId ? 201 : 200);
     }),
     describe: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
@@ -3480,14 +3531,28 @@ router.post(
  *                         format: date-time
  *                         description: >
  *                           When the adaptive HLS ladder for this asset finished
- *                           transcoding. ABSENT when there is none — transcoding
- *                           is asynchronous and per-rendition failures are
- *                           swallowed, so a video may never get one. Consumers
+ *                           transcoding. ABSENT when there is none or an
+ *                           explicit hlsRejectedReadyAt rejects its geometry.
+ *                           Transcoding is asynchronous. Consumers
  *                           must treat absence as "no adaptive stream" and play
  *                           the progressive original: the `?variant=hls_master`
  *                           URL is derivable from the id, and building it without
  *                           this field is what made players fail on a 403 and
  *                           fall back, once per video per play.
+ *                       hlsRejectedReadyAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: >
+ *                           Exact ready generation rejected for incorrect legacy
+ *                           HLS geometry when the owned original is known H.264
+ *                           MP4 with AAC audio. Mutually exclusive with
+ *                           hlsReadyAt. Play the original URL; clear a persisted
+ *                           observed readiness stamp only when it is no newer
+ *                           than this timestamp, with file/row identity and
+ *                           observed-stamp equality guards against concurrent
+ *                           replacement. Older revision URLs resolve the current
+ *                           generation, not historical bytes. Unknown source
+ *                           codecs or geometry do not produce a rejection.
  *                       ownerUserId:
  *                         type: [string, "null"]
  *                         description: >
@@ -3537,31 +3602,30 @@ router.post(
     // fallback to the progressive original, once per video per play. Measured in
     // Mention on a Pixel 10 Pro. A consumer that can ask stops guessing.
     // `ownerUserId` is the one exception to "no owner ids", and it is granted
-    // only to Oxy's OWN applications (`tier: 'internal'`, i.e. trusted
-    // first-party). A first-party service that is handed an asset id by a user
-    // (Mention ingesting a post from Oxy Move) must be able to check the asset is
+    // only to verified first-party workload authority, plus the exact live legacy
+    // workload cohort during reader-first rollout. The scope check above still
+    // requires the old token and live binding to retain files:read. Branding an
+    // external credential as internal never reveals ownership. A service handed
+    // an asset id by a user (Mention ingesting a post from Oxy Move) must be able to check the asset is
     // that user's, or any caller could attach anyone's file. `files:read` is
     // self-grantable, so for an external app the owner stays hidden: it would
     // turn every guessable file id into an "whose is this?" oracle.
-    const revealOwner = req.serviceApp?.tier === 'internal';
+    const revealOwner = req.serviceApp?.authority === 'first_party';
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {
         const media = resolveFileMediaMetadata(file);
-        // The same readiness test the service itself uses before serving a
-        // variant (`assetService`/`variantService`): a row exists AND it has
-        // been stamped ready. A row without `readyAt` is a transcode that was
-        // started, not one that finished.
-        const hlsMaster = file.variants?.find(
-          (variant) => variant.type === 'hls_master' && variant.readyAt,
-        );
+        // Report completed ladders, or an explicit generation-specific rejection
+        // when persisted geometry proves the legacy ladder is malformed and
+        // the original has a known progressive playback format.
+        const hlsReadiness = resolveVideoHlsReadiness(file);
         return {
           id: file.id,
           sha256: file.sha256,
           mime: file.mime,
           size: file.size,
           status: file.status,
-          ...(hlsMaster?.readyAt ? { hlsReadyAt: new Date(hlsMaster.readyAt).toISOString() } : {}),
+          ...hlsReadiness,
           ...(media.width !== undefined ? { width: media.width } : {}),
           ...(media.height !== undefined ? { height: media.height } : {}),
           ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),
@@ -3745,10 +3809,28 @@ router.post(
 
     const files = await assetService.getFilesByIds(ids);
 
+    const requesterAccount =
+      req.serviceApp?.authority === 'first_party'
+        ? req.serviceRequester?.subjectAccountId
+        : undefined;
+    const readable = await Promise.all(
+      files.map(async (file) => {
+        if (!isServableStatus(file)) return null;
+        if (mayApplicationRead(file, appId)) return file;
+        // Account authority comes from the separately verified requester proof,
+        // never from the file owner or an arbitrary account header.
+        if (
+          requesterAccount &&
+          !file.ownerApplicationId &&
+          (await assetService.canUserAccessFile(file, requesterAccount))
+        )
+          return file;
+        return null;
+      }),
+    );
     const data = await Promise.all(
-      files
-        // Only an `active` file is ever served (ADR 0043 D5): trash is not.
-        .filter((file) => isServableStatus(file) && mayApplicationRead(file, appId))
+      readable
+        .filter((file): file is NonNullable<typeof file> => file !== null)
         .map(async (file) => ({
           id: file.id,
           url: await s3Service.getPresignedDownloadUrl(file.storageKey, LINKED_URL_TTL_SECONDS),
@@ -3756,6 +3838,7 @@ router.post(
           mime: file.mime,
           size: file.size,
           sha256: file.sha256,
+          visibility: file.visibility,
         })),
     );
 
@@ -4176,7 +4259,7 @@ router.get(
   streamObjectAddressLimiter,
   validate({ params: streamObjectParams }),
   streamObjectSessionLimiter,
-  asyncHandler(async (req: express.Request, res: express.Response) => {
+  asyncHandler(async (req, res) => {
     // The URL is the credential: any origin may play it, and no cookie or
     // bearer is ever involved.
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -4409,7 +4492,7 @@ router.post(
       validatedData = linkFileSchema.parse(req.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -4494,7 +4577,7 @@ router.delete(
       validatedData = unlinkFileSchema.parse(req.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new ValidationError('Invalid request data', { details: error.errors });
+        throw new ValidationError('Invalid request data', { details: error.issues });
       }
       throw error;
     }
@@ -4608,7 +4691,7 @@ router.get(
     if (!isOwner && file.visibility === 'private') {
       throw new NotFoundError('File not found');
     }
-    if (!(await assetService.canUserAccessFile(file, user._id)))
+    if (!isOwner && !(await assetService.canUserAccessFile(file, user._id)))
       throw new ForbiddenError('Access denied');
     const operatorId = isOwner ? null : await resolveOperatorId(req);
     const visibleLinks = isOwner
@@ -4728,7 +4811,8 @@ router.get(
     // renderable URL. `authMiddleware` proves identity; this proves authorization
     // for THIS asset (ownership, follow/block, entity context) — so we never mint
     // a media token for an asset the caller can't access.
-    if (!(await assetService.canUserAccessFile(file, user._id))) {
+    const viewerId = await mediaViewerForFile(req, file, user._id);
+    if (!(await assetService.canUserAccessFile(file, viewerId))) {
       logger.warn('Access denied to asset URL', {
         fileId,
         userId: user._id,
@@ -4754,7 +4838,9 @@ router.get(
       });
     }
     const mediaToken =
-      cdnUrl || file.visibility === 'public' ? undefined : signMediaToken(fileId, user._id);
+      cdnUrl || file.visibility === 'public' || !viewerId
+        ? undefined
+        : signMediaToken(fileId, viewerId);
     const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variantType, mediaToken);
 
     logger.debug('File URL generated', {
@@ -4856,7 +4942,7 @@ router.get(
     // the viewer from the scoped `?mt=` media token (bound to this file id) when no
     // session user is present, so owners can render their own private media. Access
     // is still gated by canUserAccessFile.
-    const userId = getMediaViewerUserId(req);
+    let userId = getMediaViewerUserId(req);
     const { id: fileId } = req.params;
     const { variant } = req.query;
     const variantType = singleQueryValue(variant);
@@ -4887,6 +4973,7 @@ router.get(
     }
 
     const context = parseMediaAccessContext(req.query.context);
+    userId = await mediaViewerForFile(req, file, userId);
 
     if (!(await assetService.canUserAccessFile(file, userId, context))) {
       logger.warn('Access denied to file', { fileId, userId, visibility: file.visibility });
@@ -5100,7 +5187,7 @@ router.get(
     // Resolve viewer from the scoped `?mt=` media token for direct-download links
     // that cannot carry an Authorization header or cookie (owners downloading
     // their own private files). Access is still gated by canUserAccessFile below.
-    const userId = getMediaViewerUserId(req);
+    let userId = getMediaViewerUserId(req);
     const { id: fileId } = req.params;
     const { variant, expiresIn } = req.query;
 
@@ -5110,7 +5197,8 @@ router.get(
       throw new NotFoundError('File not found');
     }
 
-    // Check access permissions
+    // Check access permissions using only the server-verified session operator.
+    userId = await mediaViewerForFile(req, file, userId);
     if (!(await assetService.canUserAccessFile(file, userId))) {
       logger.warn('Access denied to file download', {
         fileId,
@@ -5425,7 +5513,15 @@ router.post(
           return;
         }
 
-        if (!(await assetService.canUserAccessFile(file, user?._id, context, supervisionPolicy))) {
+        const viewerId = await mediaViewerForFile(req, file, user?._id);
+        if (
+          !(await assetService.canUserAccessFile(
+            file,
+            viewerId,
+            context,
+            viewerId === user?._id ? supervisionPolicy : undefined,
+          ))
+        ) {
           results[fileId] = { allowed: false, error: 'Access denied' };
           return;
         }
@@ -5451,9 +5547,9 @@ router.post(
           });
         }
         const mediaToken =
-          cdnUrl || file.visibility === 'public' || !user?._id
+          cdnUrl || file.visibility === 'public' || !viewerId
             ? undefined
-            : signMediaToken(fileId, user._id);
+            : signMediaToken(fileId, viewerId);
         const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variant, mediaToken);
         results[fileId] = {
           allowed: true,

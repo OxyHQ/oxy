@@ -46,7 +46,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { Image as ExpoImage } from 'expo-image';
+import { ExpoImage } from '../components/ExpoImage';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { logger } from '@oxy.so/core';
 import { useOxy } from '../context/oxyRuntimeContext';

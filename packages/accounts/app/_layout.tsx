@@ -13,7 +13,6 @@ import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-rean
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import type { ReactNode } from 'react';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
 import type { AliaAsk } from '@alia.onl/sdk/ask';
@@ -149,58 +148,59 @@ function RootLayoutInner() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <KeyboardProvider>
-        {/* OxyProvider does NOT wrap a BloomThemeProvider — by design, to
-            avoid duplicate contexts when an app already ships its own (see
-            packages/services/src/ui/components/OxyProvider.tsx). The consumer
-            (this app) owns the BloomThemeProvider and feeds it the resolved
-            theme mode from ThemeModeProvider. */}
-        <BloomThemeProvider mode={themeMode}>
-          <ConnectionStatusToasts />
-          <OxyProvider
-            onAskAlia={openAlia}
-            aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
-            oxyOneArtwork={<OxyOneVideo />}
-            baseURL={API_URL}
-            clientId={OXY_CLIENT_ID}
-            authRedirectUri={OXY_AUTH_REDIRECT_URI}
-            productAnalytics={productAnalytics}
-          >
-            <AppImageResolver>
-              <LocaleProvider>
-                {/* Native Bloom surfaces (Alia's sheet) render only through this
-                    provider/outlet pair; the outlet sits AFTER the content it paints
-                    over and the boundary wraps everything else. Alia's one sheet sits
-                    beside the inert boundary, not in it, and portals into the outlet. */}
-                <PortalProvider>
-                  <AccountsAskProvider askRef={aliaRef}>
-                    <OverlayInertBoundary>
-                      <AppHead />
-                      {!appIsReady ? (
-                        // WEB: the custom splash covers init and fades out; its
-                        // `onFadeComplete` gates `appIsReady`. NATIVE renders null
-                        // here — the held OS splash is on top, so nothing underneath
-                        // needs to paint.
-                        Platform.OS === 'web' ? (
-                          <AppSplashScreen
-                            startFade={startFade}
-                            onFadeComplete={handleSplashFadeComplete}
-                          />
-                        ) : null
-                      ) : (
-                        <AppLockGate>
-                          <AppStackContent />
-                        </AppLockGate>
-                      )}
-                    </OverlayInertBoundary>
-                  </AccountsAskProvider>
-                  <PortalOutlet />
-                </PortalProvider>
-              </LocaleProvider>
-            </AppImageResolver>
-          </OxyProvider>
-        </BloomThemeProvider>
-      </KeyboardProvider>
+      {/* No KeyboardProvider here: OxyProvider mounts the one. A second one above it
+          took the native keyboard events, so every keyboard hook under OxyProvider read
+          a closed keyboard. */}
+      {/* OxyProvider does NOT wrap a BloomThemeProvider — by design, to
+          avoid duplicate contexts when an app already ships its own (see
+          packages/services/src/ui/components/OxyProvider.tsx). The consumer
+          (this app) owns the BloomThemeProvider and feeds it the resolved
+          theme mode from ThemeModeProvider. */}
+      <BloomThemeProvider mode={themeMode}>
+        <ConnectionStatusToasts />
+        <OxyProvider
+          onAskAlia={openAlia}
+          aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
+          oxyOneArtwork={<OxyOneVideo />}
+          baseURL={API_URL}
+          clientId={OXY_CLIENT_ID}
+          authRedirectUri={OXY_AUTH_REDIRECT_URI}
+          productAnalytics={productAnalytics}
+        >
+          <AppImageResolver>
+            <LocaleProvider>
+              {/* Native Bloom surfaces (Alia's sheet) render only through this
+                  provider/outlet pair; the outlet sits AFTER the content it paints
+                  over and the boundary wraps everything else. Alia's one sheet sits
+                  beside the inert boundary, not in it, and portals into the outlet. */}
+              <PortalProvider>
+                <AccountsAskProvider askRef={aliaRef}>
+                  <OverlayInertBoundary>
+                    <AppHead />
+                    {!appIsReady ? (
+                      // WEB: the custom splash covers init and fades out; its
+                      // `onFadeComplete` gates `appIsReady`. NATIVE renders null
+                      // here — the held OS splash is on top, so nothing underneath
+                      // needs to paint.
+                      Platform.OS === 'web' ? (
+                        <AppSplashScreen
+                          startFade={startFade}
+                          onFadeComplete={handleSplashFadeComplete}
+                        />
+                      ) : null
+                    ) : (
+                      <AppLockGate>
+                        <AppStackContent />
+                      </AppLockGate>
+                    )}
+                  </OverlayInertBoundary>
+                </AccountsAskProvider>
+                <PortalOutlet />
+              </PortalProvider>
+            </LocaleProvider>
+          </AppImageResolver>
+        </OxyProvider>
+      </BloomThemeProvider>
     </GestureHandlerRootView>
   );
 }

@@ -208,6 +208,60 @@ const PAIRS: Pair[] = [
     samples: [{ accessToken: 't', expiresAt: ISO, nextDeviceSecret: 's', state: sessionState }],
   },
   {
+    name: 'deviceContextTokenV1Request',
+    check: client.deviceContextTokenV1RequestCheck,
+    schema: contracts.deviceContextTokenV1RequestSchema,
+    samples: [{ deviceId: 'device-1', deviceSecret: 'secret' }],
+  },
+  {
+    name: 'deviceContextTokenV1Response',
+    check: client.deviceContextTokenV1ResponseCheck,
+    schema: contracts.deviceContextTokenV1ResponseSchema,
+    samples: [
+      {
+        version: 1,
+        deviceId: 'device-1',
+        deviceSessionId: 'row-1',
+        revision: 5,
+        contextId: 'context-1',
+        actorId: 'actor-1',
+        accountId: 'account-1',
+        sessionId: 'session-1',
+        accessToken: 'token',
+        expiresAt: ISO,
+      },
+    ],
+  },
+  {
+    name: 'holderContextEvidenceV1Request',
+    check: client.holderContextEvidenceV1RequestCheck,
+    schema: contracts.holderContextEvidenceV1RequestSchema,
+    samples: [
+      { deviceId: 'device-1', deviceSecret: 'secret' },
+      { deviceId: 'd'.repeat(128), deviceSecret: 's'.repeat(256) },
+      { deviceId: 'd'.repeat(129), deviceSecret: 'secret' },
+      { deviceId: 'device-1', deviceSecret: 's'.repeat(257) },
+    ],
+  },
+  {
+    name: 'holderContextEvidenceV1Response',
+    check: client.holderContextEvidenceV1ResponseCheck,
+    schema: contracts.holderContextEvidenceV1ResponseSchema,
+    samples: [
+      {
+        version: 1,
+        deviceId: 'device-1',
+        deviceSessionId: 'row-1',
+        revision: 5,
+        contextId: 'context-1',
+        actorId: 'actor-1',
+        accountId: 'actor-1',
+        sessionId: 'session-1',
+        expiresAt: ISO,
+      },
+    ],
+  },
+  {
     name: 'sessionAccountsChangedEvent',
     check: client.sessionAccountsChangedEventCheck,
     schema: contracts.sessionAccountsChangedEventSchema,
@@ -957,10 +1011,16 @@ const PAIRS: Pair[] = [
     ],
   },
   {
-    name: 'productSubscriptionRenewalRequest',
-    check: client.productSubscriptionRenewalRequestCheck,
-    schema: contracts.productSubscriptionRenewalRequestSchema,
-    samples: [{ expectedSubjectAccountId: 'acc', sourceId: 's', idempotencyKey: 'key_1234' }],
+    name: 'productSubscriptionPortalRequest',
+    check: client.productSubscriptionPortalRequestCheck,
+    schema: contracts.productSubscriptionPortalRequestSchema,
+    samples: [{ expectedSubjectAccountId: 'acc', sourceId: 's' }],
+  },
+  {
+    name: 'productSubscriptionPortalResponse',
+    check: client.productSubscriptionPortalResponseCheck,
+    schema: contracts.productSubscriptionPortalResponseSchema,
+    samples: [{ url: 'https://checkout.peable.to/portal/x' }],
   },
   {
     name: 'personalPlanCheckoutResult',
@@ -1061,6 +1121,11 @@ const REPLACEMENTS: unknown[] = [
   ' ',
   'x',
   'Mixed Case',
+  '😀',
+  'a😀',
+  '😀'.repeat(201),
+  '2026-10-24T12:00Z',
+  '2026-10-24T12:00:00Z',
   'a'.repeat(400),
   0,
   -1,
@@ -1068,6 +1133,7 @@ const REPLACEMENTS: unknown[] = [
   2 ** 60,
   Number.NaN,
   Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
   true,
   false,
   [],
@@ -1165,10 +1231,26 @@ function firstIssue(issue: {
 
 function viaZod(schema: z.ZodTypeAny, input: unknown): Outcome {
   try {
-    const result = schema.safeParse(input);
+    const result = schema.safeParse(input, { reportInput: true });
     if (result.success) return { ok: true, value: result.data };
     const [issue] = result.error.issues;
-    return { ok: false, issue: firstIssue(issue as Parameters<typeof firstIssue>[0]) };
+    const failedInput = (issue as { input?: unknown }).input;
+    const received =
+      'received' in issue
+        ? issue.received
+        : failedInput === null
+          ? 'null'
+          : Array.isArray(failedInput)
+            ? 'array'
+            : typeof failedInput === 'number' && Number.isNaN(failedInput)
+              ? 'NaN'
+              : typeof failedInput === 'number' && !Number.isFinite(failedInput)
+                ? String(failedInput)
+                : typeof failedInput;
+    return {
+      ok: false,
+      issue: firstIssue({ ...issue, received } as Parameters<typeof firstIssue>[0]),
+    };
   } catch (error) {
     // A refinement that throws on a value an earlier rule already rejected
     // (`BigInt(1.5)`); Zod surfaces the exception, the check reports a failure.

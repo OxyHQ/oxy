@@ -35,6 +35,8 @@ export interface ProfileButtonProps {
   avatarSize?: number;
   /** Start the add-account / sign-in flow for an additional account. */
   onAddAccount?: () => void;
+  /** Called synchronously before the shared add-account view, unless onAddAccount overrides it. */
+  onBeforeAddAccount?: () => void;
   /** Optional: navigate to the signed-in user's own profile. */
   onNavigateProfile?: () => void;
   /** App-owned actions rendered in the shared account menu. */
@@ -62,6 +64,7 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
   expanded = true,
   avatarSize,
   onAddAccount,
+  onBeforeAddAccount,
   onNavigateProfile,
   menuItems,
   menuSections,
@@ -80,16 +83,23 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
   }, [openAccountDialog]);
 
   useEffect(() => {
-    if (!onAddAccount && !onNavigateProfile && !menuItems?.length && !menuSections?.length) {
+    if (
+      !onAddAccount &&
+      !onBeforeAddAccount &&
+      !onNavigateProfile &&
+      !menuItems?.length &&
+      !menuSections?.length
+    ) {
       return undefined;
     }
     return registerAccountDialogConsumerHooks({
       onAddAccount,
+      onBeforeAddAccount,
       onNavigateProfile,
       menuItems,
       menuSections,
     });
-  }, [onAddAccount, onNavigateProfile, menuItems, menuSections]);
+  }, [onAddAccount, onBeforeAddAccount, onNavigateProfile, menuItems, menuSections]);
 
   const avatarUrl = useMemo(
     () => (user?.avatar ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined),

@@ -1,3 +1,4 @@
+import { managedApplicationDeployments } from './managedApplicationDeployments';
 import {
   supervisionPurchaseApprovals,
   supervisionAudit,
@@ -65,12 +66,13 @@ import type { DeferredForeignKey } from '@oxy.so/db/assert';
 import { appAffinitySeenEvents } from './appAffinitySeenEvents';
 import { appEndorsementEdges } from './appEndorsementEdges';
 import { appUpdates } from './appUpdates';
+import { githubTrustedPublishers } from './githubTrustedPublishers';
 import { authCodes } from './authCodes';
 import { authSessions } from './authSessions';
 import { billingStripeEvents } from './billingStripeEvents';
 import { billingSubscriptions } from './billingSubscriptions';
 import { billingTransactions } from './billingTransactions';
-import { capabilityExecutionAuthorizations } from './agency';
+import { capabilityExecutionAuthorizations, firstPartyTasks } from './agency';
 import { followEvents } from './followEvents';
 import { bookmarks } from './bookmarks';
 import { conductStrikes } from './conductStrikes';
@@ -155,6 +157,21 @@ const PRICE_VERSION_LABEL_REASON =
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
   {
+    table: githubTrustedPublishers,
+    column: githubTrustedPublishers.repositoryId,
+    reason:
+      'GitHub’s numeric repository id (ADR 0057), an identifier in GitHub’s namespace that is never reused; compared against the `repository_id` claim of a GitHub Actions OIDC token, not an Oxy row.',
+  },
+  {
+    table: managedApplicationDeployments,
+    column: managedApplicationDeployments.publicClientId,
+    reason:
+      'Immutable public client identifier issued when the managed deployment was registered. ' +
+      'It must survive credential rotation or deletion so registration retries detect drift ' +
+      'and cannot recreate revoked access. The application_id foreign key anchors ownership; ' +
+      'the registrar checks the live application credential before accepting every retry.',
+  },
+  {
     table: applicationRecognition,
     column: applicationRecognition.iosTeamId,
     reason:
@@ -220,6 +237,18 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     }),
   ),
 
+  {
+    table: firstPartyTasks,
+    column: firstPartyTasks.requesterSessionId,
+    reason:
+      'Historical original requester proof. Durable goals and schedules outlive session cleanup; immediate request roots revalidate the exact live session and binding digest.',
+  },
+  {
+    table: firstPartyTasks,
+    column: firstPartyTasks.originId,
+    reason:
+      'Originating request, goal or schedule identifier belongs to the coordinator product, scoped by coordinator application and origin kind, not to an Oxy table.',
+  },
   {
     table: capabilityExecutionAuthorizations,
     column: capabilityExecutionAuthorizations.requesterSessionId,

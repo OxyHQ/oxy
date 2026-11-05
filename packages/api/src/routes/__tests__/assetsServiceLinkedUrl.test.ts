@@ -51,6 +51,7 @@ const mockOptionalAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: 
 );
 const mockGetFilesByIds = jest.fn();
 const mockGetPresignedDownloadUrl = jest.fn();
+const mockCanUserAccessFile = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (...args: unknown[]) => mockAuthMiddleware(...args),
@@ -82,6 +83,7 @@ jest.mock('../../utils/logger', () => ({ logger: mockLogger }));
 jest.mock('../../services/assetServiceSingleton', () => ({
   assetService: {
     getFilesByIds: (...args: unknown[]) => mockGetFilesByIds(...args),
+    canUserAccessFile: (...args: unknown[]) => mockCanUserAccessFile(...args),
     findActiveFilesBySha256: jest.fn(),
     getPublicCdnUrl: jest.fn(),
   },
@@ -219,6 +221,25 @@ describe('POST /assets/service/linked-url — what it admits', () => {
     expect(body.data[0].expiresIn).toBe(300);
   });
 
+  it.each(['private', 'public', 'unlisted'] as const)(
+    'returns authoritative %s visibility with the authorized URL',
+    async (visibility) => {
+      mockGetFilesByIds.mockResolvedValue([{ ...ownerLinked('f_visibility'), visibility }]);
+      const { status, body } = await postLinkedUrl(['f_visibility']);
+      expect(status).toBe(200);
+      expect(body.data[0].visibility).toBe(visibility);
+    },
+  );
+
+  it('reports a private file changed to public on the next mint without caching its old visibility', async () => {
+    mockGetFilesByIds.mockResolvedValueOnce([ownerLinked('f_changed')]);
+    expect((await postLinkedUrl(['f_changed'])).body.data[0].visibility).toBe('private');
+    mockGetFilesByIds.mockResolvedValueOnce([
+      { ...ownerLinked('f_changed'), visibility: 'public' },
+    ]);
+    expect((await postLinkedUrl(['f_changed'])).body.data[0].visibility).toBe('public');
+  });
+
   it('returns the metadata a downloader needs and NOTHING that is storage detail', async () => {
     mockGetFilesByIds.mockResolvedValue([ownerLinked('f_ok')]);
 
@@ -226,10 +247,10 @@ describe('POST /assets/service/linked-url — what it admits', () => {
 
     // Asserted as an exact key set, not by containment: containment goes green
     // when a field is ADDED, which is the direction that leaks. `storageKey`,
-    // `ownerUserId`, `links` and `visibility` are all on the row the handler
-    // read and none of them is the caller's business.
+    // `ownerUserId` and `links` remain private storage/ownership details.
+    // Visibility is now intentional: consumers must detect a private file made public.
     expect(Object.keys(body.data[0]).sort()).toEqual(
-      ['expiresIn', 'id', 'mime', 'sha256', 'size', 'url'].sort(),
+      ['expiresIn', 'id', 'mime', 'sha256', 'size', 'url', 'visibility'].sort(),
     );
   });
 });
@@ -465,5 +486,48 @@ describe('POST /assets/service/linked-url — the minted URL is a credential', (
     expect(mockLogger.debug).toHaveBeenCalled();
     expect(logged).not.toContain('X-Amz-Signature');
     expect(logged).not.toContain('private/f_ok.stl');
+  });
+});
+
+describe('own requester context', () => {
+  function own(requester?: string) {
+    mockServiceAuthMiddleware.mockImplementation((req: any, _res: unknown, next: () => void) => {
+      req.serviceApp = { appId: CALLER_APP, authority: 'first_party' };
+      req.headers['x-oxy-user-id'] = OWNER_ID;
+      if (requester) req.serviceRequester = { subjectAccountId: requester };
+      next();
+    });
+  }
+  it('uses verified account access for personal files without an inter-app grant', async () => {
+    own(OWNER_ID);
+    const file = fileRow('own-personal', { ownerUserId: OWNER_ID, links: [] });
+    mockGetFilesByIds.mockResolvedValue([file]);
+    mockCanUserAccessFile.mockResolvedValue(true);
+    const response = await postLinkedUrl([file.id]);
+    expect(response.status).toBe(200);
+    expect(resolvedIds(response.body)).toEqual([file.id]);
+    expect(mockCanUserAccessFile).toHaveBeenCalledWith(file, OWNER_ID);
+  });
+  it('cannot infer a requester from the file owner or a raw user header', async () => {
+    own();
+    const file = fileRow('private-owner', { ownerUserId: OWNER_ID, links: [] });
+    mockGetFilesByIds.mockResolvedValue([ownerLinked('entitled'), file]);
+    const response = await postLinkedUrl(['entitled', file.id]);
+    expect(resolvedIds(response.body)).toEqual(['entitled']);
+    expect(mockCanUserAccessFile).not.toHaveBeenCalled();
+  });
+  it('honors account privacy and does not widen application-owned files with user proof', async () => {
+    own(ATTACKER_ID);
+    const personal = fileRow('stranger-private', { ownerUserId: OWNER_ID, links: [] });
+    const applicationOwned = {
+      ...fileRow('other-application', { ownerUserId: null, links: [] }),
+      ownerApplicationId: OTHER_APP,
+    };
+    mockGetFilesByIds.mockResolvedValue([ownerLinked('entitled'), personal, applicationOwned]);
+    mockCanUserAccessFile.mockResolvedValue(false);
+    const response = await postLinkedUrl(['entitled', personal.id, applicationOwned.id]);
+    expect(resolvedIds(response.body)).toEqual(['entitled']);
+    expect(mockCanUserAccessFile).toHaveBeenCalledTimes(1);
+    expect(mockCanUserAccessFile).toHaveBeenCalledWith(personal, ATTACKER_ID);
   });
 });

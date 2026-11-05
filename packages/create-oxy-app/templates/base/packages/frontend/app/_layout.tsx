@@ -8,7 +8,6 @@ import type { ReactNode } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { preventNativeSplashAutoHide, useHideNativeSplashWhenReady } from '@oxy.so/expo-splash';
@@ -38,25 +37,26 @@ export function ErrorBoundary(props: { error: Error; retry: () => void }) {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <KeyboardProvider>
-        <SafeAreaProvider>
-          {/* BloomThemeProvider is the outermost theming authority — it must wrap
-              every render branch, including any pre-auth backdrop. OxyProvider is
-              the single session authority (web + native); it owns the QueryClient
-              and never redirects to an external login. */}
-          <BloomThemeProvider persistKey={THEME_PERSIST_KEY} storage={themeStorage}>
-            <ConnectionStatusToasts />
-            <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} queryClient={queryClient}>
-              <AppImageResolver>
-                <LocaleProvider>
-                  <AuthRouter />
-                  <StatusBar style="auto" />
-                </LocaleProvider>
-              </AppImageResolver>
-            </OxyProvider>
-          </BloomThemeProvider>
-        </SafeAreaProvider>
-      </KeyboardProvider>
+      {/* No KeyboardProvider here: OxyProvider mounts the one. A second one above it
+          took the native keyboard events, so every keyboard hook under OxyProvider read
+          a closed keyboard. */}
+      <SafeAreaProvider>
+        {/* BloomThemeProvider is the outermost theming authority — it must wrap
+            every render branch, including any pre-auth backdrop. OxyProvider is
+            the single session authority (web + native); it owns the QueryClient
+            and never redirects to an external login. */}
+        <BloomThemeProvider persistKey={THEME_PERSIST_KEY} storage={themeStorage}>
+          <ConnectionStatusToasts />
+          <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} queryClient={queryClient}>
+            <AppImageResolver>
+              <LocaleProvider>
+                <AuthRouter />
+                <StatusBar style="auto" />
+              </LocaleProvider>
+            </AppImageResolver>
+          </OxyProvider>
+        </BloomThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

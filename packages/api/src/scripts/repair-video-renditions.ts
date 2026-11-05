@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { connectPostgres, closePostgres } from '../config/postgres';
+import { closeRedis } from '../config/redis';
 import { flushCdnInvalidations } from '../services/cdnInvalidation';
 import { repairVideoRenditions } from './video-rendition-repair';
 import { logger } from '../utils/logger';
@@ -17,8 +18,15 @@ async function main() {
     logger.info('Video rendition repair complete', { dryRun, ...result });
     if (result.failed || result.unrecoverable) process.exitCode = 75;
   } finally {
-    await flushCdnInvalidations();
-    await closePostgres();
+    try {
+      await flushCdnInvalidations();
+    } finally {
+      try {
+        await closePostgres();
+      } finally {
+        await closeRedis();
+      }
+    }
   }
 }
 

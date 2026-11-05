@@ -72,10 +72,7 @@ function createMintServer(rotateWithinSeconds: number): {
       }
       mints.push(now);
       // `getAccessToken`: hand back the stored token unless it has expired.
-      if (
-        expOf(stored) - Math.floor(now / 1000) <
-        (rotateWithinSeconds > 0 ? rotateWithinSeconds : 0)
-      ) {
+      if (expOf(stored) - Math.floor(now / 1000) < Math.max(rotateWithinSeconds, 0)) {
         stored = issue();
       }
       return { status: 200, token: stored };

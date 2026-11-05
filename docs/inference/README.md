@@ -236,8 +236,8 @@ share one status). The full rules are in [streaming.md](./streaming.md#retries).
 
 | Codes | Meaning | What your app does |
 |---|---|---|
-| `invalid_request`, `context_length_exceeded`, `output_limit_exceeded`, `unsupported_modality`, `request_too_large`, `upstream_content_filtered` | the request itself is the problem | fix the request. Never retry it as it is |
-| `authentication_failed`, `permission_denied`, `insufficient_scope`, `model_not_found`, `policy_violation`, `commercial_permission_denied` | credentials, scopes or app policy, or the model isn't visible to this app | fix the configuration. `policy_violation` names the policy control that excluded every route |
+| `invalid_request`, `context_length_exceeded`, `output_limit_exceeded`, `unsupported_modality`, `request_too_large`, `upstream_content_filtered` | the request itself is the problem (an image the rules refuse is `invalid_request` naming the part; images sent to a model that cannot take them, or under terms without images, are `unsupported_modality`) | fix the request. Never retry it as it is |
+| `authentication_failed`, `permission_denied`, `insufficient_scope`, `model_not_found`, `policy_violation`, `commercial_permission_denied` | credentials, external scopes or account/routing policy, or the model isn't visible to this caller | fix the configuration. `policy_violation` names the policy control that excluded every route |
 | `insufficient_balance`, `spending_limit_exceeded`, `quota_exceeded` | money or quota on **your** account | tell the user or the account owner |
 | `rate_limited`, `deployment_unavailable`, `provider_error`, `provider_timeout`, `provider_overloaded` (`retryable: true`) | the platform retried and every authorized route is still failing | show "try again later". A background job may be rescheduled after `retryAfterMs`. Don't loop |
 | `no_route_available`, `service_unavailable`, `provider_credential_invalid`, `provider_billing_refused`, `internal_error` | a platform-side problem, not yours | report it with the `requestId` |
@@ -312,6 +312,7 @@ You only need this section when debugging. The full rules are in
 | Per-app allowed levels (Inbox → `instant` only; Alia exposes levels, never model names) | Live (`allowedRoutingProfileIds`); each app's policy is configuration to set |
 | Naming a power level in `model` (for OpenAI-compatible clients) | Live |
 | Only servable models listed or chosen (published by Kaana, complete price/score/funding evidence) | Live in Oxy. Kaana withholding exhausted or persistently failing deployments: rolling out in Kaana |
+| Image input: inline images on lines Kaana declares a per-image bound for, each held at that bound ([ADR 0051](../adr/0051-image-input.md)) | Rolling out: needs `@kaana.ai/contracts` 8.2.0 and Kaana's declarations; Alia's terms approved 2026-10-28 |
 | cheapest/free, fastest, capability, data/region and family-preference profiles | Proposed |
 
 Whether an environment actually serves a feature is a rollout question. The
@@ -328,7 +329,7 @@ flags, gates and dated evidence are in [status.md](./status.md) and
 | [kaana-grants.md](./kaana-grants.md) | Kaana ADR 0002 phase 2: the grant and settlement API Kaana calls to serve `kaana.ai/v1`, who pays per lane, Console limits |
 | [request-routing.md](./request-routing.md) | which product features go through Alia and which call Oxy directly, and provider-key custody |
 | [sdk.md](./sdk.md) | `OxyInferenceClient`, the OpenAI SDK in TypeScript and Python, response headers |
-| [credentials.md](./credentials.md) | service tokens, `oxy_sk_*` machine keys, scopes |
+| [credentials.md](./credentials.md) | own workload identity, external service/machine credentials and their scopes |
 | [catalogue.md](./catalogue.md) | reading the model catalogue, what an entry contains, and the Kaana catalogue sync |
 | [routing.md](./routing.md) | routing policies and every control, fallback switches, and the exact route-ordering rule |
 | [streaming.md](./streaming.md) | stream events, cancellation, retryability and idempotency |
@@ -338,7 +339,7 @@ flags, gates and dated evidence are in [status.md](./status.md) and
 | [attribution.md](./attribution.md) | who is charged, and delegated users |
 | [byok.md](./byok.md) | using your own provider key |
 | [data-policy.md](./data-policy.md) | what is retained, and what a route does with your data |
-| [alia.md](./alia.md) | Alia as an inference consumer: registration, scopes, product agents |
+| [alia.md](./alia.md) | Alia as an inference consumer: workload identity, account boundaries, product agents |
 | [inbox-point-inference.md](./inbox-point-inference.md) | Inbox's one-shot features and their bootstrap |
 | [inbox-principal-readback.md](./inbox-principal-readback.md) | Read-only proof of the Inbox principal, its authority and its granted credit |
 | [jev-principals-readback.md](./jev-principals-readback.md) | Metadata-only readback of the Mention workload and Kaana principals |
@@ -357,10 +358,11 @@ Typed nonstreaming classifications: [Decisions](decisions.md) (granted on `kaana
 ### Recovering usage after a lost response
 
 `GET /v1/generations/by-idempotency-key`, carrying the original key in the
-`Idempotency-Key` header, reads the record back. `@oxy.so/core` has no method
-for it since 6.0.0 (its only caller moved to `kaana.ai/v1`); call the route
-directly. Use the same credential and delegated-user selector as
-the original request, with `inference:usage:read`. Authentication still checks
+`Idempotency-Key` header, reads the record back. Core 7.5 adds
+`getGenerationRecordByIdempotencyKey(key, { delegatedUserId, signal })` for this
+platform read, including internal metered usage. Use the same credential and
+delegated-user selector as the original request. External callers require
+`inference:usage:read`; verified own workloads do not request app scopes. Authentication still checks
 current expiry and revocation. The lookup is bound to the original credential,
 application, account and environment; credential rotation does not turn an
 opaque original key into a cross-credential selector. If the request ID was

@@ -1,3 +1,5 @@
+import { hasKnownSubjectMismatch, useKnownBearerSubject } from '../hooks/useKnownBearerSubject';
+import { installNativeAssetFiles } from '../utils/nativeAssetFiles';
 import {
   startNativeOAuthSignIn,
   type StartNativeOAuthSignInOptions,
@@ -9,7 +11,15 @@ import {
   setIsolatedOAuthSession,
 } from './isolatedOAuthSession';
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 import { OxyServices } from '@oxy.so/core';
 import type { LoginSessionResult } from '@oxy.so/contracts';
@@ -59,8 +69,10 @@ import {
   hasPersistedSessionCredential,
   loadPersistedDeviceCredential,
 } from '../utils/deviceCredential';
-import { createTokenLossRecovery } from '../session/tokenLossRecovery';
+import { createTokenLossRecovery, TOKEN_RECOVERY_BACKOFF_MS } from '../session/tokenLossRecovery';
+import { createCachedBootStore, type CachedBootStore } from '../session/cachedBoot';
 import { bindAuthStoreToRuntime } from '../stores/authStore';
+import { useEntryLink } from '../hooks/useEntryLink';
 import { useLanguageManagement } from '../hooks/useLanguageManagement';
 import { useSessionManagement } from '../hooks/useSessionManagement';
 import { useAuthOperations, clearPersistedAuthSafe } from './hooks/useAuthOperations';
@@ -129,8 +141,6 @@ export {
   OxyProviderMissingError,
 } from './oxyRuntimeContext';
 
-const subscribeNever = (): (() => void) => () => undefined;
-
 /**
  * The SDK's internal runtime provider — the session/account state machine that
  * backs `useOxy()`.
@@ -154,6 +164,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   sessionMode = 'account',
   webAuthMode = 'popup',
   backgroundSession = false,
+  legacyLanguageKeys,
+  captureCampaignAttribution = false,
   platformStorage,
   accountQueries,
   onAuthStateChange,
@@ -180,6 +192,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     }
   }
   const oxyServices = oxyServicesRef.current;
+  // Child passive effects may upload immediately on mount. Configure transport
+  // during commit, before those effects, without mutating the client in render.
+  useLayoutEffect(() => installNativeAssetFiles(oxyServices), [oxyServices]);
 
   // The device-first persisted auth-state store (per-origin device credential on
   // web; SecureStore session blob on native). Built ONCE per provider mount.
@@ -222,8 +237,19 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     clientId: string | undefined;
     services: OxyServices;
     lane: 'device' | 'oauth' | null;
+    /**
+     * `lane` is this device's cached verdict, standing in until the registry
+     * answers (a painted cold boot). A fresh lookup keeps it meanwhile.
+     */
+    provisional: boolean;
     pending: Promise<'device' | 'oauth'> | null;
-  }>({ clientId: clientIdProp, services: oxyServices, lane: null, pending: null });
+  }>({
+    clientId: clientIdProp,
+    services: oxyServices,
+    lane: null,
+    provisional: false,
+    pending: null,
+  });
   if (
     registeredLaneRef.current.clientId !== clientIdProp ||
     registeredLaneRef.current.services !== oxyServices
@@ -232,6 +258,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       clientId: clientIdProp,
       services: oxyServices,
       lane: null,
+      provisional: false,
       pending: null,
     };
   }
@@ -313,6 +340,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     authResolved,
   } = snapshot;
   const isAuthenticated = user !== null;
+  const bearerSubject = useKnownBearerSubject(oxyServices);
+  const subjectMismatch = hasKnownSubjectMismatch(user?.id, bearerSubject);
   const error = snapshot.error?.message ?? null;
 
   const [initialized, setInitialized] = useState(false);
@@ -337,24 +366,23 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // a persistence write is never dropped because it raced storage init.
   const queryClient = useQueryClient();
 
-  // The app's per-account offline cache (`accountQueries`). Built once, like the
-  // runtime. `handleSubjectChange` activates it BEFORE anyone is woken, so a
-  // consumer of the new account never reads the previous account's rows.
-  const accountQueryPersistenceRef = useRef<AccountQueryPersistence | null | undefined>(undefined);
-  if (accountQueryPersistenceRef.current === undefined) {
-    accountQueryPersistenceRef.current = accountQueries
-      ? createAccountQueryPersistence(queryClient, accountQueries)
-      : null;
+  // The account's offline cache: the app's `accountQueries` roots and every
+  // query marked `meta: { persist: 'account' }`. Built once, like the runtime.
+  // `handleSubjectChange` activates it BEFORE anyone is woken, so a consumer of
+  // the new account never reads the previous account's rows.
+  const accountQueryPersistenceRef = useRef<AccountQueryPersistence | null>(null);
+  if (accountQueryPersistenceRef.current === null) {
+    accountQueryPersistenceRef.current = createAccountQueryPersistence(queryClient, accountQueries);
   }
   const accountQueryPersistence = accountQueryPersistenceRef.current;
   useEffect(() => {
-    accountQueryPersistence?.attach();
-    return () => accountQueryPersistence?.detach();
+    accountQueryPersistence.attach();
+    return () => accountQueryPersistence.detach();
   }, [accountQueryPersistence]);
   const isAccountCacheReady = useSyncExternalStore(
-    accountQueryPersistence ? accountQueryPersistence.subscribe : subscribeNever,
-    () => accountQueryPersistence?.isReady() ?? true,
-    () => accountQueryPersistence?.isReady() ?? true,
+    accountQueryPersistence.subscribe,
+    accountQueryPersistence.isReady,
+    accountQueryPersistence.isReady,
   );
 
   const storageRef = useRef<StorageInterface | null>(null);
@@ -372,6 +400,15 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   }
   const storageReady = storageReadyRef.current;
 
+  // What a returning session's first paint needs (the app's classification and
+  // the account's profile), kept in the same storage as the account query cache.
+  const cachedBoot = useMemo(
+    () => (storage ? createCachedBootStore(storage, storageKeyPrefix) : null),
+    [storage, storageKeyPrefix],
+  );
+  const cachedBootRef = useRef<CachedBootStore | null>(cachedBoot);
+  cachedBootRef.current = cachedBoot;
+
   useEffect(() => {
     // `null` means the public provider owns initialization and has not resolved
     // it yet. `undefined` means this internal provider was mounted directly and
@@ -387,7 +424,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       .then((storageInstance) => {
         storageRef.current = storageInstance;
         storageReady.resolve(storageInstance);
-        accountQueryPersistence?.setStorage(storageInstance);
+        accountQueryPersistence.setStorage(storageInstance);
         if (mounted) {
           setStorage(storageInstance);
           runtime.setStorageReady(true);
@@ -396,8 +433,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       .catch((err) => {
         // Nothing persisted can be restored; the account cache still has to
         // become ready, or RequireOxyAuth would wait forever.
-        accountQueryPersistence?.setStorage(createMemoryStorage());
+        const memoryStorage = createMemoryStorage();
+        accountQueryPersistence.setStorage(memoryStorage);
         if (mounted) {
+          setStorage(memoryStorage);
           logger('Failed to initialize storage', err);
           onError?.({
             message: 'Failed to initialize storage',
@@ -411,8 +450,15 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     };
   }, [accountQueryPersistence, logger, onError, platformStorage, runtime, storageReady]);
 
+  const entryLink = useEntryLink({
+    storage,
+    storageKey: `${storageKeyPrefix}_campaign_attribution`,
+    captureCampaign: captureCampaignAttribution,
+    onError: logger,
+  });
   const {
     currentLanguage,
+    isLanguageReady,
     languages: currentLanguages,
     metadata: currentLanguageMetadata,
     languageName: currentLanguageName,
@@ -422,6 +468,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   } = useLanguageManagement({
     storage,
     languageKey: storageKeys.language,
+    entryUrl: entryLink.url,
+    entryLinkReady: entryLink.ready,
+    legacyLanguageKeys,
     user,
     onError,
     logger,
@@ -535,11 +584,17 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     if (selected.clientId !== clientIdProp || selected.services !== oxyServices)
       throw new Error('Provider classification was superseded');
     if (selected.pending) return selected.pending;
-    selected.lane = null;
+    if (!selected.provisional) selected.lane = null;
     const pending = (async () => {
       const lane = await resolveApplicationSessionLane(oxyServices, clientIdProp);
       if (registeredLaneRef.current !== selected)
         throw new Error('Provider classification was superseded');
+      if (clientIdProp) void cachedBootRef.current?.saveLane(clientIdProp, lane);
+      if (selected.provisional) {
+        // The registry has answered: its verdict replaces the cached one now.
+        selected.provisional = false;
+        selected.lane = lane;
+      }
       if (lane === 'oauth' && !hasIsolatedOAuthSession(runtime)) {
         sessionClient.resetLocalState();
         sessionClientHost.setDeviceCredential(null);
@@ -1284,6 +1339,126 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     if (!accountDialogOpen) clearSignInFlows(accountDialogControllerRef.current);
   }, [accountDialogOpen]);
 
+  // ── Cached first paint ───────────────────────────────────────────────────
+  // Keep the profile the runtime holds for the signed-in account, so the next
+  // cold boot can paint it before the network answers. Only for a device-lane
+  // account session: an identity-bound client and an isolated OAuth session
+  // always boot through the network. A sign-out deletes it.
+  const cachedAccountJsonRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!cachedBoot || identity) return;
+    if (user === null) {
+      if (cachedAccountJsonRef.current !== null) {
+        cachedAccountJsonRef.current = null;
+        void cachedBoot.clearAccount();
+      }
+      return;
+    }
+    if (registeredLaneRef.current.lane !== 'device' || hasIsolatedOAuthSession(runtime)) return;
+    const json = JSON.stringify(user);
+    if (json === cachedAccountJsonRef.current) return;
+    cachedAccountJsonRef.current = json;
+    void cachedBoot.saveAccount(user);
+  }, [cachedBoot, identity, user, runtime]);
+
+  // Paint the session saved on this device: the bearer it left (when still
+  // valid), the session mirror, the account from its cached profile, auth
+  // resolved. Local reads only; the boot checks it all in the background.
+  const paintCachedSession = useCallback(async (): Promise<boolean> => {
+    const cache = cachedBootRef.current;
+    if (identity || !clientIdProp || !cache) return false;
+    const cached = await cache.readSession(clientIdProp, authStore);
+    const selected = registeredLaneRef.current;
+    if (
+      !cached ||
+      selected.clientId !== clientIdProp ||
+      selected.services !== oxyServices ||
+      selected.lane === 'oauth'
+    ) {
+      return false;
+    }
+    if (selected.lane === null) {
+      // The cached verdict stands in for the registry until it answers, so the
+      // refresh handler, lost-token recovery and sign-in treat this app as the
+      // device lane it was on last run.
+      selected.lane = 'device';
+      selected.provisional = true;
+    }
+    if (cached.warmToken) oxyServices.session.setAccessToken(cached.warmToken);
+    await syncDeviceCredentialToHost();
+    const now = new Date();
+    runtime.batch(() => {
+      runtime.mergeSessions(
+        [
+          {
+            sessionId: cached.sessionId,
+            deviceId: cached.deviceId,
+            expiresAt: new Date(now.getTime() + DEFAULT_SESSION_VALIDITY_MS).toISOString(),
+            lastActive: now.toISOString(),
+            userId: cached.userId,
+            isCurrent: true,
+          },
+        ],
+        { merge: true },
+      );
+      runtime.setActiveSessionId(cached.sessionId);
+      runtime.setAccount(cached.user);
+    });
+    onAuthStateChangeRef.current?.(cached.user);
+    // The account's cached queries are part of this paint: one local read,
+    // started by the subject change above, so nothing renders without them.
+    await accountQueryPersistence.whenReady();
+    markAuthResolvedRef.current();
+    return true;
+  }, [
+    identity,
+    clientIdProp,
+    authStore,
+    oxyServices,
+    runtime,
+    syncDeviceCredentialToHost,
+    accountQueryPersistence,
+  ]);
+
+  // A painted session the server could not be asked about yet stays on screen
+  // and is asked again: on the lost-token backoff, and at once when the device
+  // comes back online. Signed out meanwhile, there is nothing left to ask.
+  const cachedSessionCheckRef = useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    attempt: number;
+    runNow: (() => void) | null;
+  }>({ timer: null, attempt: 0, runNow: null });
+  const scheduleCachedSessionCheck = useCallback(
+    (retry: () => Promise<void>): void => {
+      const check = cachedSessionCheckRef.current;
+      if (check.timer !== null) clearTimeout(check.timer);
+      const run = (): void => {
+        if (check.timer !== null) clearTimeout(check.timer);
+        check.timer = null;
+        check.runNow = null;
+        if (runtime.getSnapshot().account === null) return;
+        retry().catch((retryError) => {
+          logger('Failed to check the cached session', retryError);
+        });
+      };
+      const delay =
+        TOKEN_RECOVERY_BACKOFF_MS[Math.min(check.attempt, TOKEN_RECOVERY_BACKOFF_MS.length - 1)];
+      check.attempt += 1;
+      check.runNow = run;
+      check.timer = setTimeout(run, delay);
+    },
+    [runtime, logger],
+  );
+  useEffect(
+    () => () => {
+      const check = cachedSessionCheckRef.current;
+      if (check.timer !== null) clearTimeout(check.timer);
+      check.timer = null;
+      check.runNow = null;
+    },
+    [],
+  );
+
   // ── Cold boot ────────────────────────────────────────────────────────────
   // Device-first session restore via `runProviderColdBoot` (see boot/runProviderColdBoot.ts).
   const runColdBoot = useCallback(async (): Promise<void> => {
@@ -1314,6 +1489,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       commitSession: (input, options) => commitSessionRef.current(input, options),
       markAuthResolved: () => markAuthResolvedRef.current(),
       setTokenReady,
+      paintCachedSession,
+      onCachedSessionRejected: () => clearSessionStateRef.current(),
+      onCachedSessionUnconfirmed: scheduleCachedSessionCheck,
     });
     // The boot may have (re-)established the identity session or cleared a pin
     // whose key no longer exists, so re-resolve rather than trusting the memo
@@ -1329,6 +1507,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     syncDeviceCredentialToHost,
     sessionClient,
     setTokenReady,
+    paintCachedSession,
+    scheduleCachedSessionCheck,
   ]);
 
   useEffect(() => {
@@ -1427,6 +1607,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       if (!online || !wasOffline) {
         return;
       }
+      cachedSessionCheckRef.current.runNow?.();
       void (async () => {
         if (hasIsolatedOAuthSession(runtime)) return;
         if (oxyServices.session.accessToken || !sessionClientHost.getDeviceCredential()) {
@@ -1544,7 +1725,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     ({ previous, next }: SubjectTransition): void => {
       // Every transition, the first sign-in included: the account cache is
       // keyed by the subject, and a sign-out deletes the signed-out one's.
-      accountQueryPersistence?.activate(next);
+      accountQueryPersistence.activate(next);
       if (previous === null) {
         return;
       }
@@ -1566,9 +1747,12 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   );
   subjectChangeRef.current = handleSubjectChange;
 
-  const canUsePrivateApi = authResolved && isAuthenticated && tokenReady && hasAccessToken;
+  // An undecodable bearer keeps the existing compatibility behavior. A known
+  // different subject is never ready while the account projection catches up.
+  const canUsePrivateApi =
+    authResolved && isAuthenticated && tokenReady && hasAccessToken && !subjectMismatch;
   const isPrivateApiPending =
-    !authResolved || (isAuthenticated && (!tokenReady || !hasAccessToken));
+    !authResolved || (isAuthenticated && (!tokenReady || !hasAccessToken || subjectMismatch));
 
   // Keep the native background credential in step with this session, so native
   // background code (a widget worker) can authenticate with no JS runtime. Inert
@@ -1600,6 +1784,8 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       webAuthMode,
       error,
       currentLanguage,
+      isLanguageReady: isLanguageReady && entryLink.campaignReady,
+      campaignAttribution: entryLink.campaignAttribution,
       currentLanguages,
       currentLanguageMetadata,
       currentLanguageName,
@@ -1657,6 +1843,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       webAuthMode,
       error,
       currentLanguage,
+      isLanguageReady,
+      entryLink.campaignReady,
+      entryLink.campaignAttribution,
       currentLanguages,
       currentLanguageMetadata,
       currentLanguageName,

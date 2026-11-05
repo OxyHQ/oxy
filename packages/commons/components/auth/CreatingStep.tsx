@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
 import LottieView from 'lottie-react-native';
 import Animated, {
   FadeIn,
@@ -101,13 +102,9 @@ export function CreatingStep({
           </Text>
           <Text style={[styles.creatingSubtitle, { color: textColor, opacity: 0.7 }]}>{error}</Text>
           {onRetry ? (
-            <Pressable
-              onPress={onRetry}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.retryButton, { opacity: pressed ? 0.7 : 1 }]}
-            >
-              <Text style={styles.retryButtonText}>{t('auth.creating.retry')}</Text>
-            </Pressable>
+            <Button appearance="solid" tone="accent" onPress={onRetry} className="mt-space-24">
+              {t('auth.creating.retry')}
+            </Button>
           ) : null}
         </View>
       </View>

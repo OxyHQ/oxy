@@ -41,6 +41,20 @@ describe('calendarDaysBetween', () => {
     expect(calendarDaysBetween(local(2025, 1, 1), local(2026, 1, 1))).toBe(365);
   });
 
+  it('counts dates in years 0 through 99 without shifting them into the 1900s', () => {
+    const civilDate = (year: number, month: number, day: number) => {
+      const date = local(2000, 1, 1);
+      date.setFullYear(year, month - 1, day);
+      return date;
+    };
+    const beforeCentury = civilDate(99, 12, 31);
+    const afterCentury = civilDate(100, 1, 1);
+    expect(calendarDaysBetween(beforeCentury, afterCentury)).toBe(1);
+    expect(calendarDaysBetween(afterCentury, beforeCentury)).toBe(-1);
+    expect(calendarDaysBetween(civilDate(0, 2, 28), civilDate(0, 3, 1))).toBe(2);
+    expect(calendarDaysBetween(civilDate(-1, 12, 31), civilDate(0, 1, 1))).toBe(1);
+  });
+
   describe('across a daylight-saving transition', () => {
     // jest.config.cjs pins TZ=America/New_York, where clocks went forward at
     // 02:00 on 2026-03-08 and go back at 02:00 on 2026-11-01. Asserted first,
