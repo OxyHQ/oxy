@@ -11,7 +11,7 @@ name: Android release
 # armeabi-v7a, each with its SHA-256) are the public GitHub release
 # `<tag-prefix>-v<version>` of the app repository, and all of them stay archived
 # on seldon ($OXY_RELEASE_ARCHIVE/<repo>/<tag>/). There is no universal APK:
-# @oxy.so/app-preset 6.1.0+ (withOxyAbiSplits) splits the APKs by ABI.
+# @oxy.so/app-preset 6.1.1+ (withOxyAbiSplits) splits the APKs by ABI.
 # docs/engineering/build-and-deploy.md#native-android-releases.
 #
 # It runs on `seldon`, Oxy's self-hosted build machine, whose runner group
@@ -148,10 +148,16 @@ jobs:
         working-directory: ${{ inputs.app-dir }}
         run: bunx expo prebuild --platform android --clean --no-install
 
+      # Two invocations: withOxyAbiSplits turns the ABI splits off in one that
+      # builds a bundle, because AGP refuses split APKs next to an app bundle
+      # while R8 shrinks resources (https://issuetracker.google.com/402800800).
       - name: Build the signed AAB and APKs
         if: steps.plan.outputs.build == 'true'
         working-directory: ${{ inputs.app-dir }}/android
-        run: ./gradlew :app:bundleRelease :app:assembleRelease --console=plain
+        run: |
+          set -euo pipefail
+          ./gradlew :app:bundleRelease --console=plain
+          ./gradlew :app:assembleRelease --console=plain
 
       # Every build is kept on seldon too, the AAB included: the GitHub release
       # carries only what the public installs (the per-ABI APKs and their
@@ -172,12 +178,12 @@ jobs:
           shopt -s nullglob
           apks=(apk/release/app-*-release.apk)
           if [ "${#apks[@]}" -eq 0 ]; then
-            echo "::error::The build produced no per-ABI APK (apk/release/app-<abi>-release.apk). Oxy releases ship one APK per ABI and never a universal one: the app needs @oxy.so/app-preset >= 6.1.0, whose withOxyAbiSplits (applied by the preset and by withOxyUpdates) splits the APKs."
+            echo "::error::The build produced no per-ABI APK (apk/release/app-<abi>-release.apk). Oxy releases ship one APK per ABI and never a universal one: the app needs @oxy.so/app-preset >= 6.1.1, whose withOxyAbiSplits (applied by the preset and by withOxyUpdates) splits the APKs."
             exit 1
           fi
           for abi in arm64-v8a armeabi-v7a; do
             if [ ! -f "apk/release/app-$abi-release.apk" ]; then
-              echo "::error::The build produced no $abi APK. Every Oxy release ships arm64-v8a (phones) and armeabi-v7a (older phones, Android TVs): build both ABIs (reactNativeArchitectures) with @oxy.so/app-preset >= 6.1.0."
+              echo "::error::The build produced no $abi APK. Every Oxy release ships arm64-v8a (phones) and armeabi-v7a (older phones, Android TVs): build both ABIs (reactNativeArchitectures) with @oxy.so/app-preset >= 6.1.1."
               exit 1
             fi
           done

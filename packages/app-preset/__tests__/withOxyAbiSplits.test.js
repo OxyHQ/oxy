@@ -54,7 +54,7 @@ test('the release ships arm64-v8a and armeabi-v7a, never a universal APK', () =>
   const out = applyAbiSplits(TEMPLATE);
   assert.match(
     out,
-    /android \{\n {4}\/\/ @generated oxy-abi-splits[^\n]*\n {4}splits \{\n {8}abi \{\n {12}reset\(\)\n {12}enable true\n {12}universalApk false\n {12}include\(\*oxyApkAbis\)\n {8}\}\n {4}\}\n/,
+    /android \{\n {4}\/\/ @generated oxy-abi-splits[^\n]*\n {4}splits \{\n {8}abi \{\n {12}reset\(\)\n {12}enable !oxyBuildsBundle\n {12}universalApk false\n {12}include\(\*oxyApkAbis\)\n {8}\}\n {4}\}\n/,
   );
   assert.match(out, /def oxyReleaseAbis = \['arm64-v8a', 'armeabi-v7a'\]/);
   // The ABIs are resolved before `android {`, at the top level of the script.
@@ -71,6 +71,15 @@ test('a build that compiles none of the release ABIs splits to the ABIs it compi
   assert.match(out, /findProperty\('reactNativeArchitectures'\)/);
   assert.match(out, /def oxyApkAbis = oxyReleaseAbis \?: oxyBuiltAbis/);
   assert.match(out, /\.findAll \{ oxyBuiltAbis\.contains\(it\) \}/);
+});
+
+test('the splits are off in a Gradle invocation that builds a bundle (AGP issue 402800800)', () => {
+  const out = applyAbiSplits(TEMPLATE);
+  assert.match(
+    out,
+    /def oxyBuildsBundle = gradle\.startParameter\.taskNames\.any \{ it\.tokenize\(':'\)\.last\(\)\.toLowerCase\(\)\.startsWith\('bundle'\) \}/,
+  );
+  assert.ok(out.indexOf('def oxyBuildsBundle') < out.indexOf('android {'));
 });
 
 test('applying it twice is harmless (the preset and withOxyUpdates both apply it)', async () => {

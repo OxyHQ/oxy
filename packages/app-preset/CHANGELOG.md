@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.1.1
+
+### Fixed
+
+- `withOxyAbiSplits` turns the ABI splits off in a Gradle invocation that builds an app bundle. With R8 resource shrinking (every Oxy release), AGP failed `:app:bundleRelease :app:assembleRelease` at `buildReleasePreBundle`: "Multiple shrunk-resources files found … Please disable building multiple APKs when building an Android app bundle" ([issuetracker 402800800](https://issuetracker.google.com/402800800)). Build the AAB and the APKs in two invocations, as Oxy's release workflow now does.
+
 ## 6.1.0
 
 ### Added
