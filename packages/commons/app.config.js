@@ -39,8 +39,9 @@ module.exports = {
     // native modules. 1.2.0 is the first Expo SDK 58 build; 1.3.0 links
     // expo-image-picker and expo-clipboard; 1.4.0 is the first binary that
     // verifies Oxy Updates signatures (the certificate is baked in), so no
-    // update is ever published for a runtime that would run it unverified.
-    version: '1.4.0',
+    // update is ever published for a runtime that would run it unverified;
+    // 1.5.0 carries the caller allow-list with every app on its own domain's id.
+    version: '1.5.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /

@@ -1,5 +1,13 @@
 # Changelog
 
+## [14.4.0] - 2026-11-05
+
+### Changed
+
+- The Android caller allow-list (`so.oxy.security.OxyCallerPolicy`, kept identical to Commons' identity host) names every Oxy app by its own product domain reversed. Six apps change id: Allo `you.allo.app` (was `com.allo.app`), Clarity `surf.clarity.app` (was `so.oxy.clarity`), Homiio `com.homiio.app` (was `com.homiio.android`), Nilo `so.nilo.app` (was `so.oxy.nilo`), Syra `fm.syra.app` (was `com.syra.app`) and Syra Studio `fm.syra.studio` (was `com.syra.studio`); the old ids are gone, so a binary still built under one is refused the shared device session. Each id keeps its `.dev` variant.
+- Added to the list, each with `.dev`, because each mounts `OxyProvider` and applies `withOxySharedPermissions`: Frame by Willo `sh.willo.frame`, Peable Orbit `to.peable.orbit` and Authenticator by Oxy `so.oxy.authenticator`.
+- The list is compiled into the native module: every app rebuilds its binary (not an OTA update) to pick it up.
+
 ## [14.3.8] - 2026-11-04
 
 ### Changed
