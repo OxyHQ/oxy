@@ -59,12 +59,13 @@ describe('the workload mint has its own budget', () => {
   it('gives both workload routes that limiter and neither the credential one', () => {
     const challenge = /router\.post\('\/service-token\/workload\/challenge',\s*(\w+)/.exec(source);
     const exchange = /router\.post\(\s*'\/service-token\/workload',\s*(\w+)/.exec(source);
-    const credential = /router\.post\('\/service-token',\s*(\w+)/.exec(source);
+    const credential = /router\.post\('\/service-token',([^\n]*)/.exec(source);
 
     expect(challenge?.[1]).toBe('workloadTokenLimiter');
     expect(exchange?.[1]).toBe('workloadTokenLimiter');
-    // The credential mint keeps its own limiter, now keyed on the credential it names.
-    expect(credential?.[1]).toBe('serviceTokenLimiter');
+    // The credential mint keeps its own limiters.
+    expect(credential?.[1]).toContain('serviceTokenLimiter');
+    expect(credential?.[1]).not.toContain('workloadTokenLimiter');
   });
 
   it('sizes the workload budget for a fleet rather than for a person typing', () => {

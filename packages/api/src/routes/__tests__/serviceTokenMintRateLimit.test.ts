@@ -1,6 +1,6 @@
 /**
- * The service-token mint is charged to the credential it names, and the shared
- * per-address budgets leave it alone.
+ * The service-token mint has budgets of its own, and the shared per-address
+ * budgets leave it alone.
  *
  * Every Oxy service mints from the cluster's one NAT address with no bearer yet,
  * so every per-address budget on the way — `rl:general`, `rl:auth` and the
@@ -13,7 +13,6 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 
 import { authRateLimiter, isServiceTokenMintPath, rateLimiter } from '../../middleware/security';
-import { serviceTokenMintRateLimitKey } from '../../utils/serviceRateLimitKey';
 
 function post(server: http.Server, path: string): Promise<http.IncomingHttpHeaders> {
   const { port } = server.address() as AddressInfo;
@@ -91,38 +90,5 @@ describe('the shared per-address limiters skip the mint', () => {
     expect(charged(headers)).toBe(true);
     // rl:auth answers last and is the tighter of the two, so its limit is the one reported.
     expect(headers['ratelimit-limit']).toBe('300');
-  });
-});
-
-describe('serviceTokenMintRateLimitKey', () => {
-  const requestFor = (apiKey: unknown, ip: string) =>
-    ({ body: { apiKey }, ip }) as unknown as Parameters<typeof serviceTokenMintRateLimitKey>[0];
-
-  it('gives two credentials behind one address two buckets', () => {
-    expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '10.0.0.1'))).not.toBe(
-      serviceTokenMintRateLimitKey(requestFor('oxy_dk_mention', '10.0.0.1')),
-    );
-  });
-
-  it('gives one credential one bucket from any address', () => {
-    expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '10.0.0.1'))).toBe(
-      serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '198.51.100.7')),
-    );
-  });
-
-  it('bounds the key whatever a caller sends: an oversized or malformed key is charged to its address', () => {
-    const address = serviceTokenMintRateLimitKey(requestFor(undefined, '10.0.0.1'));
-    expect(serviceTokenMintRateLimitKey(requestFor('x'.repeat(10_000), '10.0.0.1'))).toBe(address);
-    expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia\n*', '10.0.0.1'))).toBe(address);
-    expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '10.0.0.1'))).toBe(
-      'key:oxy_dk_alia',
-    );
-  });
-
-  it('falls back to the address when no key is presented', () => {
-    const missing = serviceTokenMintRateLimitKey(requestFor(undefined, '10.0.0.1'));
-    expect(missing.startsWith('addr:')).toBe(true);
-    expect(serviceTokenMintRateLimitKey(requestFor(42, '10.0.0.1'))).toBe(missing);
-    expect(serviceTokenMintRateLimitKey(requestFor(undefined, '10.0.0.2'))).not.toBe(missing);
   });
 });

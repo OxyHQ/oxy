@@ -32,9 +32,17 @@ jest.mock('../../middleware/auth', () => ({
   serviceAuthMiddleware: jest.fn(),
   rejectQueryToken: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-jest.mock('../../middleware/rateLimiter', () => ({
-  rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
-}));
+// Only the per-credential mint budget is real (in memory: no REDIS_URL); every
+// other limiter passes through.
+jest.mock('../../middleware/rateLimiter', () => {
+  const actual = jest.requireActual('../../middleware/rateLimiter');
+  return {
+    rateLimit: (options: { prefix: string }) =>
+      options.prefix === 'rl:auth:service-token:'
+        ? actual.rateLimit(options)
+        : (_req: unknown, _res: unknown, next: () => void) => next(),
+  };
+});
 jest.mock('../../services/session.service', () => ({
   __esModule: true,
   default: { createSession: jest.fn(), getAccessToken: jest.fn() },
@@ -313,6 +321,19 @@ describe('POST /auth/service-token — the secret and the credential type', () =
 
     expect(res.status).toBe(401);
     expect(res.body).toMatchObject({ message: 'Invalid credentials' });
+  });
+
+  it('charges the credential budget only for a verified secret', async () => {
+    const client = await serviceClient();
+
+    // The apiKey is public: wrong secrets must not spend the service's renewals.
+    for (let attempt = 0; attempt < 30; attempt++) {
+      expect((await post({ apiKey: client.apiKey, apiSecret: 'not-the-secret' })).status).toBe(401);
+    }
+    for (let mint = 0; mint < 30; mint++) {
+      expect((await post({ apiKey: client.apiKey, apiSecret: client.apiSecret })).status).toBe(200);
+    }
+    expect((await post({ apiKey: client.apiKey, apiSecret: client.apiSecret })).status).toBe(429);
   });
 
   it('rejects a credential that stores NO secret hash', async () => {
