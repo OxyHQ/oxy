@@ -100,6 +100,7 @@ export * from './followTargets';
 export * from './followRelationships';
 export * from './followApplicationOverrides';
 export * from './followEvents';
+export * from './githubTrustedPublishers';
 export * from './identityBackups';
 export * from './identityProofChallenges';
 export * from './emailVerifications';

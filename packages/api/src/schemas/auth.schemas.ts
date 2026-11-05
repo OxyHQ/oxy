@@ -204,6 +204,17 @@ export const workloadServiceTokenSchema = z
   })
   .strict();
 
+// POST /auth/service-token/github-actions
+// GitHub trusted publishing (ADR 0057): a GitHub Actions job presents the OIDC
+// token GitHub issued it and the public client id of the application it
+// publishes to. No secret travels; the token's own claims are the proof.
+export const githubActionsServiceTokenSchema = z
+  .object({
+    clientId: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(256)),
+    token: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(16_384)),
+  })
+  .strict();
+
 // POST /auth/oauth/authorize
 // Issued from the auth UI after the user clicks "Allow". Requires the user
 // to be authenticated via Bearer token; the client passes the OAuth client

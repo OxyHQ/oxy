@@ -1,29 +1,44 @@
 # Oxy Updates — OTA publish workflow (template).
 #
-# Copy this into an app repo as `.github/workflows/publish-update.yml`. It runs
-# `expo export` and publishes the JS bundle + assets to the Oxy Updates service:
-#   - push to `main`  → channel `production`
+# Copy this into an app repo as `.github/workflows/publish-update.yml`. On every
+# push to `main` it runs `expo export` and publishes the JS bundle + assets to
+# the Oxy Updates service, channel `production`.
+#
+# No secret. Authentication is GitHub trusted publishing (oxy ADR 0057): the job
+# asks GitHub for an OIDC token addressed to https://api.oxy.so, and oxy-api
+# exchanges it for a five-minute `updates:publish` token of this app — only if
+# the app registered this repository, ref and workflow as a trusted publisher.
 #
 # Prerequisites:
-#   - Repo secrets OXY_SHIP_CLIENT_ID / OXY_SHIP_SECRET: a `service`-type
-#     ApplicationCredential for THIS app, granted the `updates:publish` scope.
-#     This is a DIFFERENT credential from the app's public `oxy_dk_` client id.
+#   - A trusted publisher on the app for this repository (`refs/heads/main`,
+#     workflow `.github/workflows/publish-update.yml`). An Oxy app declares it
+#     in oxy's `seedOxyApplicationsSpecs.ts` (`trustedPublishers`), applied by
+#     the seed; a third-party app registers it with
+#     `POST https://api.oxy.so/applications/<appId>/trusted-publishers`. See the
+#     `@oxy.so/ship` README.
+#   - OXY_CLIENT_ID below: the app's PUBLIC client id (`oxy_dk_…`), the same one
+#     `withOxyUpdates` puts in the manifest URL. It is not a secret.
+#   - `@oxy.so/ship` as a devDependency of the app, so the CLI that runs here is
+#     the version pinned by the app's lockfile. `--no-install` makes a missing
+#     dependency fail instead of fetching whatever npm serves under that name.
 #   - The app embeds the Oxy Updates code-signing certificate and points
 #     expo-updates at https://api.oxy.so/updates/v1/apps/<clientId>/manifest.
 #     Both come from `@oxy.so/app-preset/plugin/withOxyUpdates`; see that
 #     package's README, section "Oxy Updates (OTA)".
-#   - oxy-api has UPDATES_CODE_SIGNING_PRIVATE_KEY configured (SSM). Without it
-#     the publish is refused and every manifest request answers HTTP 503:
-#     nothing is ever published or served unsigned.
-#   - `bunx oxy-ship` (from `@oxy.so/ship` on npm, or a workspace checkout).
 #
 # This publishes ONLY the OTA update. It does NOT build native binaries.
+# It never runs for pull requests: the API refuses any event but `push` and
+# `workflow_dispatch`, and any ref but the registered one.
 
 name: Publish OTA update
 
 on:
   push:
     branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
 
 concurrency:
   group: oxy-updates-${{ github.ref }}
@@ -32,9 +47,13 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      OXY_CLIENT_ID: oxy_dk_REPLACE_WITH_THIS_APP_CLIENT_ID
     steps:
       - name: Checkout app
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -43,19 +62,15 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0
-      - name: Resolve channel
-        id: channel
-        run: echo "name=production" >> "$GITHUB_OUTPUT"
 
       - name: Run oxy-ship publish
         env:
-          OXY_SHIP_CLIENT_ID: ${{ secrets.OXY_SHIP_CLIENT_ID }}
-          OXY_SHIP_SECRET: ${{ secrets.OXY_SHIP_SECRET }}
+          OXY_SHIP_CLIENT_ID: ${{ env.OXY_CLIENT_ID }}
           OXY_API_URL: https://api.oxy.so
           SHIP_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          bunx oxy-ship publish \
-            --channel "${{ steps.channel.outputs.name }}" \
+          bunx --no-install oxy-ship publish \
+            --channel production \
             --platform all \
-            --git-commit "${{ github.sha }}" \
+            --git-commit "$GITHUB_SHA" \
             --message "$SHIP_MESSAGE"

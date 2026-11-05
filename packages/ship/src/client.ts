@@ -25,7 +25,7 @@ export type FetchFn = (
 
 export interface ShipClientOptions {
   baseURL: string;
-  /** Mints/refreshes a service JWT (typically `oxyServices.getServiceToken`). */
+  /** Mints/refreshes the service JWT (the GitHub OIDC exchange, `githubOidc.ts`). */
   getToken: () => Promise<string>;
   /** Injectable fetch (defaults to global `fetch`). */
   fetchFn?: FetchFn;

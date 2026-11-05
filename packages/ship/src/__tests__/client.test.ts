@@ -67,7 +67,7 @@ describe('ShipClient', () => {
     expect(calls[0].method).toBe('POST');
     expect(calls[0].headers.authorization).toBe(`Bearer ${TOKEN}`);
     expect(calls[0].json?.applicationId).toBe('app123');
-    expect((calls[0].json?.assets as unknown[]).length).toBe(1);
+    expect((calls[0].json?.assets as unknown[] | undefined)?.length).toBe(1);
   });
 
   test('createUpdate returns the update from { data: { update } }', async () => {

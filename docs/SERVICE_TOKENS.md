@@ -9,6 +9,7 @@ boundary; an official application name never promotes an external credential.
 |---|---|---|
 | Own workload | Shared infrastructure proof, live binding and protocol-2 mint | `first_party`, no OAuth scope list |
 | External service credential | Client id + secret exchanged at `/auth/service-token` | `external`, live credential/application scope ceilings |
+| GitHub trusted publisher (OTA CI) | GitHub Actions OIDC token exchanged at `/auth/service-token/github-actions` ([ADR 0057](adr/0057-github-trusted-publishing-for-ota-updates.md)) | `external`, exactly `updates:publish`, `credentialId: tp_…`, publisher re-read live |
 | External machine key or OAuth session | Its documented key/session API | Its existing scopes and revocable grants; not a workload |
 
 ## Own service clients
@@ -119,6 +120,7 @@ from a first-party workload or skip resource checks because it is first-party.
 | `packages/api/src/routes/auth.ts` | External credential exchange and own workload mint |
 | `packages/api/src/services/workloadIdentity.service.ts` | Infrastructure binding and explicit environment |
 | `packages/api/src/services/agencyServicePrincipal.service.ts` | Live workload and external credential authority |
+| `packages/api/src/services/githubTrustedPublishing.service.ts` | GitHub trusted-publisher exchange and live `tp_` authority |
 | `packages/api/src/services/serviceActingAs.service.ts` | External delegation grants and revocation |
 | `packages/api/src/services/firstPartyTaskAuthority.service.ts` | Own durable requester/task authority |
 | `packages/core/src/server/OxyServer.ts` | Shared caller transport and authority clients |

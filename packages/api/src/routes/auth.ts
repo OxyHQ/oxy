@@ -46,6 +46,8 @@ import { isTrustedApplication } from '../utils/trustedApplication';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { serviceTokenMintRateLimitKey } from '../utils/serviceRateLimitKey';
+import { hashedIpKey } from '../utils/ipKey';
+import { exchangeGithubActionsToken } from '../services/githubTrustedPublishing.service';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { ApiError, BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError } from '../utils/error';
 import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from '../services/serviceTokenMint.service';
@@ -111,6 +113,7 @@ import {
   authSessionClaimSchema,
   serviceTokenSchema,
   workloadServiceTokenSchema,
+  githubActionsServiceTokenSchema,
   oauthAuthorizeSchema,
   oauthTokenSchema,
   oauthClientParams,
@@ -449,7 +452,7 @@ router.post('/verify', verifyLimiter, validate({ body: verifyChallengeSchema }),
  *                   type: boolean
  *                   example: true
  */
-router.get('/validate', asyncHandler(async (req, res) => {
+router.get('/validate', asyncHandler(async (_req, res) => {
   sendSuccess(res, { valid: true });
 }));
 
@@ -3942,6 +3945,71 @@ router.post(
     } catch (error: unknown) {
       throw asWorkloadHttpError(error);
     }
+  }),
+);
+
+/**
+ * GitHub trusted publishing's budget (ADR 0057), per hashed address. A publish
+ * needs one exchange per five-minute token, and GitHub-hosted runners egress
+ * from a shared pool, so this is a ceiling on floods rather than a per-job
+ * allowance. Nothing on this path is guessable: GitHub's signature is the proof.
+ */
+const githubActionsTokenLimiter = rateLimit({
+  prefix: 'rl:auth:service-token-github-actions:',
+  windowMs: 5 * 60 * 1000,
+  max: process.env.NODE_ENV === 'development' ? 1_000 : 120,
+  keyGenerator: hashedIpKey,
+});
+
+/**
+ * @openapi
+ * /auth/service-token/github-actions:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *     summary: Exchange a GitHub Actions OIDC token for an OTA publish token
+ *     description: >
+ *       GitHub trusted publishing (ADR 0057). A GitHub Actions job presents the
+ *       OIDC token GitHub issued it (audience: this API's origin,
+ *       `https://api.oxy.so`) and the public client id of the application it
+ *       publishes. When the token's repository, repository id, ref and
+ *       (optionally) workflow match one of that application's trusted
+ *       publishers, and the event is `push` or `workflow_dispatch`, the API
+ *       returns a five-minute service token carrying exactly `updates:publish`
+ *       for that application. No secret is involved.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [clientId, token]
+ *             properties:
+ *               clientId:
+ *                 type: string
+ *                 description: The application's public client id (oxy_dk_…)
+ *               token:
+ *                 type: string
+ *                 description: The GitHub Actions OIDC JWT
+ *     responses:
+ *       200:
+ *         description: Service token issued (same shape as /auth/service-token)
+ *       400:
+ *         description: Malformed request
+ *       401:
+ *         description: The GitHub token is invalid, or the client id is unknown
+ *       403:
+ *         description: Event not allowed, owner supervised, or no matching trusted publisher
+ *       429:
+ *         description: Rate limit exceeded
+ */
+router.post(
+  '/service-token/github-actions',
+  githubActionsTokenLimiter,
+  validate({ body: githubActionsServiceTokenSchema }),
+  asyncHandler(async (req, res) => {
+    const { clientId, token } = req.body as { clientId: string; token: string };
+    sendSuccess(res, await exchangeGithubActionsToken({ clientId, token }));
   }),
 );
 

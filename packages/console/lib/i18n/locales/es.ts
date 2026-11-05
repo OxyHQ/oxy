@@ -980,7 +980,7 @@ const es: LocaleDict = {
     loadFailed: 'No se pudieron cargar los canales de actualización.',
     empty: {
       title: 'Todavía no hay actualizaciones publicadas',
-      body: 'Los canales se crean la primera vez que publicas. Desde el directorio de tu app, ejecuta `oxy-ship publish --channel production` para enviar tu primera actualización por aire.',
+      body: 'Los canales se crean la primera vez que publicas. Registra tu repositorio de GitHub como publicador de confianza de esta app y añade el workflow de `oxy-ship` de `@oxy.so/ship` (`templates/publish-update.yml`): cada push a `main` envía una actualización por aire, sin ningún secreto que guardar.',
     },
     heads_zero: '{{count}} cabeceras',
     heads_one: '{{count}} cabecera',
