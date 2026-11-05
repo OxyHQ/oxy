@@ -66,6 +66,7 @@ import { OxyServices, type OxyConfig } from '../OxyServices';
 import { HttpService } from '../HttpService';
 import { createAuthenticatedFetch } from '../authenticatedFetch';
 import { awaitRequestSignal } from '../utils/requestSignal';
+import { isOfficialWebOrigin } from '../utils/officialOrigins';
 import { createCancelledError, extractErrorStatus } from '../utils/errorUtils';
 import type { HttpMethod, ServiceLane } from '../client/context';
 import type { RequestOptions, ResponsePayload } from '../HttpService';
@@ -408,6 +409,34 @@ export class OxyServer extends OxyServices {
       applicationAccessFor: (req, applicationId, options) =>
         this.applicationAccessFor(req, applicationId, options),
     });
+  }
+
+  /**
+   * Whether `url` names Oxy's own API — the first-party service this server is
+   * configured for (`baseURL`), when that origin is an official Oxy origin.
+   *
+   * For a URL a caller chose (a customer webhook endpoint, say) that may name
+   * Oxy itself: `true` sends it through this server
+   * (`createServiceClient({ baseURL: oxy.baseURL, audience: 'oxy-api' }).fetch`),
+   * `false` through `safeFetch`. Inside the VPC `api.oxy.so` resolves to a
+   * private address, which `safeFetch` refuses by design.
+   *
+   * The comparison is by exact origin (scheme, host and port): a look-alike
+   * (`api.oxy.so.evil.com`), another official host, a credential-carrying URL
+   * or anything unparseable is `false`, and so goes on to `safeFetch`'s
+   * checks. Never decide first-party by hostname suffix or branding.
+   */
+  isFirstPartyServiceUrl(url: string | URL): boolean {
+    let target: URL;
+    try {
+      target = new URL(String(url));
+    } catch {
+      return false;
+    }
+    if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password)
+      return false;
+    const own = new URL(this.baseURL).origin;
+    return target.origin === own && isOfficialWebOrigin(own);
   }
 
   /** A product SDK transport authenticated only by this process's workload. */
