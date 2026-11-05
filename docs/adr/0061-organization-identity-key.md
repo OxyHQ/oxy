@@ -87,7 +87,7 @@ written for it, and every key sign-in (`POST /auth/verify`, the signed approval
 of an auth session, `/auth/rotate/*`, `/auth/link`) refuses a non-personal
 account. An organization is still reached only through a person's membership
 (ADR 0001: a principal is a human); holding the organization's phrase gives
-spending power over its FairCoin and nothing inside Oxy.
+spending power over its FairCoin and no way into Oxy.
 
 ### D3 — Owners and admins, by role
 
