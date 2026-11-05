@@ -1,5 +1,30 @@
 # Changelog: `@oxy.so/db`
 
+## 1.5.0
+
+### The migration gate checks the folder, and a branch's migrations rebase in one command
+
+Two branches cut from the same base both generate migration N. When the first
+lands, the second's number collides, its journal `when` is older than main's (so
+every database that applied main's skips it in silence) and its snapshot diffs
+against a schema that no longer exists. That was caught at deploy, by
+`planLedgerRun`, after the image was built — or not at all when only the
+snapshot was wrong.
+
+- **`oxy-db-check-migration-locks` now also runs `migrationJournalProblems`.**
+  Every migration after the app's `--after` baseline must have the next number
+  and `idx`, a `when` newer than the entry before it, its `.sql` file, and — when
+  it has a snapshot — one whose `prevId` is the newest snapshot before it; a
+  `.sql` file the journal does not list fails too. Apps get it by upgrading; no
+  new CI step. Every Oxy app's folder on main passes at its own baseline.
+- **New bin `oxy-db-rebase-migrations`** (`rebaseMigrations`): after
+  `git merge origin/main`, it reads the branch's migrations from the branch ref,
+  resets the folder to `--onto`'s, writes them back under the next numbers with
+  newer `when`s and chained snapshots, and regenerates the last snapshot with
+  `--generate` (default `npx --no-install drizzle-kit generate`), keeping the
+  hand-written SQL and reporting whether drizzle-kit's matches it (exit 1 when it
+  does not). The result is staged, not committed.
+
 ## 1.4.0
 
 ### Every postgres.js client gets a statement timeout and a query deadline
