@@ -86,6 +86,7 @@ challenge, plus a fresh email code for `link_commons`):
 | A root is never unlinked | No route removes a root |
 | A root is replaced only by rotation | `POST /auth/rotate/*` (old-root + new-root proofs); rotation deletes the old root's backup |
 | The DID of a personal root is controlled by the person | `buildDidDocument` → `controller: [userDid]` |
+| An organization's key is created and replaced only by its owners and admins, and signs nobody in | `services/organizationIdentityKey.service.ts`; every key sign-in refuses a non-personal account — [Organization identity keys](organization-keys.md) (ADR 0061) |
 | `auth.oxy.so` runs no third-party analytics | No PostHog dependency or wiring; Pages headers in `sensitive` mode strip the Cloudflare beacon; `packages/auth/lib/__tests__/sensitive-origin.test.ts` |
 
 ## Routes

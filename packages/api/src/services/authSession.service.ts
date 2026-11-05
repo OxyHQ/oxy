@@ -525,12 +525,15 @@ export async function authorizeSessionWithSignedChallenge(
   // 3. The session user is the VERIFIED signer. `lower(btrim(public_key))` is
   //    the expression the unique index is built on — a plain equality here would
   //    be correct-looking, case-sensitive, and would not use that index.
+  //    Only a PERSONAL account signs in with its key: an organization's key
+  //    (ADR 0061 D2) is its DID `#key-1`, never a way in, and is answered like
+  //    a key nobody holds.
   const [user] = await db
-    .select({ id: users.id, username: users.username })
+    .select({ id: users.id, username: users.username, kind: users.kind })
     .from(users)
     .where(sql`lower(btrim(${users.publicKey})) = lower(btrim(${publicKey}))`)
     .limit(1);
-  if (!user) {
+  if (!user || user.kind !== 'personal') {
     return { ok: false, status: 404, message: 'User not found' };
   }
   const userId = user.id;

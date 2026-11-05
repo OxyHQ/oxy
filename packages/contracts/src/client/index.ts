@@ -80,6 +80,24 @@ export {
   executeAgentKeyOperationCheck,
 } from './agentKeys';
 
+export {
+  ORGANIZATION_KEY_ERROR_CODES,
+  ORGANIZATION_KEY_OPERATIONS,
+  ORGANIZATION_KEY_PROOF_ACTIONS,
+  ORGANIZATION_KEY_PROOF_ACTION_VALUES,
+  organizationIdentityKeyStateCheck,
+  organizationKeyApplyRequestCheck,
+  organizationKeyChallengeCheck,
+  organizationKeyChallengeRequestCheck,
+  organizationKeyPayload,
+  organizationKeyProofClaims,
+} from './organizationIdentityKey';
+export type {
+  OrganizationKeyErrorCode,
+  OrganizationKeyOperation,
+  OrganizationKeyProofAction,
+} from './organizationIdentityKey';
+
 export { isLoopbackOrigin } from '../capabilityBindings';
 
 export { loginResultCheck } from './deviceBoot';

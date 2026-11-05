@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Added (an organization has its own identity key)
+
+Organization identity keys (ADR 0061). A claimed, active organization can have a
+secp256k1 key of its own, published as its DID `#key-1`: the key Peable derives
+its FairCoin receive addresses from. Its owners and admins (effective role, ADR
+0056) read it with `GET /accounts/:id/identity-key` and create or replace it with
+`POST /accounts/:id/identity-key/challenge` and `POST /accounts/:id/identity-key`,
+signed by their own root and the new key (and the current key when they hold it;
+replacing without it is allowed and recorded). The key, its history
+(`organization_identity_keys`, migration `0232_organization_identity_keys`), the
+challenge burn and a security activity commit together; a key an organization
+ever had is never any account's again. The key signs nobody in: `POST
+/auth/challenge`, `/auth/verify`, the signed approval of an auth session and
+`/auth/rotate/*` now refuse a non-personal account. `docs/identity/organization-keys.md`.
+
 ### Added (OTA updates publish from GitHub Actions with no stored secret)
 
 GitHub trusted publishing (ADR 0057). An application trusts the GitHub

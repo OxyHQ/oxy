@@ -373,6 +373,40 @@ export function resolveEffectiveMembership<T extends MembershipLike>(
   return null;
 }
 
+/**
+ * The caller's effective membership over `accountId` inside `tx`, with the
+ * ancestor path read `FOR SHARE` and the caller's membership rows `FOR UPDATE`,
+ * so a governance write cannot interleave a role change or a re-parenting.
+ * Shared by the governance services (agent keys, organization keys); a plain
+ * read uses {@link resolveEffectiveMembership} over rows it already has.
+ */
+export async function readLockedEffectiveMembership(
+  tx: DatabaseOrTransaction,
+  actorId: string,
+  accountId: string,
+) {
+  const ancestors = await tx
+    .select({ ancestorId: userAncestors.ancestorId })
+    .from(userAncestors)
+    .where(eq(userAncestors.userId, accountId))
+    .orderBy(asc(userAncestors.depth))
+    .for('share');
+  const path = ancestors.map((a) => a.ancestorId);
+  const members = await tx
+    .select()
+    .from(accountMembers)
+    .where(
+      and(
+        eq(accountMembers.memberUserId, actorId),
+        eq(accountMembers.status, 'active'),
+        inArray(accountMembers.accountId, [accountId, ...path]),
+      ),
+    )
+    .orderBy(asc(accountMembers.id))
+    .for('update');
+  return resolveEffectiveMembership(members, accountId, path);
+}
+
 // ===========================================================================
 // Internal reads
 // ===========================================================================

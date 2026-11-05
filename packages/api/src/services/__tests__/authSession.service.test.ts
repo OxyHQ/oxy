@@ -552,6 +552,21 @@ describe('authorizeSessionWithSignedChallenge', () => {
     ).toMatchObject({ ok: true, userId });
   });
 
+  it("refuses an organization's key: it is its DID #key-1, never a way in (ADR 0061 D2)", async () => {
+    const publicKey = `pk-${randomUUID()}`;
+    await account({ kind: 'organization', publicKey });
+    const value = await challenge(publicKey);
+    const { id, authorizeCode } = await authSession();
+
+    expect(
+      await authorizeSessionWithSignedChallenge(
+        input({ authorizeCode, publicKey, challenge: value }),
+      ),
+    ).toEqual({ ok: false, status: 404, message: 'User not found' });
+    expect((await stored(id)).status).toBe('pending');
+    expect(mockCreateSession).not.toHaveBeenCalled();
+  });
+
   it('rejects an invalid signature and leaves the challenge SPENDABLE', async () => {
     const { publicKey, challenge: value } = await signer();
     const { id, authorizeCode } = await authSession();

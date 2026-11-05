@@ -480,6 +480,107 @@ const PAIRS: Pair[] = [
     samples: [{ methodId: 'm', revokedMethodIds: ['a', 'b'] }],
   },
   {
+    name: 'organizationKeyChallengeRequest',
+    check: client.organizationKeyChallengeRequestCheck,
+    schema: contracts.organizationKeyChallengeRequestSchema,
+    samples: [
+      { operation: 'create', publicKey: ' 04AB ' },
+      {
+        operation: 'replace',
+        publicKey:
+          '04abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab',
+      },
+    ],
+  },
+  {
+    name: 'organizationKeyChallenge',
+    check: client.organizationKeyChallengeCheck,
+    schema: contracts.organizationKeyChallengeSchema,
+    samples: [
+      {
+        operation: 'create',
+        action: 'organization_key_create',
+        accountId: 'org-1',
+        actorId: 'u-1',
+        actorPublicKey:
+          '04abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab',
+        publicKey: '04cd',
+        previousPublicKey: null,
+        payloadDigest: HEX64,
+        audience: 'oxy-api/identity',
+        challenge: HEX64,
+        expiresAt: 1_800_000_000_000,
+      },
+      {
+        operation: 'replace',
+        action: 'organization_key_replace',
+        accountId: 'org-1',
+        actorId: 'u-1',
+        actorPublicKey: '04ab',
+        publicKey: '04cd',
+        previousPublicKey: '04ef',
+        payloadDigest: HEX64,
+        audience: 'oxy-api/identity',
+        challenge: HEX64,
+        expiresAt: 5,
+      },
+    ],
+  },
+  {
+    name: 'organizationKeyApplyRequest',
+    check: client.organizationKeyApplyRequestCheck,
+    schema: contracts.organizationKeyApplyRequestSchema,
+    samples: [
+      {
+        operation: 'create',
+        publicKey: ' 04ab ',
+        challenge: HEX64,
+        expiresAt: 5,
+        actorSignature: ' 3044ab ',
+        keySignature: '3044cd',
+      },
+      {
+        operation: 'replace',
+        publicKey: '04ab',
+        challenge: HEX64,
+        expiresAt: 5,
+        actorSignature: '30',
+        keySignature: '31',
+        previousKeySignature: '32',
+      },
+    ],
+  },
+  {
+    name: 'organizationIdentityKeyState',
+    check: client.organizationIdentityKeyStateCheck,
+    schema: contracts.organizationIdentityKeyStateSchema,
+    samples: [
+      { accountId: 'org-1', publicKey: null, keys: [] },
+      {
+        accountId: 'org-1',
+        publicKey: '04cd',
+        keys: [
+          {
+            publicKey: '04ab',
+            method: 'create',
+            linkedByUserId: 'u-1',
+            previousKeyProven: false,
+            linkedAt: ISO,
+            retiredAt: ISO_LATER,
+          },
+          {
+            publicKey: '04cd',
+            method: 'replace',
+            linkedByUserId: null,
+            previousKeyProven: true,
+            linkedAt: ISO_LATER,
+            retiredAt: null,
+          },
+        ],
+      },
+    ],
+  },
+  {
     name: 'agentKeyListResponse',
     check: client.agentKeyListResponseCheck,
     schema: contracts.agentKeyListResponseSchema,

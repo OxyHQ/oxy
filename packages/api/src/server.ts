@@ -40,6 +40,7 @@ import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
 import agentAuthRoutes from './routes/agentAuth';
 import agentKeysRoutes from './routes/agentKeys';
+import organizationIdentityKeyRoutes from './routes/organizationIdentityKey';
 import accountSecurityRoutes from './routes/accountSecurity';
 import resourceIntrospectionRoutes from './routes/resourceIntrospection';
 import productCatalogueRoutes from './routes/productCatalogue';
@@ -952,6 +953,7 @@ app.use('/account-events', accountEventRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
 app.use('/accounts', agentKeysRoutes);
+app.use('/accounts', organizationIdentityKeyRoutes);
 app.use('/accounts', accountRoutes);
 // Oxy Family membership (organizer + member personal accounts). Per-route
 // rate limiters (rl:families:*) live inside the router, same as `/accounts`.
