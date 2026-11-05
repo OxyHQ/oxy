@@ -26,10 +26,18 @@ import android.util.Log
  *
  * | method              | extras               | answer                                   |
  * |---------------------|----------------------|------------------------------------------|
- * | `describe`          | –                    | `v` (2), `publicKey`                     |
+ * | `describe`          | `accountId`?         | `v` (3), `publicKey`, `accountId`?       |
  * | `proveIdentity`     | `challenge` (64 hex) | `publicKey`, `signature`, `timestamp`    |
- * | `deriveScopedSeed`  | `info`               | `seed` (32 bytes hex)                    |
- * | `signSocialReceive` | `index`, `digest`    | `signature` (low-S DER), `publicKey`     |
+ * | `deriveScopedSeed`  | `info`, `accountId`? | `seed` (32 bytes hex), `accountId`?      |
+ * | `signSocialReceive` | `index`, `digest`, `accountId`? | `signature` (low-S DER), `publicKey`, `accountId`? |
+ *
+ * `describe`, `deriveScopedSeed` and `signSocialReceive` also take an
+ * `accountId` extra (ADR 0061 D6): the same method over that ORGANIZATION's
+ * key, which Commons holds beside the personal one. Its answer echoes
+ * `accountId`, so a caller can tell it from a personal answer (a Commons before
+ * protocol 3 ignores the extra and answers for the person, without the echo).
+ * An organization Commons holds no key for answers `null`, never the personal
+ * key. `proveIdentity` is personal only: an organization key signs nobody in.
  *
  * `proveIdentity` builds the whole message itself
  * (`auth:${publicKey}:${challenge}:${timestamp}`, the one `POST /auth/verify`
@@ -46,8 +54,14 @@ class OxyIdentityHostProvider : ContentProvider() {
     val ctx = context ?: return null
     return try {
       val caller = OxyCallerPolicy.resolveCaller(ctx, method) ?: return null
-      val (privateKey, publicKey) = IdentitySignerStore.read(ctx) ?: return null
-      when (method) {
+      val accountId = extras?.getString(KEY_ACCOUNT_ID)
+      if (accountId != null && method == METHOD_PROVE_IDENTITY) return null
+      if (accountId != null && !IdentityCrypto.isOrganizationAccountId(accountId)) return null
+      val (privateKey, publicKey) = (
+        if (accountId == null) IdentitySignerStore.read(ctx)
+        else IdentitySignerStore.readOrganization(ctx, accountId)
+      ) ?: return null
+      val answer = when (method) {
         METHOD_DESCRIBE -> {
           if (!OxyCallerPolicy.mayDescribe(caller)) return refuse(caller, method)
           Bundle().apply {
@@ -84,6 +98,8 @@ class OxyIdentityHostProvider : ContentProvider() {
         }
         else -> null
       }
+      if (accountId != null) answer?.putString(KEY_ACCOUNT_ID, accountId)
+      answer
     } catch (error: Exception) {
       // Class name only: the message of a crypto failure may echo its input.
       Log.w(TAG, "$method failed: ${error.javaClass.simpleName}")
@@ -119,7 +135,8 @@ class OxyIdentityHostProvider : ContentProvider() {
 
   companion object {
     private const val TAG = "OxyIdentityHost"
-    const val PROTOCOL_VERSION = 2
+    /** 3: the `accountId` extra (organization keys, ADR 0061 D6). */
+    const val PROTOCOL_VERSION = 3
 
     const val METHOD_DESCRIBE = "describe"
     const val METHOD_PROVE_IDENTITY = "proveIdentity"
@@ -135,5 +152,6 @@ class OxyIdentityHostProvider : ContentProvider() {
     const val KEY_SEED = "seed"
     const val KEY_INDEX = "index"
     const val KEY_DIGEST = "digest"
+    const val KEY_ACCOUNT_ID = "accountId"
   }
 }

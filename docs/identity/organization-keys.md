@@ -7,7 +7,9 @@
 > Code: `packages/api/src/services/organizationIdentityKey.service.ts` (the one
 > writer), `routes/organizationIdentityKey.ts`, `db/schema/organizationIdentityKeys.ts`
 > · contracts `packages/contracts/src/organizationIdentityKey.ts` · SDK
-> `oxy.accounts.identityKey` (`packages/core/src/api/accounts.ts`).
+> `oxy.accounts.identityKey` (`packages/core/src/api/accounts.ts`) · device
+> `packages/core/src/crypto/organizationKeys.ts` · Commons
+> `app/(tabs)/(settings)/organization-wallets/`.
 >
 > Related: [Root holders, enrollment and recovery](holders-and-recovery.md) ·
 > [Organization directory](organization-directory.md) · Peable ADR 0002.
@@ -101,6 +103,45 @@ await oxy.accounts.identityKey.link(orgId, {
 `requestChallenge` and `apply` are the two halves of `link`, for a signer that is
 not `KeyManager`.
 
+## On the device
+
+The key lives in Commons, beside the person's own root (ADR 0061 D6), from
+`@oxy.so/core/crypto` (`crypto/organizationKeys.ts`):
+
+| Function | Who | What |
+|---|---|---|
+| `generateOrganizationKey()` | Commons | a fresh 24-word phrase and its `seed[0:32]` pair; stores nothing |
+| `organizationKeyFromPhrase(phrase)` | Commons | the pair a 24-word phrase derives; stores nothing |
+| `storeOrganizationKey(accountId, { privateKey, publicKey, mnemonic? })` | Commons | keep it: iOS keychain group `group.so.oxy.shared`; Android Commons' own slot plus the identity host's signer store |
+| `getOrganizationPublicKey(accountId)` | any Oxy app | the key this device can reach, or `null` (Android outside Commons: Commons' identity host, `describe` with `accountId`) |
+| `getOrganizationPrivateKey(accountId)` | Commons, iOS group | for signing in the app; `null` on Android outside Commons |
+| `getOrganizationRecoveryPhrase(accountId)`, `listOrganizationKeys()`, `deleteOrganizationKey(accountId)` | Commons | |
+| `KeyManager.deriveScopedSeed(info, { accountId })`, `KeyManager.signSocialReceive(index, digest, { accountId })` | the wallet | the organization's derivations, exactly as the personal ones; `null` when this device cannot reach that organization's key, never the personal key instead |
+
+On Android the identity host answers an organization only when the request
+carries `accountId` and only when its answer echoes it, so an older Commons that
+ignores the extra can never hand back the personal key for an organization. It
+refuses `proveIdentity` for an organization: the key signs nobody in.
+
+## In Commons
+
+Settings → **Organizations** → **Organization wallets** lists every organization
+the person owns or administers, each with where its wallet stands:
+
+- **No wallet yet** → the organization's screen says "Set up the organization's
+  Peable wallet" → **Set up the wallet** → reveal and write down the 24 words →
+  tick "I wrote down the 24 words…" → **Continue** → **Create the organization's
+  key** → the device's biometric or passcode. The key is linked first and kept on
+  the phone only after Oxy took it.
+- **Wallet set up on another phone** → **Add the key you were given** → type the
+  24 words the person who set it up gave you → **Add the key**. Commons checks the
+  phrase derives the organization's current `#key-1` and sends nothing.
+- **Wallet key on this phone** → **Show the recovery phrase** (to hand it to
+  another owner or admin, in person) or **Replace the key**.
+- **Replace the key** (also from "another phone" and "old key") → a new phrase →
+  "Move the funds first" and its checkbox → **Replace the organization's key**.
+  The current key signs too when this phone holds it.
+
 ## Replacing a key, and the money
 
 Replacing the key does not move funds (Peable ADR 0002): addresses already
@@ -109,9 +150,11 @@ a replaced key are spendable only with that key. So:
 
 - when a holder leaves the organization, an owner or admin replaces the key;
 - before a voluntary replacement, the holder moves the funds while the key is held;
-- a wallet keeps a replaced key while its addresses hold coins, compares the
-  device's key with the DID's `#key-1` and stops offering to receive on a mismatch,
-  and reads `keys` to know which keys were the organization's.
+- there is no second address tree: after a replacement Commons holds only the
+  new key, and the replaced key's coins are spent with its phrase;
+- a wallet compares the device's key with the DID's `#key-1` and stops offering
+  to receive on a mismatch, and reads `keys` to know which keys were the
+  organization's.
 
 ## Not verifiable from source
 

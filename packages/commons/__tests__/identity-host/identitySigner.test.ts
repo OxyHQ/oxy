@@ -45,6 +45,41 @@ describe('createIdentitySignerStore', () => {
     await expect(store?.read()).resolves.toBeNull();
   });
 
+  it('moves organization pairs through the native module, by account id', async () => {
+    const orgPairs = new Map<string, { privateKey: string; publicKey: string }>();
+    requireOptional.mockReturnValue({
+      ...fakeNative(),
+      readOrganization: jest.fn(async (accountId: string) => orgPairs.get(accountId) ?? null),
+      writeOrganization: jest.fn(
+        async (accountId: string, privateKey: string, publicKey: string) => {
+          orgPairs.set(accountId, { privateKey, publicKey });
+          return true;
+        },
+      ),
+      clearOrganization: jest.fn(async (accountId: string) => {
+        orgPairs.delete(accountId);
+      }),
+    });
+    const store = createIdentitySignerStore();
+    const org = '0123456789abcdef01234567';
+    await expect(store?.writeOrganization?.(org, 'cc', '04dd')).resolves.toBe(true);
+    await expect(store?.readOrganization?.(org)).resolves.toEqual({
+      privateKey: 'cc',
+      publicKey: '04dd',
+    });
+    // The personal pair is a different entry.
+    await expect(store?.read()).resolves.toBeNull();
+    await store?.clearOrganization?.(org);
+    await expect(store?.readOrganization?.(org)).resolves.toBeNull();
+  });
+
+  it('offers no organization methods on a binary built before them', () => {
+    requireOptional.mockReturnValue(fakeNative());
+    const store = createIdentitySignerStore();
+    expect(store?.readOrganization).toBeUndefined();
+    expect(store?.writeOrganization).toBeUndefined();
+  });
+
   it('reads a malformed native answer as empty', async () => {
     requireOptional.mockReturnValue({
       ...fakeNative(),

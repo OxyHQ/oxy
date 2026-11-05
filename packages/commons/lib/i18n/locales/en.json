@@ -1950,5 +1950,88 @@
     "title": "Sign-in requests",
     "on": "On: sign-in requests reach this phone.",
     "off": "Off: approve sign-ins by scanning their QR code."
+  },
+  "organizationWallet": {
+    "settingsSection": "Organizations",
+    "settingsEntry": "Organization wallets",
+    "settingsEntrySubtitle": "Peable wallets of the organizations you run",
+    "list": {
+      "title": "Organization wallets",
+      "subtitle": "Each organization you own or administer can have its own Peable wallet. Its key is created and kept on your phone, never by Oxy or Peable.",
+      "empty": "You don't own or administer any organization.",
+      "loadError": "We couldn't load your organizations.",
+      "retry": "Try again",
+      "statusNone": "No wallet yet",
+      "statusHeld": "Wallet key on this phone",
+      "statusStale": "This phone has an old key",
+      "statusElsewhere": "Wallet set up on another phone",
+      "statusUnknown": "Tap to check"
+    },
+    "detail": {
+      "loading": "Checking the organization's wallet…",
+      "setUpTitle": "Set up the organization's Peable wallet",
+      "setUpBody": "This organization has no wallet key yet, so it can't receive FairCoin through Peable. Create its key here: you'll get a 24-word recovery phrase for the organization.",
+      "setUp": "Set up the wallet",
+      "heldTitle": "This phone holds the organization's key",
+      "heldBody": "Peable can receive FairCoin for the organization and spend it from this phone.",
+      "staleTitle": "The key on this phone was replaced",
+      "staleBody": "The organization now uses a different key. Coins received under the old key can only be spent with its phrase. Add the current key to keep receiving here.",
+      "elsewhereTitle": "The wallet is set up on another phone",
+      "elsewhereBody": "To use it on this phone, enter the organization's 24-word recovery phrase that whoever set it up gave you.",
+      "addKey": "Add the key you were given",
+      "showPhrase": "Show the recovery phrase",
+      "replaceKey": "Replace the key",
+      "replaceHint": "Do this when someone who has the phrase leaves the organization, or if the phrase is lost.",
+      "publicKey": "Wallet key"
+    },
+    "create": {
+      "title": "Organization recovery phrase",
+      "subtitle": "These 24 words are the organization's wallet. Anyone who has them can spend its FairCoin. Write them down and give them only to the organization's owners and admins, in person.",
+      "warningTitle": "Oxy and Peable never see this phrase",
+      "warning": "Nobody can recover it for you. If every copy is lost, an owner or admin can replace the key, but coins received under this key stay with this phrase.",
+      "deriving": "Creating the organization's key…",
+      "deriveError": "We couldn't create a key. Please try again.",
+      "acknowledge": "I wrote down the 24 words and will keep them safe.",
+      "continue": "Continue",
+      "replaceWarningTitle": "Move the funds first",
+      "replaceWarning": "Replacing the key doesn't move any coins. Coins received under the current key can only be spent with the current phrase: move them to the new wallet before you replace it, and keep the current phrase. After this, this phone keeps only the new key.",
+      "replaceConfirm": "I moved the funds or kept the current phrase",
+      "confirmCreate": "Create the organization's key",
+      "confirmReplace": "Replace the organization's key",
+      "working": "Saving…",
+      "biometricReason": "Verify it's you to change the organization's wallet key",
+      "biometricFailed": "Verify with your biometrics or passcode to continue.",
+      "doneTitle": "The organization's wallet is ready",
+      "doneBody": "Peable now receives FairCoin for the organization into this key. Give the phrase to the other owners and admins who should be able to spend.",
+      "localPersistTitle": "Saved, with one more step",
+      "localPersistBody": "The organization now uses the new key, but this phone couldn't keep it. The phrase you wrote down is the only copy: add it again from this organization's screen.",
+      "done": "Done"
+    },
+    "add": {
+      "title": "Add the organization's key",
+      "subtitle": "Enter the 24-word recovery phrase you were given for this organization.",
+      "invalid": "That isn't a valid 24-word recovery phrase. Check the words and try again.",
+      "mismatch": "That phrase is not this organization's current key.",
+      "noKey": "This organization has no key yet. Set up its wallet instead.",
+      "submit": "Add the key",
+      "working": "Checking…",
+      "done": "This phone now holds the organization's key."
+    },
+    "phrase": {
+      "title": "Organization recovery phrase",
+      "subtitle": "Give these 24 words only to the organization's owners and admins, in person.",
+      "reveal": "Reveal the phrase",
+      "hide": "Hide the phrase",
+      "biometricReason": "Authenticate to reveal the organization's recovery phrase",
+      "notStored": "This phone holds the key but not its phrase. Ask whoever set up the wallet."
+    },
+    "errors": {
+      "forbidden": "Only the organization's owners and admins can manage its wallet.",
+      "actorRootRequired": "Your account has to be kept in Commons to manage an organization's wallet.",
+      "changed": "The organization's wallet changed in the meantime. Go back and check it again.",
+      "keyUsed": "That key was already used and can't be used again.",
+      "proofInvalid": "The signatures expired or didn't match. Please try again.",
+      "generic": "We couldn't save the change. Nothing was changed."
+    }
   }
 }

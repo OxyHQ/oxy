@@ -23,4 +23,32 @@ export interface IdentitySignerStore {
   write(privateKey: string, publicKey: string): Promise<boolean>;
   /** Drop the stored key pair. */
   clear(): Promise<void>;
+  /**
+   * An ORGANIZATION key Commons holds (ADR 0061 D6), by the organization's
+   * account id: the copy the identity host answers `accountId` requests from.
+   * Optional so a store built before organization keys still type-checks; a
+   * store without them cannot hold an organization key.
+   */
+  readOrganization?(accountId: string): Promise<{ privateKey: string; publicKey: string } | null>;
+  /** Replace that organization's pair. Resolves whether a read-back confirmed it. */
+  writeOrganization?(accountId: string, privateKey: string, publicKey: string): Promise<boolean>;
+  /** Drop that organization's pair. */
+  clearOrganization?(accountId: string): Promise<void>;
+}
+
+/**
+ * The store Commons registered, readable by modules that `KeyManager` itself
+ * imports (`./organizationKeys`), which therefore cannot import `KeyManager`.
+ * Written only by `KeyManager.setIdentitySignerStore`. @internal
+ */
+let registeredSignerStore: IdentitySignerStore | null = null;
+
+/** @internal */
+export function registerIdentitySignerStore(store: IdentitySignerStore | null): void {
+  registeredSignerStore = store;
+}
+
+/** @internal */
+export function registeredIdentitySignerStore(): IdentitySignerStore | null {
+  return registeredSignerStore;
 }

@@ -26,6 +26,25 @@ export { readIdentityMarker, updateIdentityMarker } from './identityMarker';
 export type { IdentityMarker } from './identityMarker';
 export type { IdentityDeviceBackupStore } from './deviceBackup';
 export type { IdentitySignerStore } from './identitySigner';
+// Organization keys on the device (docs/adr/0061-organization-identity-key.md D6)
+export {
+  generateOrganizationKey,
+  organizationKeyFromPhrase,
+  storeOrganizationKey,
+  getOrganizationPublicKey,
+  getOrganizationPrivateKey,
+  getOrganizationRecoveryPhrase,
+  listOrganizationKeys,
+  deleteOrganizationKey,
+  syncOrganizationKeys,
+  isOrganizationAccountId,
+  isHealthyOrganizationKeyPair,
+} from './organizationKeys';
+export type {
+  OrganizationKeyPair,
+  GeneratedOrganizationKey,
+  StoredOrganizationKey,
+} from './organizationKeys';
 export { SignatureService } from './signatureService';
 export type { SignedMessage, AuthChallenge } from './signatureService';
 export { RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO } from './recoveryPhrase';

@@ -21,6 +21,7 @@ export interface MockRouter {
   back: jest.Mock;
   navigate: jest.Mock;
   canGoBack: jest.Mock;
+  dismissTo: jest.Mock;
 }
 
 const router: MockRouter = {
@@ -29,6 +30,7 @@ const router: MockRouter = {
   back: jest.fn(),
   navigate: jest.fn(),
   canGoBack: jest.fn(() => false),
+  dismissTo: jest.fn(),
 };
 
 export function useRouter(): MockRouter {

@@ -1950,5 +1950,88 @@
     "title": "Solicitudes de inicio de sesión",
     "on": "Activadas: las solicitudes de inicio de sesión llegan a este teléfono.",
     "off": "Desactivadas: aprueba los inicios de sesión escaneando su código QR."
+  },
+  "organizationWallet": {
+    "settingsSection": "Organizaciones",
+    "settingsEntry": "Monederos de organizaciones",
+    "settingsEntrySubtitle": "Monederos de Peable de las organizaciones que gestionas",
+    "list": {
+      "title": "Monederos de organizaciones",
+      "subtitle": "Cada organización de la que eres propietario o administrador puede tener su propio monedero de Peable. Su clave se crea y se guarda en tu teléfono, nunca en Oxy ni en Peable.",
+      "empty": "No eres propietario ni administrador de ninguna organización.",
+      "loadError": "No hemos podido cargar tus organizaciones.",
+      "retry": "Reintentar",
+      "statusNone": "Sin monedero todavía",
+      "statusHeld": "Clave del monedero en este teléfono",
+      "statusStale": "Este teléfono tiene una clave antigua",
+      "statusElsewhere": "Monedero configurado en otro teléfono",
+      "statusUnknown": "Toca para comprobarlo"
+    },
+    "detail": {
+      "loading": "Comprobando el monedero de la organización…",
+      "setUpTitle": "Configura el monedero de Peable de la organización",
+      "setUpBody": "Esta organización aún no tiene clave de monedero, así que no puede recibir FairCoin a través de Peable. Crea su clave aquí: recibirás una frase de recuperación de 24 palabras para la organización.",
+      "setUp": "Configurar el monedero",
+      "heldTitle": "Este teléfono tiene la clave de la organización",
+      "heldBody": "Peable puede recibir FairCoin para la organización y gastarlos desde este teléfono.",
+      "staleTitle": "La clave de este teléfono se ha sustituido",
+      "staleBody": "La organización usa ahora otra clave. Los FairCoin recibidos con la clave anterior solo se pueden gastar con su frase. Añade la clave actual para seguir recibiendo aquí.",
+      "elsewhereTitle": "El monedero está configurado en otro teléfono",
+      "elsewhereBody": "Para usarlo en este teléfono, introduce la frase de recuperación de 24 palabras de la organización que te dio quien lo configuró.",
+      "addKey": "Añadir la clave que te dieron",
+      "showPhrase": "Mostrar la frase de recuperación",
+      "replaceKey": "Sustituir la clave",
+      "replaceHint": "Hazlo cuando alguien que tiene la frase deja la organización o si la frase se pierde.",
+      "publicKey": "Clave del monedero"
+    },
+    "create": {
+      "title": "Frase de recuperación de la organización",
+      "subtitle": "Estas 24 palabras son el monedero de la organización. Quien las tenga puede gastar sus FairCoin. Anótalas y dáselas solo a los propietarios y administradores de la organización, en persona.",
+      "warningTitle": "Oxy y Peable nunca ven esta frase",
+      "warning": "Nadie puede recuperarla por ti. Si se pierden todas las copias, un propietario o administrador puede sustituir la clave, pero los FairCoin recibidos con esta clave se quedan con esta frase.",
+      "deriving": "Creando la clave de la organización…",
+      "deriveError": "No hemos podido crear una clave. Inténtalo de nuevo.",
+      "acknowledge": "He anotado las 24 palabras y las guardaré en un lugar seguro.",
+      "continue": "Continuar",
+      "replaceWarningTitle": "Mueve los fondos primero",
+      "replaceWarning": "Sustituir la clave no mueve ningún FairCoin. Los recibidos con la clave actual solo se pueden gastar con la frase actual: muévelos al nuevo monedero antes de sustituirla y guarda la frase actual. Después, este teléfono solo guarda la nueva clave.",
+      "replaceConfirm": "He movido los fondos o he guardado la frase actual",
+      "confirmCreate": "Crear la clave de la organización",
+      "confirmReplace": "Sustituir la clave de la organización",
+      "working": "Guardando…",
+      "biometricReason": "Verifica que eres tú para cambiar la clave del monedero de la organización",
+      "biometricFailed": "Verifica con tu biometría o código para continuar.",
+      "doneTitle": "El monedero de la organización está listo",
+      "doneBody": "Peable recibe ahora los FairCoin de la organización en esta clave. Da la frase a los demás propietarios y administradores que deban poder gastar.",
+      "localPersistTitle": "Guardado, falta un paso",
+      "localPersistBody": "La organización usa ya la nueva clave, pero este teléfono no ha podido guardarla. La frase que anotaste es la única copia: vuelve a añadirla desde la pantalla de la organización.",
+      "done": "Hecho"
+    },
+    "add": {
+      "title": "Añadir la clave de la organización",
+      "subtitle": "Introduce la frase de recuperación de 24 palabras que te dieron para esta organización.",
+      "invalid": "No es una frase de recuperación de 24 palabras válida. Revisa las palabras e inténtalo de nuevo.",
+      "mismatch": "Esa frase no es la clave actual de esta organización.",
+      "noKey": "Esta organización aún no tiene clave. Configura su monedero.",
+      "submit": "Añadir la clave",
+      "working": "Comprobando…",
+      "done": "Este teléfono tiene ahora la clave de la organización."
+    },
+    "phrase": {
+      "title": "Frase de recuperación de la organización",
+      "subtitle": "Da estas 24 palabras solo a los propietarios y administradores de la organización, en persona.",
+      "reveal": "Mostrar la frase",
+      "hide": "Ocultar la frase",
+      "biometricReason": "Autentícate para mostrar la frase de recuperación de la organización",
+      "notStored": "Este teléfono tiene la clave pero no su frase. Pídesela a quien configuró el monedero."
+    },
+    "errors": {
+      "forbidden": "Solo los propietarios y administradores de la organización pueden gestionar su monedero.",
+      "actorRootRequired": "Tu cuenta tiene que estar en Commons para gestionar el monedero de una organización.",
+      "changed": "El monedero de la organización ha cambiado mientras tanto. Vuelve atrás y compruébalo de nuevo.",
+      "keyUsed": "Esa clave ya se usó y no se puede volver a usar.",
+      "proofInvalid": "Las firmas caducaron o no coinciden. Inténtalo de nuevo.",
+      "generic": "No hemos podido guardar el cambio. No se ha cambiado nada."
+    }
   }
 }

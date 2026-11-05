@@ -28,6 +28,15 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * | `proveIdentity(challenge)`         | `proveIdentity`     | `{ publicKey, signature, timestamp }` |
  * | `deriveScopedSeed(info)`           | `deriveScopedSeed`  | seed hex                              |
  * | `signSocialReceive(index, digest)` | `signSocialReceive` | `{ signature, publicKey }`            |
+ * | `describeOrganization(accountId)`  | `describe` + `accountId` | `{ v, publicKey, accountId }`    |
+ * | `deriveOrganizationScopedSeed(info, accountId)` | `deriveScopedSeed` + `accountId` | `{ seed, accountId }` |
+ * | `signOrganizationSocialReceive(index, digest, accountId)` | `signSocialReceive` + `accountId` | `{ signature, publicKey, accountId }` |
+ *
+ * The organization functions (ADR 0061 D6) ask for an organization key Commons
+ * holds, by the organization's account id. Commons echoes `accountId` in its
+ * answer, and an answer that does not echo the id asked for is `null`: a Commons
+ * that predates organization keys ignores the extra and answers for the
+ * PERSONAL identity, which must never be taken for an organization's.
  *
  * Every failure — Commons not installed, no identity, the caller refused, an
  * exception — resolves `null`, and the JS side (`@oxy.so/protocol`'s
@@ -83,7 +92,52 @@ class OxyIdentityModule : Module() {
         else mapOf(KEY_SIGNATURE to signature, KEY_PUBLIC_KEY to publicKey)
       }
     }
+
+    AsyncFunction("describeOrganization") { accountId: String ->
+      ask(METHOD_DESCRIBE, organizationExtras(accountId)) { bundle ->
+        val publicKey = bundle.getString(KEY_PUBLIC_KEY)
+        if (publicKey.isNullOrEmpty() || !echoes(bundle, accountId)) null
+        else mapOf(
+          KEY_VERSION to bundle.getInt(KEY_VERSION),
+          KEY_PUBLIC_KEY to publicKey,
+          KEY_ACCOUNT_ID to accountId,
+        )
+      }
+    }
+
+    AsyncFunction("deriveOrganizationScopedSeed") { info: String, accountId: String ->
+      val extras = organizationExtras(accountId).apply { putString(KEY_INFO, info) }
+      ask(METHOD_DERIVE_SCOPED_SEED, extras) { bundle ->
+        val seed = bundle.getString(KEY_SEED)
+        if (seed.isNullOrEmpty() || !echoes(bundle, accountId)) null
+        else mapOf(KEY_SEED to seed, KEY_ACCOUNT_ID to accountId)
+      }
+    }
+
+    AsyncFunction("signOrganizationSocialReceive") { index: Int, digest: String, accountId: String ->
+      val extras = organizationExtras(accountId).apply {
+        putInt(KEY_INDEX, index)
+        putString(KEY_DIGEST, digest)
+      }
+      ask(METHOD_SIGN_SOCIAL_RECEIVE, extras) { bundle ->
+        val signature = bundle.getString(KEY_SIGNATURE)
+        val publicKey = bundle.getString(KEY_PUBLIC_KEY)
+        if (signature.isNullOrEmpty() || publicKey.isNullOrEmpty() || !echoes(bundle, accountId)) null
+        else mapOf(
+          KEY_SIGNATURE to signature,
+          KEY_PUBLIC_KEY to publicKey,
+          KEY_ACCOUNT_ID to accountId,
+        )
+      }
+    }
   }
+
+  private fun organizationExtras(accountId: String): Bundle =
+    Bundle().apply { putString(KEY_ACCOUNT_ID, accountId) }
+
+  /** Whether Commons answered for the organization asked for, not for the person. */
+  private fun echoes(bundle: Bundle, accountId: String): Boolean =
+    bundle.getString(KEY_ACCOUNT_ID) == accountId
 
   /**
    * Call [method] on the first Commons authority that answers, and read the
@@ -116,6 +170,7 @@ class OxyIdentityModule : Module() {
     private const val KEY_SEED = "seed"
     private const val KEY_INDEX = "index"
     private const val KEY_DIGEST = "digest"
+    private const val KEY_ACCOUNT_ID = "accountId"
 
     /**
      * Commons hosts its identity at "${applicationId}.identity": the prod app

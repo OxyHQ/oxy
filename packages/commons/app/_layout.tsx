@@ -14,7 +14,7 @@ import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { useQueryClient } from '@tanstack/react-query';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { productAnalytics } from '@/lib/product-analytics';
-import { KeyManager } from '@oxy.so/core/crypto';
+import { KeyManager, syncOrganizationKeys } from '@oxy.so/core/crypto';
 import { logger } from '@oxy.so/core';
 import { useNavigationTheme } from '@oxy.so/bloom/theme';
 import { BloomProvider } from '@oxy.so/bloom/provider';
@@ -352,6 +352,17 @@ function AppStackContent() {
       // identity (backfills identities that predate it, repairs a failed write).
       // Never throws.
       await KeyManager.ensureDeviceBackup();
+
+      // Android: put the organization keys this device holds back into the
+      // signer store the identity host answers from (ADR 0061 D6), which its
+      // self-heal can leave empty. A no-op elsewhere.
+      try {
+        await syncOrganizationKeys();
+      } catch (error) {
+        logger.error('[commons] organization-key sync threw unexpectedly', error, {
+          component: 'AppStackContent',
+        });
+      }
     })();
   }, [identityPresent]);
 

@@ -28,5 +28,18 @@ public class OxyIdentityModule: Module {
     AsyncFunction("signSocialReceive") { (_ index: Int, _ digest: String) -> [String: String]? in
       return nil
     }
+
+    // Organization keys (ADR 0061 D6) are in the same keychain group on iOS.
+    AsyncFunction("describeOrganization") { (_ accountId: String) -> [String: String]? in
+      return nil
+    }
+
+    AsyncFunction("deriveOrganizationScopedSeed") { (_ info: String, _ accountId: String) -> [String: String]? in
+      return nil
+    }
+
+    AsyncFunction("signOrganizationSocialReceive") { (_ index: Int, _ digest: String, _ accountId: String) -> [String: String]? in
+      return nil
+    }
   }
 }
