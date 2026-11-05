@@ -48,6 +48,9 @@ import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import deviceSessionService, { electReplacementContext } from '../deviceSession.service';
 import sessionService from '../session.service';
+import { OxyServices } from '../../../../core/src/OxyServices';
+import { SessionClient } from '../../../../core/src/session/SessionClient';
+import { createSessionClientHost } from '../../../../core/src/session/sessionClientHost';
 
 /** A minimal Express request carrying only what `extractDeviceInfo` reads. */
 function request(): Request {
@@ -962,6 +965,89 @@ describe('removal — one context and one principal are different operations', (
     expect(minted.ok).toBe(true);
     if (!minted.ok) throw new Error('Expected retained background proof after rollback');
     expect(validateAccessToken(minted.accessToken).payload?.act?.sub).toBe(pair.first);
+  });
+
+  it('audits overlapping activations for different actors of the same account', async () => {
+    const shared = await sharedOrganization();
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    let release!: () => void;
+    let reached!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const waiting = new Promise<void>((resolve) => { reached = resolve; });
+    let intercept = true;
+    const spy = jest.spyOn(deviceSessionService, 'getDirectory').mockImplementation(async (device) => {
+      if (intercept) { intercept = false; reached(); await blocked; }
+      return original(device);
+    });
+    try {
+      const old = deviceSessionService.activateContext(shared.device, shared.viaNate, request());
+      await waiting;
+      const current = await deviceSessionService.activateContext(shared.device, shared.viaAlice, request());
+      expect(current.ok).toBe(true);
+      if (!current.ok) throw new Error('current activation failed');
+      release();
+      const stale = await old;
+      expect(stale.ok).toBe(true);
+      if (!stale.ok) throw new Error('stale activation failed');
+      const staleClaims = validateAccessToken(stale.activeToken?.accessToken ?? '').payload;
+      const currentClaims = validateAccessToken(current.activeToken?.accessToken ?? '').payload;
+      expect(stale.directory.revision).toBe(current.directory.revision);
+      expect(stale.directory.activeContextId).toBe(shared.viaAlice);
+      expect(current.directory.activeContextId).toBe(shared.viaAlice);
+      expect(staleClaims?.act?.sub).toBe(shared.nate);
+      expect(currentClaims?.act?.sub).toBe(shared.alice);
+      expect(staleClaims?.device_context_id).toBe(shared.viaNate);
+      expect(currentClaims?.device_context_id).toBe(shared.viaAlice);
+    } finally { release(); spy.mockRestore(); }
+  });
+
+  it('audits the real client when overlapping activations return contradictory tokens', async () => {
+    const shared = await sharedOrganization();
+    const initialState = await deviceSessionService.getState(shared.device);
+    const initialToken = await deviceSessionService.resolveActiveToken(initialState);
+    expect(validateAccessToken(initialToken?.accessToken ?? '').payload?.act?.sub).toBe(shared.alice);
+    const oxy = new OxyServices({ baseURL: 'https://oxy.example' });
+    oxy.session.setAccessToken(initialToken!.accessToken);
+    const client = new SessionClient(createSessionClientHost(oxy));
+    client.adoptState(initialState);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      let result: unknown;
+      if (url.endsWith('/session/device/directory')) {
+        result = await deviceSessionService.getDirectory(shared.device);
+      } else if (url.endsWith('/session/device/activate')) {
+        const body = JSON.parse(String(init?.body)) as { contextId: string };
+        const activation = await deviceSessionService.activateContext(shared.device, body.contextId, request());
+        if (!activation.ok) throw new Error('activation failed');
+        result = { directory: activation.directory, activeToken: activation.activeToken };
+      } else if (url.endsWith('/session/device/state')) {
+        const current = await deviceSessionService.getState(shared.device);
+        result = { state: current, activeToken: await deviceSessionService.resolveActiveToken(current) };
+      } else throw new Error(`Unexpected URL ${url}`);
+      return new Response(JSON.stringify({ data: result }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    await client.refreshDirectory();
+    const originalDirectory = deviceSessionService.getDirectory.bind(deviceSessionService);
+    let release!: () => void;
+    let reached!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const waiting = new Promise<void>((resolve) => { reached = resolve; });
+    let intercept = true;
+    const spy = jest.spyOn(deviceSessionService, 'getDirectory').mockImplementation(async (device) => {
+      if (intercept) { intercept = false; reached(); await blocked; }
+      return originalDirectory(device);
+    });
+    try {
+      const old = client.activateContext(shared.viaNate);
+      await waiting;
+      await client.activateContext(shared.viaAlice);
+      expect(client.getActiveContext()?.actor.userId).toBe(shared.alice);
+      release();
+      await old;
+      expect(client.getActiveContext()?.actor.userId).toBe(shared.alice);
+      expect(validateAccessToken(oxy.session.accessToken ?? '').payload?.act?.sub).toBe(shared.nate);
+    } finally { release(); spy.mockRestore(); globalThis.fetch = originalFetch; oxy.dispose(); }
   });
 
   it('#1544 mints the stored active context when two live principals operate the same organization', async () => {

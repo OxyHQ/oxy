@@ -149,6 +149,7 @@ export class SessionClient {
   private tokenUnsub: (() => void) | null = null;
   private started = false;
   private lifecycleGeneration = 0;
+  private deviceGeneration = 0;
   private fullSignOutPersistence: { state: DeviceSessionState; pending: Promise<void> } | null =
     null;
   /** Same-origin cross-tab state-propagation channel; null on platforms without BroadcastChannel. */
@@ -351,6 +352,7 @@ export class SessionClient {
       return false;
     }
     const previousState = this.state;
+    if (previousState?.deviceId !== next.deviceId) this.deviceGeneration += 1;
     this.state = next;
     if (next.accounts.length === 0) {
       // A device with nobody signed in has no principals either. The directory
@@ -555,6 +557,8 @@ export class SessionClient {
       !applied &&
       sync.activeToken &&
       this.state &&
+      sync.state.deviceId === this.state.deviceId &&
+      sync.state.revision === this.state.revision &&
       sync.state.activeAccountId !== null &&
       sync.state.activeAccountId === this.state.activeAccountId &&
       (pinnedAccountId === null || sync.state.activeAccountId === pinnedAccountId) &&
@@ -738,9 +742,20 @@ export class SessionClient {
   }
 
   async bootstrap(): Promise<void> {
+    const generation = this.deviceGeneration;
+    const initialDevice = this.state?.deviceId ?? null;
     const res = await this.requestDevice<unknown>('GET', '/session/device/state', undefined, {
       cache: false,
     });
+    if (generation !== this.deviceGeneration) {
+      const checked = deviceSessionSyncCheck(res, []);
+      const firstDeviceRestate =
+        initialDevice === null &&
+        this.deviceGeneration === generation + 1 &&
+        checked.ok &&
+        checked.value.state.deviceId === this.state?.deviceId;
+      if (!firstDeviceRestate) return;
+    }
     await this.applySync(res);
   }
 
