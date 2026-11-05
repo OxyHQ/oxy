@@ -46,6 +46,10 @@ export default function SettingsScreen() {
     router.push('/(tabs)/(settings)/node');
   }, [router]);
 
+  const handleOrganizationWallets = useCallback(() => {
+    router.push('/(tabs)/(settings)/organization-wallets');
+  }, [router]);
+
   const handleDeleteAccount = useCallback(() => {
     router.push('/(tabs)/(settings)/delete-account');
   }, [router]);
@@ -81,6 +85,18 @@ export default function SettingsScreen() {
           title={t('rotateKey.settingsEntry')}
           description={t('rotateKey.settingsEntrySubtitle')}
           onPress={handleRotateKey}
+        />
+      </SettingsListGroup>
+
+      {/* The Peable wallets of the organizations this person owns or
+          administers (ADR 0061): their keys are created and kept here. */}
+      <SettingsListGroup title={t('organizationWallet.settingsSection')}>
+        <SettingsListItem
+          icon={<Icons.people size="md" fill={colors.text} />}
+          title={t('organizationWallet.settingsEntry')}
+          description={t('organizationWallet.settingsEntrySubtitle')}
+          onPress={handleOrganizationWallets}
+          testID="settings-organization-wallets"
         />
       </SettingsListGroup>
 
