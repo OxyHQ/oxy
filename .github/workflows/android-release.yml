@@ -6,10 +6,12 @@ name: Android release
 # the version is the OTA compatibility boundary (`withOxyUpdates`, runtime
 # policy `appVersion`), so a JS-only change ships as an OTA update under the
 # same version and most pushes end at the "Is this version released?" step. A
-# new version is a native change, and gets a signed AAB and APK: the AAB goes
-# to Google Play's internal testing track, the APK (and its SHA-256) is the
-# public GitHub release `<tag-prefix>-v<version>` of the app repository, and
-# both stay archived on seldon ($OXY_RELEASE_ARCHIVE/<repo>/<tag>/).
+# new version is a native change, and gets a signed AAB and one APK per ABI:
+# the AAB goes to Google Play's internal testing track, the APKs (arm64-v8a and
+# armeabi-v7a, each with its SHA-256) are the public GitHub release
+# `<tag-prefix>-v<version>` of the app repository, and all of them stay archived
+# on seldon ($OXY_RELEASE_ARCHIVE/<repo>/<tag>/). There is no universal APK:
+# @oxy.so/app-preset 6.1.0+ (withOxyAbiSplits) splits the APKs by ABI.
 # docs/engineering/build-and-deploy.md#native-android-releases.
 #
 # It runs on `seldon`, Oxy's self-hosted build machine, whose runner group
@@ -146,13 +148,15 @@ jobs:
         working-directory: ${{ inputs.app-dir }}
         run: bunx expo prebuild --platform android --clean --no-install
 
-      - name: Build the signed AAB and APK
+      - name: Build the signed AAB and APKs
         if: steps.plan.outputs.build == 'true'
         working-directory: ${{ inputs.app-dir }}/android
         run: ./gradlew :app:bundleRelease :app:assembleRelease --console=plain
 
       # Every build is kept on seldon too, the AAB included: the GitHub release
-      # carries only what the public installs (the APK and its checksum).
+      # carries only what the public installs (the per-ABI APKs and their
+      # checksums). Gradle names a split APK app-<abi>-release.apk; it is
+      # archived as <package>-<version>-<abi>.apk.
       - name: Archive the build on seldon
         if: steps.plan.outputs.build == 'true'
         working-directory: ${{ inputs.app-dir }}/android/app/build/outputs
@@ -165,10 +169,28 @@ jobs:
           : "${OXY_RELEASE_ARCHIVE:?the seldon runner sets OXY_RELEASE_ARCHIVE}"
           name="${PACKAGE}-${VERSION}"
           dir="$OXY_RELEASE_ARCHIVE/$GITHUB_REPOSITORY/$TAG"
+          shopt -s nullglob
+          apks=(apk/release/app-*-release.apk)
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "::error::The build produced no per-ABI APK (apk/release/app-<abi>-release.apk). Oxy releases ship one APK per ABI and never a universal one: the app needs @oxy.so/app-preset >= 6.1.0, whose withOxyAbiSplits (applied by the preset and by withOxyUpdates) splits the APKs."
+            exit 1
+          fi
+          for abi in arm64-v8a armeabi-v7a; do
+            if [ ! -f "apk/release/app-$abi-release.apk" ]; then
+              echo "::error::The build produced no $abi APK. Every Oxy release ships arm64-v8a (phones) and armeabi-v7a (older phones, Android TVs): build both ABIs (reactNativeArchitectures) with @oxy.so/app-preset >= 6.1.0."
+              exit 1
+            fi
+          done
+          rm -rf "${dir:?}"
           mkdir -p "$dir"
-          cp apk/release/app-release.apk "$dir/$name.apk"
+          for apk in "${apks[@]}"; do
+            abi="${apk#apk/release/app-}"
+            abi="${abi%-release.apk}"
+            cp "$apk" "$dir/$name-$abi.apk"
+          done
           cp bundle/release/app-release.aab "$dir/$name.aab"
-          (cd "$dir" && sha256sum "$name.apk" "$name.aab" > SHA256SUMS)
+          (cd "$dir" && sha256sum -- *.apk "$name.aab" > SHA256SUMS)
+          ls -l "$dir"
           echo "ARCHIVE_DIR=$dir" >> "$GITHUB_ENV"
           echo "ARTIFACT_NAME=$name" >> "$GITHUB_ENV"
           # Keep this app's three newest versions: Play keeps every AAB it was
@@ -309,10 +331,25 @@ jobs:
           TAG: ${{ steps.plan.outputs.tag }}
         run: |
           set -euo pipefail
-          sha256sum "$ARTIFACT_NAME.apk" > "$RUNNER_TEMP/$ARTIFACT_NAME.apk.sha256"
-          gh release create "$TAG" "$ARTIFACT_NAME.apk" "$RUNNER_TEMP/$ARTIFACT_NAME.apk.sha256" \
+          shopt -s nullglob
+          assets=()
+          for apk in "$ARTIFACT_NAME"-*.apk; do
+            sha256sum "$apk" > "$RUNNER_TEMP/$apk.sha256"
+            assets+=("$apk" "$RUNNER_TEMP/$apk.sha256")
+          done
+          cat > "$RUNNER_TEMP/notes.md" <<NOTES
+          Android build $VERSION (versionCode $VERSION_CODE) of \`$PACKAGE\` from $GITHUB_SHA.
+
+          **Which APK?** Download one, not both:
+
+          - \`$ARTIFACT_NAME-arm64-v8a.apk\`: almost every phone and tablet, anything from about 2017 on. Start with this one.
+          - \`$ARTIFACT_NAME-armeabi-v7a.apk\`: older phones, and Android TVs and TV boxes. If Android says the arm64-v8a app is not compatible with your device, use this one.
+
+          Both are the same version of the same app, signed with the Oxy ecosystem key (certificate SHA-256 b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d); check a download against its \`.sha256\` file.
+          NOTES
+          gh release create "$TAG" "${assets[@]}" \
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "$PACKAGE $VERSION (Android)" \
-            --notes "Android build $VERSION (versionCode $VERSION_CODE) of \`$PACKAGE\` from $GITHUB_SHA, signed with the Oxy ecosystem key (certificate SHA-256 b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d). Install the APK directly; check it against the .sha256 file."
+            --notes-file "$RUNNER_TEMP/notes.md"
           echo "::notice::Released $TAG"

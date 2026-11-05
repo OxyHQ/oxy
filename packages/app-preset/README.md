@@ -14,7 +14,7 @@ and JSON.
 
 | Piece | Import | Replaces |
 | --- | --- | --- |
-| Config plugin | `['@oxy.so/app-preset', {}]` | iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withOxySharedPermissions` (which signs every release with the ecosystem key, see below) + the R8 `-optimize` ProGuard file |
+| Config plugin | `['@oxy.so/app-preset', {}]` | iOS keychain entitlement + `expo-build-properties` + `@oxy.so/services/plugins/withOxySharedPermissions` (which signs every release with the ecosystem key, see below) + the R8 `-optimize` ProGuard file + one APK per ABI |
 | Android WebP resources | `@oxy.so/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
 | Oxy Updates (OTA) | `@oxy.so/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate, required (opt-in, see below) |
 | Metro | `@oxy.so/app-preset/metro` | monorepo watch folders, block list, symlink + package-exports resolution, web-font/wasm asset exts, release minifier, NativeWind wrapper |
@@ -185,6 +185,36 @@ load: delete them. `version` must be `MAJOR.MINOR.PATCH`.
 bump it for a native change and the next push to main releases a new binary
 (oxy's `android-release.yml`, docs/engineering/build-and-deploy.md#native-android-releases);
 a JS-only change keeps the version and ships as an OTA update.
+
+#### One APK per ABI (always on, 6.1.0+)
+
+`withOxyAbiSplits`, applied by the preset and by `withOxyUpdates`, adds Gradle
+ABI splits to `android/app/build.gradle`, so `assembleRelease` writes one APK per
+ABI and no universal APK:
+
+| APK | For |
+| --- | --- |
+| `app-arm64-v8a-release.apk` | almost every phone and tablet, anything from about 2017 on |
+| `app-armeabi-v7a-release.apk` | older phones, and Android TVs and TV boxes |
+
+A universal APK carries every ABI's native libraries and a phone loads one
+(Mention: 126 MB, of which 55 MB arm64-v8a and 37 MB armeabi-v7a libraries).
+`bundleRelease` is unaffected: the AAB keeps every ABI and Google Play serves
+each device its slice.
+
+A build that compiles none of those ABIs splits to the ones it compiles, so
+`expo run:android` on an x86_64 emulator (it passes
+`-PreactNativeArchitectures=x86_64`) still gets `app-x86_64-debug.apk`, which the
+Expo CLI installs by the device's ABI. An ABI that is not compiled never gets
+an APK of its own, since it would carry no native libraries.
+
+Both release APKs have the app's one `versionCode`. They are the same version of
+the same app, so Android installs either over the other; Google Play's rule of a
+distinct versionCode per APK applies only to APKs uploaded to Play, and Play
+gets the AAB. A `build.gradle` that already has a `splits {}` block (an app's own
+plugin) fails prebuild: remove it. The release workflow
+(docs/engineering/build-and-deploy.md#native-android-releases) publishes the two
+APKs and fails a build without them.
 
 #### Android WebP resources (opt-in)
 

@@ -69,6 +69,7 @@ const fs = require('fs');
 const path = require('path');
 const { WarningAggregator } = require('expo/config-plugins');
 const withOxyReleaseVersion = require('./withOxyReleaseVersion');
+const withOxyAbiSplits = require('./withOxyAbiSplits');
 
 /** Origin of the Oxy Updates server. `updates.oxy.so` does not exist; oxy-api serves it. */
 const DEFAULT_API_ORIGIN = 'https://api.oxy.so';
@@ -182,6 +183,7 @@ module.exports = function withOxyUpdates(config, options = {}) {
   }
 
   // `version` is the OTA boundary, so it also numbers the store build: an
-  // OTA-enabled app that skips the preset's main plugin gets the same rule.
-  return withOxyReleaseVersion(next);
+  // OTA-enabled app that skips the preset's main plugin gets the same rule,
+  // and the same per-ABI APKs (every app on the release pipeline lists this).
+  return withOxyAbiSplits(withOxyReleaseVersion(next));
 };

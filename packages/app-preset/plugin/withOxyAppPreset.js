@@ -35,6 +35,8 @@
  * does not carry its certificate; an app lists no signing plugin of its own.
  * `withOxyReleaseVersion` (always applied) derives Android `versionCode` and iOS
  * `buildNumber` from `version` (1.2.3 → 1002003); an app sets neither.
+ * `withOxyAbiSplits` (always applied) builds one APK per ABI (arm64-v8a,
+ * armeabi-v7a) instead of a universal APK; the AAB is unaffected.
  * `withOxyR8Optimize` (always applied) swaps in R8's `-optimize` ProGuard file on
  * Expo SDK 56/57 and is a no-op on 58.
  *
@@ -58,6 +60,7 @@ const withOxyKeychain = require('./withOxyKeychain');
 const withOxyBuildProperties = require('./withOxyBuildProperties');
 const withOxyR8Optimize = require('./withOxyR8Optimize');
 const withOxyReleaseVersion = require('./withOxyReleaseVersion');
+const withOxyAbiSplits = require('./withOxyAbiSplits');
 const { dirname, join } = require('node:path');
 const { projectRootOf, requireFromProject, resolveFromProject } = require('./requireFromProject');
 
@@ -107,6 +110,7 @@ module.exports = function withOxyAppPreset(config, options = {}) {
 
   next = withOxyR8Optimize(next);
   next = withOxyReleaseVersion(next);
+  next = withOxyAbiSplits(next);
 
   let withOxySharedPermissions;
   try {
