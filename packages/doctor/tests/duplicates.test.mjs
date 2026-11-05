@@ -351,6 +351,25 @@ describe('duplicate copies in the installed tree', () => {
     }
   });
 
+  test('a package installed under an alias is not a second copy of the package it names', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'oxy-doctor-tree-'));
+    try {
+      await writePackage(join(root, 'node_modules/@oxy.so/bloom'), '@oxy.so/bloom', '17.9.0');
+      await writePackage(join(root, 'node_modules/@fairwallet/bloom'), '@oxy.so/bloom', '1.3.0');
+      expect(installedDuplicateFindings(root, []).findings).toEqual([]);
+      await writePackage(
+        join(root, 'node_modules/@fairwallet/bloom/node_modules/@oxy.so/bloom'),
+        '@oxy.so/bloom',
+        '1.2.0',
+      );
+      expect(installedDuplicateFindings(root, []).findings).toEqual([
+        expect.objectContaining({ package: '@oxy.so/bloom', installed: ['1.2.0', '17.9.0'] }),
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test("Bun's isolated store: two store entries of one package are two copies", async () => {
     const root = await mkdtemp(join(tmpdir(), 'oxy-doctor-tree-'));
     try {

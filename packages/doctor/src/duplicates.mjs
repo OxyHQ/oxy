@@ -416,15 +416,21 @@ export function installedCopies(root, workspaceDirs = []) {
       return [];
     }
   };
-  const visitPackage = (directory) => {
+  // `installedAs`: the name Node resolves to this directory. A package installed
+  // under an alias (its manifest names another package) is not a copy of that one.
+  const visitPackage = (directory, installedAs) => {
     const resolved = real(directory);
-    if (!resolved || seen.has(resolved)) return;
-    seen.add(resolved);
+    if (!resolved || seen.has(`${installedAs}\0${resolved}`)) return;
+    seen.add(`${installedAs}\0${resolved}`);
     const manifestPath = join(resolved, 'package.json');
     if (existsSync(manifestPath)) {
       try {
         const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-        if (typeof manifest.name === 'string' && mustBeSingle(manifest.name)) {
+        if (
+          typeof manifest.name === 'string' &&
+          manifest.name === installedAs &&
+          mustBeSingle(manifest.name)
+        ) {
           const rows = found.get(manifest.name) ?? [];
           rows.push({ path: relative(root, resolved) || '.', version: String(manifest.version) });
           found.set(manifest.name, rows);
@@ -453,8 +459,8 @@ export function installedCopies(root, workspaceDirs = []) {
       if (entry.startsWith('.')) continue;
       if (entry.startsWith('@')) {
         for (const scoped of list(join(resolved, entry)))
-          visitPackage(join(resolved, entry, scoped));
-      } else visitPackage(join(resolved, entry));
+          visitPackage(join(resolved, entry, scoped), `${entry}/${scoped}`);
+      } else visitPackage(join(resolved, entry), entry);
     }
   }
   return found;
