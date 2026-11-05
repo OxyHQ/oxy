@@ -270,9 +270,26 @@ jobs:
               { 'Content-Type': 'application/json' },
             );
             if (track.status !== 200) throw new Error(`Play track: ${track.status} ${JSON.stringify(track.json.error)}`);
-            const commit = await call('POST', `${editUrl}:commit`, '', { 'Content-Length': '0' });
+            // While an app has changes Play will not send for review on its own
+            // (an app still in setup, or with managed publishing), a commit is
+            // refused until it says so. The edit stays open, so it is committed
+            // again with the flag and the release waits for "Send for review"
+            // in Play Console.
+            let commit = await call('POST', `${editUrl}:commit`, '', { 'Content-Length': '0' });
+            const heldForReview =
+              commit.status === 400 && String(commit.json.error?.message).includes('changesNotSentForReview');
+            if (heldForReview) {
+              commit = await call('POST', `${editUrl}:commit?changesNotSentForReview=true`, '', { 'Content-Length': '0' });
+            }
             if (commit.status !== 200) throw new Error(`Play commit: ${commit.status} ${JSON.stringify(commit.json.error)}`);
-            console.log(`::notice::${env.PACKAGE} ${env.VERSION} (versionCode ${code}) is on Google Play internal testing.`);
+            if (heldForReview) {
+              console.log(
+                `::warning::${env.PACKAGE} ${env.VERSION} (versionCode ${code}) is committed to Google Play internal testing ` +
+                  'but Play does not send it for review automatically: send it from Play Console > Publishing overview.',
+              );
+            } else {
+              console.log(`::notice::${env.PACKAGE} ${env.VERSION} (versionCode ${code}) is on Google Play internal testing.`);
+            }
           }
 
           main().catch((error) => {
