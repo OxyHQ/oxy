@@ -10,7 +10,7 @@ const argv = process.argv.slice(2);
 const args = new Set(argv);
 if (args.has('--help') || args.has('-h')) {
   console.log(
-    `oxy-doctor [--ci] [--json] [--grace-days=N]\n\nRead-only checks for Oxy ecosystem dependency health.\nA newer @oxy.so release is a warning for N days after it is published (default ${DEFAULT_GRACE_DAYS}), then an error.\n--ci exits 1 on errors only.`,
+    `oxy-doctor [--ci] [--json] [--grace-days=N]\n\nRead-only checks for Oxy ecosystem dependency health.\nA newer @oxy.so release is a warning for N days after it is published (default ${DEFAULT_GRACE_DAYS}), then an error.\nMore than one copy of a package bun could serve with one (\`bun update <pkg>\`), or of a package that must be single (@oxy.so/*, react, expo, ...), is an error.\n--ci exits 1 on errors only.`,
   );
   process.exit(0);
 }
@@ -34,6 +34,10 @@ try {
     for (const manifest of report.nativePeersUnverified)
       console.log(
         `? ${manifest}: @oxy.so/services is not installed, so its native peers were not checked (run bun install first)`,
+      );
+    if (!report.installedTreeChecked)
+      console.log(
+        '? node_modules is not installed, so only bun.lock was checked for duplicate copies (run bun install first)',
       );
     for (const finding of report.findings)
       console.log(`${finding.severity === 'error' ? '✗' : '!'} ${finding.message}`);
