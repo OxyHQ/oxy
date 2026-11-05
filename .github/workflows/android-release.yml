@@ -131,6 +131,14 @@ jobs:
             echo "build=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # A Turbo monorepo (this one: Accounts, Commons) bundles workspace
+      # packages that Metro resolves from their built output; build the app's
+      # workspace dependencies, not the app itself. Other repositories build
+      # theirs on install, or bundle sources.
+      - name: Build the app's workspace dependencies
+        if: steps.plan.outputs.build == 'true' && hashFiles('turbo.json') != ''
+        run: bunx --no-install turbo run build --filter="{./${APP_DIR}}^..."
+
       - name: Prebuild the native project
         if: steps.plan.outputs.build == 'true'
         working-directory: ${{ inputs.app-dir }}

@@ -1,0 +1,137 @@
+# Oxy Updates — the OTA publish of Accounts by Oxy and Commons by Oxy.
+#
+# On a push to `main` that reaches either app, each app's JS bundle and assets
+# are exported and published to the Oxy Updates service (oxy-api `/updates/v1`)
+# on its `production` channel, under the runtime of its current `version`
+# (`withOxyUpdates`, policy `appVersion`). Native binaries are
+# `android-release.yml`'s job; this publishes only the OTA update.
+#
+# No secret: GitHub trusted publishing (docs/adr/0057). The job's OIDC token,
+# addressed to https://api.oxy.so, is exchanged for a five-minute
+# `updates:publish` token of ONE application, and only because that application
+# registered this repository, `refs/heads/main` and THIS file
+# (`otaPublisher('OxyHQ/oxy', …)` on "Oxy Accounts" and "Commons by Oxy" in
+# packages/api/src/scripts/seedOxyApplicationsSpecs.ts). Renaming the file
+# breaks both publishers.
+#
+# The CLI is this repository's own `packages/ship` source at the same commit
+# (the one `@oxy.so/ship` is published from), so it needs no build and no
+# lockfile pin. Each client id is the app's PUBLIC `oxy_dk_…` id, the same
+# value its app.config.js passes to `withOxyUpdates`; it is not a secret.
+
+name: Publish OTA update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/accounts/**
+      - packages/commons/**
+      # The workspace packages the two apps bundle (`turbo run build
+      # --filter='{./packages/<app>}^...'`).
+      - packages/app-preset/**
+      - packages/contracts/**
+      - packages/core/**
+      - packages/expo-splash/**
+      - packages/protocol/**
+      - packages/services/**
+      - packages/telemetry/**
+      - packages/ship/**
+      - bun.lock
+      - package.json
+      - .github/workflows/publish-update.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.app.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: oxy-updates-${{ matrix.app.dir }}-${{ github.ref }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - name: Accounts by Oxy
+            dir: packages/accounts
+            client-id: oxy_dk_00f0e5d5a2e4697740a476d3cfc54f4490f01245d0d2dd05
+            channel: production
+          - name: Commons by Oxy
+            dir: packages/commons
+            client-id: oxy_dk_f65326da2a0d106bf98e873ce19b0ca9094d6c0c1f845a18
+            channel: production
+    defaults:
+      run:
+        shell: bash
+    env:
+      APP_DIR: ${{ matrix.app.dir }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - run: bun install --frozen-lockfile --minimum-release-age=0
+
+      # The same environment the native build uses (android-release.yml): the
+      # eas.json `production` profile's `env`, following `extends`, plus
+      # NODE_ENV=production. Values are public build-time config (EXPO_PUBLIC_*).
+      - name: Build environment from eas.json
+        run: |
+          node - <<'EOF' >> "$GITHUB_ENV"
+          const { readFileSync } = require('node:fs');
+          const { join } = require('node:path');
+          const eas = JSON.parse(readFileSync(join(process.env.APP_DIR, 'eas.json'), 'utf8'));
+          const resolve = (name, seen = new Set()) => {
+            const profile = eas.build?.[name];
+            if (!profile) throw new Error(`eas.json has no build profile "${name}"`);
+            if (seen.has(name)) throw new Error(`eas.json profile "${name}" extends itself`);
+            seen.add(name);
+            const base = profile.extends ? resolve(profile.extends, seen) : {};
+            return { ...base, ...profile.env };
+          };
+          for (const [key, value] of Object.entries(resolve('production'))) {
+            if (!/^[A-Z_][A-Z0-9_]*$/.test(key) || /[\r\n]/.test(String(value))) {
+              throw new Error(`eas.json env ${key} cannot be exported`);
+            }
+            console.log(`${key}=${value}`);
+          }
+          console.log('NODE_ENV=production');
+          EOF
+
+      # Metro resolves @oxy.so/core, contracts, protocol and expo-splash from
+      # their built `dist/`.
+      - name: Build the app's workspace dependencies
+        run: bunx --no-install turbo run build --filter="{./${APP_DIR}}^..."
+
+      - name: Publish
+        working-directory: ${{ matrix.app.dir }}
+        env:
+          OXY_SHIP_CLIENT_ID: ${{ matrix.app.client-id }}
+          OXY_API_URL: https://api.oxy.so
+          CHANNEL: ${{ matrix.app.channel }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || format('workflow_dispatch {0}', github.sha) }}
+          LC_ALL: C.UTF-8
+        run: |
+          # The update message is capped at 500 UTF-16 units (contracts
+          # `updates.ts`) and a squash merge's body is longer: send the subject,
+          # at most 200 characters.
+          subject="${COMMIT_MESSAGE%%$'\n'*}"
+          SHIP_MESSAGE="${subject:0:200}"
+          bun ../ship/src/cli.ts publish \
+            --channel "$CHANNEL" \
+            --platform all \
+            --git-commit "$GITHUB_SHA" \
+            --message "$SHIP_MESSAGE"
