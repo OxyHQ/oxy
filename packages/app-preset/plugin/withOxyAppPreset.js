@@ -33,6 +33,8 @@
  * `withOxySharedPermissions` also signs every release build with the ONE Oxy
  * ecosystem key (the `OXY_UPLOAD_*` Gradle properties) and fails a release that
  * does not carry its certificate; an app lists no signing plugin of its own.
+ * `withOxyReleaseVersion` (always applied) derives Android `versionCode` and iOS
+ * `buildNumber` from `version` (1.2.3 → 1002003); an app sets neither.
  * `withOxyR8Optimize` (always applied) swaps in R8's `-optimize` ProGuard file on
  * Expo SDK 56/57 and is a no-op on 58.
  *
@@ -55,6 +57,7 @@
 const withOxyKeychain = require('./withOxyKeychain');
 const withOxyBuildProperties = require('./withOxyBuildProperties');
 const withOxyR8Optimize = require('./withOxyR8Optimize');
+const withOxyReleaseVersion = require('./withOxyReleaseVersion');
 const { dirname, join } = require('node:path');
 const { projectRootOf, requireFromProject, resolveFromProject } = require('./requireFromProject');
 
@@ -103,6 +106,7 @@ module.exports = function withOxyAppPreset(config, options = {}) {
   }
 
   next = withOxyR8Optimize(next);
+  next = withOxyReleaseVersion(next);
 
   let withOxySharedPermissions;
   try {

@@ -141,6 +141,34 @@ Look up the exact `.bun/<pkg>@<ver>+<hash>/` directory in the running image (it 
 
 **GOTCHA — oxy-api Dockerfile: do NOT switch to a full-workspace frozen-lockfile install (PR #261):** The Dockerfile intentionally installs only the lean `core+contracts+api` workspace subset (workspaces-narrowing `node -e` + `bun install`). A full-workspace `bun install --frozen-lockfile` pulls `esbuild` (a frontend-only dep) whose arm64/alpine postinstall hard-fails with `Expected "0.27.2" but got "0.25.12"`, breaking the prod Docker build. A proper fix requires a SCOPED frozen install (`--filter` the api/core/contracts closure so `esbuild` is never materialized) or a single-esbuild-version root override, validated on a real arm64 build. Do NOT apply a naive full-workspace frozen install to the API Dockerfile.
 
+## Native Android releases
+
+One reusable workflow, `.github/workflows/android-release.yml` in this repo, releases every Oxy Android app. Each app repo calls it on push to its default branch:
+
+```yaml
+# <app repo>/.github/workflows/android-release.yml
+name: Android release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: OxyHQ/oxy/.github/workflows/android-release.yml@main
+    with:
+      app-dir: packages/frontend
+```
+
+- **A new binary is a new `version`.** The run reads the app config; if `<tag-prefix>-v<version>` is already a GitHub release it ends there, because the change ships as an OTA update under the same runtime (`withOxyUpdates`, `appVersion` policy). Otherwise it prebuilds, runs `:app:bundleRelease :app:assembleRelease` and publishes the release (APK to install directly, AAB for Google Play, SHA-256 sums) as a prerelease. A `workflow_dispatch` of a released version fails: bump the version.
+- **The build number is derived, never kept** — `@oxy.so/app-preset` 6 `withOxyReleaseVersion` (1.2.3 → 1002003), applied by the preset and by `withOxyUpdates`.
+- **The build env is the eas.json profile's `env`** (`eas-profile`, default `production`, following `extends`) plus `NODE_ENV=production`; no other configuration.
+- **It runs only on `seldon`**, the self-hosted build machine (Ryzen 9 9950X, 60 GB RAM, Debian 13, user `gha` without sudo). Its org runner group `seldon` is restricted to `OxyHQ/oxy/.github/workflows/android-release.yml@refs/heads/main`: no other workflow and no pull request of any public repo can run a job there. It holds the ecosystem keystore in `/home/gha/.oxy/` (mode 600) and passes it as `ORG_GRADLE_PROJECT_OXY_UPLOAD_*` from the runner's `/opt/actions-runner/.env`, so no signing material is on GitHub; `oxyVerifyReleaseSigning` still fails any release without the ecosystem certificate. The Android SDK is `/opt/android-sdk`; Gradle's user home keeps its caches between runs, with `org.gradle.jvmargs=-Xmx16g -XX:MaxMetaspaceSize=4g` (Expo's 2 GB default runs out of Metaspace building React Native from source). Hermes from source needs `libicu-dev`.
+- A repo with several apps (Willo's frame, Mercaria's POS) calls it once per app with a distinct `tag-prefix`.
+
 ## Commands
 
 ```bash

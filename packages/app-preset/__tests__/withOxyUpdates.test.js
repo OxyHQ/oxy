@@ -21,7 +21,13 @@ const PROJECT_ROOT = path.join(os.tmpdir(), 'oxy-app-preset-test-project');
 
 /** Minimal ExpoConfig shape carrying the internals a static plugin receives. */
 function baseConfig(extra = {}) {
-  return { name: 'Test', slug: 'test', _internal: { projectRoot: PROJECT_ROOT }, ...extra };
+  return {
+    name: 'Test',
+    slug: 'test',
+    version: '1.0.0',
+    _internal: { projectRoot: PROJECT_ROOT },
+    ...extra,
+  };
 }
 
 /** Options for tests whose behavior is unrelated to code signing. */
@@ -205,8 +211,21 @@ test('fails loudly when the project root is unavailable and a certificate must b
   withTemporaryCertificate((certificatePath) => {
     assert.throws(
       () =>
-        withOxyUpdates({ name: 'Test', slug: 'test' }, { clientId: CLIENT_ID, certificatePath }),
+        withOxyUpdates(
+          { name: 'Test', slug: 'test', version: '1.0.0' },
+          { clientId: CLIENT_ID, certificatePath },
+        ),
       /could not resolve the project root/,
     );
   });
+});
+
+test('an OTA-enabled build is numbered from its version, the OTA boundary', () => {
+  const config = withOxyUpdates(baseConfig({ version: '1.4.0' }), unsignedOptions());
+  assert.equal(config.android.versionCode, 1_004_000);
+  assert.equal(config.ios.buildNumber, '1004000');
+  assert.throws(
+    () => withOxyUpdates(baseConfig({ android: { versionCode: 5 } }), unsignedOptions()),
+    /Remove `android.versionCode` \(5\)/,
+  );
 });

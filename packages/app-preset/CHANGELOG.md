@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.0.0
+
+### Breaking
+
+- The preset derives the store build number from the app's `version`, always (`withOxyReleaseVersion`): Android `versionCode` and iOS `buildNumber` are `major * 1_000_000 + minor * 1_000 + patch` (1.2.3 → 1002003). An app config that still sets `android.versionCode` or `ios.buildNumber` now fails to load, and so does a `version` that is not `MAJOR.MINOR.PATCH`: remove both fields. Every new version gets a strictly higher build number, which Google Play requires, and a native release is exactly a version bump (`version` is already the OTA boundary).
+
 ## 5.3.1
 
 ### Fixed

@@ -45,7 +45,7 @@ test('every Oxy app declares and requests both signature permissions, and never 
   const root = fakeApp();
   try {
     const config = withOxyAppPreset(
-      { name: 'app', _internal: { projectRoot: root } },
+      { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
       { ios: false, android: false },
     );
     const manifest = await runManifestMods(config, {
@@ -88,7 +88,11 @@ test('every Oxy app declares and requests both signature permissions, and never 
 });
 
 test('the removed sharedUserId and sharedIdentityReader options throw', () => {
-  const config = { name: 'app', _internal: { projectRoot: join(tmpdir(), 'no-such-app') } };
+  const config = {
+    name: 'app',
+    version: '1.0.0',
+    _internal: { projectRoot: join(tmpdir(), 'no-such-app') },
+  };
   assert.throws(
     () => withOxyAppPreset(config, { sharedUserId: 'so.oxy.shared' }),
     /`sharedUserId` option was removed/,
@@ -127,7 +131,7 @@ test('react-native-webgpu is opt-in: applied with `webgpu: true`, never by defau
   const root = fakeApp();
   try {
     installFakeWebGPU(root);
-    const base = { name: 'app', _internal: { projectRoot: root } };
+    const base = { name: 'app', version: '1.0.0', _internal: { projectRoot: root } };
     const off = withOxyAppPreset(base, { ios: false, android: false });
     assert.equal(off.webgpuPluginApplied, undefined);
     const on = withOxyAppPreset(base, { ios: false, android: false, webgpu: true });
@@ -143,7 +147,7 @@ test('`webgpu: true` without react-native-webgpu installed says what to install'
     assert.throws(
       () =>
         withOxyAppPreset(
-          { name: 'app', _internal: { projectRoot: root } },
+          { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
           { ios: false, android: false, webgpu: true },
         ),
       /`webgpu: true` needs 'react-native-webgpu' installed in the app/,
@@ -157,7 +161,7 @@ test('Noxcturnal is on in development only, and an app can opt out or set it its
   const root = fakeApp();
   const saved = process.env.NODE_ENV;
   try {
-    const base = { name: 'app', _internal: { projectRoot: root } };
+    const base = { name: 'app', version: '1.0.0', _internal: { projectRoot: root } };
     const flag = (config, options = {}) =>
       withOxyAppPreset(config, { ios: false, android: false, ...options }).experiments
         ?.noxcturnalTransformWorker;
@@ -201,7 +205,7 @@ test('the preset signs every release with the ecosystem key and fails one withou
   const root = fakeApp();
   try {
     const config = withOxyAppPreset(
-      { name: 'app', _internal: { projectRoot: root } },
+      { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
       { ios: false, android: false },
     );
     const gradle = await runAppBuildGradleMods(config, SDK58_BUILD_GRADLE);
@@ -224,7 +228,7 @@ test('on Expo SDK 56/57 the preset swaps in the R8 -optimize ProGuard file', asy
   const root = fakeApp();
   try {
     const config = withOxyAppPreset(
-      { name: 'app', _internal: { projectRoot: root } },
+      { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
       { ios: false, android: false },
     );
     const sdk57 = SDK58_BUILD_GRADLE.replace(
@@ -252,7 +256,7 @@ test('a Services without release signing (older than 13.4.0) is refused', () => 
     assert.throws(
       () =>
         withOxyAppPreset(
-          { name: 'app', _internal: { projectRoot: root } },
+          { name: 'app', version: '1.0.0', _internal: { projectRoot: root } },
           { ios: false, android: false },
         ),
       /needs '@oxy\.so\/services' 13\.4\.0 or later/,
