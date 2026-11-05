@@ -15,8 +15,8 @@ bunx @oxy.so/doctor --ci --grace-days=7
 ```
 
 It checks direct dependencies under the canonical `@oxy.so/*` scope against
-npm, reports duplicate versions in `bun.lock`, and fails clearly when the
-lockfile is missing.
+npm, fails on duplicate copies of a package in `bun.lock` or `node_modules`
+(below), and fails clearly when the lockfile is missing.
 
 It reads the manifests Bun installs from: the root `package.json` and the
 workspaces its `workspaces` patterns match. A `catalog:` dependency is checked
@@ -29,8 +29,55 @@ A range that doesn't include the newest published `@oxy.so/*` release is a
 changes the window), and an **error** after that. `--ci` exits 1 on errors
 only, so publishing a new major never turns every app's CI, and every deploy
 gated on it, red at once; each app still has to upgrade inside the window.
-Duplicate locked versions and a missing lockfile are always errors.
-Operational failures use status 2. Default mode is informational.
+A missing lockfile is always an error. Operational failures use status 2.
+Default mode is informational.
+
+## Duplicate copies
+
+Each copy of a module is its own module instance: two `@oxy.so/contracts` are
+two schema sets, two `@oxy.so/bloom` two theme contexts (a provider from one
+copy is invisible to a consumer of the other), two `react` an invalid-hook
+crash, two native modules a build that links one and runs the other. OxyOS's
+packager refuses a duplicate module outright.
+
+Doctor reads every copy `bun.lock` installs and who pulls each one (the
+workspaces and packages whose dependency resolves to it), and reports:
+
+- **`duplicate-copy`** (error, any package): the newest locked copy satisfies
+  every range that pulls a copy, so one would do. Bun reuses an existing copy
+  only when it satisfies a range, so after an SDK release moves the hoisted copy
+  forward, a dependent's older nested copy stays locked: Dropsea once held
+  `@oxy.so/protocol/@oxy.so/contracts@6.8.0` beside the hoisted 6.9.0, though
+  protocol's `^6.5.0` accepts 6.9.0. Fix: `bun update -r <pkg>` (`-r` so a
+  workspace's own declaration moves too) and commit `bun.lock`.
+- **`duplicate-pinned`**: every range accepts one older locked version, but a
+  dependent pins below the newest, and Bun resolves the wider ranges to the
+  newest, so `bun update` keeps both. An **error** for a single-copy package
+  (fix: a release of the pinning dependent, or a root `overrides` entry); a
+  **warning** for any other.
+- **`duplicate-hoisted`** (error, zod): the Oxy packages agree on one
+  version, but each holds its own nested copy because the hoisted copy is a
+  version they reject (a workspace or tool still on zod 3). Fix: declare their
+  version in the root `package.json`, or move the hoisted copy's users to it.
+- **`duplicate-conflict`** (error, single-copy packages): no one version
+  satisfies every range. No update can fix it; it names the dependents whose
+  ranges reject the version the rest use, and they need a release (or, for a
+  workspace, a wider range in its `package.json`).
+- **`installed-duplicate`** (error): a single-copy package installed more than
+  once under `node_modules` (hoisted, nested, or Bun's isolated `.bun` store,
+  by real path) although `bun.lock` names one copy: a stale install, fixed by
+  `bun install --frozen-lockfile`. Without `node_modules` only `bun.lock` is
+  checked, and the CLI says so.
+
+Single-copy packages: every `@oxy.so/*`, `react`, `react-dom`, `react-native`,
+`expo`, `expo-modules-core`, `react-native-reanimated`,
+`react-native-gesture-handler`, `react-native-safe-area-context`,
+`react-native-screens`, `socket.io-client`, and `zod` among the copies
+`@oxy.so/*` packages use (`@oxy.so/contracts` and an app's own
+`@oxy.so/*-contracts` build schemas with it; a build tool's private zod may
+differ). Copies of an ordinary package forced by incompatible ranges (two
+majors of a utility) are normal and not reported. A copy bundled inside its
+dependent's tarball is that dependent's own unless the package is single-copy.
 
 It also checks that every app (a manifest on `@oxy.so/services` and on `expo`
 or `react-native`) declares each REQUIRED native peer of the services it has

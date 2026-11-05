@@ -579,11 +579,15 @@
     },
     "packages/doctor": {
       "name": "@oxy.so/doctor",
-      "version": "1.6.1",
+      "version": "1.7.0",
       "bin": {
         "oxy-doctor": "./src/cli.mjs",
         "oxy-doctor-expo-android": "./src/expo-android.mjs",
+        "oxy-doctor-i18n": "./src/i18n-cli.mjs",
         "oxy-emulator-preflight": "./src/emulator-preflight.mjs",
+      },
+      "dependencies": {
+        "semver": "^7.7.4",
       },
     },
     "packages/expo-splash": {

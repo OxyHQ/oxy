@@ -1,6 +1,18 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { duplicateFindings, installedDuplicateFindings, parseBunLock } from './duplicates.mjs';
+
+export {
+  duplicateFindings,
+  installedCopies,
+  installedDuplicateFindings,
+  lockfileCopies,
+  mustBeSingle,
+  parseBunLock,
+  SHARED_WITH_OXY_PACKAGES,
+  SINGLE_COPY_PACKAGES,
+} from './duplicates.mjs';
 
 export const FIRST_PARTY_SCOPES = ['@oxy.so/'];
 
@@ -277,6 +289,14 @@ export async function inspectRepository(
   const lockfile = existsSync(lockPath) ? await readFile(lockPath, 'utf8') : null;
   if (!lockfile)
     findings.push({ severity: 'error', code: 'missing-lockfile', message: 'bun.lock is missing' });
+  const duplicates = lockfile ? duplicateFindings(parseBunLock(lockfile)) : [];
+  findings.push(...duplicates);
+  const installed = installedDuplicateFindings(
+    root,
+    manifestPaths.map((path) => dirname(path)),
+    new Set(duplicates.map((finding) => finding.package)),
+  );
+  findings.push(...installed.findings);
   await Promise.all(
     [...usages].map(async ([name, rows]) => {
       const { version: latest, publishedAt } = await fetchLatest(name);
@@ -285,15 +305,6 @@ export async function inspectRepository(
         throw new Error(`Registry returned no publish time for ${name}@${latest}`);
       const deadline = new Date(published.getTime() + graceDays * DAY_MS);
       const overdue = now >= deadline;
-      const installed = lockfile ? [...new Set(lockfileVersions(lockfile, name))] : [];
-      if (installed.length > 1)
-        findings.push({
-          severity: 'error',
-          code: 'duplicate-version',
-          package: name,
-          installed,
-          message: `${name} has multiple locked versions: ${installed.join(', ')}`,
-        });
       for (const row of rows) {
         if (rangeIncludesVersion(row.range, latest)) continue;
         const due = deadline.toISOString().slice(0, 10);
@@ -327,6 +338,7 @@ export async function inspectRepository(
     packages: usages.size,
     findings,
     nativePeersUnverified: unverified,
+    installedTreeChecked: installed.checked,
   };
 }
 

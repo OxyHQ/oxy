@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/doctor",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Read-only health checks for Oxy ecosystem repositories",
   "repository": {
     "type": "git",
@@ -24,6 +24,9 @@
   ],
   "scripts": {
     "test": "bun test tests"
+  },
+  "dependencies": {
+    "semver": "^7.7.4"
   },
   "publishConfig": {
     "access": "public"
