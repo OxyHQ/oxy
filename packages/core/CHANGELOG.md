@@ -187,7 +187,7 @@
 
 ### Added
 
-- **The store's installer** beside `oxy.store` (ADR 0053; OxyOS ADR 0030, decision 9):
+- **The store's installer** beside `oxy.store` (ADR 0059; OxyOS ADR 0030, decision 9):
   `setStoreInstaller` / `getStoreInstaller`, the `StoreInstaller` a runtime that installs
   applications registers before the application's code runs, and `StoreInstallerError`. A store
   asks it where a listing stands on the machine (`status`: *Get*, a progress ring, *Open*,
