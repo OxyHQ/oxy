@@ -31,7 +31,7 @@ The package exposes two public entry points:
 - `@oxy.so/core/session` — `SessionClient`, the account dialog controller, auth-state stores, cold boot
 - `@oxy.so/core/crypto` — `KeyManager`, `SignatureService`, `RecoveryPhraseService` and the primitives under them
 - `@oxy.so/core/civic`, `@oxy.so/core/inference`, `@oxy.so/core/logger`
-- `@oxy.so/core/server` — `OxyServer` (workload service tokens, `middleware.*`, `withUser` / `asUser`, `appPermissionsFor`, `accountAccessFor`, `applicationAccessFor`) and the Express helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `createOxySocketCors`, `createOxySecurityHeaders`, `buildOxyCspDirectives`, `safeFetch`, `verifySecret`, and request types)
+- `@oxy.so/core/server` — `OxyServer` (workload service tokens, `middleware.*`, `withUser` / `asUser`, `isFirstPartyServiceUrl`, `appPermissionsFor`, `accountAccessFor`, `applicationAccessFor`) and the Express helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `createOxySocketCors`, `createOxySecurityHeaders`, `buildOxyCspDirectives`, `safeFetch`, `verifySecret`, and request types)
 
 Heavy pieces have their own entries so an app ships only what it uses; React Native and browser bundles never import Express. The full API map is [docs/api.mdx](./docs/api.mdx).
 

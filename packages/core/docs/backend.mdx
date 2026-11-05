@@ -159,6 +159,14 @@ person may attach a file only if `metadataByIds` says it is theirs and
   `serviceRequest`, or `createServiceClient().fetch`. Never `safeFetch` a
   first-party host: inside the VPC `api.oxy.so` resolves to a private address,
   which `safeFetch` refuses by design (its refusal says so).
+- **A caller-chosen URL that may name Oxy itself** (a customer webhook
+  endpoint Oxy subscribes to): `oxy.isFirstPartyServiceUrl(url)` decides the
+  lane — `true` only for this server's own configured API origin, exactly —
+  and `true` goes through
+  `oxy.createServiceClient({ baseURL: oxy.baseURL, audience: 'oxy-api' }).fetch`,
+  everything else through `safeFetch`. Never a hostname list or suffix match of
+  your own; and gate it on whatever makes that caller trusted to point your
+  workload's authority at Oxy (the request carries this server's bearer).
 - **Untrusted or caller-influenced URLs** (customer webhooks, unfurls,
   federation, media proxies): `safeFetch`, then `readResponseBody` /
   `readResponseJson` for a capped, deadline-bound body. A URL you already

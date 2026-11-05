@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.23.0
+
+### Added
+
+- **`OxyServer.isFirstPartyServiceUrl(url)`**: whether a URL a caller chose (a customer webhook endpoint, say) names Oxy's own API — exactly this server's configured `baseURL` origin (scheme, host and port), when that is an official Oxy origin. `true` sends it through this server (`createServiceClient({ baseURL: oxy.baseURL, audience: 'oxy-api' }).fetch`); `false` through `safeFetch`, whose checks are unchanged. Look-alike hosts (`api.oxy.so.evil.com`), other official hosts, other ports or schemes, credential-carrying and unparseable URLs are `false`. Inside the VPC `api.oxy.so` resolves to a private address, so an untrusted-URL fetcher that also has to reach Oxy (Peable delivering Oxy's own webhook endpoint) asks this rather than keeping a hostname list.
+
 ## 7.22.0
 
 ### Added
