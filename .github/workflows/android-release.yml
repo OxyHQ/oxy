@@ -6,8 +6,10 @@ name: Android release
 # the version is the OTA compatibility boundary (`withOxyUpdates`, runtime
 # policy `appVersion`), so a JS-only change ships as an OTA update under the
 # same version and most pushes end at the "Is this version released?" step. A
-# new version is a native change, and gets a signed AAB and APK, published as
-# the GitHub release `<tag-prefix>-v<version>` of the app repository.
+# new version is a native change, and gets a signed AAB and APK: the AAB goes
+# to Google Play's internal testing track, the APK (and its SHA-256) is the
+# public GitHub release `<tag-prefix>-v<version>` of the app repository, and
+# both stay archived on seldon ($OXY_RELEASE_ARCHIVE/<repo>/<tag>/).
 # docs/engineering/build-and-deploy.md#native-android-releases.
 #
 # It runs on `seldon`, Oxy's self-hosted build machine, whose runner group
@@ -149,9 +151,140 @@ jobs:
         working-directory: ${{ inputs.app-dir }}/android
         run: ./gradlew :app:bundleRelease :app:assembleRelease --console=plain
 
-      - name: Publish the release
+      # Every build is kept on seldon too, the AAB included: the GitHub release
+      # carries only what the public installs (the APK and its checksum).
+      - name: Archive the build on seldon
         if: steps.plan.outputs.build == 'true'
         working-directory: ${{ inputs.app-dir }}/android/app/build/outputs
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          PACKAGE: ${{ steps.plan.outputs.package }}
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          : "${OXY_RELEASE_ARCHIVE:?the seldon runner sets OXY_RELEASE_ARCHIVE}"
+          name="${PACKAGE}-${VERSION}"
+          dir="$OXY_RELEASE_ARCHIVE/$GITHUB_REPOSITORY/$TAG"
+          mkdir -p "$dir"
+          cp apk/release/app-release.apk "$dir/$name.apk"
+          cp bundle/release/app-release.aab "$dir/$name.aab"
+          (cd "$dir" && sha256sum "$name.apk" "$name.aab" > SHA256SUMS)
+          echo "ARCHIVE_DIR=$dir" >> "$GITHUB_ENV"
+          echo "ARTIFACT_NAME=$name" >> "$GITHUB_ENV"
+          # Keep this app's three newest versions: Play keeps every AAB it was
+          # given and GitHub every APK, so older copies here only fill the disk.
+          find "$OXY_RELEASE_ARCHIVE/$GITHUB_REPOSITORY" -mindepth 1 -maxdepth 1 -type d -name "${TAG_PREFIX}-v*" -printf '%f\n' \
+            | sort -V | head -n -3 \
+            | while read -r old; do rm -rf "${OXY_RELEASE_ARCHIVE:?}/$GITHUB_REPOSITORY/$old"; done
+
+      # The AAB goes to Google Play's internal testing track. Google offers no
+      # API to create an app, and an app has no package until its first bundle
+      # is uploaded in Play Console, so a package Play does not know yet is a
+      # warning (upload the archived AAB there once), never a failed release.
+      # Re-running after a partial failure is safe: a versionCode Play already
+      # holds is not uploaded again.
+      - name: Upload the AAB to Google Play (internal testing)
+        if: steps.plan.outputs.build == 'true'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          VERSION_CODE: ${{ steps.plan.outputs.version-code }}
+          PACKAGE: ${{ steps.plan.outputs.package }}
+        run: |
+          node - <<'EOF'
+          const { createSign } = require('node:crypto');
+          const { readFileSync } = require('node:fs');
+          const { join } = require('node:path');
+          const env = process.env;
+          const key = JSON.parse(readFileSync(env.GOOGLE_PLAY_SERVICE_ACCOUNT_FILE, 'utf8'));
+          const API = 'https://androidpublisher.googleapis.com/androidpublisher/v3/applications';
+          const UPLOAD = 'https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications';
+          const b64url = (value) => Buffer.from(value).toString('base64url');
+
+          async function accessToken() {
+            const now = Math.floor(Date.now() / 1000);
+            const claims = {
+              iss: key.client_email,
+              scope: 'https://www.googleapis.com/auth/androidpublisher',
+              aud: 'https://oauth2.googleapis.com/token',
+              iat: now,
+              exp: now + 3600,
+            };
+            const unsigned = `${b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64url(JSON.stringify(claims))}`;
+            const signature = createSign('RSA-SHA256').update(unsigned).sign(key.private_key, 'base64url');
+            const response = await fetch('https://oauth2.googleapis.com/token', {
+              method: 'POST',
+              body: new URLSearchParams({
+                grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                assertion: `${unsigned}.${signature}`,
+              }),
+            });
+            const body = await response.json();
+            if (!response.ok) throw new Error(`Google token: ${body.error_description ?? body.error}`);
+            return body.access_token;
+          }
+
+          async function main() {
+            const token = await accessToken();
+            const call = async (method, url, body, headers = {}) => {
+              const response = await fetch(url, {
+                method,
+                headers: { Authorization: `Bearer ${token}`, ...headers },
+                body,
+              });
+              const text = await response.text();
+              const json = text ? JSON.parse(text) : {};
+              return { status: response.status, json };
+            };
+            const app = `${API}/${env.PACKAGE}`;
+            const edit = await call('POST', `${app}/edits`, '', { 'Content-Length': '0' });
+            if (edit.status === 404) {
+              console.log(
+                `::warning::${env.PACKAGE} is not on Google Play yet. Create the app in Play Console and upload ` +
+                  `${env.ARCHIVE_DIR}/${env.ARTIFACT_NAME}.aab to Internal testing once; later releases upload here.`,
+              );
+              return;
+            }
+            if (edit.status !== 200) throw new Error(`Play edit: ${edit.status} ${JSON.stringify(edit.json.error)}`);
+            const editUrl = `${app}/edits/${edit.json.id}`;
+            const code = Number(env.VERSION_CODE);
+
+            const bundles = await call('GET', `${editUrl}/bundles`);
+            const held = (bundles.json.bundles ?? []).some((bundle) => bundle.versionCode === code);
+            if (held) {
+              console.log(`Play already holds versionCode ${code}; not uploading it again.`);
+            } else {
+              const aab = readFileSync(join(env.ARCHIVE_DIR, `${env.ARTIFACT_NAME}.aab`));
+              const upload = await call('POST', `${UPLOAD}/${env.PACKAGE}/edits/${edit.json.id}/bundles?uploadType=media`, aab, {
+                'Content-Type': 'application/octet-stream',
+              });
+              if (upload.status !== 200) throw new Error(`Play upload: ${upload.status} ${JSON.stringify(upload.json.error)}`);
+            }
+
+            const track = await call(
+              'PUT',
+              `${editUrl}/tracks/internal`,
+              JSON.stringify({
+                track: 'internal',
+                releases: [{ name: env.VERSION, versionCodes: [String(code)], status: 'completed' }],
+              }),
+              { 'Content-Type': 'application/json' },
+            );
+            if (track.status !== 200) throw new Error(`Play track: ${track.status} ${JSON.stringify(track.json.error)}`);
+            const commit = await call('POST', `${editUrl}:commit`, '', { 'Content-Length': '0' });
+            if (commit.status !== 200) throw new Error(`Play commit: ${commit.status} ${JSON.stringify(commit.json.error)}`);
+            console.log(`::notice::${env.PACKAGE} ${env.VERSION} (versionCode ${code}) is on Google Play internal testing.`);
+          }
+
+          main().catch((error) => {
+            console.log(`::error::${error.message}`);
+            process.exit(1);
+          });
+          EOF
+
+      # Last, because the release tag is what marks this version as done.
+      - name: Publish the release
+        if: steps.plan.outputs.build == 'true'
+        working-directory: ${{ env.ARCHIVE_DIR }}
         env:
           VERSION: ${{ steps.plan.outputs.version }}
           VERSION_CODE: ${{ steps.plan.outputs.version-code }}
@@ -159,13 +292,10 @@ jobs:
           TAG: ${{ steps.plan.outputs.tag }}
         run: |
           set -euo pipefail
-          name="${PACKAGE}-${VERSION}"
-          cp apk/release/app-release.apk "$name.apk"
-          cp bundle/release/app-release.aab "$name.aab"
-          sha256sum "$name.apk" "$name.aab" > "$name.sha256"
-          gh release create "$TAG" "$name.apk" "$name.aab" "$name.sha256" \
+          sha256sum "$ARTIFACT_NAME.apk" > "$RUNNER_TEMP/$ARTIFACT_NAME.apk.sha256"
+          gh release create "$TAG" "$ARTIFACT_NAME.apk" "$RUNNER_TEMP/$ARTIFACT_NAME.apk.sha256" \
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "$PACKAGE $VERSION (Android)" \
-            --notes "Android build $VERSION (versionCode $VERSION_CODE) of \`$PACKAGE\` from $GITHUB_SHA, signed with the Oxy ecosystem key. Install the APK directly; the AAB is the Google Play upload."
+            --notes "Android build $VERSION (versionCode $VERSION_CODE) of \`$PACKAGE\` from $GITHUB_SHA, signed with the Oxy ecosystem key (certificate SHA-256 b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d). Install the APK directly; check it against the .sha256 file."
           echo "::notice::Released $TAG"
