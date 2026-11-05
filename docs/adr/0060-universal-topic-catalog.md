@@ -1,6 +1,6 @@
-# ADR 0052 — A universal topic catalog and relatedness across Oxy products
+# ADR 0060 — A universal topic catalog and relatedness across Oxy products
 
-- Status: proposed; open decisions listed below must be settled before acceptance
+- Status: Proposed; the open decisions listed below must be settled before acceptance
 - Date: 2026-11-05
 - Decided by: the owner of Oxy (proposal, awaiting review)
 
@@ -21,7 +21,7 @@ Oxy already has a topic table (`topics`, with `type`, `source`, `isActive`, `par
    - `P(B | A) = (co + α) / (volume(A) + α + β)`, with the default prior α = 0.5, β = 49.5 (mean 0.01, weight about 50 items).
    - `score(A, B) = min(P(B | A), P(A | B))`.
    - A pair qualifies only with at least `minCooccurrence` shared items (default 3). Each topic keeps at most K relations (default 20), ordered by score and then by topic ID. Relations are never guessed: no evidence, no relation.
-   - The reference implementation is `packages/backend/src/services/topics/relatedness.ts` in Mention, pure and tested. Oxy adopts the same module so every product gets the same numbers.
+   - The reference implementation is `packages/backend/src/services/topics/relatedness.ts` in Mention (OxyHQ/Mention#1880), pure and tested. Oxy adopts the same module so every product gets the same numbers.
 5. **Contributions are observations, not writes to the table.** An app reports a set of topic IDs that co-occur in one item (a post, an episode, a room, a listing) with a source identifier. Oxy:
    - caps each item at 8 topics (at most 28 pairs per item), keeping the heaviest;
    - weights each source so one high-volume product cannot dominate a relation;
