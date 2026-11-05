@@ -141,6 +141,7 @@ already written up below. The mechanisms and evidence it used to restate:
 - [engineering/local-dev-cursor-cloud.md](engineering/local-dev-cursor-cloud.md) — local infra, building shared libs, the end-to-end auth smoke test
 - [engineering/per-owner-asset-rows.md](engineering/per-owner-asset-rows.md) — one live `files` row per owner per content hash, sharing storage: the model, the spelling-precise purge, `by-sha256`'s `ownerUserId`, migration 0124's measured lock profile, the rollout order and the cross-owner split script
 - [engineering/measurement-traps.md](engineering/measurement-traps.md) — checks that run clean while measuring the wrong thing: what `origin/main..HEAD` actually compares, why `--theirs` is inverted during a rebase, and why a transforming query schema must parse its own output
+- [engineering/account-query-migration-research.md](engineering/account-query-migration-research.md) — research, not a mechanism: why changing `accountQueries` filters can overwrite persisted roots, the diagnostic tests that pin today's failure modes, and what a migration needs first
 - [engineering/package-namespace.md](engineering/package-namespace.md) — canonical npm names, package ownership and the clean `@oxy.so` scope boundary
 
 ---

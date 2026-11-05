@@ -7,7 +7,7 @@ blob is keyed by subject; it contains no verified binding to an actor.
 
 ## Observed behavior
 
-Services 13.16.0 maintains one `oxy_account_queries:<subject>` blob for all
+Services 14.3 (re-checked 2026-11-05; first observed on 13.16.0) maintains one `oxy_account_queries:<subject>` blob for all
 registered roots and mutations. Every persister has its own ordered I/O queue;
 that queue does not order other provider instances or browser tabs. The tests
 in `accountQueryPersistenceMigration.audit.test.ts` deliberately document
