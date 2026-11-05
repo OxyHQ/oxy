@@ -94,8 +94,8 @@ export function isFederationServiceToServicePath(path: string): boolean {
  *
  * So these paths are excluded from the shared per-address limiters and the
  * slowDown penalty, and each mint route carries its OWN budgets instead: the key
- * pair is charged to the credential it names plus a flood ceiling per address,
- * and the workload pair to its fleet-sized address ceiling.
+ * pair is charged to its credential once the secret is verified, plus a flood
+ * ceiling per address, and the workload pair to its fleet-sized address ceiling.
  *
  * MOUNT-ORDER INVARIANT: `rl:general`, `rl:auth` and `slowDown` skip these
  * paths, so every route matched here MUST carry its own limiter in

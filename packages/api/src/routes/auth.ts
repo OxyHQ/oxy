@@ -45,7 +45,7 @@ import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
-import { serviceTokenMintRateLimitKey } from '../utils/serviceRateLimitKey';
+import { serviceRateLimitKey } from '../utils/serviceRateLimitKey';
 import { hashedIpKey } from '../utils/ipKey';
 import { exchangeGithubActionsToken } from '../services/githubTrustedPublishing.service';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
@@ -3581,10 +3581,22 @@ router.get(
 // Service Token Authentication (Internal Services)
 // ============================================
 
+/** A key-pair mint request once {@link authenticateServiceTokenCredential} has verified its secret. */
+type ServiceTokenMintRequest = express.Request & { mintingCredential?: ApplicationCredentialRow };
+
 /**
- * The key-pair mint is charged to the CREDENTIAL it names, not to the address
- * it came from — see {@link serviceTokenMintRateLimitKey} for why, and why the
- * address still gets its own flood ceiling below.
+ * The key-pair mint is charged to the CREDENTIAL that minted, not to the address
+ * it came from. Every Oxy service mints from the cluster's one NAT address, so an
+ * address key pooled the whole estate: one service's deploy spent another's next
+ * token.
+ *
+ * The credential is charged only after its secret is verified, so only a
+ * holder of that secret can spend its budget. Before, the key was the presented
+ * `apiKey`, a PUBLIC value, counted before authentication. Anyone who knew a
+ * service's key could spend its 30 mints with invalid secrets, and every task of
+ * that service was refused its next token. Failed attempts are bounded by the
+ * address ceiling below. The secret is 32 random bytes, so this budget bounds a
+ * runaway service, not guessing.
  */
 const serviceTokenLimiter = rateLimit({
   prefix: 'rl:auth:service-token:',
@@ -3593,19 +3605,74 @@ const serviceTokenLimiter = rateLimit({
   // readiness gate share this bucket. TTL300 requires measured cohort/headroom;
   // preserve 30 while rollout validates rolling overlap and retries.
   max: process.env.NODE_ENV === 'development' ? 100 : 30,
-  keyGenerator: serviceTokenMintRateLimitKey,
+  keyGenerator: (req) => {
+    const credential = (req as ServiceTokenMintRequest).mintingCredential;
+    return serviceRateLimitKey(
+      credential && { appId: credential.applicationId, credentialId: credential.id },
+    );
+  },
 });
 
 /**
- * The flood ceiling per address, sized like the workload mint's: the whole
- * estate mints through one NAT address, and this bounds invented keys, not
- * services. Its own prefix, so it and the per-credential budget never share a
- * counter.
+ * The flood ceiling per address, sized like the workload mint's. The whole
+ * estate mints through one NAT address. It runs before authentication, so it
+ * bounds invented keys and wrong secrets, not services. It has its own prefix,
+ * so it never shares a counter with the per-credential budget.
  */
 const serviceTokenAddressLimiter = rateLimit({
   prefix: 'rl:auth:service-token-address:',
   windowMs: 5 * 60 * 1000,
   max: process.env.NODE_ENV === 'development' ? 2_000 : 600,
+});
+
+/**
+ * Proves the caller holds the named credential's secret, before anything is
+ * charged to that credential ({@link serviceTokenLimiter}).
+ */
+const authenticateServiceTokenCredential = asyncHandler(async (req, _res, next) => {
+  const { apiKey, apiSecret } = req.body;
+
+  if (!apiKey || !apiSecret) {
+    throw new BadRequestError('apiKey and apiSecret are required');
+  }
+
+  // Find the credential by its public key (apiKey). The credential must be a
+  // `service` credential that is currently usable: `active`, or `deprecated`
+  // but still inside its rotation grace window. `revoked` and grace-expired
+  // credentials are rejected.
+  const credential = await resolveUsableCredential(apiKey);
+
+  if (!credential) {
+    logger.warn('[ServiceToken] Invalid apiKey attempt', { apiKey: apiKey.substring(0, 12) + '...' });
+    throw new UnauthorizedError('Invalid credentials');
+  }
+
+  if (credential.type !== 'service') {
+    logger.warn('[ServiceToken] Non-service credential attempted service token', {
+      credentialId: credential.id,
+      applicationId: credential.applicationId,
+    });
+    throw new ForbiddenError('Service tokens are only available to service credentials');
+  }
+
+  // Validate the secret as a SHA-256 hash with a timing-safe comparison.
+  if (!credential.secretHash) {
+    throw new UnauthorizedError('Invalid credentials');
+  }
+  const expectedBuffer = Buffer.from(credential.secretHash);
+  const providedBuffer = Buffer.from(crypto.createHash('sha256').update(apiSecret).digest('hex'));
+
+  if (expectedBuffer.length !== providedBuffer.length ||
+      !crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
+    logger.warn('[ServiceToken] Invalid apiSecret attempt', {
+      credentialId: credential.id,
+      applicationId: credential.applicationId,
+    });
+    throw new UnauthorizedError('Invalid credentials');
+  }
+
+  (req as ServiceTokenMintRequest).mintingCredential = credential;
+  next();
 });
 
 /**
@@ -3702,48 +3769,10 @@ const serviceTokenAddressLimiter = rateLimit({
  *       429:
  *         description: Rate limit exceeded
  */
-router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, validate({ body: serviceTokenSchema }), asyncHandler(async (req, res) => {
-  const { apiKey, apiSecret } = req.body;
+router.post('/service-token', serviceTokenAddressLimiter, validate({ body: serviceTokenSchema }), authenticateServiceTokenCredential, serviceTokenLimiter, asyncHandler(async (req, res) => {
+  const credential = (req as ServiceTokenMintRequest).mintingCredential;
+  if (!credential) throw new UnauthorizedError('Invalid credentials');
   const audience: ServiceTokenAudience = req.body.audience ?? OXY_API_AUDIENCE;
-
-  if (!apiKey || !apiSecret) {
-    throw new BadRequestError('apiKey and apiSecret are required');
-  }
-
-  // Find the credential by its public key (apiKey). The credential must be a
-  // `service` credential that is currently usable: `active`, or `deprecated`
-  // but still inside its rotation grace window. `revoked` and grace-expired
-  // credentials are rejected.
-  const credential = await resolveUsableCredential(apiKey);
-
-  if (!credential) {
-    logger.warn('[ServiceToken] Invalid apiKey attempt', { apiKey: apiKey.substring(0, 12) + '...' });
-    throw new UnauthorizedError('Invalid credentials');
-  }
-
-  if (credential.type !== 'service') {
-    logger.warn('[ServiceToken] Non-service credential attempted service token', {
-      credentialId: credential.id,
-      applicationId: credential.applicationId,
-    });
-    throw new ForbiddenError('Service tokens are only available to service credentials');
-  }
-
-  // Validate the secret as a SHA-256 hash with a timing-safe comparison.
-  if (!credential.secretHash) {
-    throw new UnauthorizedError('Invalid credentials');
-  }
-  const expectedBuffer = Buffer.from(credential.secretHash);
-  const providedBuffer = Buffer.from(crypto.createHash('sha256').update(apiSecret).digest('hex'));
-
-  if (expectedBuffer.length !== providedBuffer.length ||
-      !crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
-    logger.warn('[ServiceToken] Invalid apiSecret attempt', {
-      credentialId: credential.id,
-      applicationId: credential.applicationId,
-    });
-    throw new UnauthorizedError('Invalid credentials');
-  }
 
   // The owning application must be active and part of the platform-trusted set.
   // Service tokens are bearer credentials for Oxy-to-Oxy / internal routes;
@@ -3886,9 +3915,8 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
 /**
  * The workload mint gets its own budget, and it has to be a fleet-sized one.
  *
- * The credential limiter above is 30 per 5 minutes because an api key and
- * secret are GUESSABLE: a wide budget there is a brute-force budget. Nothing
- * about the workload path is guessable. The challenge hands out a nonce that
+ * The key-pair mint above is 30 per 5 minutes per credential, which bounds one
+ * runaway service. Nothing about the workload path is guessable. The challenge hands out a nonce that
  * expires in 60 seconds and authorises nothing, and the exchange only mints if
  * AWS itself confirms which IAM role signed the request — an attacker who can
  * produce that already has the role.
