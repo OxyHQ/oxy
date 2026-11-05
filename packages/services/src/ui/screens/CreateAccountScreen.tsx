@@ -167,6 +167,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
+      const seq = ++usernameCheckSeqRef.current;
 
       if (!value || value.length < USERNAME_MIN_LENGTH) {
         setUsernameStatus(value.length > 0 ? 'invalid' : 'idle');
@@ -203,7 +204,6 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
       setUsernameStatus('checking');
       setUsernameMessage('');
 
-      const seq = ++usernameCheckSeqRef.current;
       debounceTimerRef.current = setTimeout(async () => {
         try {
           const result = await oxyServices.auth.checkUsername(value);
