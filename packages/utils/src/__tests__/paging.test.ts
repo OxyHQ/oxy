@@ -13,10 +13,14 @@ import {
   resolvePageNumber,
   resolvePageOffset,
 } from '../paging';
+import { nextUnvisitedCursor as directCursor } from '../cursor';
 
 const BOUNDS = { fallback: 20, max: 50 };
 
 describe('nextUnvisitedCursor', () => {
+  it('keeps the existing paging export and the small cursor entry in sync', () => {
+    expect(nextUnvisitedCursor).toBe(directCursor);
+  });
   it('continues with an unseen cursor and stops for absent or repeated cursors', () => {
     expect(nextUnvisitedCursor('b', [undefined, 'a'])).toBe('b');
     expect(nextUnvisitedCursor('a', [undefined, 'a'])).toBeUndefined();

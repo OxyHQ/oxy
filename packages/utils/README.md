@@ -60,8 +60,9 @@ pattern.
 `resolvePageLimit`, `resolvePageOffset`, `resolvePageNumber`, `offsetForPage`.
 
 `nextUnvisitedCursor(next, pageParams)` returns the next cursor, or `undefined`
-for an absent or already visited cursor. Mention and Syra currently implement
-the same guard locally; callers retain their own has-more and retry policies.
+for an absent or already visited cursor. Import `@oxy.so/utils/cursor` to load
+only this guard; the existing `@oxy.so/utils/paging` export remains available.
+Callers retain their own has-more and retry policies.
 
 Seven helpers in five repos plus **46 inline clamps**, none agreeing on
 degenerate input. The guarantee: no input — missing, malformed or hostile —
