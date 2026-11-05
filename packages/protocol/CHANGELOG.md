@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.7.0
+
+### Added
+
+- `CommonsIdentityBridge.describe`, `deriveScopedSeed` and `signSocialReceive` take an optional `accountId`: an organization's identity key held by Commons (ADR 0061 D6). An organization answer is accepted only when Commons echoes the account id, so a Commons that predates organization keys answers `null`, never the personal key. `CommonsIdentityDescription.accountId` names the organization an answer is for.
+
 ## 1.6.1
 
 ### Changed

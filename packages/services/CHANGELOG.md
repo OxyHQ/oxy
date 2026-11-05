@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.6.0
+
+### Added
+
+- Android `OxyIdentity` native module: `describeOrganization`, `deriveOrganizationScopedSeed` and `signOrganizationSocialReceive`, which ask Commons' identity host for an organization's key (ADR 0061 D6) with an `accountId` extra and accept only an answer that echoes it. iOS answers `nil` (the keychain group serves organization keys there). Used by `@oxy.so/core`'s `KeyManager.deriveScopedSeed` / `signSocialReceive` with `{ accountId }`.
+
 ## 14.5.0
 
 ### Added

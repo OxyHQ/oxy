@@ -1,5 +1,13 @@
 # Changelog — `@oxy.so/core`
 
+## 7.25.0
+
+### Added
+
+- **Organization keys on the device** (`@oxy.so/core/crypto`, ADR 0061 D6): `generateOrganizationKey()` and `organizationKeyFromPhrase(phrase)` (24 words, `seed[0:32]`, store nothing); `storeOrganizationKey(accountId, { privateKey, publicKey, mnemonic? })` for Commons (iOS keychain group `group.so.oxy.shared`; Android Commons' own slot and its identity host's signer store); `getOrganizationPublicKey(accountId)` for any Oxy app; `getOrganizationPrivateKey`, `getOrganizationRecoveryPhrase`, `listOrganizationKeys`, `deleteOrganizationKey`, `syncOrganizationKeys` for Commons; `isOrganizationAccountId`, `isHealthyOrganizationKeyPair`.
+- **`KeyManager.deriveScopedSeed(info, { accountId })` and `KeyManager.signSocialReceive(index, digest, { accountId })`**: an organization's scoped seed and social-receive signatures, exactly as the personal ones, for the wallet. `null` when this device cannot reach that organization's key; never the personal key in its place. Without `accountId`, unchanged.
+- `IdentitySignerStore` gains optional `readOrganization`, `writeOrganization` and `clearOrganization`.
+
 ## 7.24.0
 
 ### Added
