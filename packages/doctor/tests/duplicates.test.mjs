@@ -32,13 +32,13 @@ const findingsFor = (spec) => duplicateFindings(parseBunLock(lockText(spec)));
 const staleContracts = {
   workspaces: {
     '': { name: 'dropsea' },
-    'packages/frontend': {
+    'ws/frontend': {
       name: '@dropsea/frontend',
       dependencies: { '@oxy.so/core': '7.23.0', '@oxy.so/services': '14.3.8' },
     },
   },
   packages: {
-    '@dropsea/frontend': ['@dropsea/frontend@workspace:packages/frontend'],
+    '@dropsea/frontend': ['@dropsea/frontend@workspace:ws/frontend'],
     '@oxy.so/core': [
       '@oxy.so/core@7.23.0',
       { dependencies: { '@oxy.so/contracts': '^6.9.0', '@oxy.so/protocol': '^1.6.1' } },
@@ -139,19 +139,17 @@ describe('duplicate copies in bun.lock', () => {
     const [finding] = findingsFor({
       workspaces: {
         '': { name: 'app', dependencies: { '@oxy.so/core': '7.23.0' } },
-        'packages/api': { name: '@app/api', dependencies: { 'socket.io-client': '~4.7.0' } },
+        'ws/api': { name: '@app/api', dependencies: { 'socket.io-client': '~4.7.0' } },
       },
       packages: {
-        '@app/api': ['@app/api@workspace:packages/api'],
+        '@app/api': ['@app/api@workspace:ws/api'],
         '@oxy.so/core': ['@oxy.so/core@7.23.0', { dependencies: { 'socket.io-client': '^4.8.4' } }],
         'socket.io-client': ['socket.io-client@4.8.4'],
         '@app/api/socket.io-client': ['socket.io-client@4.7.5'],
       },
     });
     expect(finding.code).toBe('duplicate-conflict');
-    expect(finding.message).toContain(
-      'widen the range in packages/api/package.json to accept 4.8.4',
-    );
+    expect(finding.message).toContain('widen the range in ws/api/package.json to accept 4.8.4');
   });
 
   test('ranges that meet only below the newest copy are pinned: an error for a single-copy package', () => {
@@ -190,18 +188,16 @@ describe('duplicate copies in bun.lock', () => {
     };
     expect(findingsFor(base)).toEqual([]);
     const shared = structuredClone(base);
-    shared.workspaces['packages/contracts'] = {
+    shared.workspaces['ws/contracts'] = {
       name: '@oxy.so/app-contracts',
       dependencies: { zod: '^3.24.1' },
     };
-    shared.packages['@oxy.so/app-contracts'] = [
-      '@oxy.so/app-contracts@workspace:packages/contracts',
-    ];
+    shared.packages['@oxy.so/app-contracts'] = ['@oxy.so/app-contracts@workspace:ws/contracts'];
     shared.packages['@oxy.so/app-contracts/zod'] = ['zod@3.25.76'];
     const [finding] = findingsFor(shared);
     expect(finding).toMatchObject({ code: 'duplicate-conflict', package: 'zod' });
     expect(finding.message).toContain(
-      'widen the range in packages/contracts/package.json to accept 4.6.7',
+      'widen the range in ws/contracts/package.json to accept 4.6.7',
     );
   });
 
@@ -209,10 +205,10 @@ describe('duplicate copies in bun.lock', () => {
     const [finding, ...rest] = findingsFor({
       workspaces: {
         '': { name: 'app', dependencies: { '@oxy.so/core': '7.23.0' } },
-        'packages/api': { name: '@app/api', dependencies: { zod: '^3.25.76' } },
+        'ws/api': { name: '@app/api', dependencies: { zod: '^3.25.76' } },
       },
       packages: {
-        '@app/api': ['@app/api@workspace:packages/api'],
+        '@app/api': ['@app/api@workspace:ws/api'],
         '@oxy.so/core': [
           '@oxy.so/core@7.23.0',
           { dependencies: { '@oxy.so/contracts': '^6.9.0', zod: '^4.6.7' } },
@@ -231,7 +227,7 @@ describe('duplicate copies in bun.lock', () => {
       target: '4.6.7',
       hoisted: {
         version: '3.25.76',
-        pulledBy: [{ by: 'packages/api/package.json', range: '^3.25.76' }],
+        pulledBy: [{ by: 'ws/api/package.json', range: '^3.25.76' }],
       },
     });
     expect(finding.message).toContain('declare `"zod": "^4.6.7"` in the root package.json');
@@ -257,16 +253,16 @@ describe('duplicate copies in bun.lock', () => {
       catalog: { react: '19.3.1' },
       workspaces: {
         '': { name: 'app', dependencies: { react: 'catalog:' } },
-        'packages/web': { name: '@app/web', dependencies: { react: 'catalog:' } },
+        'ws/web': { name: '@app/web', dependencies: { react: 'catalog:' } },
       },
       packages: {
-        '@app/web': ['@app/web@workspace:packages/web'],
+        '@app/web': ['@app/web@workspace:ws/web'],
         react: ['react@19.3.1'],
         '@app/web/react': ['react@19.3.0'],
       },
     });
     expect(finding).toMatchObject({ code: 'duplicate-copy', severity: 'error', package: 'react' });
-    expect(finding.message).toContain('19.3.0 (pulled by packages/web/package.json (19.3.1))');
+    expect(finding.message).toContain('19.3.0 (pulled by ws/web/package.json (19.3.1))');
   });
 
   test('names the single-copy packages', () => {
@@ -311,12 +307,12 @@ describe('duplicate copies in the installed tree', () => {
       await writePackage(join(root, 'node_modules/@oxy.so/services'), '@oxy.so/services', '14.3.8');
       await writePackage(join(root, 'node_modules/tslib'), 'tslib', '2.8.1');
       await writePackage(join(root, 'node_modules/a/node_modules/tslib'), 'tslib', '2.9.1');
-      await mkdir(join(root, 'packages/web/node_modules'), { recursive: true });
+      await mkdir(join(root, 'ws/web/node_modules'), { recursive: true });
       await symlink(
         join(root, 'node_modules/@oxy.so/services'),
-        join(root, 'packages/web/node_modules/services'),
+        join(root, 'ws/web/node_modules/services'),
       );
-      const { checked, findings } = installedDuplicateFindings(root, [join(root, 'packages/web')]);
+      const { checked, findings } = installedDuplicateFindings(root, [join(root, 'ws/web')]);
       expect(checked).toBe(true);
       expect(findings).toHaveLength(1);
       expect(findings[0]).toMatchObject({
@@ -354,11 +350,11 @@ describe('duplicate copies in the installed tree', () => {
     try {
       await writeFile(
         join(root, 'package.json'),
-        JSON.stringify({ name: 'app', workspaces: ['packages/*'] }),
+        JSON.stringify({ name: 'app', workspaces: ['ws/*'] }),
       );
-      await mkdir(join(root, 'packages/frontend'), { recursive: true });
+      await mkdir(join(root, 'ws/frontend'), { recursive: true });
       await writeFile(
-        join(root, 'packages/frontend/package.json'),
+        join(root, 'ws/frontend/package.json'),
         JSON.stringify({
           name: '@dropsea/frontend',
           dependencies: { '@oxy.so/core': '7.23.0', '@oxy.so/services': '14.3.8' },
