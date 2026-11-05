@@ -3,7 +3,7 @@
  * handles, and the bridge transports an external account is reached through.
  */
 
-import { BSKY_NETWORK_DOMAIN } from '@oxy.so/federation';
+import { BSKY_NETWORK_DOMAIN, blueskyUsernameFromHandle } from '@oxy.so/federation';
 
 const FEDIVERSE_HANDLE_REGEX = /^@?[\w.-]+@[\w.-]+\.\w+$/;
 
@@ -33,6 +33,18 @@ export const ATPROTO_DID_RE = /^did:(plc|web):[^\s/?#]+$/;
 /** An atproto handle is a DNS name: at least two labels and an alphabetic TLD. */
 export const ATPROTO_HANDLE_RE =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+
+/**
+ * The Oxy username of the Bluesky account an atproto handle names, or null when
+ * `value` is not a handle. One leading `@` is allowed (`@alice.bsky.social` is how
+ * Bluesky writes one). A default handle drops its `.bsky.social` suffix:
+ * `alice.bsky.social` → `alice@bsky.social`, `example.com` → `example.com@bsky.social`.
+ */
+export function blueskyAcctFromHandle(value: string): string | null {
+  const handle = value.trim().replace(/^@/, '').toLowerCase();
+  if (!ATPROTO_HANDLE_RE.test(handle)) return null;
+  return `${blueskyUsernameFromHandle(handle)}@${BSKY_NETWORK_DOMAIN}`;
+}
 
 export function domainFromHandle(handle: string): string | null {
   const atIndex = handle.indexOf('@');

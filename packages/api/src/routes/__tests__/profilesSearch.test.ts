@@ -304,6 +304,14 @@ describe('GET /profiles/search — leading @ handling', () => {
     expect(ids(res)).toContain(id);
   });
 
+  it('finds a Bluesky account by the handle Bluesky shows for it', async () => {
+    const term = token();
+    const id = await account({ username: `${term}@bsky.social`, type: 'federated' });
+
+    expect(ids(await search(`@${term}.bsky.social`))[0]).toBe(id);
+    expect(ids(await search(`${term}.bsky.social`))[0]).toBe(id);
+  });
+
   it('preserves a mid-string @ — it is the user@host separator, not a prefix', async () => {
     const term = token();
     const withHost = await account({ username: `${term}@mastodon.social` });

@@ -22,6 +22,7 @@ import { organizationProfiles } from '../db/schema/organizationProfiles';
 
 import { and, eq, gte, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { federatedUsernameFromUpstreamUrl } from '@oxy.so/federation';
+import { blueskyAcctFromHandle } from '../services/federation/handles';
 import { qualified } from '@oxy.so/db';
 import {
   type AccountKind,
@@ -139,6 +140,18 @@ export interface PeopleSearchMatchOptions {
  * SQL — the same job the caller's regex-metacharacter escaping used to do.
  */
 export function peopleSearchMatch(term: string, options: PeopleSearchMatchOptions = {}): SQL {
+  // An atproto handle names one Bluesky account, stored under the username its
+  // handle derives (`alice.bsky.social` → `alice@bsky.social`). A default handle
+  // is therefore no substring of what we store, so the exact username is matched
+  // beside the substring match rather than instead of it: a bare DNS name can
+  // still be a phrase someone's name or bio contains.
+  const blueskyAcct = blueskyAcctFromHandle(term);
+  const match = substringPeopleSearchMatch(term, options);
+  if (!blueskyAcct) return match;
+  return or(sql`lower(btrim(${users.username})) = ${blueskyAcct}`, match) ?? match;
+}
+
+function substringPeopleSearchMatch(term: string, options: PeopleSearchMatchOptions): SQL {
   const { includeDescription = true, includeLocations = false } = options;
 
   // A pasted upstream profile URL is an EXACT request, not a search phrase.
@@ -292,6 +305,8 @@ export const PEOPLE_SEARCH_TIERS = {
  */
 export function peopleSearchRelevance(term: string): SQL {
   const rankTerm = federatedUsernameFromUpstreamUrl(term) ?? term;
+  // The account an atproto handle names is the exact answer too (`peopleSearchMatch`).
+  const blueskyAcct = blueskyAcctFromHandle(term) ?? rankTerm;
   const escaped = escapeLikeTerm(rankTerm);
   const exact = sql`lower(${rankTerm}::text)`;
   const prefix = sql`lower(${`${escaped}%`}::text)`;
@@ -306,6 +321,7 @@ export function peopleSearchRelevance(term: string): SQL {
 
   return sql`(case
     when ${username} = ${exact}
+      or ${username} = lower(${blueskyAcct}::text)
       or (${users.type} = 'federated' and split_part(${username}, '@', 1) = ${exact})
       then ${sql.raw(String(tier.exactHandle))}
     when ${username} like ${prefix} then ${sql.raw(String(tier.usernamePrefix))}
