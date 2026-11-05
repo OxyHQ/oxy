@@ -60,7 +60,6 @@
     "expo-sensors": "catalog:",
     "expo-sharing": "catalog:",
     "expo-splash-screen": "catalog:",
-    "expo-status-bar": "catalog:",
     "expo-system-ui": "catalog:",
     "expo-updates": "~58.0.21",
     "expo-video": "catalog:",

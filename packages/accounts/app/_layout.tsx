@@ -6,7 +6,6 @@ import '../global.css';
 
 import { Stack, ThemeProvider } from 'expo-router';
 import Head from 'expo-router/head';
-import { StatusBar } from 'expo-status-bar';
 import { Platform } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
@@ -148,8 +147,9 @@ function RootLayoutInner() {
   }, [initializeApp]);
 
   return (
-    // OxyProvider owns gesture, safe-area and keyboard roots. Bloom owns theme
-    // and composition while ThemeModeProvider retains the app's preference.
+    // OxyProvider owns gesture, safe-area and keyboard roots. Bloom owns theme,
+    // composition and the native status bar while ThemeModeProvider retains the
+    // app's preference.
     <BloomProvider mode={themeMode} scrollAdapter={expoRouterScrollAdapter}>
       <ConnectionStatusToasts />
       <OxyProvider
@@ -261,7 +261,6 @@ function AppStackContent() {
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           </Stack.Protected>
         </Stack>
-        <StatusBar style="auto" />
       </ThemeProvider>
     </ScrollProvider>
   );
