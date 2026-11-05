@@ -13,11 +13,22 @@
     "ownerProfileLegalName": "Oxy Platforms, Inc.",
     "ownerProfileCountry": null,
     "mentionApplicationId": "6a2f851751b784a86fd0e916",
-    "billingWorkloadApplicationId": "6a37b3e61ddfd195b656819b",
-    "billingWorkloadApplicationDisplayName": "Oxy Inbox",
     "billingMerchantId": null,
-    "billingWorkloadAuthorityApproved": false,
-    "existingApiWorkloadPurpose": "Inbox; not established central product billing authority"
+    "historicalApiWorkloadApplicationId": "6a37b3e61ddfd195b656819b",
+    "historicalApiWorkloadApplicationDisplayName": "Oxy Inbox",
+    "historicalApiWorkloadPurpose": "Inbox; not established central product billing authority",
+    "dedicatedBillingAuthority": {
+      "applicationId": "e3d486b7-e529-4ba5-bf2f-63a20c6b948a",
+      "applicationRegistration": "not_applied_user_requested_local_only",
+      "workloadBinding": "not_created",
+      "roleArn": "arn:aws:iam::237343248947:role/oxy-central-billing",
+      "roleInfrastructure": "applied_and_verified",
+      "trustedSourceRoleArn": "arn:aws:iam::237343248947:role/oxy-oxy-api-task",
+      "awsProfile": "oxy-central-billing",
+      "profileMount": "verified_in_api_revision_1149",
+      "sourceMigration": "deployed_OxyHQ_oxy_2090_api_revision_1149",
+      "merchantBinding": "pending"
+    }
   },
   "proposedProduct": {
     "schemaVersion": 1,
@@ -33,25 +44,14 @@
     "Verified actual applicable tax registrations; user currently does not know"
   ],
   "engineeringWork": [
-    "Establish deliberate central product billing workload authority without repointing existing Inbox role, then register seller merchant under it",
-    "Replace central personal runtime legacy credential config with shared workload authentication",
-    "Create two canonical Peable provider prices with exact599/month and5750/year USD",
-    "Register explicit Mention Plus entitlement offers after feature semantics review; do not equate mono_theme with all Plus features",
+    "Complete supported dedicated billing application seed and exact workload binding, then register seller merchant under that authority; do not repoint or borrow Inbox authority",
+    "Verify rollout of merged dedicated-workload runtime migration; core 7.11.1 is published and legacy key configuration is rejected",
+    "Create two canonical Peable provider prices with exact 599/month and 5750/year USD on the verified deployed provider account",
     "Configure merchant tax settings and obtain owner dashboard approval; no automatic invented registrations",
     "Configure signed Peable Tax/renewal webhook and invoice authority bindings",
     "Implement trusted payer location evidence collection instead of static per-account runtime map",
-    "Mount catalogue and runtime JSON using infra secret_files pattern; enable only after validated binding/approval"
+    "Mount the complete runtime JSON only after validated binding and approval; published price catalogue alone does not enable purchases"
   ],
-  "liveEvidence": {
-    "centralCatalogue": "unconfigured",
-    "mentionProducts": 0,
-    "billingActorMerchants": 0,
-    "allPeableTaxSettings": 0,
-    "configuredSubscriptionRails": [
-      "stripe"
-    ],
-    "configuredSubscriptionCohort": "Mercaria only"
-  },
   "authorityEvidence": [
     "docs/inference/inbox-point-inference.md Identity explicitly scopes existing role to Inbox",
     "docs/inference/inbox-principal-readback.md Operator scope forbids borrowing Inbox principal for other Oxy work"
@@ -62,7 +62,7 @@
     "prices": "User approved USD 5.99 monthly and a 20% annual discount rounded to USD 57.50",
     "headOffice": "User supplied 2810 N Church St STE 91894 Wilmington DE 19802 US; recorded without inferring tax registrations",
     "legalName": "Read-only production organization_profiles for verified owner account; profile identity is not tax approval",
-    "ownership": "Read-only production applications, application_workload_identities, access_products and Peable merchants; no changes",
+    "ownership": "Production ownership readbacks and approved supported registration: Mention product and both frozen offers registered without access grants or provider calls; dedicated billing seed/binding status tracked separately",
     "taxTreatment": "User explicitly confirmed the approved USD5.99/57.50 prices include tax",
     "taxRegistrations": "User answered Ni idea de como va eso; no absence or coverage inferred"
   },
@@ -143,11 +143,11 @@
       "runtimeFileVariable": "OXY_ONE_PEABLE_RUNTIME_FILE",
       "runtimeEnabledVariable": "OXY_ONE_PEABLE_RUNTIME_ENABLED",
       "runtimeEnabledValue": "false",
-      "fileMounts": "Use reviewed oxy-infra secret_files wiring after all bindings are known"
+      "fileMounts": "Inactive catalogue and named AWS profile preserved in verified API revision 1149. Complete payment runtime remains disabled and unconfigured; further production changes paused by user."
     },
     "blockingEngineering": [
       "Dedicated central billing workload identity and exact merchant binding",
-      "Canonical provider price IDs and frozen offers with reviewed Plus capabilities",
+      "Canonical provider price IDs; central product and both frozen entitlement offers are registered",
       "Pinned public invoice/tax authority keys and verified renewal webhook endpoint",
       "Trusted payer location collection; no locale/currency/IP-derived inference",
       "Owner-approved merchant tax setup; verified runtime and catalogue schema parse before activation"
@@ -179,6 +179,59 @@
       "computedAt": null,
       "locations": []
     },
-    "interpretation": "No registrations are configured in this provider account. This does not establish whether the organization has legal registrations or obligations elsewhere. Tax registration status remains unknown_requires_verification; no tax settings or registrations were changed."
+    "interpretation": "No registrations were returned in this connected Oxy provider account. The deployed Peable account is different, so these results do not establish its configuration. Neither result establishes legal registrations or obligations. Tax registration status remains unknown_requires_verification; no tax settings or registrations were changed.",
+    "accountId": "acct_1USWGhAofUef123L",
+    "accountScope": "Connected Oxy account; NOT the deployed Peable provider account"
+  },
+  "historicalBaselineEvidence": {
+    "centralCatalogue": "unconfigured",
+    "mentionProducts": 0,
+    "billingActorMerchants": 0,
+    "allPeableTaxSettings": 0,
+    "configuredSubscriptionRails": [
+      "stripe"
+    ],
+    "configuredSubscriptionCohort": "Mercaria only",
+    "interpretation": "Initial read-only baseline before the dedicated authority and inactive catalogue preparation; not current activation status"
+  },
+  "liveEvidence": {
+    "observedOn": "2026-11-03",
+    "centralCatalogue": "configured_purchase_unavailable",
+    "publicCatalogueEndpoint": "https://api.oxy.so/billing/product-plans/mention",
+    "catalogueApiRevision": "1149",
+    "productId": "mention",
+    "productRegistration": "verified_via_supported_service",
+    "offerRegistration": "verified_via_supported_service_idempotent_rerun",
+    "offers": [
+      {
+        "id": "mention_plus_monthly",
+        "version": 1,
+        "amountMinorUnits": 599,
+        "currency": "USD",
+        "interval": "month"
+      },
+      {
+        "id": "mention_plus_annual",
+        "version": 1,
+        "amountMinorUnits": 5750,
+        "currency": "USD",
+        "interval": "year"
+      }
+    ],
+    "benefitKeys": [
+      "plus",
+      "mono_theme"
+    ],
+    "grantCountAfterRegistration": 0,
+    "providerPriceBindings": [],
+    "purchaseEnabled": false,
+    "rollout": "stable_3_of_3_preserved_profile_and_catalogue_mounts",
+    "activationPause": "User requested local development only; pending seed apply was cancelled before run-seeder and no billing app, binding, merchant, provider or tax writes were executed"
+  },
+  "deployedProviderAccount": {
+    "provider": "Stripe",
+    "accountId": "acct_1TnXkUQWiCE02OnU",
+    "taxConfiguration": "requires_readback_for_this_exact_account",
+    "accountSelection": "Do not substitute the connected Oxy account or reuse its provider price identifiers"
   }
 }
