@@ -16,10 +16,9 @@
  * so there is nothing to track or tear down here.
  *
  * The options are typed against BullMQ's OWN `ConnectionOptions`/`RedisOptions`
- * (imported from `'bullmq'`, NOT from `'ioredis'`). Under bun's isolated linker,
- * BullMQ resolves a different nested copy of ioredis than the app's top-level
- * one; typing against BullMQ's expected type checks the literal against the copy
- * BullMQ actually uses and never compares the two distinct ioredis copies.
+ * (imported from `'bullmq'`, NOT from `'ioredis'`): that is the shape BullMQ
+ * accepts, whichever ioredis it is handed (BullMQ 6 takes ioredis as a peer,
+ * so it is the app's own copy).
  *
  * The `rediss://` TLS handling and retry-backoff style are mirrored from the
  * cache client so operational behaviour stays consistent.

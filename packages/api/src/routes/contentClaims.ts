@@ -487,7 +487,7 @@ router.get(
 router.get(
   '/:id/targets/:targetId/content',
   validate({ params: contentClaimTargetParamsSchema, query: contentClaimPreviewQuerySchema }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { id, targetId } = req.params as { id: string; targetId: string };
     const token = String((req.query as Record<string, unknown>)[CLAIM_PREVIEW_TOKEN_PARAM] ?? '');
     const granted = verifyClaimPreviewToken(token, { claimId: id, targetId });
@@ -535,7 +535,7 @@ router.use(authMiddleware, staffLimiter, requireClaimsCapability);
 router.get(
   '/',
   validate({ query: contentClaimListQuerySchema }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const query = req.query as unknown as ContentClaimListQuery;
     res.json(
       await listContentClaims({
@@ -553,7 +553,7 @@ router.get(
 router.get(
   '/:id',
   validate({ params: contentClaimIdParamsSchema }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     res.json(await getContentClaim(req.params.id));
   }),
 );

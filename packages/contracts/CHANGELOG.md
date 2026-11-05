@@ -1,12 +1,24 @@
 # Changelog: `@oxy.so/contracts`
 
-## 6.6.0
+## Unreleased
 
 ### Added
 
 - Authenticated product checkout configuration and embedded CheckoutSession bindings scoped to subject, merchant, offer version, environment and quoted amounts.
 - Payer-provided billing address, immutable checkout presentation, completed-session recovery without a client secret, and an explicit safe pre-creation location correction result.
 
+## 6.7.0
+
+### Added
+
+- `notificationAccessBatchInputSchema` / `notificationAccessBatchResponseSchema` (types `NotificationAccessInput`, `NotificationAccessBatchInput`): up to 100 unique `{ resourceId, actorAccountId, recipientAccountId }` items for `POST /safety/service/notification-access-batch`, one decision per resource.
+
+## 6.6.0
+
+### Added
+
+- `applicationPermissionSchema.heldByAccountRoles`: the owning account's roles whose members hold a key (ADR 0056). Set on a first-party application's keys, which are declared in code; empty for a key held through per-person grants.
+- `APPLICATION_ROLE_ERROR_CODES.firstPartyRolesInCode` (`FIRST_PARTY_ROLES_IN_CODE`, 409): a Console declaration or grant on one of Oxy's own applications.
 
 ## 6.5.0
 

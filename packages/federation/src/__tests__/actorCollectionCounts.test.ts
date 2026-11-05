@@ -102,6 +102,51 @@ async function resolveWith(replies: {
   return { upserts, bridged };
 }
 
+describe('fetchRemoteActor — search opt-in and moves', () => {
+  it('stores indexable and movedTo when the actor states them, and omits them when not', async () => {
+    const moved = await resolveWith({
+      actor: actorDocument({ indexable: true, movedTo: 'https://new.example/users/bob' }),
+    });
+    expect(moved.upserts[0]).toMatchObject({
+      indexable: true,
+      movedTo: 'https://new.example/users/bob',
+    });
+
+    const silent = await resolveWith({ actor: actorDocument({ movedTo: 'not a url' }) });
+    expect(silent.upserts[0]).not.toHaveProperty('indexable');
+    expect(silent.upserts[0]).not.toHaveProperty('movedTo');
+  });
+});
+
+describe('fetchRemoteActor — embedded node references', () => {
+  it('reads an embedded collection or endpoint by its id, as it reads a linked one', async () => {
+    const embed = (id: string) => ({ id, type: 'OrderedCollection', totalItems: 9 });
+    const { upserts } = await resolveWith({
+      actor: actorDocument({
+        inbox: { id: 'https://remote.example/users/bob/inbox' },
+        followers: embed(FOLLOWERS),
+        following: embed(FOLLOWING),
+        outbox: embed(OUTBOX),
+        featured: embed('https://remote.example/users/bob/featured'),
+        featuredTags: embed('https://remote.example/users/bob/tags'),
+        endpoints: { sharedInbox: { id: 'https://remote.example/inbox' } },
+      }),
+      followers: collection(12),
+    });
+
+    expect(upserts[0]).toMatchObject({
+      inboxUrl: 'https://remote.example/users/bob/inbox',
+      followersUrl: FOLLOWERS,
+      followingUrl: FOLLOWING,
+      outboxUrl: OUTBOX,
+      featuredUrl: 'https://remote.example/users/bob/featured',
+      featuredTagsUrl: 'https://remote.example/users/bob/tags',
+      sharedInboxUrl: 'https://remote.example/inbox',
+      followersCount: 12,
+    });
+  });
+});
+
 describe('fetchRemoteActor — remote collection counts', () => {
   it('stores reported totals, and a real 0 stays 0', async () => {
     const { upserts } = await resolveWith({

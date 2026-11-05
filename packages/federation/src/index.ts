@@ -65,6 +65,10 @@ export {
   FEDERATION_NETWORKS,
   BSKY_NETWORK_DOMAIN,
   blueskyUsernameFromHandle,
+  blueskyHandleFromUsername,
+  UNRESOLVED_ATPROTO_HANDLE,
+  isUnresolvedAtprotoHandle,
+  atprotoIdentityHandle,
   createBridgeRelabeller,
   stripBridgeBoilerplate,
   upstreamProfileUrl,
@@ -110,6 +114,24 @@ export {
   type DomainPolicy,
   type DomainPolicyConfig,
 } from './apUri';
+
+/**
+ * The one way to read an ActivityStreams value whose JSON-LD shape varies: a
+ * one-or-many property ({@link apList}), a reference by IRI, `id` or `href`
+ * ({@link apIri} / {@link apIriList}), an image ({@link apImageUrl}), a media
+ * type with parameters ({@link apMediaTypeBase} / {@link isActivityPubMediaType})
+ * and a date in any ISO 8601 offset spelling ({@link apDate}). A reader that
+ * assumes one shape silently loses the others.
+ */
+export {
+  apList,
+  apIri,
+  apIriList,
+  apImageUrl,
+  apMediaTypeBase,
+  isActivityPubMediaType,
+  apDate,
+} from './apValue';
 
 /**
  * The single builder of a LOCAL user's ActivityPub actor document —

@@ -16,7 +16,7 @@ import { useOxy } from '../context/oxyRuntimeContext';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { describeApiError } from '../utils/apiErrorMessage';
+import { useApiErrorToast } from '../hooks/useApiErrorToast';
 
 /**
  * DomainsScreen — prove that the signed-in identity controls a web domain.
@@ -28,6 +28,7 @@ import { describeApiError } from '../utils/apiErrorMessage';
  */
 const DomainsScreen: React.FC<BaseScreenProps> = () => {
   const { t } = useI18n();
+  const showApiError = useApiErrorToast();
   useSurfaceHeader({ title: t('domains.title') });
   const bloomTheme = useTheme();
   const queryClient = useQueryClient();
@@ -50,7 +51,7 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
       setPending(instructions);
       setDomain('');
     },
-    onError: (error) => toast.error(describeApiError(error, t, t('domains.errors.request'))),
+    onError: (error) => showApiError(error, 'domains.errors.request'),
   });
 
   const verify = useMutation({
@@ -64,13 +65,13 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
       toast.success(t('domains.verified', { domain: result.domain.domain }));
       void queryClient.invalidateQueries({ queryKey: listKey });
     },
-    onError: (error) => toast.error(describeApiError(error, t, t('domains.errors.notYet'))),
+    onError: (error) => showApiError(error, 'domains.errors.notYet'),
   });
 
   const remove = useMutation({
     mutationFn: (name: string) => oxyServices.identity.domains.remove(name),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: listKey }),
-    onError: (error) => toast.error(describeApiError(error, t, t('domains.errors.remove'))),
+    onError: (error) => showApiError(error, 'domains.errors.remove'),
   });
 
   const confirmRemove = useCallback(

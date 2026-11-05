@@ -54,6 +54,7 @@
  */
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
+import type { NamedRouteParams } from '../types/routeParams';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../config/postgres';
@@ -114,7 +115,7 @@ interface CatalogueCaller {
   readonly credentialId: string;
 }
 
-interface CatalogueRequest extends Request {
+interface CatalogueRequest extends Request<NamedRouteParams> {
   catalogueCaller?: CatalogueCaller | null;
 }
 

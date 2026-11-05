@@ -1,5 +1,5 @@
 {
-  "id": "9862a0ad-67ed-43dd-91e9-8275a2bc4e4c",
+  "id": "2d534c6b-071e-4192-87a4-198fabd9793e",
   "prevId": "8dd8c6ad-64f7-4df6-aa1c-9db97ba41870",
   "version": "7",
   "dialect": "postgresql",
@@ -5585,6 +5585,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "held_by_account_roles": {
+          "name": "held_by_account_roles",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
         "declared_by_user_id": {
           "name": "declared_by_user_id",
           "type": "text",
@@ -5715,6 +5722,10 @@
         "application_role_permissions_description_check": {
           "name": "application_role_permissions_description_check",
           "value": "char_length(\"application_role_permissions\".\"description\") between 1 and 280"
+        },
+        "application_role_permissions_held_by_account_roles_check": {
+          "name": "application_role_permissions_held_by_account_roles_check",
+          "value": "\"application_role_permissions\".\"held_by_account_roles\" <@ array['owner', 'admin', 'editor', 'developer', 'billing', 'viewer']::text[]"
         },
         "application_role_permissions_retired_by_check": {
           "name": "application_role_permissions_retired_by_check",
@@ -43307,19 +43318,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "product_id": {
-          "name": "product_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "presentation": {
-          "name": "presentation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'hosted'"
-        },
         "provider_session_id": {
           "name": "provider_session_id",
           "type": "text",
@@ -43568,19 +43566,6 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "personal_plan_checkout_intents_product_id_access_products_id_fk": {
-          "name": "personal_plan_checkout_intents_product_id_access_products_id_fk",
-          "tableFrom": "personal_plan_checkout_intents",
-          "tableTo": "access_products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
         "personal_plan_checkout_intents_fulfilled_source_id_access_subscription_sources_id_fk": {
           "name": "personal_plan_checkout_intents_fulfilled_source_id_access_subscription_sources_id_fk",
           "tableFrom": "personal_plan_checkout_intents",
@@ -43616,10 +43601,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "personal_checkout_presentation": {
-          "name": "personal_checkout_presentation",
-          "value": "\"personal_plan_checkout_intents\".\"presentation\" IN ('hosted', 'embedded')"
-        },
         "personal_checkout_interval": {
           "name": "personal_checkout_interval",
           "value": "\"personal_plan_checkout_intents\".\"billing_interval\" IN ('month', 'year') AND (\"personal_plan_checkout_intents\".\"price_kind\" <> 'oxy_one' OR \"personal_plan_checkout_intents\".\"billing_interval\" = 'month')"

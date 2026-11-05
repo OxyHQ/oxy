@@ -1,12 +1,8 @@
 import { integerCheck, safeNumberCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
-import { Peable, type PeableConfig } from '@peable.to/sdk';
+import type { Peable } from '@peable.to/sdk';
 import { z } from 'zod';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import { createHash } from 'node:crypto';
-/** Peable is the payment platform; downstream card processing is not an Oxy provider. */
-export function createPeablePersonalBilling(config: PeableConfig): Peable {
-  return new Peable(config);
-}
 export const PEABLE_ONE_READINESS = Object.freeze({
   platform: 'peable',
   primaryMethod: 'faircoin',
@@ -28,6 +24,8 @@ export const peableUnixSecondsSchema = z
 export function peableInstantToIso(seconds: number): string {
   return new Date(peableUnixSecondsSchema.parse(seconds) * 1000).toISOString();
 }
+/** A Peable amount: a base-unit integer string (ADR 0014 D1, authority schema 3). */
+const peableAmountSchema = z.string().regex(/^(0|[1-9][0-9]*)$/);
 /** Verified signed invoice contract supplied by the configured Peable SDK.
  * No zero-tax, FX or seller defaults. Gross is the final advertised merchant total.
  * External wallet/network charges are separate from this invoice total. */
@@ -35,10 +33,10 @@ export const personalFinalInvoiceSchema = z
   .object({
     platform: z.literal('peable'),
     currency: z.literal('USD'),
-    gross_minor_units: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
-    net_minor_units: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
-    tax_minor_units: z.number().check(integerCheck()).nonnegative().check(safeNumberCheck()),
-    merchant_fee_minor_units: z.literal(0),
+    gross_minor_units: peableAmountSchema.refine((value) => value !== '0'),
+    net_minor_units: peableAmountSchema,
+    tax_minor_units: peableAmountSchema,
+    merchant_fee_minor_units: z.literal('0'),
     tax_treatment: z.literal('inclusive'),
     seller_id: z.string().check(utf16MinLength(1)),
     invoice_issuer_id: z.string().check(utf16MinLength(1)),
@@ -73,7 +71,7 @@ export const personalFinalInvoiceSchema = z
   })
   .strict()
   .superRefine((v, c) => {
-    if (v.net_minor_units + v.tax_minor_units !== v.gross_minor_units)
+    if (BigInt(v.net_minor_units) + BigInt(v.tax_minor_units) !== BigInt(v.gross_minor_units))
       c.addIssue({
         code: 'custom',
         message: 'Inclusive invoice breakdown differs from final price',
@@ -133,11 +131,15 @@ export async function cancelOwnedPeableSubscription(
   const current = check(await client.billing.retrieveSubscription(owned.providerSubscriptionId));
   if (current.cancel_at_period_end) return current;
   const updated = check(
-    await client.billing.cancelAtPeriodEnd(owned.providerSubscriptionId, {
-      idempotencyKey: `oxy-one-cancel:${createHash('sha256')
-        .update(JSON.stringify([accountId, owned.providerSubscriptionId, actionId]))
-        .digest('hex')}`,
-    }),
+    await client.billing.cancelAtPeriodEnd(
+      owned.providerSubscriptionId,
+      {},
+      {
+        idempotencyKey: `oxy-one-cancel:${createHash('sha256')
+          .update(JSON.stringify([accountId, owned.providerSubscriptionId, actionId]))
+          .digest('hex')}`,
+      },
+    ),
   );
   if (
     !updated.cancel_at_period_end ||
@@ -166,7 +168,7 @@ export function validatePersonalInvoiceForAction(
   expectedAmountMinorUnits = 2999,
 ) {
   const v = personalFinalInvoiceSchema.parse(raw);
-  if (v.gross_minor_units !== expectedAmountMinorUnits)
+  if (v.gross_minor_units !== String(expectedAmountMinorUnits))
     throw new Error('Invoice differs from the declared commercial price');
   // Signed instants are whole Unix seconds; compare them on the millisecond clock.
   const n = now.getTime();

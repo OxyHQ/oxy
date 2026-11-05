@@ -10,7 +10,7 @@ import {
 } from '@oxy.so/core';
 import { canSwitchIntoAccount } from '@oxy.so/core/session';
 import { useColors, type AppColors } from '@/hooks/useColors';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useTranslation } from '@/lib/i18n';
 import type { GroupedItem } from '@/components/sections/types';
 
@@ -75,7 +75,7 @@ function AccountRowContent({
   onArchive,
 }: AccountRowContentProps) {
   const colors = useColors();
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
   const { t } = useTranslation();
 
   const role = getNodeRole(node);

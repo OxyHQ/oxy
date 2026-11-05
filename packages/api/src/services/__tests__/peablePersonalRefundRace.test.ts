@@ -2,6 +2,7 @@ import * as providerEvidence from '../productProviderEvidence.service';
 import { reconcileProductAccessFinancialState } from '../productAccessPersistence.service';
 import { accessSubscriptionSources, accessProviderRefunds } from '../../db/schema';
 import { eq } from 'drizzle-orm';
+import { PEABLE_API_VERSION, type WebhookEvent } from '@peable.to/sdk';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { accessGrants } from '../../db/schema';
 import { productAccessFixture } from '../__fixtures__/productAccessFixtures';
@@ -102,10 +103,10 @@ async function fixture() {
         invoice: {
           platform: 'peable',
           currency: 'USD',
-          gross_minor_units: 2999,
-          net_minor_units: 2500,
-          tax_minor_units: 499,
-          merchant_fee_minor_units: 0,
+          gross_minor_units: '2999',
+          net_minor_units: '2500',
+          tax_minor_units: '499',
+          merchant_fee_minor_units: '0',
           tax_treatment: 'inclusive',
           seller_id: 'synthetic',
           invoice_issuer_id: 'synthetic',
@@ -315,6 +316,8 @@ it('subscription wake observation time is captured before an awaited source look
       type: 'billing.observation.updated',
       livemode: true,
       created: unix(f.now),
+      livemode: true,
+      api_version: PEABLE_API_VERSION,
       data: {
         object: {
           object: 'billing_observation',
@@ -325,7 +328,8 @@ it('subscription wake observation time is captured before an awaited source look
           observed_at: unix(f.now),
         },
       },
-    };
+      request: { id: null, idempotency_key: null },
+    } satisfies WebhookEvent;
     const old = handlePeablePersonalObservation(
       authority,
       context,

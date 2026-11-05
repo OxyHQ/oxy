@@ -166,7 +166,7 @@ export async function retryFederatedAvatar(userId: string): Promise<AvatarRetryO
   if (stored.fileId) {
     await persistFederatedAvatar(
       userId,
-      { fileId: stored.fileId },
+      { fileId: stored.fileId, color: stored.color },
       {
         federationLastAvatarFetchedAt: now,
         federationAvatarETag: stored.etag ?? null,

@@ -1961,7 +1961,6 @@ const dict = {
         transfer: 'Transferir propiedad',
       },
       errors: {
-        emailRequired: 'Introduce un email para invitar.',
         emailInvalid: 'Introduce un email válido, como nombre@ejemplo.com.',
         missingAccount: 'Ninguna cuenta seleccionada.',
         noPermission: 'No tienes permiso para ver los miembros.',
@@ -2420,7 +2419,6 @@ const dict = {
       newLabel: 'Contraseña nueva',
       repeatLabel: 'Repite la contraseña',
       tooShort: 'Usa al menos {{min}} caracteres.',
-      tooLong: 'Usa como máximo {{max}} caracteres.',
       mismatch: 'Las contraseñas no coinciden.',
       signOutOthers: 'Cerrar sesión en todos los demás sitios',
       save: 'Guardar contraseña',

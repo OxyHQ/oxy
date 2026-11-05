@@ -3,13 +3,13 @@
  * `app/_layout.tsx` does) must still get core's crypto polyfill installed
  * before any `@noble/*` module evaluates.
  *
- * `@noble/hashes` 1.x captures `globalThis.crypto` once, when its `crypto.js`
- * is evaluated, and Hermes has no `globalThis.crypto` at startup. Core's entry
+ * Hermes has no `globalThis.crypto` at startup, and `@noble/hashes` 1.x
+ * captured it once, at evaluation; 2.x reads it per call. Core's entry
  * installs the shim before anything else (guarded behaviourally by
  * `packages/core/src/crypto/__tests__/polyfillOrder.test.ts`), so services is
  * safe exactly as long as (1) its entry evaluates `@oxy.so/core` before any
- * other module, and (2) nothing in services reaches a capturing crypto library
- * except through core.
+ * other module, and (2) nothing in services reaches a crypto library except
+ * through core.
  *
  * The same first import is what tells core the platform (`registerPlatform`):
  * an entry that skipped it left core answering `'unknown'` on iOS and Android.

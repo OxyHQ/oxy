@@ -14,7 +14,7 @@ import express from 'express';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import type { AddressInfo } from 'node:net';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 
 let currentSubjectId = '';
 let currentOperatorId = '';
@@ -63,6 +63,8 @@ import {
   applications,
   users,
 } from '../../db/schema';
+import { userAncestors } from '../../db/schema/userAncestors';
+import { declareFirstPartyPermissions } from '../../services/applicationRoles.service';
 import applicationsRouter from '../applications';
 import { errorHandler } from '../../middleware/errorHandler';
 import type { AccountRole } from '../../utils/accountRoles';
@@ -546,5 +548,291 @@ describe('the grant list', () => {
       )
       .where(eq(applicationRolePermissions.applicationId, appId));
     expect(stored).toHaveLength(3);
+  });
+});
+
+// ── ADR 0056: Oxy's own applications hold operator keys by ROLE ─────────────
+
+const GOWAY_OPERATOR_KEYS = [
+  {
+    key: 'moderation.operate',
+    description: 'Decide moderation reports.',
+    heldByAccountRoles: ['owner', 'admin'] as AccountRole[],
+  },
+  {
+    key: 'capture.pilot',
+    description: 'Contribute to the capture pilot.',
+    heldByAccountRoles: ['owner', 'admin'] as AccountRole[],
+  },
+];
+
+async function seedOwnApp(ownerAccountId: string): Promise<string> {
+  const [row] = await getDb()
+    .insert(applications)
+    .values({
+      name: 'Own App',
+      ownerAccountId,
+      createdByUserId: ownerAccountId,
+      type: 'first_party',
+    })
+    .returning({ id: applications.id });
+  return row.id;
+}
+
+/** The platform organization with its people, and an own application it owns. */
+async function seedOwnOrg() {
+  const seeded = await seedOrg();
+  const ownAppId = await seedOwnApp(seeded.org.id);
+  await declareFirstPartyPermissions({
+    applicationId: ownAppId,
+    declared: GOWAY_OPERATOR_KEYS,
+    dryRun: false,
+  });
+  return { ...seeded, ownAppId };
+}
+
+async function rolesMe(appId: string): Promise<string[]> {
+  const answer = await request('GET', `/applications/${appId}/roles/me`);
+  expect(answer.status).toBe(200);
+  return answer.body.permissions;
+}
+
+describe("Oxy's own applications (ADR 0056)", () => {
+  it('the owning organization’s owners and admins hold the declared keys; a viewer and an outsider do not', async () => {
+    const { owner, admin, viewer, outsider, ownAppId } = await seedOwnOrg();
+
+    actAs(owner.id);
+    expect(await rolesMe(ownAppId)).toEqual(['capture.pilot', 'moderation.operate']);
+    actAs(admin.id);
+    expect(await rolesMe(ownAppId)).toEqual(['capture.pilot', 'moderation.operate']);
+    actAs(viewer.id);
+    expect(await rolesMe(ownAppId)).toEqual([]);
+    actAs(outsider.id);
+    expect(await rolesMe(ownAppId)).toEqual([]);
+  });
+
+  it('answers the person acting as the organization, and follows a role change on the next read', async () => {
+    const { org, owner, viewer, ownAppId } = await seedOwnOrg();
+
+    actAs(owner.id, org.id);
+    const asOrg = await request('GET', `/applications/${ownAppId}/roles/me`);
+    expect(asOrg.body).toEqual({
+      applicationId: ownAppId,
+      userId: owner.id,
+      permissions: ['capture.pilot', 'moderation.operate'],
+    });
+
+    actAs(viewer.id);
+    expect(await rolesMe(ownAppId)).toEqual([]);
+    await getDb()
+      .update(accountMembers)
+      .set({ role: 'admin' })
+      .where(and(eq(accountMembers.accountId, org.id), eq(accountMembers.memberUserId, viewer.id)));
+    expect(await rolesMe(ownAppId)).toEqual(['capture.pilot', 'moderation.operate']);
+
+    await getDb()
+      .update(accountMembers)
+      .set({ status: 'removed' })
+      .where(and(eq(accountMembers.accountId, org.id), eq(accountMembers.memberUserId, viewer.id)));
+    expect(await rolesMe(ownAppId)).toEqual([]);
+  });
+
+  it('an owner of the parent organization holds the keys of an app owned by a project under it', async () => {
+    const { org, owner, outsider } = await seedOwnOrg();
+    const [project] = await insertAccountFixtures(
+      {
+        username: `roles-project-${crypto.randomBytes(4).toString('hex')}`,
+        kind: 'project',
+        parentAccountId: org.id,
+      },
+      { id: users.id },
+    );
+    await getDb()
+      .insert(userAncestors)
+      .values({ userId: project.id, depth: 0, ancestorId: org.id });
+    const projectAppId = await seedOwnApp(project.id);
+    await declareFirstPartyPermissions({
+      applicationId: projectAppId,
+      declared: GOWAY_OPERATOR_KEYS,
+      dryRun: false,
+    });
+
+    actAs(owner.id);
+    expect(await rolesMe(projectAppId)).toEqual(['capture.pilot', 'moderation.operate']);
+    actAs(outsider.id);
+    expect(await rolesMe(projectAppId)).toEqual([]);
+  });
+
+  it('refuses a Console declaration and a grant with FIRST_PARTY_ROLES_IN_CODE; a non-manager still gets 403 first', async () => {
+    const { admin, viewer, outsider, ownAppId } = await seedOwnOrg();
+
+    actAs(viewer.id);
+    expect((await declare(ownAppId)).status).toBe(403);
+
+    actAs(admin.id);
+    const declared = await declare(ownAppId);
+    expect(declared.status).toBe(409);
+    expect(declared.body.error).toBe('FIRST_PARTY_ROLES_IN_CODE');
+
+    const granted = await request('POST', `/applications/${ownAppId}/roles/grants`, {
+      userId: outsider.id,
+      permission: 'moderation.operate',
+    });
+    expect(granted.status).toBe(409);
+    expect(granted.body.error).toBe('FIRST_PARTY_ROLES_IN_CODE');
+
+    // Nothing was written: the vocabulary is still exactly the registry's.
+    const listed = await request('GET', `/applications/${ownAppId}/roles/permissions`);
+    expect(listed.status).toBe(200);
+    expect(
+      listed.body.items.map((item: { key: string; heldByAccountRoles: string[] }) => [
+        item.key,
+        item.heldByAccountRoles,
+        item.declaredByUserId,
+      ]),
+    ).toEqual([
+      ['capture.pilot', ['owner', 'admin'], null],
+      ['moderation.operate', ['owner', 'admin'], null],
+    ]);
+  });
+
+  it('a third-party app is unchanged: its keys carry no roles and an owner holds nothing without a grant', async () => {
+    const { owner, admin, appId } = await seedOrg();
+    actAs(admin.id);
+    const declared = await declare(appId);
+    expect(declared.status).toBe(200);
+    expect(
+      declared.body.items.every(
+        (item: { heldByAccountRoles: string[] }) => item.heldByAccountRoles.length === 0,
+      ),
+    ).toBe(true);
+
+    actAs(owner.id);
+    expect(await rolesMe(appId)).toEqual([]);
+
+    actAs(admin.id);
+    const granted = await request('POST', `/applications/${appId}/roles/grants`, {
+      userId: owner.id,
+      permission: 'payments.operate',
+    });
+    expect(granted.status).toBe(201);
+    actAs(owner.id);
+    expect(await rolesMe(appId)).toEqual(['payments.operate']);
+  });
+});
+
+describe('declareFirstPartyPermissions (the seed)', () => {
+  async function liveKeys(appId: string) {
+    return getDb()
+      .select({
+        id: applicationRolePermissions.id,
+        key: applicationRolePermissions.key,
+        heldByAccountRoles: applicationRolePermissions.heldByAccountRoles,
+        description: applicationRolePermissions.description,
+      })
+      .from(applicationRolePermissions)
+      .where(
+        and(
+          eq(applicationRolePermissions.applicationId, appId),
+          isNull(applicationRolePermissions.retiredAt),
+        ),
+      )
+      .orderBy(applicationRolePermissions.key);
+  }
+
+  it('is idempotent: a second run plans and writes nothing', async () => {
+    const { ownAppId } = await seedOwnOrg();
+    const before = await liveKeys(ownAppId);
+    const again = await declareFirstPartyPermissions({
+      applicationId: ownAppId,
+      declared: GOWAY_OPERATOR_KEYS,
+      dryRun: false,
+    });
+    expect(again.plan).toEqual({ add: [], retire: [], describe: [] });
+    expect(again.revokedGrants).toEqual([]);
+    expect(await liveKeys(ownAppId)).toEqual(before);
+  });
+
+  it('a dry run reports the plan and the grants it would revoke, and writes nothing', async () => {
+    const { owner, outsider, ownAppId } = await seedOwnOrg();
+    // A leftover per-person grant from before ADR 0056, written directly.
+    const [moderation] = (await liveKeys(ownAppId)).filter(
+      (row) => row.key === 'moderation.operate',
+    );
+    await getDb()
+      .insert(applicationRoleGrants)
+      .values({ permissionId: moderation.id, userId: outsider.id, grantedByUserId: owner.id });
+    const before = await liveKeys(ownAppId);
+
+    const planned = await declareFirstPartyPermissions({
+      applicationId: ownAppId,
+      declared: [GOWAY_OPERATOR_KEYS[0]],
+      dryRun: true,
+    });
+    expect(planned.plan.retire.map((row) => row.key)).toEqual(['capture.pilot']);
+    expect(planned.revokedGrants).toEqual([
+      expect.objectContaining({ userId: outsider.id, permission: 'moderation.operate' }),
+    ]);
+    expect(await liveKeys(ownAppId)).toEqual(before);
+    actAs(outsider.id);
+    expect(await rolesMe(ownAppId)).toEqual(['moderation.operate']);
+  });
+
+  it('retires a key missing from code, re-declares a key whose roles changed, and revokes every grant', async () => {
+    const { owner, viewer, outsider, ownAppId } = await seedOwnOrg();
+    const [moderation] = (await liveKeys(ownAppId)).filter(
+      (row) => row.key === 'moderation.operate',
+    );
+    await getDb()
+      .insert(applicationRoleGrants)
+      .values({ permissionId: moderation.id, userId: outsider.id, grantedByUserId: owner.id });
+
+    const applied = await declareFirstPartyPermissions({
+      applicationId: ownAppId,
+      declared: [
+        {
+          key: 'moderation.operate',
+          description: 'Decide moderation reports.',
+          heldByAccountRoles: ['viewer', 'owner', 'admin'],
+        },
+      ],
+      dryRun: false,
+    });
+    expect(applied.plan.retire.map((row) => row.key).sort()).toEqual([
+      'capture.pilot',
+      'moderation.operate',
+    ]);
+    expect(applied.plan.add).toEqual([
+      expect.objectContaining({
+        key: 'moderation.operate',
+        heldByAccountRoles: ['owner', 'admin', 'viewer'],
+      }),
+    ]);
+
+    const live = await liveKeys(ownAppId);
+    expect(live.map(({ key, heldByAccountRoles }) => [key, heldByAccountRoles])).toEqual([
+      ['moderation.operate', ['owner', 'admin', 'viewer']],
+    ]);
+    expect(live[0].id).not.toBe(moderation.id);
+
+    const grants = await getDb()
+      .select({ revokedAt: applicationRoleGrants.revokedAt })
+      .from(applicationRoleGrants)
+      .where(eq(applicationRoleGrants.userId, outsider.id));
+    expect(grants).toHaveLength(1);
+    expect(grants[0].revokedAt).not.toBeNull();
+
+    actAs(outsider.id);
+    expect(await rolesMe(ownAppId)).toEqual([]);
+    actAs(viewer.id);
+    expect(await rolesMe(ownAppId)).toEqual(['moderation.operate']);
+  });
+
+  it('an empty registry entry retires every key', async () => {
+    const { owner, ownAppId } = await seedOwnOrg();
+    await declareFirstPartyPermissions({ applicationId: ownAppId, declared: [], dryRun: false });
+    expect(await liveKeys(ownAppId)).toEqual([]);
+    actAs(owner.id);
+    expect(await rolesMe(ownAppId)).toEqual([]);
   });
 });

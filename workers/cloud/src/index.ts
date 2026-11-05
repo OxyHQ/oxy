@@ -25,6 +25,7 @@ import {
   preflightHeaders,
   routeFor,
 } from './policy';
+import { visitorHeaders } from './visitor';
 
 export interface Env {
   /** Oxy Files' bucket. */
@@ -247,7 +248,8 @@ export function resolverCacheTag(pathname: string): string {
  * resolvable, `config/cdn.ts`). NOT through `fetch`'s own edge cache: that path
  * stamps the zone's Browser Cache TTL (four hours) over the API's header, which
  * would quadruple the window. A 404 is never kept, so a file published a moment
- * after a miss resolves at once.
+ * after a miss resolves at once. The visitor's address rides along
+ * (`visitor.ts`), so oxy-api budgets each visitor, not this Worker.
  */
 export async function serveResolver(
   request: Request,
@@ -287,7 +289,11 @@ export async function serveResolver(
   const target = new URL(`/cdn${url.pathname}`, env.API_ORIGIN);
   if (variant !== null) target.searchParams.set('variant', variant);
   if (revision !== null) target.searchParams.set('revision', revision);
-  const upstream = await deps.fetch(target.toString(), { method: 'GET', redirect: 'manual' });
+  const upstream = await deps.fetch(target.toString(), {
+    method: 'GET',
+    redirect: 'manual',
+    headers: visitorHeaders(request),
+  });
   const headers = new Headers();
   for (const name of ['location', 'cache-control', 'content-type']) {
     const value = upstream.headers.get(name);
@@ -306,6 +312,18 @@ export async function serveResolver(
       deps.waitUntil(deps.cache.put(cacheKey, stored).catch(() => undefined));
     }
     return finalize(redirect, null);
+  }
+  if (upstream.status === 429 || upstream.status >= 500) {
+    // A refusal or an outage says nothing about the file, only about this
+    // moment: no cache, the browser's included, may keep it, and the browser is
+    // told when to ask again. Never kept here either (only redirects are). A
+    // last good redirect is NOT served past its hour instead: the Cache API
+    // drops an entry at its max-age, so serving it later would mean keeping it
+    // longer, which widens the window in which a just-privatised file stays
+    // resolvable (`config/cdn.ts`).
+    headers.set('cache-control', 'no-store');
+    const retryAfter = upstream.headers.get('retry-after');
+    if (retryAfter) headers.set('retry-after', retryAfter);
   }
   const body = request.method === 'HEAD' ? null : upstream.body;
   if (request.method === 'HEAD') await upstream.body?.cancel();

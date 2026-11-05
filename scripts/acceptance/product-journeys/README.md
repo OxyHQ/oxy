@@ -6,7 +6,7 @@ injects browser storage or substitutes API responses. The signer represents the
 Commons protocol peer; it does **not** establish acceptance of Commons' native UI.
 
 Install this independent package with `bun install --minimum-release-age=0`
-and run `bun run test`. Live product tests are skipped unless `OXY_QA_LIVE=1`. Its published Core 7.4.0 dependency is separate from the
+and run `bun run test`. Live product tests are skipped unless `OXY_QA_LIVE=1`. Its published Core 7.18.0 dependency is separate from the
 product bundles under test. No production work happens during install/tests.
 
 ## Reviewed operations

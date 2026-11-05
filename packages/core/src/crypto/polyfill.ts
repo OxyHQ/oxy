@@ -17,20 +17,20 @@
  * global WebCrypto, and a `require('node:crypto')` here made web bundlers ship
  * Node's crypto, stream and buffer polyfills (~600 KB) to every browser.
  *
- * # Evaluation order — this module must import NOTHING that can capture the global
+ * # Evaluation order — this module must import NOTHING that reaches a crypto library
  *
- * `@noble/hashes` 1.x reads `globalThis.crypto` exactly once, when its
- * `crypto.js` is evaluated, and `randomBytes` uses that captured binding for
- * the lifetime of the app. ES imports are evaluated before the importing
- * module's body, so every module this file imports runs BEFORE the shim below
- * is installed. This file used to import `@oxy.so/protocol`'s root entry,
- * which reaches `@noble/curves` → `@noble/hashes` through the envelope signer:
- * on Hermes (no `globalThis.crypto` at startup) noble captured `undefined`
- * before the shim existed, and every identity creation on Android failed with
- * `crypto.getRandomValues must be defined`. Its imports are therefore limited
- * to `buffer` and `@oxy.so/protocol/random`, both free of crypto libraries,
- * and `index.ts` imports this file first. `__tests__/polyfillOrder.test.ts`
- * guards both halves.
+ * ES imports are evaluated before the importing module's body, so every module
+ * this file imports runs BEFORE the shim below is installed. This file used to
+ * import `@oxy.so/protocol`'s root entry, which reaches `@noble/curves` →
+ * `@noble/hashes` through the envelope signer, and `@noble/hashes` 1.x read
+ * `globalThis.crypto` once, at evaluation: on Hermes (no `globalThis.crypto` at
+ * startup) it captured `undefined` before the shim existed, and every identity
+ * creation on Android failed with `crypto.getRandomValues must be defined`.
+ * Noble 2.x reads the global on every call, so that capture is gone, but the
+ * shim still has to exist before any module body that reads it runs. Its
+ * imports are therefore limited to `buffer` and `@oxy.so/protocol/random`,
+ * both free of crypto libraries, and `index.ts` imports this file first.
+ * `__tests__/polyfillOrder.test.ts` guards both halves.
  *
  */
 

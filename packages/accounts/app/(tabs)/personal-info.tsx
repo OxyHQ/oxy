@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { formatDate } from '@/utils/date-utils';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { AccountInfoGrid, type AccountInfoCard } from '@/components/account-info-grid';
 import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
@@ -24,7 +24,7 @@ export default function PersonalInfoScreen() {
   // switched-into account). Edits flow through the bottom sheet, which targets
   // the current account.
   const { user, isLoading: oxyLoading, showBottomSheet } = useOxy();
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
   const handleEditField = useCallback(
     (field: string) => {
       showBottomSheet?.({

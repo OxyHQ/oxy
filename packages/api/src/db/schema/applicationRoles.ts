@@ -18,6 +18,16 @@
  * Both are guarded by triggers whose DDL lives in `applicationRolesImmutability.ts`
  * (a CHECK sees only the new row, and drizzle-kit cannot emit a trigger).
  *
+ * ## A first-party key is held by ROLE (ADR 0056)
+ *
+ * `held_by_account_roles` names the owning account's roles whose members hold
+ * a key. Only the first-party seed writes it, from the registry in code
+ * (`scripts/seedOxyApplicationsSpecs.ts`); a third-party key always has it
+ * empty and is held only through grants. It is part of the key's IDENTITY, like
+ * its name — the row guard refuses an in-place edit — so a change of holders is
+ * a retirement and a new row, and the history says who could operate the
+ * application, and when.
+ *
  * ## Nothing here is an Oxy permission
  *
  * A key is meaningful only to the application that declared it; no Oxy gate
@@ -48,6 +58,7 @@ import {
   APPLICATION_ROLE_REASON_MAX_LENGTH,
 } from '@oxy.so/contracts';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
+import { ACCOUNT_ROLES } from '../../utils/accountRoles';
 import { applications } from './applications';
 import { users } from './users';
 
@@ -67,6 +78,11 @@ export const applicationRolePermissions = pgTable(
     key: text().notNull(),
     /** What holding the key lets a person do, in the owner's words. */
     description: text().notNull(),
+    /**
+     * The owning account's roles whose members hold this key — a first-party
+     * key declared in code (see the header). Empty: held only through grants.
+     */
+    heldByAccountRoles: text().array().notNull().default(sql`'{}'::text[]`),
     /** The human who declared it (the operator, never an org acted as). */
     declaredByUserId: text().references(() => users.id, { onDelete: 'set null' }),
     /** Set once; a retired key confers nothing and is never un-retired. */
@@ -95,6 +111,10 @@ export const applicationRolePermissions = pgTable(
     check(
       'application_role_permissions_description_check',
       sql`char_length(${t.description}) between 1 and ${sql.raw(String(APPLICATION_PERMISSION_DESCRIPTION_MAX_LENGTH))}`,
+    ),
+    check(
+      'application_role_permissions_held_by_account_roles_check',
+      sql`${t.heldByAccountRoles} <@ array[${sql.raw(ACCOUNT_ROLES.map(literal).join(', '))}]::text[]`,
     ),
     check(
       'application_role_permissions_retired_by_check',

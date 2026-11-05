@@ -84,9 +84,9 @@
     "@types/react": "*",
     "expo": "catalog:",
     "expo-splash-screen": "*",
-    "jest": "^30.5.1",
+    "jest": "^30.5.2",
     "react": "*",
     "react-native": "*",
-    "typescript": "^5.9.2"
+    "typescript": "catalog:"
   }
 }

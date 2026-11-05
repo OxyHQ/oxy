@@ -320,6 +320,32 @@ export function isAccountPermission(value: string): value is AccountPermission {
 }
 
 /**
+ * `roles` as a set in {@link ACCOUNT_ROLES} order, so two declarations naming
+ * the same roles compare and store identically.
+ */
+export function canonicalAccountRoles(roles: readonly AccountRole[]): AccountRole[] {
+  return ACCOUNT_ROLES.filter((role) => roles.includes(role));
+}
+
+/**
+ * The first-party operator keys (ADR 0056) a member holds through their ROLE
+ * over an application's owning account: every key whose `heldByAccountRoles`
+ * names that role.
+ *
+ * It reads the role and not the member's effective account permissions,
+ * deliberately and only here: an operator key is not an account permission, so
+ * a per-member `permission_grants`/`permission_revokes` entry cannot name one.
+ * Who holds a first-party key is decided by which role the registry maps it to
+ * and which role the person has.
+ */
+export function operatorKeysHeldByAccountRole(
+  role: AccountRole,
+  keys: readonly { key: string; heldByAccountRoles: readonly string[] }[],
+): string[] {
+  return keys.filter((entry) => entry.heldByAccountRoles.includes(role)).map((entry) => entry.key);
+}
+
+/**
  * The permissions a member actually holds: the role's baseline, plus the row's
  * `permission_grants`, minus its `permission_revokes`.
  *

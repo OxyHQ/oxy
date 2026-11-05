@@ -158,7 +158,7 @@ describe('the two global budgets, mounted as server.ts mounts them', () => {
     const app = express();
     app.use(rateLimiter);
     app.use(serviceCredentialLimiter);
-    app.all('*', (_req, res) => res.json({ ok: true }));
+    app.all('/{*path}', (_req, res) => res.json({ ok: true }));
     server = await new Promise<http.Server>((resolve) => {
       const s = app.listen(0, () => resolve(s));
     });
@@ -254,7 +254,7 @@ describe('an authenticated request is charged to its subject, not to its IP', ()
     const app = express();
     app.use(rateLimiter);
     app.use(serviceCredentialLimiter);
-    app.all('*', (_req, res) => res.json({ ok: true }));
+    app.all('/{*path}', (_req, res) => res.json({ ok: true }));
     server = await new Promise<http.Server>((resolve) => {
       const s = app.listen(0, () => resolve(s));
     });
@@ -321,7 +321,7 @@ describe('an authenticated request is charged to its subject, not to its IP', ()
       next();
     });
     app.use(userRateLimiter);
-    app.all('*', (_req, res) => res.json({ ok: true }));
+    app.all('/{*path}', (_req, res) => res.json({ ok: true }));
     const local = await new Promise<http.Server>((resolve) => {
       const s = app.listen(0, () => resolve(s));
     });

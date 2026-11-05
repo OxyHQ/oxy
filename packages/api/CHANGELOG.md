@@ -2,6 +2,77 @@
 
 ## Unreleased
 
+### Added (an MCP resource server asks which of its own permissions the person holds)
+
+`POST /auth/mcp/oauth/app-permissions` (service credential, body `{ token }`)
+answers `roles/me`'s contract, `{ applicationId, userId, permissions }`, for the
+person behind a live MCP access token. `roles/me` needs a session and an MCP
+request has none, so a website could only decide who gets its admin MCP tools
+from an `OXY_ADMIN_USER_IDS` allow-list. The proof is introspection's: the token
+must be for a resource the calling application registered (`401 invalid_grant`
+otherwise), the application is that one — there is no parameter to name
+another — and the person is the token's `sub`, whichever member account the
+connection is acting as. What the person holds comes from the same resolver as
+`roles/me` — `resolveApplicationPermissions`, now the one function both routes
+call — so the two answers cannot diverge. Read live; `Cache-Control: no-store`.
+No new scope. `OxyServer.appPermissionsFor(context.request)` (`@oxy.so/core`)
+reads it.
+
+### Changed (Oxy's own applications hold operator keys by role — ADR 0056)
+
+A first-party application declares its operator keys in the first-party registry
+(`operatorPermissions` in `src/scripts/seedOxyApplicationsSpecs.ts`), each naming
+the owning account's roles that hold it, and `seed-oxy-applications.ts` applies
+it: new keys declared, keys whose roles changed retired and declared again, keys
+missing from code retired, every per-person grant on the application revoked.
+`GET /applications/:appId/roles/me` (`permissionsHeldBy`) answers live grants
+plus the keys the person's effective role over the owning account holds.
+`PUT /roles/permissions` and `POST /roles/grants` on an application whose type is
+not `third_party` answer `409 FIRST_PARTY_ROLES_IN_CODE`; third-party
+applications are unchanged. `GET /roles/permissions` items carry
+`heldByAccountRoles`. Migration `0228` adds
+`application_role_permissions.held_by_account_roles` (pre-deploy, additive).
+GoWay, CrowdSource, the website, Syra, Mercaria and Homiio declare their keys,
+held by the owning organization's owners and admins.
+
+### Changed (Oxy One billing speaks `@peable.to/sdk` 1.0)
+
+The personal billing services call Peable through SDK 1.0's generated methods
+(`(…pathParams, params?, options?)`): `billing.cancelAtPeriodEnd(id, {}, { idempotencyKey })`
+and `billing.retrieveCheckoutOperation(idempotencyKey, identity)`, with the
+recovered source still compared field by field against the frozen checkout. An
+observation is the SDK's verified `WebhookEvent`: `constructEvent` already
+checks the signature, the timestamp window and the `billing.observation.updated`
+payload, so the local re-parse — strict about an envelope that had gained
+`livemode`, `api_version` and `request`, and therefore refusing every real
+delivery — is gone. The unused `createPeablePersonalBilling` wrapper is removed.
+The SDK now retries network failures, 5xx and 429 twice under the same
+`Idempotency-Key` and bounds each attempt at 80 s.
+
+### Added (`GET /accounts/:id` says what the caller may do: `callerAccess`)
+
+`GET /accounts/:id` — and the `PATCH` and `move` answers that return the same
+node — carries `callerAccess: { role, permissions, status: 'active', source }`,
+the caller's EFFECTIVE access in the `AccountAccessGrant` contract shape: the
+answer `requireAccountPermission` itself gates on. `callerMembership` could not
+say it for `self` (a person's own account, or an autonomous account operating
+itself): no membership row exists there, so it is `null` and a client reading
+`callerMembership.permissions` concluded that an owner could do nothing.
+`OxyServer.accountAccessFor` (`@oxy.so/core` 7.17.0) reads this field. Lists and
+trees are unchanged.
+
+### Fixed (an unknown Bluesky account is discovered by its handle)
+
+Discovering an external account by handle only tried WebFinger, which Bluesky
+does not speak, so a Bluesky account Oxy had never stored could not be found:
+`GET /profiles/username/frenteamplio.info@bsky.social` answered 404 and
+`POST /federation/identities/resolve` found nothing, while a known one resolved.
+A `<local>@bsky.social` handle now resolves to its DID through the AppView's
+`com.atproto.identity.resolveHandle`, and the identity is accepted only when the
+profile fetched by that DID names the same account back. `normalizeExternalHandle`
+also accepts a bare atproto handle (`frenteamplio.info`, `alice.bsky.social`), and
+the identity resolve accepts a DID in `handle`.
+
 ### Changed (people search ranks by relevance; `GET /profiles/search` takes `type` and `kind`)
 
 `GET /profiles/search`, `GET /search` and `POST /users/search` ordered their

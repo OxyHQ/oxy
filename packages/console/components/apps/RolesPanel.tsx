@@ -25,6 +25,8 @@ import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { getErrorMessage } from '@/lib/api-error';
 import { formatDate } from '@/lib/dates';
 import { useTranslation } from '@/lib/i18n';
+import { useAccountLabels } from '@/components/settings/account-labels';
+import type { AccountRole } from '@/hooks/use-account';
 import { DeclarePermissionDialog } from './DeclarePermissionDialog';
 import { GrantPermissionDialog } from './GrantPermissionDialog';
 
@@ -37,7 +39,23 @@ import { GrantPermissionDialog } from './GrantPermissionDialog';
  * The API is declarative: saving the vocabulary replaces it, and a key left out
  * is retired with its grants revoked. Each add or remove here therefore sends
  * the whole next list, and removing confirms first.
+ *
+ * One of Oxy's own applications (any type but `third_party`) declares its keys
+ * in code and each is held by roles of the owning organization (ADR 0056): the
+ * panel shows them read-only with their roles, offers no declare or grant, and
+ * lists per-person grants only while leftovers exist, so they can be revoked.
  */
+
+const ACCOUNT_ROLE_ORDER: readonly AccountRole[] = [
+  'owner',
+  'admin',
+  'editor',
+  'developer',
+  'billing',
+  'viewer',
+];
+
+type DeclaredRow = ApplicationPermissionDeclaration & { heldByAccountRoles: readonly string[] };
 export function RolesPanel({
   application,
   access,
@@ -46,9 +64,12 @@ export function RolesPanel({
   access: CallerAccess;
 }) {
   const { t, locale } = useTranslation();
+  const labels = useAccountLabels();
   const appId = application._id;
+  const ownApplication = application.type !== 'third_party';
   const canRead = access.can('roles:read');
   const canManage = access.can('roles:manage');
+  const canDeclare = canManage && !ownApplication;
   const permissions = useApplicationRolePermissions(appId, canRead);
   const grants = useApplicationRoleGrants(appId, canRead);
   const declare = useDeclareApplicationPermissions();
@@ -56,12 +77,19 @@ export function RolesPanel({
 
   const [declaring, setDeclaring] = useState(false);
   const [granting, setGranting] = useState(false);
-  const [toRemove, setToRemove] = useState<ApplicationPermissionDeclaration | null>(null);
+  const [toRemove, setToRemove] = useState<DeclaredRow | null>(null);
 
-  const declared = useMemo<Array<ApplicationPermissionDeclaration>>(
-    () => (permissions.data?.items ?? []).map(({ key, description }) => ({ key, description })),
+  const declared = useMemo<Array<DeclaredRow>>(
+    () =>
+      (permissions.data?.items ?? []).map(({ key, description, heldByAccountRoles }) => ({
+        key,
+        description,
+        heldByAccountRoles,
+      })),
     [permissions.data],
   );
+  const declarations = (rows: ReadonlyArray<DeclaredRow>): ApplicationPermissionDeclaration[] =>
+    rows.map(({ key, description }) => ({ key, description }));
   const grantItems = grants.data?.items ?? [];
 
   const save = async (next: Array<ApplicationPermissionDeclaration>) => {
@@ -88,9 +116,7 @@ export function RolesPanel({
     }
   };
 
-  const permissionColumns = useMemo<
-    ReadonlyArray<DataTableColumn<ApplicationPermissionDeclaration>>
-  >(
+  const permissionColumns = useMemo<ReadonlyArray<DataTableColumn<DeclaredRow>>>(
     () => [
       {
         id: 'key',
@@ -106,18 +132,31 @@ export function RolesPanel({
         flex: 2,
         cell: ({ row }) => <Muted>{row.description}</Muted>,
       },
-      {
-        id: 'holders',
-        header: t('applications.roles.holders'),
-        align: 'end',
-        width: 110,
-        cell: ({ row }) => (
-          <Text className="tabular-nums">
-            {grantItems.filter((grant) => grant.permission === row.key).length}
-          </Text>
-        ),
-      },
-      ...(canManage
+      ownApplication
+        ? {
+            id: 'heldBy',
+            header: t('applications.roles.heldBy'),
+            minWidth: 160,
+            cell: ({ row }: { row: DeclaredRow }) => (
+              <Text>
+                {ACCOUNT_ROLE_ORDER.filter((role) => row.heldByAccountRoles.includes(role))
+                  .map((role) => labels.role(role))
+                  .join(', ')}
+              </Text>
+            ),
+          }
+        : {
+            id: 'holders',
+            header: t('applications.roles.holders'),
+            align: 'end' as const,
+            width: 110,
+            cell: ({ row }: { row: DeclaredRow }) => (
+              <Text className="tabular-nums">
+                {grantItems.filter((grant) => grant.permission === row.key).length}
+              </Text>
+            ),
+          },
+      ...(canDeclare
         ? [
             {
               id: 'actions',
@@ -125,7 +164,7 @@ export function RolesPanel({
               headerAccessibilityLabel: t('applications.credentials.actions'),
               align: 'end' as const,
               width: 80,
-              cell: ({ row }: { row: ApplicationPermissionDeclaration }) => (
+              cell: ({ row }: { row: DeclaredRow }) => (
                 <DataTableRowActions
                   name={row.key}
                   actions={[
@@ -141,7 +180,7 @@ export function RolesPanel({
           ]
         : []),
     ],
-    [t, canManage, grantItems],
+    [t, labels, ownApplication, canDeclare, grantItems],
   );
 
   const grantColumns: ReadonlyArray<DataTableColumn<ApplicationRoleGrant>> = [
@@ -242,10 +281,14 @@ export function RolesPanel({
         accessibilityLabel={t('applications.roles.permissionsTitle')}
         title={t('applications.roles.permissionsTitle')}
         summary={
-          <Muted className="max-w-xs md:max-w-lg">{t('applications.roles.permissionsBody')}</Muted>
+          <Muted className="max-w-xs md:max-w-lg">
+            {ownApplication
+              ? t('applications.roles.ownPermissionsBody')
+              : t('applications.roles.permissionsBody')}
+          </Muted>
         }
         toolbar={
-          canManage ? (
+          canDeclare ? (
             <Button leadingIcon={RiAddLine} size="sm" onPress={() => setDeclaring(true)}>
               {t('applications.roles.add')}
             </Button>
@@ -256,33 +299,39 @@ export function RolesPanel({
         minWidth={640}
       />
 
-      <DataTable
-        rows={grantItems}
-        columns={grantColumns}
-        getRowId={(row) => row.id}
-        accessibilityLabel={t('applications.roles.peopleTitle')}
-        title={t('applications.roles.peopleTitle')}
-        summary={
-          <Muted className="max-w-xs md:max-w-lg">{t('applications.roles.peopleBody')}</Muted>
-        }
-        toolbar={
-          canManage && declared.length > 0 ? (
-            <Button leadingIcon={RiUserAddLine} size="sm" onPress={() => setGranting(true)}>
-              {t('applications.roles.grantTitle')}
-            </Button>
-          ) : undefined
-        }
-        emptyState={<EmptyState icon={RiUserAddLine} title={t('applications.roles.nobody')} />}
-        pageSize={10}
-        minWidth={700}
-      />
+      {ownApplication && grantItems.length === 0 ? null : (
+        <DataTable
+          rows={grantItems}
+          columns={grantColumns}
+          getRowId={(row) => row.id}
+          accessibilityLabel={t('applications.roles.peopleTitle')}
+          title={t('applications.roles.peopleTitle')}
+          summary={
+            <Muted className="max-w-xs md:max-w-lg">
+              {ownApplication
+                ? t('applications.roles.ownPeopleBody')
+                : t('applications.roles.peopleBody')}
+            </Muted>
+          }
+          toolbar={
+            canDeclare && declared.length > 0 ? (
+              <Button leadingIcon={RiUserAddLine} size="sm" onPress={() => setGranting(true)}>
+                {t('applications.roles.grantTitle')}
+              </Button>
+            ) : undefined
+          }
+          emptyState={<EmptyState icon={RiUserAddLine} title={t('applications.roles.nobody')} />}
+          pageSize={10}
+          minWidth={700}
+        />
+      )}
 
       <DeclarePermissionDialog
         open={declaring}
         existingKeys={declared.map((row) => row.key)}
         saving={declare.isPending}
         onClose={() => setDeclaring(false)}
-        onDeclare={(permission) => save([...declared, permission])}
+        onDeclare={(permission) => save([...declarations(declared), permission])}
       />
 
       <GrantPermissionDialog
@@ -307,9 +356,11 @@ export function RolesPanel({
             shouldCloseOnPress: false,
             onPress: () => {
               if (!toRemove) return;
-              void save(declared.filter((row) => row.key !== toRemove.key)).then((ok) => {
-                if (ok) setToRemove(null);
-              });
+              void save(declarations(declared.filter((row) => row.key !== toRemove.key))).then(
+                (ok) => {
+                  if (ok) setToRemove(null);
+                },
+              );
             },
           },
         ]}

@@ -28,6 +28,8 @@ function makeResolver(
     cachedKey?: Pick<TestActor, 'uri' | 'publicKeyPem'> | null;
     blockedHosts?: string[];
     signedFetch?: (url: string) => Promise<Response>;
+    onUpsert?: (update: unknown) => void;
+    defaultImageReader?: boolean;
   } = {},
 ) {
   const blockedHosts = overrides.blockedHosts ?? ['spam.example'];
@@ -51,13 +53,16 @@ function makeResolver(
     isBlockedDomain: domainPolicy.isBlockedDomain,
     normalizeFederatedAcct: (acct) => acct,
     domainFromAcct: (acct) => acct.split('@')[1],
-    firstStringUrl: () => undefined,
+    ...(!overrides.defaultImageReader && { firstStringUrl: () => undefined }),
     store: {
       findActorByUri: async (uri) => {
         findActorByUriCalls.push(uri);
         return overrides.cached ?? null;
       },
-      upsertActor: async () => null,
+      upsertActor: async (_uri, update) => {
+        overrides.onUpsert?.(update);
+        return null;
+      },
       findActorByPublicKeyId: async () => overrides.cachedKey ?? null,
       setActorOxyUserId: async () => {},
       tombstoneActor: async () => null,
@@ -161,6 +166,37 @@ describe('getOrFetchActor — instance domain policy', () => {
     const rig = makeResolver({ cached: null });
     await rig.resolver.getOrFetchActor(ALLOWED_ACTOR);
     expect(rig.signedFetchCalls).toEqual([ALLOWED_ACTOR]);
+  });
+});
+
+describe('fetchRemoteActor — every JSON-LD shape of a field', () => {
+  it('keeps a single alias, a single profile field, an icon list and a +0000 date', async () => {
+    const actor = JSON.stringify({
+      id: ALLOWED_ACTOR,
+      inbox: 'https://remote.example/inbox',
+      preferredUsername: 'bob',
+      alsoKnownAs: 'https://old.example/users/bob',
+      attachment: { type: 'PropertyValue', name: 'Site', value: 'bob.example' },
+      icon: [{ type: 'Image', url: { type: 'Link', href: 'https://remote.example/a.png' } }],
+      published: '2020-05-01T10:00:00+0000',
+    });
+    let upserted: Record<string, unknown> | undefined;
+    const rig = makeResolver({
+      defaultImageReader: true,
+      signedFetch: async (url) =>
+        url === ALLOWED_ACTOR ? new Response(actor) : new Response(null, { status: 404 }),
+      onUpsert: (update) => {
+        upserted = update as Record<string, unknown>;
+      },
+    });
+
+    await rig.resolver.fetchRemoteActor(ALLOWED_ACTOR);
+    expect(upserted).toMatchObject({
+      alsoKnownAs: ['https://old.example/users/bob'],
+      fields: [{ name: 'Site', value: 'bob.example' }],
+      avatarUrl: 'https://remote.example/a.png',
+      remoteCreatedAt: new Date('2020-05-01T10:00:00Z'),
+    });
   });
 });
 

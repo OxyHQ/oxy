@@ -150,7 +150,9 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           retrievePaidInvoice: (...args: any[]) => rpc('retrievePaidInvoice', args),
           retrieveInvoiceState: (...args: any[]) => rpc('retrieveInvoiceState', args),
           retrieveSubscription: (...args: any[]) => rpc('retrieveSubscription', args),
-          cancelAtPeriodEnd: (...args: any[]) => rpc('cancelAtPeriodEnd', args),
+          // The fixture's line is `[id, options]`; the 1.0 call is `(id, params, options)`.
+          cancelAtPeriodEnd: (id: string, _params: unknown, options: unknown) =>
+            rpc('cancelAtPeriodEnd', [id, options]),
         },
       } as unknown as PeableEvidenceAuthority['client'];
       let authorityStart = start,
@@ -166,10 +168,10 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           invoice: {
             platform: 'peable',
             currency: 'USD',
-            gross_minor_units: 2999,
-            net_minor_units: 2500,
-            tax_minor_units: 499,
-            merchant_fee_minor_units: 0,
+            gross_minor_units: '2999',
+            net_minor_units: '2500',
+            tax_minor_units: '499',
+            merchant_fee_minor_units: '0',
             tax_treatment: 'inclusive',
             seller_id: 'synthetic-only',
             invoice_issuer_id: 'synthetic-only',

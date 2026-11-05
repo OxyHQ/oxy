@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import type { NamedRouteParams } from '../types/routeParams';
 import { isSupervised } from '../services/supervisionPolicy.service';
 import type { Request, Response } from 'express';
 import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
@@ -680,7 +681,7 @@ export class SessionController {
   }
 
   // Validate session with user data included
-  static async validateSession(req: Request, res: Response) {
+  static async validateSession(req: Request<NamedRouteParams>, res: Response) {
     try {
       // Try to get session ID from header first, then fallback to URL parameter
       const sessionId = req.header('x-session-id') || req.params.sessionId;
@@ -732,7 +733,7 @@ export class SessionController {
   }
 
   // Preserve the ordinary legacy endpoint; supervised identities require the service policy lane.
-  static async validateSessionFromHeader(req: Request, res: Response) {
+  static async validateSessionFromHeader(req: Request<NamedRouteParams>, res: Response) {
     const liveSession = req.header('x-oxy-session-authority') === 'live-v1';
     if (liveSession) {
       res.setHeader('Cache-Control', 'no-store');
@@ -1003,7 +1004,7 @@ export class SessionController {
    * Get user by public key
    * Useful for looking up users without a session
    */
-  static async getUserByPublicKey(req: Request, res: Response) {
+  static async getUserByPublicKey(req: Request<NamedRouteParams>, res: Response) {
     try {
       const { publicKey } = req.params;
 

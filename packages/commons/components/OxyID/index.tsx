@@ -18,7 +18,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { type FC, memo, type ReactNode, useMemo, useState } from 'react';
 
-import * as Haptics from 'expo-haptics';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   type SharedValue,
@@ -60,6 +60,7 @@ export const Ticket: FC<TicketProps> = memo(
   ({ width, height, frontSide, backSide, qrSide, attestGlow: attestGlowProp }) => {
     // Drift-free device attitude driving the 3D turn.
     const tilt = useDeviceTilt();
+    const { selection } = useHapticFeedback();
     const { pitchDeg, yawDeg } = tilt;
 
     // Flip (0 = front, 180 = back).
@@ -134,7 +135,7 @@ export const Ticket: FC<TicketProps> = memo(
 
     // Tap flips between front and the public-key back (never the QR).
     const tapGesture = Gesture.Tap().onEnd(() => {
-      scheduleOnRN(Haptics.selectionAsync);
+      scheduleOnRN(selection);
       scheduleOnRN(setShowQr, false);
       rotation.value = withSpring(rotation.value === 0 ? 180 : 0, {
         dampingRatio: 1.5,
@@ -147,7 +148,7 @@ export const Ticket: FC<TicketProps> = memo(
       .minDuration(QR_REVEAL_MS)
       .maxDistance(40)
       .onStart(() => {
-        scheduleOnRN(Haptics.selectionAsync);
+        scheduleOnRN(selection);
         scheduleOnRN(setShowQr, true);
         rotation.value = withSpring(180, { dampingRatio: 1.5, duration: 500 });
       });

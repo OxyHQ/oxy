@@ -161,7 +161,7 @@ export async function createBalanceTopUpCheckout(
 
   const session = await (await getBillingStripe()).checkout.sessions.create({
     customer: customerId,
-    payment_method_types: ['card'],
+    allowed_payment_method_types: ['card'],
     line_items: [
       {
         price_data: {

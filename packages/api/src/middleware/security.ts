@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import type { NamedRouteParams } from '../types/routeParams';
 import slowDown from 'express-slow-down';
 import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
@@ -132,6 +133,55 @@ export function isCapabilityUrlPath(path: string): boolean {
 }
 
 /**
+ * The public by-id resolver, `GET /cdn/:id` — the origin behind
+ * `cloud.oxy.so/<fileId>?variant=` (ADR 0047). It answers a cacheable 302 for a
+ * PUBLIC, active file and 404 for anything else: no auth, no bytes, one row read.
+ *
+ * Every avatar and media id a page shows is resolved here on a miss in the
+ * Worker's edge cache, so a single page view is dozens of resolves. Charged to
+ * the general application budget (`rl:general`, 1000/15min) and the slowDown
+ * penalty (500 ms after 100), images spent the budget a visitor's API calls
+ * need, and every resolve past the hundredth paid half a second. Worse, the
+ * Worker's subrequests carried no visitor address, so all of them were ONE
+ * anonymous client: on 2026-11-04 that one bucket ran dry and every avatar on
+ * mention.earth answered `429 Too many requests` until the window rolled.
+ *
+ * The Worker now names the visitor (`workers/cloud/src/visitor.ts`), so `req.ip`
+ * is the visitor here by the same `oxyTrustProxy` rule as any browser request,
+ * and this surface carries its own per-address budget ({@link cdnResolverLimiter}).
+ * Both forms, with and without the `/api` prefix, are matched: the prefix is
+ * stripped after the global limiters run.
+ *
+ * MOUNT-ORDER INVARIANT: `rl:general` and `slowDown` skip these paths, so the
+ * `/cdn` mount MUST carry `cdnResolverLimiter` (it does, in server.ts).
+ */
+export function isCdnResolverPath(path: string): boolean {
+  const stripped = path.startsWith('/api/') ? path.slice(4) : path;
+  return stripped.startsWith('/cdn/');
+}
+
+/**
+ * The Cloudflare Email Routing webhook, `POST /email/inbound`, posted by
+ * `workers/email-inbound` — a machine caller with no visitor behind it, so it
+ * has no address of its own to be charged to: its subrequests leave through a
+ * Cloudflare Worker address (for a subrequest from outside the API's zone,
+ * Cloudflare reports one constant, `2a06:98c0:3600::103`, for every Worker on
+ * the internet). Under `rl:general` and `slowDown` its deliveries shared one
+ * anonymous per-address bucket with whatever else arrived from there, and a
+ * 429 there deferred everyone's mail.
+ *
+ * MOUNT-ORDER INVARIANT: in server.ts, both forms of this path pass
+ * `verifyEmailInboundWebhookSecret` and then `inboundRateLimit` (per recipient,
+ * plus a platform backstop) BEFORE the global limiters run, so a request that
+ * reaches them here has already been authenticated and charged to its own
+ * budgets. Removing that earlier mount would leave this path unthrottled.
+ */
+export function isEmailInboundWebhookPath(path: string): boolean {
+  const stripped = path.startsWith('/api/') ? path.slice(4) : path;
+  return stripped === '/email/inbound' || stripped.startsWith('/email/inbound/');
+}
+
+/**
  * NOTE — the token-gated BULK-PATH exemption that used to live here
  * (`SERVICE_TO_SERVICE_BULK_PATHS` + `isServiceToServiceBulkRequest`) is gone,
  * subsumed by {@link isFirstPartyServiceRequest}: a valid service credential is
@@ -151,7 +201,7 @@ export function isCapabilityUrlPath(path: string): boolean {
  */
 const SERVICE_PRINCIPAL = Symbol('oxy.rateLimit.servicePrincipal');
 
-interface RequestWithServicePrincipal extends Request {
+interface RequestWithServicePrincipal extends Request<NamedRouteParams> {
   [SERVICE_PRINCIPAL]?: { payload: ReturnType<typeof verifyServiceToken> };
 }
 
@@ -203,7 +253,7 @@ function servicePrincipal(req: Request): { appId: string } | undefined {
 /** Cache slot for {@link userPrincipal}; see {@link SERVICE_PRINCIPAL}. */
 const USER_PRINCIPAL = Symbol('oxy.rateLimit.userPrincipal');
 
-interface RequestWithUserPrincipal extends Request {
+interface RequestWithUserPrincipal extends Request<NamedRouteParams> {
   [USER_PRINCIPAL]?: { userId?: string; clientId?: string; expiresAt?: number };
 }
 
@@ -374,6 +424,8 @@ const rateLimiter = rateLimit({
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
     isCapabilityUrlPath(req.path) ||
+    isCdnResolverPath(req.path) ||
+    isEmailInboundWebhookPath(req.path) ||
     isFirstPartyServiceRequest(req),
 });
 
@@ -416,6 +468,30 @@ const idpServiceLimiter = rateLimit({
   message: 'Too many requests, please try again later.',
   keyGenerator: hashedIpKey,
   skip: (req: Request) => req.path.startsWith('/files/upload'),
+});
+
+// Dedicated limiter for the public by-id resolver (see isCdnResolverPath:
+// /cdn/*). Because those paths are skipped by rl:general and slowDown, this is
+// their SOLE budget. Mounted at the `/cdn` router in server.ts.
+//
+// Keyed per VISITOR: `cloud.oxy.so` forwards the visitor's address on its
+// same-zone subrequest and `oxyTrustProxy` reads it exactly as it reads a
+// browser's, so a forged header buys nothing. One visitor's page is dozens of
+// resolves, but only on a miss in the Worker's edge cache, which keeps each
+// redirect for the hour oxy-api states: 20000/15min (≈22 req/s sustained per
+// address) leaves room for a carrier NAT or an office full of readers behind
+// one address, while one scraper walking ids is still stopped at that rate.
+// The same ceiling bounds a caller with no visitor to name — a Worker on
+// another zone, which Cloudflare reports as one constant address — so that
+// pool is bounded too, without any of it reaching the application budget.
+// Unique prefix (`rl:cdn:`) keeps this budget distinct from every other
+// limiter (no ERR_ERL_DOUBLE_COUNT).
+const cdnResolverLimiter = rateLimit({
+  prefix: 'rl:cdn:',
+  windowMs: 15 * 60 * 1000,
+  max: isProd ? 20000 : 40000,
+  message: 'Too many file lookups, please try again later.',
+  keyGenerator: hashedIpKey,
 });
 
 // The legacy budget of `/session/validate-header/` (see isSessionHeaderValidationPath),
@@ -699,6 +775,8 @@ const bruteForceProtection = slowDown({
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
     isCapabilityUrlPath(req.path) ||
+    isCdnResolverPath(req.path) ||
+    isEmailInboundWebhookPath(req.path) ||
     isFirstPartyServiceRequest(req),
 });
 
@@ -753,6 +831,7 @@ export {
   sessionHeaderValidationBudget,
   holderContextEvidenceBudget,
   federationServiceLimiter,
+  cdnResolverLimiter,
   authRateLimiter,
   userRateLimiter,
   bruteForceProtection,

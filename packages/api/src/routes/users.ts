@@ -1,4 +1,5 @@
 import { hasServiceAuthority } from '../utils/serviceAuthority';
+import type { NamedRouteParams } from '../types/routeParams';
 /**
  * User Routes
  *
@@ -64,7 +65,7 @@ import { buildExportBundle } from '../services/identityExport.service';
 import { SIGN_IN_ERROR_CODES, exportBundleSchema } from '@oxy.so/contracts';
 
 // Types
-interface AuthRequest extends Request {
+interface AuthRequest extends Request<NamedRouteParams> {
   user?: {
     id: string;
   };
@@ -123,7 +124,11 @@ async function assertDiscoverableTargetUser(userId: string): Promise<void> {
  * Resolves the userId parameter (account id or publicKey) to the account id and
  * stores it back in req.params.userId.
  */
-const resolveUserId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+const resolveUserId = async (
+  req: Request<NamedRouteParams>,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const { userId } = req.params;
 
@@ -647,7 +652,7 @@ router.post(
   '/by-ids',
   optionalUserOrServiceAuth,
   validate({ body: usersByIdsBodySchema }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { ids } = req.body as { ids: string[] };
 
     const users = await userService.getUsersByIds(ids);
@@ -871,7 +876,7 @@ router.get(
   resolveUserId,
   validatePagination,
   validateFollowGraphSort,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const { limit, offset } = req.query as FollowGraphQuery;
     const sort = readFollowGraphSort(req);
@@ -913,7 +918,7 @@ router.get(
 router.get(
   '/:userId/moderators',
   resolveUserId,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     await assertDiscoverableTargetUser(userId);
     const moderators = await userService.getCommunityModerators(userId);
@@ -937,7 +942,7 @@ router.get(
   resolveUserId,
   validatePagination,
   validateFollowGraphSort,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const { limit, offset } = req.query as FollowGraphQuery;
     const sort = readFollowGraphSort(req);
@@ -1208,7 +1213,7 @@ router.post(
   '/search',
   optionalUserOrServiceAuth,
   validate({ body: searchUsersBodySchema }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     await usersController.searchUsers(req, res, () => {});
   }),
 );
