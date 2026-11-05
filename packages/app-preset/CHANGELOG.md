@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.1.0
+
+### Added
+
+- One APK per ABI, always (`withOxyAbiSplits`, applied by the preset and by `withOxyUpdates`): `assembleRelease` writes `app-arm64-v8a-release.apk` (phones from about 2017 on) and `app-armeabi-v7a-release.apk` (older phones, Android TVs) instead of one universal APK that carried both ABIs' native libraries (Mention: 126 MB, of which 55 MB arm64-v8a and 37 MB armeabi-v7a). The AAB is unaffected. A build that compiles none of those ABIs (`expo run:android` on an x86_64 emulator) splits to the ABIs it compiles. Both APKs keep the app's one `versionCode`, which is right for sideloading; Play gets the AAB. Oxy's release workflow now requires the split APKs, so an app's next native release needs this version. An app `build.gradle` that already has a `splits {}` block fails prebuild: remove the plugin that writes it.
+
 ## 6.0.0
 
 ### Breaking
