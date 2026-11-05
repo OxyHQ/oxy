@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "14.4.0",
+  "version": "14.4.1",
   "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -178,7 +178,7 @@
   "dependencies": {
     "@oxy.so/contracts": "workspace:^",
     "color": "^5.0.3",
-    "@peable.to/sdk": "3.0.0"
+    "@peable.to/sdk": "^3.0.0"
   },
   "devDependencies": {
     "@expo/app-integrity": "catalog:",

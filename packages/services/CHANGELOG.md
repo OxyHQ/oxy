@@ -1,5 +1,11 @@
 # Changelog
 
+## [14.4.1] - 2026-11-05
+
+### Fixed
+
+- Depends on `@peable.to/sdk` `^3.0.0` instead of exactly 3.0.0, so an app on a later 3.x Peable SDK (Mercaria holds 3.1.0) installs one copy instead of a second one nested under services.
+
 ## [14.4.0] - 2026-11-05
 
 ### Changed

@@ -490,11 +490,11 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "7.23.0",
+      "version": "7.23.1",
       "dependencies": {
         "@noble/ciphers": "^2.4.0",
         "@noble/hashes": "^2.4.0",
-        "@oxy.so/contracts": "workspace:6.9.0",
+        "@oxy.so/contracts": "workspace:^",
         "@oxy.so/protocol": "workspace:^",
         "@oxy.so/telemetry": "workspace:^",
         "@scure/bip39": "^2.4.0",
@@ -705,10 +705,10 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "14.4.0",
+      "version": "14.4.1",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
-        "@peable.to/sdk": "3.0.0",
+        "@peable.to/sdk": "^3.0.0",
         "color": "^5.0.3",
       },
       "devDependencies": {
