@@ -127,7 +127,6 @@ module.exports = {
       'expo-font',
       'expo-image',
       'expo-sharing',
-      'expo-status-bar',
       'expo-web-browser',
       // Every Oxy app declares AND requests so.oxy.permission.IDENTITY and
       // so.oxy.permission.DEVICE_SESSION (signature level) and queries the
