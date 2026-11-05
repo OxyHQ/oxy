@@ -11,10 +11,11 @@ name: Oxy autobump
 # A run asks npm for each package's newest version, rewrites every pin in the
 # workspace manifests (`.github/scripts/oxy-autobump.mjs`, from THIS workflow's
 # own commit, never the caller's), regenerates `bun.lock` with the repository's
-# own Bun, force-pushes ONE branch (`autobump/oxy-packages`), opens or updates
-# ONE pull request, starts the caller's CI on that branch and turns on
-# auto-merge. GitHub merges it (or, with `merge_queue`, enqueues it) only once
-# the required checks are green; a red bump stays open for a person.
+# own Bun, collapses the stale duplicate copies that leaves, force-pushes ONE
+# branch (`autobump/oxy-packages`), opens or updates ONE pull request, starts
+# the caller's CI on that branch and turns on auto-merge. GitHub merges it (or,
+# with `merge_queue`, enqueues it) only once the required checks are green; a
+# red bump stays open for a person.
 #
 # No credential beyond the run's GITHUB_TOKEN. A push or a pull request made
 # with that token starts no `push`/`pull_request` workflow (GitHub's rule), so
@@ -113,6 +114,33 @@ jobs:
             sleep 45
           done
           exit 1
+
+      # Bun reuses a locked copy while it still satisfies its range, so a bump
+      # that moves a shared package's hoisted copy forward leaves a dependent's
+      # older nested copy behind (Dropsea: @oxy.so/protocol kept contracts 6.8.0
+      # beside the new 6.9.0), and two copies of a module are two instances.
+      # Re-resolve every package @oxy.so/doctor says one copy could serve
+      # (`duplicate-copy`); a duplicate an update cannot fix is left for the
+      # caller's CI (`oxy-doctor --ci`) to report. The doctor runs through npm
+      # so the caller's bunfig never applies to it.
+      - name: Collapse duplicate copies one version can serve
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          set -o pipefail
+          for round in 1 2 3; do
+            if ! list=$(npm exec --yes --package=@oxy.so/doctor@1.7.0 -- oxy-doctor --json \
+              | jq -r '[.findings[] | select(.code == "duplicate-copy") | .package] | unique | join(" ")'); then
+              echo "::warning::oxy-doctor could not read bun.lock; duplicates are left for CI"
+              exit 0
+            fi
+            [ -n "$list" ] || exit 0
+            echo "bun update -r $list"
+            # shellcheck disable=SC2086 # one argument per package name
+            if ! bun update -r $list --lockfile-only --ignore-scripts; then
+              echo "::warning::bun update failed; duplicates are left for CI"
+              exit 0
+            fi
+          done
 
       - name: Commit and push the branch
         id: push
