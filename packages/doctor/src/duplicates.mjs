@@ -253,8 +253,14 @@ export function duplicateFindings(lock) {
     const single = mustBeSingle(name) || shared;
     // A bundled copy ships inside its dependent's tarball: no resolver can
     // collapse it, so it counts only where a second copy is never acceptable.
+    // A copy installed under an alias (`"@fairwallet/bloom":
+    // "npm:@oxy.so/bloom@1.3.0"`) is its declarer's deliberate, separately
+    // named copy: nothing importing `name` resolves to it.
     const copies = all.filter(
-      (copy) => (single || !copy.bundled) && (!shared || copy.pulledBy.some((edge) => edge.oxy)),
+      (copy) =>
+        keyNames(copy.key).at(-1) === name &&
+        (single || !copy.bundled) &&
+        (!shared || copy.pulledBy.some((edge) => edge.oxy)),
     );
     if (copies.length < 2) continue;
     const edges = copies.flatMap(pullers);

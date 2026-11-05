@@ -66,6 +66,31 @@ describe('duplicate copies in bun.lock', () => {
     expect(lock).toEqual({ a: ['x, ]', { b: '},' }], c: '",]' });
   });
 
+  test('a copy installed under an alias is its own, not a second copy of the package', () => {
+    const aliased = {
+      workspaces: {
+        '': {
+          name: 'website',
+          dependencies: { '@oxy.so/bloom': '17.9.0' },
+          devDependencies: { '@fairwallet/bloom': 'npm:@oxy.so/bloom@1.3.0' },
+        },
+      },
+      packages: {
+        '@oxy.so/bloom': ['@oxy.so/bloom@17.9.0'],
+        '@fairwallet/bloom': ['@oxy.so/bloom@1.3.0'],
+      },
+    };
+    expect(findingsFor(aliased)).toEqual([]);
+    aliased.packages['some-lib'] = [
+      'some-lib@1.0.0',
+      { dependencies: { '@oxy.so/bloom': '^1.3.0' } },
+    ];
+    aliased.packages['some-lib/@oxy.so/bloom'] = ['@oxy.so/bloom@1.3.0'];
+    expect(findingsFor(aliased)).toEqual([
+      expect.objectContaining({ code: 'duplicate-conflict', package: '@oxy.so/bloom' }),
+    ]);
+  });
+
   test('a stale nested copy is an error naming both versions, who pulls each, and the fix', () => {
     const [finding, ...rest] = findingsFor(staleContracts);
     expect(rest).toEqual([]);

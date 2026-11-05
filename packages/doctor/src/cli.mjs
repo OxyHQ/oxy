@@ -35,6 +35,8 @@ try {
       console.log(
         `? ${manifest}: @oxy.so/services is not installed, so its native peers were not checked (run bun install first)`,
       );
+    for (const { manifest, reason } of report.nativePeersNotRequired)
+      console.log(`- ${manifest}: native peers of @oxy.so/services not required: ${reason}`);
     if (!report.installedTreeChecked)
       console.log(
         '? node_modules is not installed, so only bun.lock was checked for duplicate copies (run bun install first)',

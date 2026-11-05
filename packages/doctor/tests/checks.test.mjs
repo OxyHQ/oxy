@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
   compareVersions,
@@ -10,6 +10,7 @@ import {
   isFirstPartyPackage,
   isNativeModulePackage,
   lockfileVersions,
+  nativePlatforms,
   rangeIncludesVersion,
 } from '../src/checks.mjs';
 
@@ -145,8 +146,19 @@ describe('Oxy Doctor checks', () => {
       },
       peerDependenciesMeta: { 'expo-haptics': { optional: true } },
     };
-    /** A repo with `frontend` on services and the given packages installed at the root. */
-    async function appRepo(frontendDependencies, installed) {
+    /**
+     * A repo with `frontend` on services and the given packages installed at
+     * the root. `frontendFiles` are written into the frontend; without them it
+     * is an Expo app (an `app.json`).
+     */
+    async function appRepo(
+      frontendDependencies,
+      installed,
+      {
+        frontendFiles = { 'app.json': JSON.stringify({ expo: { name: 'app' } }) },
+        manifest = {},
+      } = {},
+    ) {
       const root = await mkdtemp(join(tmpdir(), 'oxy-doctor-'));
       const write = async (dir, file, contents) => {
         await mkdir(join(root, dir), { recursive: true });
@@ -160,8 +172,16 @@ describe('Oxy Doctor checks', () => {
       await write(
         'packages/frontend',
         'package.json',
-        JSON.stringify({ dependencies: { expo: '~58.0.14', ...frontendDependencies } }),
+        JSON.stringify({
+          dependencies: { expo: '~58.0.14', ...frontendDependencies },
+          ...manifest,
+        }),
       );
+      for (const [file, contents] of Object.entries(frontendFiles)) {
+        if (contents === null)
+          await mkdir(join(root, 'packages/frontend', file), { recursive: true });
+        else await write(join('packages/frontend', dirname(file)), basename(file), contents);
+      }
       await writeFile(join(root, 'bun.lock'), '{}');
       for (const [name, kind] of Object.entries(installed)) {
         const dir = join('node_modules', name);
@@ -268,6 +288,155 @@ describe('Oxy Doctor checks', () => {
       } finally {
         await rm(root, { recursive: true, force: true });
       }
+    });
+
+    const missingCrypto = [
+      { '@oxy.so/services': '^13.5.0', 'expo-secure-store': '~58.0.2' },
+      {
+        '@oxy.so/services': 'js',
+        'expo-crypto': 'expo',
+        'expo-secure-store': 'expo',
+        zustand: 'js',
+      },
+    ];
+    async function inspectApp(options) {
+      const root = await appRepo(...missingCrypto, options);
+      try {
+        return await inspectRepository(root, current);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+    const notRequired = (reason) => ({
+      findings: [],
+      nativePeersUnverified: [],
+      nativePeersNotRequired: [
+        { manifest: 'packages/frontend/package.json', reason: expect.stringContaining(reason) },
+      ],
+    });
+    const fails = (missing = ['expo-crypto']) =>
+      expect.objectContaining({
+        findings: [expect.objectContaining({ code: 'undeclared-native-peer', missing })],
+        nativePeersNotRequired: [],
+      });
+
+    test('a web-only manifest (no app config, no native directory) requires no native peer', async () => {
+      const report = await inspectApp({
+        frontendFiles: { 'vite.config.ts': 'export default {};' },
+        manifest: { dependencies: { 'react-native': '0.88.0', ...missingCrypto[0] } },
+      });
+      expect(report).toMatchObject(notRequired('no native project'));
+    });
+    test('an Expo app whose platforms are only web requires no native peer', async () => {
+      const report = await inspectApp({
+        frontendFiles: { 'app.json': JSON.stringify({ expo: { platforms: ['web'] } }) },
+      });
+      expect(report).toMatchObject(notRequired('no native project'));
+    });
+    test('an Expo app with a native platform among web still fails', async () => {
+      const report = await inspectApp({
+        frontendFiles: { 'app.json': JSON.stringify({ expo: { platforms: ['android', 'web'] } }) },
+      });
+      expect(report).toEqual(fails());
+    });
+    test('a dynamic app config, a native directory or an unreadable app.json keeps the check on', async () => {
+      for (const frontendFiles of [
+        { 'app.config.ts': 'export default {};' },
+        { android: null },
+        { macos: null },
+        { 'app.json': '{ not json' },
+      ])
+        expect(await inspectApp({ frontendFiles })).toEqual(fails());
+    });
+    test('the platforms an app builds', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'oxy-doctor-app-'));
+      try {
+        expect(await nativePlatforms(dir)).toEqual([]);
+        await writeFile(
+          join(dir, 'app.json'),
+          JSON.stringify({ name: 'Astro', displayName: 'Astro' }),
+        );
+        expect(await nativePlatforms(dir)).toEqual(['android', 'ios']);
+        await writeFile(join(dir, 'app.json'), JSON.stringify({ expo: { platforms: ['ios'] } }));
+        await mkdir(join(dir, 'macos'));
+        expect(await nativePlatforms(dir)).toEqual(['ios', 'macos']);
+        await writeFile(join(dir, 'windows'), 'a file, not a project');
+        expect(await nativePlatforms(dir)).toEqual(['ios', 'macos']);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    test('services excluded from Expo autolinking requires no native peer', async () => {
+      const report = await inspectApp({
+        manifest: { expo: { autolinking: { exclude: ['@oxy.so/services'] } } },
+      });
+      expect(report).toMatchObject(notRequired('excluded from autolinking on android, ios'));
+    });
+    test('a platform-specific Expo exclusion counts only on the platforms it names', async () => {
+      const androidOnly = JSON.stringify({ expo: { platforms: ['android'] } });
+      const exclude = { expo: { autolinking: { android: { exclude: ['@oxy.so/services'] } } } };
+      expect(
+        await inspectApp({ frontendFiles: { 'app.json': androidOnly }, manifest: exclude }),
+      ).toMatchObject(notRequired('excluded from autolinking on android'));
+      expect(await inspectApp({ manifest: exclude })).toEqual(fails());
+      expect(
+        await inspectApp({
+          manifest: {
+            expo: {
+              autolinking: {
+                android: { exclude: ['@oxy.so/services'] },
+                apple: { exclude: ['@oxy.so/services'] },
+              },
+            },
+          },
+        }),
+      ).toMatchObject(notRequired('excluded from autolinking on android, ios'));
+    });
+    test('services with every platform null in react-native.config.js requires no native peer (Astro)', async () => {
+      const report = await inspectApp({
+        frontendFiles: {
+          'app.json': JSON.stringify({ name: 'Astro', displayName: 'Astro' }),
+          macos: null,
+          'react-native.config.js': `module.exports = {
+            project: { ios: { sourceDir: './macos' }, macos: { sourceDir: './macos' } },
+            dependencies: { '@oxy.so/services': { platforms: { ios: null, macos: null, android: null } } },
+          };`,
+        },
+      });
+      expect(report).toMatchObject(notRequired('excluded from autolinking on android, ios, macos'));
+    });
+    test('a react-native.config that nulls only some platforms, or fails to load, keeps the check on', async () => {
+      for (const config of [
+        `module.exports = { dependencies: { '@oxy.so/services': { platforms: { ios: null } } } };`,
+        `module.exports = { dependencies: { '@oxy.so/services': {} } };`,
+        `throw new Error('cannot load');`,
+      ])
+        expect(
+          await inspectApp({
+            frontendFiles: { 'app.json': '{}', 'react-native.config.js': config },
+          }),
+        ).toEqual(fails());
+      expect(
+        await inspectApp({
+          frontendFiles: {
+            'app.json': '{}',
+            'react-native.config.json': JSON.stringify({
+              dependencies: { '@oxy.so/services': { platforms: { ios: null, android: null } } },
+            }),
+          },
+        }),
+      ).toMatchObject(notRequired('excluded from autolinking'));
+    });
+    test('a peer the app excludes from autolinking on every platform is not demanded', async () => {
+      expect(
+        await inspectApp({ manifest: { expo: { autolinking: { exclude: ['expo-crypto'] } } } }),
+      ).toMatchObject({ findings: [], nativePeersNotRequired: [] });
+      expect(
+        await inspectApp({
+          manifest: { expo: { autolinking: { ios: { exclude: ['expo-crypto'] } } } },
+        }),
+      ).toEqual(fails());
     });
 
     test('recognises a native module by its autolinking markers', async () => {
