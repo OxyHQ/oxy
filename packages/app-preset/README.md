@@ -186,7 +186,7 @@ bump it for a native change and the next push to main releases a new binary
 (oxy's `android-release.yml`, docs/engineering/build-and-deploy.md#native-android-releases);
 a JS-only change keeps the version and ships as an OTA update.
 
-#### One APK per ABI (always on, 6.1.0+)
+#### One APK per ABI (always on, 6.1.1+)
 
 `withOxyAbiSplits`, applied by the preset and by `withOxyUpdates`, adds Gradle
 ABI splits to `android/app/build.gradle`, so `assembleRelease` writes one APK per
@@ -201,6 +201,15 @@ A universal APK carries every ABI's native libraries and a phone loads one
 (Mention: 126 MB, of which 55 MB arm64-v8a and 37 MB armeabi-v7a libraries).
 `bundleRelease` is unaffected: the AAB keeps every ABI and Google Play serves
 each device its slice.
+
+Build the AAB and the APKs in **two Gradle invocations**
+(`./gradlew :app:bundleRelease`, then `./gradlew :app:assembleRelease`). When R8
+shrinks resources, AGP fails a build that makes split APKs next to an app bundle
+("Multiple shrunk-resources files found … Please disable building multiple APKs
+when building an Android app bundle",
+[issuetracker 402800800](https://issuetracker.google.com/402800800)), so the
+splits are off in any invocation that builds a bundle, and that invocation's
+`assembleRelease` gives a universal APK.
 
 A build that compiles none of those ABIs splits to the ones it compiles, so
 `expo run:android` on an x86_64 emulator (it passes

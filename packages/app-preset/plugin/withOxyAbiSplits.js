@@ -13,6 +13,15 @@
  * still builds one AAB with every ABI, and Google Play serves each device its
  * own slice of it.
  *
+ * The splits are OFF in a Gradle invocation that builds a bundle. When R8
+ * shrinks resources (`shrinkResources`, which every Oxy release does), AGP
+ * fails `buildReleasePreBundle` with "Multiple shrunk-resources files found …
+ * Please disable building multiple APKs when building an Android app bundle"
+ * (https://issuetracker.google.com/402800800). So the AAB and the APKs are
+ * two invocations, `./gradlew :app:bundleRelease` then
+ * `./gradlew :app:assembleRelease`; one invocation asking for both builds a
+ * universal APK, which Oxy's release workflow refuses.
+ *
  * A build for ONE device keeps working: `expo run:android` passes
  * `-PreactNativeArchitectures=<the device's ABI>` for a debug build, so the
  * split follows the ABIs Gradle compiles whenever none of the release ABIs is
@@ -47,16 +56,20 @@ const RESOLVE_ABIS = `// ${MARKER}: one APK per ABI, no universal APK (@oxy.so/a
 def oxyBuiltAbis = (findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').toString().split(',').collect { it.trim() }.findAll { it }
 def oxyReleaseAbis = [${RELEASE_ABIS.map((abi) => `'${abi}'`).join(', ')}].findAll { oxyBuiltAbis.contains(it) }
 def oxyApkAbis = oxyReleaseAbis ?: oxyBuiltAbis
+// AGP refuses ABI splits in an invocation that also builds an app bundle while R8 shrinks
+// resources (https://issuetracker.google.com/402800800), and a bundle never uses them: build
+// the AAB and the APKs in two invocations.
+def oxyBuildsBundle = gradle.startParameter.taskNames.any { it.tokenize(':').last().toLowerCase().startsWith('bundle') }
 
 `;
 
 /** Inserted as the first entry of `android {`. */
 const SPLITS = `
-    // ${MARKER}: the APKs are oxyApkAbis, one each; the AAB is unaffected.
+    // ${MARKER}: the APKs are oxyApkAbis, one each; off while building a bundle.
     splits {
         abi {
             reset()
-            enable true
+            enable !oxyBuildsBundle
             universalApk false
             include(*oxyApkAbis)
         }
