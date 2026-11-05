@@ -81,14 +81,17 @@ resolves the caller with `OxyCallerPolicy` (one copy in `@oxy.so/services`
 1. The package comes from `Binder.getCallingUid()` → `getPackagesForUid`, never
    from anything the caller sends.
 2. It must be on the Oxy allow-list: Mention `earth.mention.app`, Alia
-   `onl.alia.app`, Allo `com.allo.app`, Homiio `com.homiio.android`, CrowdSource
-   `so.oxy.crowdsource`, Peable `to.peable.app`, Atlas `so.oxy.atlas`, Dropsea
-   `so.oxy.dropsea`, GoWay `to.goway.app`, Move `so.oxy.move`, Willo `sh.willo.app`, Moovo
+   `onl.alia.app`, Allo `you.allo.app`, Homiio `com.homiio.app`, CrowdSource
+   `so.oxy.crowdsource`, Peable `to.peable.app` / Orbit `to.peable.orbit`, Atlas
+   `so.oxy.atlas`, Dropsea `so.oxy.dropsea`, GoWay `to.goway.app`, Move
+   `so.oxy.move`, Willo `sh.willo.app` / Frame `sh.willo.frame`, Moovo
    `now.moovo.app` / `.go` / `.tracker` / `.hub`, Noted `so.oxy.noted`, Inbox
-   `so.oxy.inbox`, Clarity `so.oxy.clarity`, Nilo `so.oxy.nilo`, Mercaria
+   `so.oxy.inbox`, Clarity `surf.clarity.app`, Nilo `so.nilo.app`, Mercaria
    `co.mercaria.app` / `.dashboard` / `.pos`, Schedio `com.schedio.app`, Syra
-   `com.syra.app` / `com.syra.studio`, Accounts `so.oxy.accounts`, Commons
-   `so.oxy.commons`, each with its `.dev` variant.
+   `fm.syra.app` / `fm.syra.studio`, Authenticator `so.oxy.authenticator`,
+   Accounts `so.oxy.accounts`, Commons `so.oxy.commons`, each with its `.dev`
+   variant. An app's id is its own product domain reversed; the ones already on
+   Google Play (`earth.mention.app`, `so.oxy.commons`) keep theirs.
 3. It must be signed with the provider's own certificate:
    `hasSigningCertificate(pkg, sha256, CERT_INPUT_SHA256)` on API 28+,
    `checkSignatures` below.
