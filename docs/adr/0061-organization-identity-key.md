@@ -100,21 +100,23 @@ transaction that writes the key.
 
 ### D4 — One challenge, three signatures, from Commons
 
-`POST /accounts/:id/identity-key/challenge` mints a one-use challenge bound to
-the organization, the actor, the operation (`create` or `replace`), the new
-public key and the key it replaces. `POST /accounts/:id/identity-key` spends it
-in the transaction that writes the key, and requires:
+`POST /accounts/:id/identity-key/challenge` mints a one-use challenge for the
+organization, the operation (`create` or `replace`) and the key it replaces
+(none for `create`). `POST /accounts/:id/identity-key` spends it in the
+transaction that writes the key, and requires three signatures over the same
+claims, which name the actor and the new key through their payload digest:
 
-1. the actor's OWN personal root signature over the claims: the person, not
-   just their session (Commons holds that root; an account without one cannot
-   do this);
-2. the new key's signature over the same claims (possession);
-3. for `replace`, the current key's signature when the device has it. It is
-   optional (D7) and the history records whether it was given.
+1. the actor's OWN personal root: the person, not just their session (Commons
+   holds that root; an account without one cannot do this);
+2. the new key (possession);
+3. for `replace`, the current key when the device has it. It is optional (D7)
+   and the history records whether it was given.
 
-The bytes are `buildOrganizationKeyProofMessage` in `@oxy.so/contracts`, shared
-by client and server. The write, the history row, the challenge burn and a
-`security_activities` row for the organization commit together.
+The bytes are `buildIdentityProofMessage` (ADR 0024 D7) with two new actions,
+`organization_key_create` and `organization_key_replace`; each signature differs
+only in the key it names, so none can stand in for another. The write, the
+history row, the challenge burn and a `security_activities` row for the
+organization commit together.
 
 ### D5 — The phrase is how a second owner gets the key
 
