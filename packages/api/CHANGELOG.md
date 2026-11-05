@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Added (OTA updates publish from GitHub Actions with no stored secret)
+
+GitHub trusted publishing (ADR 0057). An application trusts the GitHub
+repositories allowed to publish its OTA updates, each pinned to the repository's
+name AND numeric id, an exact ref (default `refs/heads/main`) and optionally one
+workflow file (migration `0231_github_trusted_publishers`). Oxy's own
+applications declare them in code (`trustedPublishers` in
+`seedOxyApplicationsSpecs.ts`, 18 apps declared; the seed makes the stored set
+exactly the declaration); a third-party application manages them at
+`GET|POST /applications/:appId/trusted-publishers` and
+`DELETE /applications/:appId/trusted-publishers/:publisherId` under the
+credential permissions, and writes to an Oxy application's are refused
+`409 FIRST_PARTY_TRUSTED_PUBLISHERS_IN_CODE`. A job then exchanges its GitHub
+Actions OIDC token at `POST /auth/service-token/github-actions`
+(`{ clientId, token }`): RS256 against GitHub's JWKS, exact issuer, `aud` this
+API's origin, `push`/`workflow_dispatch` only. The answer is the credential
+path's five-minute service token with exactly `updates:publish` and
+`credentialId: tp_<publisher id>`; the live resolver re-reads the publisher, its
+application and owner on every request, so deleting a publisher stops its tokens
+at once.
+
 ### Fixed (a known external account resolves without asking its source again)
 
 `POST /federation/identities/resolve` re-fetched the source actor on every call,

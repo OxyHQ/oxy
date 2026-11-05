@@ -31,7 +31,6 @@ const OPTIONS = {
   'to-channel': { type: 'string' },
   limit: { type: 'string' },
   'client-id': { type: 'string' },
-  secret: { type: 'string' },
   'skip-export': { type: 'boolean' },
   'dry-run': { type: 'boolean' },
   json: { type: 'boolean' },

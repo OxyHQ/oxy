@@ -15,6 +15,10 @@ import {
   isWorkloadAttestationHandle,
   workloadAttestationHandle,
 } from './workloadAttestation.service';
+import {
+  isTrustedPublisherHandle,
+  resolveLiveTrustedPublisherPrincipal,
+} from './githubTrustedPublishing.service';
 
 export interface LiveAgencyServicePrincipal {
   readonly applicationId: string;
@@ -140,6 +144,11 @@ export async function resolveLiveExternalServicePrincipal(
   if (token.authority === 'first_party') return null;
   if (isWorkloadAttestationHandle(token.credentialId))
     return resolveLiveAgencyServicePrincipal(token);
+  // A GitHub trusted publisher (ADR 0057): no credential row exists, so the
+  // publisher row is what is re-read. Never an agency coordinator — the
+  // credential-shaped arms below would find no row for it and refuse anyway.
+  if (isTrustedPublisherHandle(token.credentialId))
+    return resolveLiveTrustedPublisherPrincipal(token);
   const loaded = await loadPrincipal(token.appId, token.credentialId, false);
   if (
     !loaded ||

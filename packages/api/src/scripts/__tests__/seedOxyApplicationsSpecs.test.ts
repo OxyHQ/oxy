@@ -39,6 +39,10 @@ import {
 import { isTrustedApplication } from '../../utils/trustedApplication';
 import { isAccountRole } from '../../utils/accountRoles';
 import {
+  GITHUB_REPOSITORY_PATTERN,
+  GITHUB_WORKFLOW_PATTERN,
+} from '../../db/schema/githubTrustedPublishers';
+import {
   APPLICATION_PERMISSION_DESCRIPTION_MAX_LENGTH,
   APPLICATION_PERMISSIONS_MAX_DECLARED,
   isApplicationPermissionKey,
@@ -67,6 +71,7 @@ import {
   GOWAY_APPLICATION_ID,
   MEDIA_WORKER_APPLICATION_ID,
   SEED_APPS,
+  OTA_PUBLISH_WORKFLOW,
   seedApplicationLookupIdentity,
   type SeedAppSpec,
 } from '../seedOxyApplicationsSpecs';
@@ -1029,6 +1034,64 @@ describe('operator permissions (ADR 0056)', () => {
       ],
       'Oxy Website': ['website.content.manage'],
       Syra: ['compliance.review'],
+    });
+  });
+});
+
+describe('trusted publishers (ADR 0057)', () => {
+  const declaring = SEED_APPS.filter((spec) => (spec.trustedPublishers ?? []).length > 0);
+
+  it('every rule is a well-formed, unique, main-only rule of an OxyHQ repository', () => {
+    for (const spec of declaring) {
+      const rules = spec.trustedPublishers ?? [];
+      const keys = rules.map((rule) => `${rule.repositoryId}:${rule.ref}:${rule.workflow}`);
+      expect(new Set(keys).size).toBe(keys.length);
+      for (const rule of rules) {
+        expect(rule.repository).toMatch(new RegExp(GITHUB_REPOSITORY_PATTERN));
+        expect(rule.repository.startsWith('OxyHQ/')).toBe(true);
+        expect(rule.repositoryId).toMatch(/^[1-9][0-9]{0,19}$/);
+        expect(rule.ref).toBe('refs/heads/main');
+        expect(rule.workflow).toMatch(new RegExp(GITHUB_WORKFLOW_PATTERN));
+        expect(rule.workflow).toBe(OTA_PUBLISH_WORKFLOW);
+      }
+    }
+  });
+
+  it('one repository name never carries two numeric ids', () => {
+    const idByRepository = new Map<string, string>();
+    for (const rule of declaring.flatMap((spec) => spec.trustedPublishers ?? [])) {
+      const known = idByRepository.get(rule.repository.toLowerCase());
+      if (known !== undefined) expect(rule.repositoryId).toBe(known);
+      idByRepository.set(rule.repository.toLowerCase(), rule.repositoryId);
+    }
+  });
+
+  it('declares exactly the app repositories that publish OTA updates', () => {
+    const byApp = Object.fromEntries(
+      declaring.map((spec) => [
+        spec.name,
+        (spec.trustedPublishers ?? []).map((rule) => `${rule.repository}#${rule.repositoryId}`),
+      ]),
+    );
+    expect(byApp).toEqual({
+      'Oxy Accounts': ['OxyHQ/oxy#973881060'],
+      'Oxy Inbox': ['OxyHQ/Inbox#1329784826'],
+      Mention: ['OxyHQ/Mention#899773466'],
+      Homiio: ['OxyHQ/Homiio#950615787'],
+      Clarity: ['OxyHQ/Clarity#1201755585'],
+      Allo: ['OxyHQ/Allo#1097863886'],
+      Alia: ['OxyHQ/Alia#1134050651'],
+      Syra: ['OxyHQ/Syra#1110776513'],
+      Peable: ['OxyHQ/Peable#1265522443'],
+      Noted: ['OxyHQ/Noted#1275785015'],
+      'Commons by Oxy': ['OxyHQ/oxy#973881060'],
+      Mercaria: ['OxyHQ/Mercaria#1275951600'],
+      'Oxy Move': ['OxyHQ/Move#1387757667'],
+      GoWay: ['OxyHQ/GoWay#1365041993'],
+      Nilo: ['OxyHQ/Nilo#1249024747'],
+      Willo: ['OxyHQ/Willo#1368626201'],
+      Atlas: ['OxyHQ/Atlas#1328114802'],
+      CrowdSource: ['OxyHQ/CrowdSource#1315214837'],
     });
   });
 });

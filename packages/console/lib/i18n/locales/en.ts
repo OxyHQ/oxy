@@ -973,7 +973,7 @@ const en: LocaleDict = {
     loadFailed: 'Could not load update channels.',
     empty: {
       title: 'No updates published yet',
-      body: 'Channels are created the first time you publish. From your app directory, run `oxy-ship publish --channel production` to ship your first over-the-air update.',
+      body: 'Channels are created the first time you publish. Register your GitHub repository as a trusted publisher of this app, then add the `oxy-ship` workflow from `@oxy.so/ship` (`templates/publish-update.yml`): every push to `main` ships an over-the-air update, with no secret to store.',
     },
     heads_zero: '{{count}} heads',
     heads_one: '{{count}} head',

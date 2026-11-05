@@ -2,6 +2,12 @@ import { invalidateApplicationTrust } from '../services/applicationTrust.service
 import { revokeApplicationCredential } from '../services/applicationCredentialRevocation.service';
 import { applicationStoredBytes } from '../services/storageQuota.service';
 import { generateCredentialMaterial } from '../utils/credentialMaterial';
+import {
+  deleteTrustedPublisher,
+  listTrustedPublishers,
+  registerTrustedPublisher,
+  serializeTrustedPublisher,
+} from '../services/githubTrustedPublishing.service';
 import express from 'express';
 import crypto from 'crypto';
 import type { z } from 'zod';
@@ -52,6 +58,8 @@ import {
   appAgentParams,
   appIdRouteParams,
   appCredentialParams,
+  appTrustedPublisherParams,
+  createTrustedPublisherSchema,
   appRoleGrantParams,
   listApplicationRolePermissionsQuerySchema,
   credentialAuditQuerySchema,
@@ -1555,6 +1563,80 @@ router.delete(
       by: actorUserId,
     });
 
+    res.json({ success: true });
+  }),
+);
+
+// ============================================================================
+// Trusted publishers (GitHub Actions OIDC, ADR 0057)
+// ============================================================================
+//
+// The GitHub Actions workflows that may publish this application's OTA updates
+// with no stored secret. Managed with the credential permissions, because a
+// publisher is what a publish credential used to be: who may create a
+// credential may register one, who may revoke one may delete one. An Oxy
+// application's publishers are declared in code and applied by the seed, so
+// writes to one are refused with 409 (as its operator keys are, ADR 0056);
+// reading them is not.
+
+router.get(
+  '/:appId/trusted-publishers',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('credentials:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = req.application;
+    if (!application) {
+      throw new NotFoundError('Application not found');
+    }
+    const rows = await listTrustedPublishers(application.id);
+    res.json({ trustedPublishers: rows.map(serializeTrustedPublisher) });
+  }),
+);
+
+router.post(
+  '/:appId/trusted-publishers',
+  validate({ params: appIdRouteParams, body: createTrustedPublisherSchema }),
+  requireAppPermission('credentials:create'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = req.application;
+    if (!application) {
+      throw new NotFoundError('Application not found');
+    }
+    const body = req.body as {
+      repository: string;
+      repositoryId?: string;
+      ref?: string;
+      workflow?: string;
+    };
+    const row = await registerTrustedPublisher({
+      application,
+      repository: body.repository,
+      repositoryId: body.repositoryId,
+      ref: body.ref,
+      workflow: body.workflow,
+      actorUserId: requireUserId(req),
+    });
+    res.status(201).json({ trustedPublisher: serializeTrustedPublisher(row) });
+  }),
+);
+
+router.delete(
+  '/:appId/trusted-publishers/:publisherId',
+  validate({ params: appTrustedPublisherParams }),
+  requireAppPermission('credentials:revoke'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = req.application;
+    if (!application) {
+      throw new NotFoundError('Application not found');
+    }
+    const deleted = await deleteTrustedPublisher({
+      application,
+      publisherId: req.params.publisherId,
+      actorUserId: requireUserId(req),
+    });
+    if (!deleted) {
+      throw new NotFoundError('Trusted publisher not found');
+    }
     res.json({ success: true });
   }),
 );

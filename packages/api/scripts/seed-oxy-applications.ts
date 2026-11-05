@@ -27,8 +27,13 @@
  *                      logs each change, each grant revoked and, per key, who
  *                      holds it through which role.
  *
+ *   - Trusted publishers (ADR 0057): the application's GitHub OTA publishers
+ *                      become EXACTLY `spec.trustedPublishers` (absent = none);
+ *                      an undeclared one is deleted and its tokens stop working.
+ *
  * Safety:
- *   - No deletes, no drops, no modification of unrelated documents.
+ *   - No deletes (except an undeclared trusted publisher, above), no drops, no
+ *     modification of unrelated documents.
  *   - Application web origins (`spec.webOrigins`, ADR 0045) in
  *                      `application_web_origins`, additive only: an origin staff
  *                      added is never removed, one that is another application's
@@ -87,6 +92,7 @@ import {
   type PermissionDeclaration,
 } from '../src/services/applicationRoles.service';
 import { operatorKeysHeldByAccountRole } from '../src/utils/accountRoles';
+import { declareFirstPartyTrustedPublishers } from '../src/services/githubTrustedPublishing.service';
 import {
   declareApplicationWebOrigins,
   undeclaredApplicationWebOrigins,
@@ -364,6 +370,8 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
   let operatorKeysAdded = 0;
   let operatorKeysRetired = 0;
   let operatorGrantsRevoked = 0;
+  let trustedPublishersAdded = 0;
+  let trustedPublishersRemoved = 0;
 
   for (const spec of seedApps) {
     let createdApplication = false;
@@ -620,6 +628,32 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       });
     }
 
+    // ADR 0057: the OTA publishers are exactly the registry entry. A removed
+    // rule is deleted, and the tokens it minted stop at their next request.
+    const declaredPublishers = spec.trustedPublishers ?? [];
+    if (application && application.id !== DRY_RUN_PLACEHOLDER_ID) {
+      const publishers = await declareFirstPartyTrustedPublishers({
+        applicationId: application.id,
+        declared: declaredPublishers,
+        actorUserId: oxyId,
+        dryRun,
+      });
+      trustedPublishersAdded += publishers.add.length;
+      trustedPublishersRemoved += publishers.remove.length;
+      if (publishers.add.length + publishers.rename.length + publishers.remove.length > 0) {
+        logger.info('Planned trusted publisher changes', {
+          app: spec.name,
+          applicationId: application.id,
+          add: publishers.add,
+          rename: publishers.rename,
+          remove: publishers.remove,
+        });
+      }
+    } else if (declaredPublishers.length > 0) {
+      trustedPublishersAdded += declaredPublishers.length;
+      logger.info('Planned trusted publisher changes', { app: spec.name, add: declaredPublishers });
+    }
+
     mapping.push({
       webOriginsAdded,
       app: spec.name,
@@ -653,6 +687,8 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
     operatorKeysAdded,
     operatorKeysRetired,
     operatorGrantsRevoked,
+    trustedPublishersAdded,
+    trustedPublishersRemoved,
   });
 
   const leftoverGrants = await liveGrantsOnOwnApplications();

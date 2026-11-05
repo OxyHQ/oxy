@@ -21,6 +21,7 @@ import {
   organizationImportApplicationCapability,
 } from '../utils/applicationCapabilities';
 import type { AccountRole } from '../utils/accountRoles';
+import type { DeclaredTrustedPublisher } from '../services/githubTrustedPublishing.service';
 import type { ApplicationScope } from '../utils/applicationScopes';
 import {
   CLARITY_APPLICATION_ID,
@@ -131,6 +132,23 @@ export interface SeedAppSpec {
    * in the same change that ships the code checking it.
    */
   operatorPermissions?: readonly FirstPartyOperatorPermission[];
+  /**
+   * The GitHub Actions workflows that publish this application's OTA updates
+   * with no stored secret (ADR 0057). The seed makes the application's trusted
+   * publishers EXACTLY this list — absent means none — and the API refuses to
+   * write them for an Oxy application. Each names GitHub's numeric repository
+   * id as well as its name, so a repository deleted and recreated under the
+   * same name never matches.
+   */
+  trustedPublishers?: readonly DeclaredTrustedPublisher[];
+}
+
+/** The caller workflow every Oxy app repository publishes its OTA updates from. */
+export const OTA_PUBLISH_WORKFLOW = '.github/workflows/publish-update.yml';
+
+/** A push to `main` of `repository` running {@link OTA_PUBLISH_WORKFLOW}. */
+export function otaPublisher(repository: string, repositoryId: string): DeclaredTrustedPublisher {
+  return { repository, repositoryId, ref: 'refs/heads/main', workflow: OTA_PUBLISH_WORKFLOW };
 }
 
 export type SeedApplicationLookupIdentity =
@@ -486,6 +504,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   // ── OxyHQServices first-party web apps (CF Pages) ──
   {
     name: 'Oxy Accounts',
+    trustedPublishers: [otaPublisher('OxyHQ/oxy', '973881060')],
     description: 'Official Oxy account management app (My Account).',
     websiteUrl: 'https://accounts.oxy.so',
     webOrigins: ['https://accounts.oxy.so'],
@@ -503,6 +522,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: INBOX_APPLICATION_ID,
     name: 'Oxy Inbox',
+    trustedPublishers: [otaPublisher('OxyHQ/Inbox', '1329784826')],
     description: 'Official Oxy email/inbox app.',
     websiteUrl: 'https://inbox.oxy.so',
     webOrigins: ['https://inbox.oxy.so'],
@@ -527,6 +547,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: MENTION_APPLICATION_ID,
     name: 'Mention',
+    trustedPublishers: [otaPublisher('OxyHQ/Mention', '899773466')],
     description: 'Official Oxy social media app with fediverse support.',
     websiteUrl: 'https://mention.earth',
     webOrigins: ['https://mention.earth'],
@@ -585,6 +606,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: HOMIIO_APPLICATION_ID,
     name: 'Homiio',
+    trustedPublishers: [otaPublisher('OxyHQ/Homiio', '950615787')],
     description: 'Official Oxy real estate platform.',
     websiteUrl: 'https://homiio.com',
     webOrigins: ['https://homiio.com'],
@@ -639,6 +661,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: CLARITY_APPLICATION_ID,
     name: 'Clarity',
+    trustedPublishers: [otaPublisher('OxyHQ/Clarity', '1201755585')],
     description: 'Official Clarity product client',
     websiteUrl: 'https://clarity.surf',
     webOrigins: ['https://clarity.surf', 'https://clarity.oxy.so'],
@@ -650,6 +673,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'Allo',
+    trustedPublishers: [otaPublisher('OxyHQ/Allo', '1097863886')],
     description: 'Official Oxy encrypted messaging app.',
     websiteUrl: 'https://allo.you',
     webOrigins: ['https://allo.you'],
@@ -663,6 +687,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: ALIA_APPLICATION_ID,
     name: 'Alia',
+    trustedPublishers: [otaPublisher('OxyHQ/Alia', '1134050651')],
     description: 'Official Oxy AI platform (chat app, console, canvas, gateway).',
     websiteUrl: 'https://alia.onl',
     // canvas.alia.onl is Alia's canvas web app, signed in with this same client.
@@ -689,6 +714,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'Syra',
+    trustedPublishers: [otaPublisher('OxyHQ/Syra', '1110776513')],
     description: 'Official Oxy app.',
     websiteUrl: 'https://syra.fm',
     // studio.syra.fm is Syra Studio (packages/studio), which signs in with this
@@ -749,6 +775,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'Peable',
+    trustedPublishers: [otaPublisher('OxyHQ/Peable', '1265522443')],
     description: 'Official Peable payments app.',
     websiteUrl: 'https://peable.to',
     // Orbit (orbit.peable.to) is Peable's merchant dashboard: a separate web
@@ -769,6 +796,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'Noted',
+    trustedPublishers: [otaPublisher('OxyHQ/Noted', '1275785015')],
     description: 'Official Oxy notes app.',
     websiteUrl: 'https://noted.oxy.so',
     webOrigins: ['https://noted.oxy.so'],
@@ -806,6 +834,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'Commons by Oxy',
+    trustedPublishers: [otaPublisher('OxyHQ/oxy', '973881060')],
     description:
       'Official Oxy Commons app — self-sovereign identity wallet and Sign-in-with-Oxy approvals (native).',
     type: 'first_party',
@@ -817,6 +846,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'Mercaria',
+    trustedPublishers: [otaPublisher('OxyHQ/Mercaria', '1275951600')],
     legacyNames: ['Marketplace'],
     description: 'Official Oxy marketplace app — buy and sell new and secondhand items.',
     websiteUrl: 'https://mercaria.co',
@@ -928,6 +958,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: OXY_MOVE_APPLICATION_ID,
     name: 'Oxy Move',
+    trustedPublishers: [otaPublisher('OxyHQ/Move', '1387757667')],
     description:
       'Bring your account to Oxy: connect Mastodon, Bluesky and more, and your profile, follows and posts come with you.',
     websiteUrl: 'https://move.oxy.so',
@@ -971,6 +1002,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: GOWAY_APPLICATION_ID,
     name: 'GoWay',
+    trustedPublishers: [otaPublisher('OxyHQ/GoWay', '1365041993')],
     description: 'Official Oxy maps and navigation app.',
     websiteUrl: 'https://goway.to',
     webOrigins: ['https://goway.to'],
@@ -997,6 +1029,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: NILO_APPLICATION_ID,
     name: 'Nilo',
+    trustedPublishers: [otaPublisher('OxyHQ/Nilo', '1249024747')],
     description: 'Official Oxy workspace app.',
     websiteUrl: 'https://nilo.so',
     webOrigins: ['https://nilo.so'],
@@ -1055,6 +1088,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: WILLO_APPLICATION_ID,
     name: 'Willo',
+    trustedPublishers: [otaPublisher('OxyHQ/Willo', '1368626201')],
     description: 'Official Oxy smart home control app.',
     websiteUrl: 'https://willo.sh',
     // Frame by Willo (`frame.willo.sh`) is a Willo sub-app, not an application
@@ -1069,6 +1103,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'Atlas',
+    trustedPublishers: [otaPublisher('OxyHQ/Atlas', '1328114802')],
     description:
       'The Oxy App Store — the storefront people browse before they choose an app, and where they review one afterwards.',
     websiteUrl: 'https://atlas.oxy.so',
@@ -1099,6 +1134,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   {
     name: 'CrowdSource',
+    trustedPublishers: [otaPublisher('OxyHQ/CrowdSource', '1315214837')],
     description:
       'Official Oxy participatory moderation platform — reviewers are assigned cases by the server and review them blind.',
     websiteUrl: 'https://crowdsource.oxy.so',

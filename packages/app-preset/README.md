@@ -237,8 +237,23 @@ accepts no publish, without its key. Development builds may explicitly pass
 `{ codeSigning: 'auto' }` to receive platform warnings, or
 `{ codeSigning: false }` to opt out of verification.
 
-Publishing is `oxy-ship` (`@oxy.so/ship`); see that package's README and its
-`templates/publish-update.yml` CI workflow.
+Publishing is `oxy-ship` (`@oxy.so/ship`) from GitHub Actions, with **no stored
+secret** (oxy ADR 0057, GitHub trusted publishing). Per app repository:
+
+1. Declare the repository as the app's trusted publisher: an Oxy app adds
+   `trustedPublishers: [otaPublisher('OxyHQ/<Repo>', '<numeric id>')]` to its
+   entry in oxy's `seedOxyApplicationsSpecs.ts` and runs the seed; a
+   third-party app registers it with
+   `POST https://api.oxy.so/applications/<appId>/trusted-publishers`.
+2. Add `@oxy.so/ship` as a devDependency.
+3. Copy `@oxy.so/ship/templates/publish-update.yml` to
+   `.github/workflows/publish-update.yml` and set `OXY_CLIENT_ID` in it to the
+   same public client id passed to `withOxyUpdates` above.
+
+Every push to `main` then publishes to `production`; the job's GitHub OIDC
+token (`permissions: id-token: write`) is exchanged for a five-minute
+`updates:publish` token of that app only. Pull requests never publish. See the
+`@oxy.so/ship` README for the exchange and the registration fields.
 
 ### 2. Metro (`metro.config.js`)
 

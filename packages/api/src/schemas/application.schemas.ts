@@ -1,5 +1,9 @@
 import { integerCheck, urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import { z } from 'zod';
+import {
+  GITHUB_REPOSITORY_PATTERN,
+  GITHUB_WORKFLOW_PATTERN,
+} from '../db/schema/githubTrustedPublishers';
 import { APPLICATION_SCOPES } from '../utils/applicationScopes';
 import {
   CREATABLE_APPLICATION_CREDENTIAL_TYPES,
@@ -15,6 +19,12 @@ export const appIdRouteParams = z.object({
 export const appCredentialParams = z.object({
   appId: z.string().trim().check(utf16MinLength(1)),
   credId: z.string().trim().check(utf16MinLength(1)),
+});
+
+/** Route params with :appId and :publisherId (GitHub trusted publishers, ADR 0057). */
+export const appTrustedPublisherParams = z.object({
+  appId: z.string().trim().check(utf16MinLength(1)),
+  publisherId: z.string().trim().check(utf16MinLength(1)),
 });
 
 /** Route params with :appId and :agentAccountId (an application's agents, ADR 0044). */
@@ -218,5 +228,29 @@ export const filesWebhookBodySchema = z
       .check(utf16MaxLength(2048))
       .check(urlCheck())
       .refine((value) => value.startsWith('https://'), 'The endpoint must be an https URL'),
+  })
+  .strict();
+
+/**
+ * POST /applications/:appId/trusted-publishers — register a GitHub Actions
+ * workflow that may publish this application's OTA updates (ADR 0057).
+ *
+ * `repositoryId` is GitHub's numeric id. Omit it for a public repository and
+ * the API reads it from GitHub; a private repository has to name it.
+ */
+export const createTrustedPublisherSchema = z
+  .object({
+    repository: z.string().trim().regex(new RegExp(GITHUB_REPOSITORY_PATTERN)),
+    repositoryId: z
+      .string()
+      .trim()
+      .regex(/^[1-9][0-9]{0,19}$/)
+      .optional(),
+    ref: z
+      .string()
+      .trim()
+      .regex(/^refs\/(heads|tags)\/\S{1,255}$/)
+      .optional(),
+    workflow: z.string().trim().regex(new RegExp(GITHUB_WORKFLOW_PATTERN)).optional(),
   })
   .strict();

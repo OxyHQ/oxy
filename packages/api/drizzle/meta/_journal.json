@@ -1611,6 +1611,13 @@
       "when": 1793820766617,
       "tag": "0230_drop_personal_checkout_quote_and_renewal",
       "breakpoints": true
+    },
+    {
+      "idx": 231,
+      "version": "7",
+      "when": 1793846878877,
+      "tag": "0231_github_trusted_publishers",
+      "breakpoints": true
     }
   ]
 }

@@ -103,7 +103,6 @@ describe('publishCommand orchestration', () => {
       'dist-dir': distDir,
       rollout: '100',
       'client-id': 'x',
-      secret: 'y',
     });
 
     // The shared asset is offered once even though both platforms reference it:
@@ -132,7 +131,7 @@ describe('publishCommand orchestration', () => {
 
     // The ios update's launch asset is the ios bundle; assets carry the shared png.
     const iosUpdate = createCalls.find((c) => c.platform === 'ios');
-    expect((iosUpdate?.launchAsset as { sha256: string }).sha256).toBe(sha(iosBundle));
+    expect((iosUpdate?.launchAsset as { sha256: string } | undefined)?.sha256).toBe(sha(iosBundle));
     const iosAssets = iosUpdate?.assets as Array<{ sha256: string; fileExtension?: string }>;
     expect(iosAssets[0].sha256).toBe(sha(sharedAsset));
     expect(iosAssets[0].fileExtension).toBe('.png');

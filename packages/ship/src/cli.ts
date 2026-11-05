@@ -20,9 +20,10 @@ Usage:
   oxy-ship channel:list [--json]
   oxy-ship update:list [--channel <name>] [--runtime-version X] [--platform ios|android] [--limit N] [--json]
 
-Auth (flags or env):
-  --client-id   OXY_SHIP_CLIENT_ID    service credential public key (oxy_dk_…)
-  --secret      OXY_SHIP_SECRET       service credential secret
+Auth: GitHub Actions OIDC (trusted publishing), no secret. Run inside a job
+with \`permissions: id-token: write\` whose repository is a registered trusted
+publisher of the application.
+  --client-id   OXY_SHIP_CLIENT_ID    the application's public client id (oxy_dk_…)
   --url         OXY_API_URL           API origin (default https://api.oxy.so)
 `;
 

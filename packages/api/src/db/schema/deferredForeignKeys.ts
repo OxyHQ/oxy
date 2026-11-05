@@ -66,6 +66,7 @@ import type { DeferredForeignKey } from '@oxy.so/db/assert';
 import { appAffinitySeenEvents } from './appAffinitySeenEvents';
 import { appEndorsementEdges } from './appEndorsementEdges';
 import { appUpdates } from './appUpdates';
+import { githubTrustedPublishers } from './githubTrustedPublishers';
 import { authCodes } from './authCodes';
 import { authSessions } from './authSessions';
 import { billingStripeEvents } from './billingStripeEvents';
@@ -155,6 +156,12 @@ const PRICE_VERSION_LABEL_REASON =
   'table that resolves Kaana’s; the entries charged are copied beside it.';
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: githubTrustedPublishers,
+    column: githubTrustedPublishers.repositoryId,
+    reason:
+      'GitHub’s numeric repository id (ADR 0057), an identifier in GitHub’s namespace that is never reused; compared against the `repository_id` claim of a GitHub Actions OIDC token, not an Oxy row.',
+  },
   {
     table: managedApplicationDeployments,
     column: managedApplicationDeployments.publicClientId,

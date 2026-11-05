@@ -1,7 +1,7 @@
 {
   "name": "@oxy.so/ship",
-  "version": "1.1.1",
-  "description": "oxy-ship — publish Expo OTA updates to the Oxy Updates service",
+  "version": "2.0.0",
+  "description": "oxy-ship \u2014 publish Expo OTA updates to the Oxy Updates service",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/OxyHQ/oxy.git",
@@ -28,11 +28,8 @@
     "test": "bun test src",
     "oxy-ship": "bun run src/cli.ts"
   },
-  "dependencies": {
-    "@oxy.so/contracts": "workspace:*",
-    "@oxy.so/core": "workspace:*"
-  },
   "devDependencies": {
+    "@oxy.so/contracts": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   },
