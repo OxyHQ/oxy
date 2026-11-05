@@ -78,6 +78,9 @@ Single-copy packages: every `@oxy.so/*`, `react`, `react-dom`, `react-native`,
 differ). Copies of an ordinary package forced by incompatible ranges (two
 majors of a utility) are normal and not reported. A copy bundled inside its
 dependent's tarball is that dependent's own unless the package is single-copy.
+A copy installed under an alias (`"@fairwallet/bloom": "npm:@oxy.so/bloom@1.3.0"`)
+is its declarer's deliberate, separately named copy: nothing importing the
+package's own name resolves to it, so it is not counted.
 
 It also checks that every app (a manifest on `@oxy.so/services` and on `expo`
 or `react-native`) declares each REQUIRED native peer of the services it has
@@ -88,6 +91,24 @@ picks: an Android release without `expo-crypto` built, then had no CSPRNG and
 no sign-in. The check reads the installed `@oxy.so/services` manifest, so run it
 after `bun install`; a manifest whose services is not installed is listed as
 unverified (`nativePeersUnverified` in `--json`), never passed.
+
+Nothing is autolinked, so no peer is required, in two cases, each listed with its
+reason (`nativePeersNotRequired` in `--json`) rather than passed silently:
+
+- **No native project**: no `ios/`, `android/`, `macos/` or `windows/` directory
+  and no app config naming a native platform: a web-only target such as a Vite
+  site rendering React Native for web. An `app.json` naming no `platforms`, a
+  dynamic `app.config.*` and an unreadable `app.json` count as Expo's default,
+  iOS and Android, so doubt keeps the check on; `"platforms": ["web"]` alone is
+  web-only.
+- **Services excluded from autolinking** on every platform the app builds:
+  `expo.autolinking.exclude` in its `package.json` (or
+  `expo.autolinking.<platform>.exclude`, `apple` covering iOS and macOS), or
+  `dependencies["@oxy.so/services"].platforms.<platform>: null` in
+  `react-native.config.{js,cjs,mjs,json}` (a JavaScript config is loaded, as the
+  React Native CLI does; one that fails to load excludes nothing). Astro's macOS
+  app, which uses only services' JavaScript, is the case. A required peer the
+  app excludes on every platform is not demanded either.
 
 Use Renovate with a shared organisation preset for grouped, reviewable updates.
 Require normal tests and typecheck before merging; never use `latest` ranges or

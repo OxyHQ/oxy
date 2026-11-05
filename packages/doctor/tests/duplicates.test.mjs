@@ -66,6 +66,31 @@ describe('duplicate copies in bun.lock', () => {
     expect(lock).toEqual({ a: ['x, ]', { b: '},' }], c: '",]' });
   });
 
+  test('a copy installed under an alias is its own, not a second copy of the package', () => {
+    const aliased = {
+      workspaces: {
+        '': {
+          name: 'website',
+          dependencies: { '@oxy.so/bloom': '17.9.0' },
+          devDependencies: { '@fairwallet/bloom': 'npm:@oxy.so/bloom@1.3.0' },
+        },
+      },
+      packages: {
+        '@oxy.so/bloom': ['@oxy.so/bloom@17.9.0'],
+        '@fairwallet/bloom': ['@oxy.so/bloom@1.3.0'],
+      },
+    };
+    expect(findingsFor(aliased)).toEqual([]);
+    aliased.packages['some-lib'] = [
+      'some-lib@1.0.0',
+      { dependencies: { '@oxy.so/bloom': '^1.3.0' } },
+    ];
+    aliased.packages['some-lib/@oxy.so/bloom'] = ['@oxy.so/bloom@1.3.0'];
+    expect(findingsFor(aliased)).toEqual([
+      expect.objectContaining({ code: 'duplicate-conflict', package: '@oxy.so/bloom' }),
+    ]);
+  });
+
   test('a stale nested copy is an error naming both versions, who pulls each, and the fix', () => {
     const [finding, ...rest] = findingsFor(staleContracts);
     expect(rest).toEqual([]);
@@ -321,6 +346,25 @@ describe('duplicate copies in the installed tree', () => {
         installed: ['17.9.0', '17.8.1'],
       });
       expect(installedDuplicateFindings(root, [], new Set(['@oxy.so/bloom'])).findings).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a package installed under an alias is not a second copy of the package it names', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'oxy-doctor-tree-'));
+    try {
+      await writePackage(join(root, 'node_modules/@oxy.so/bloom'), '@oxy.so/bloom', '17.9.0');
+      await writePackage(join(root, 'node_modules/@fairwallet/bloom'), '@oxy.so/bloom', '1.3.0');
+      expect(installedDuplicateFindings(root, []).findings).toEqual([]);
+      await writePackage(
+        join(root, 'node_modules/@fairwallet/bloom/node_modules/@oxy.so/bloom'),
+        '@oxy.so/bloom',
+        '1.2.0',
+      );
+      expect(installedDuplicateFindings(root, []).findings).toEqual([
+        expect.objectContaining({ package: '@oxy.so/bloom', installed: ['1.2.0', '17.9.0'] }),
+      ]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
