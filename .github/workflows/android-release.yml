@@ -1,0 +1,163 @@
+name: Android release
+
+# THE native Android release of every Oxy app, called by each app repository's
+# own `.github/workflows/android-release.yml` on every push to its default
+# branch. A run builds a new binary only when the app's `version` has none yet:
+# the version is the OTA compatibility boundary (`withOxyUpdates`, runtime
+# policy `appVersion`), so a JS-only change ships as an OTA update under the
+# same version and most pushes end at the "Is this version released?" step. A
+# new version is a native change, and gets a signed AAB and APK, published as
+# the GitHub release `<tag-prefix>-v<version>` of the app repository.
+# docs/engineering/build-and-deploy.md#native-android-releases.
+#
+# It runs on `seldon`, Oxy's self-hosted build machine, whose runner group
+# accepts ONLY this workflow at refs/heads/main: no other workflow, and no pull
+# request of any (public) repository, can schedule a job there. The machine
+# holds the one ecosystem release key; Gradle reads it from the runner's
+# environment (ORG_GRADLE_PROJECT_OXY_UPLOAD_*), and `oxyVerifyReleaseSigning`
+# (@oxy.so/services' withOxyReleaseSigning) fails any release that does not
+# carry its certificate. No signing material is stored on GitHub.
+#
+# The store build number is derived from `version` by @oxy.so/app-preset
+# (withOxyReleaseVersion, 1.2.3 → 1002003), so every released version gets a
+# strictly higher versionCode. Rebuilding a released version is refused: a new
+# binary is a new version.
+#
+# The caller grants `contents: write` (to create the release) on its job.
+
+on:
+  workflow_call:
+    inputs:
+      app-dir:
+        description: The Expo app's directory, relative to the repository root.
+        type: string
+        required: true
+      eas-profile:
+        description: The eas.json build profile whose `env` the build uses.
+        type: string
+        default: production
+      tag-prefix:
+        description: Release tag prefix; distinct per app when a repository has several.
+        type: string
+        default: android
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and release
+    runs-on: [self-hosted, seldon]
+    timeout-minutes: 90
+    concurrency:
+      group: android-release-${{ github.repository }}-${{ inputs.tag-prefix }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    env:
+      APP_DIR: ${{ inputs.app-dir }}
+      EAS_PROFILE: ${{ inputs.eas-profile }}
+      TAG_PREFIX: ${{ inputs.tag-prefix }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - run: bun install --frozen-lockfile --minimum-release-age=0
+
+      # The build environment is the one EAS would use: the profile's `env`,
+      # following `extends`. Values are public build-time config (EXPO_PUBLIC_*).
+      - name: Build environment from eas.json
+        run: |
+          node - <<'EOF' >> "$GITHUB_ENV"
+          const { readFileSync } = require('node:fs');
+          const { join } = require('node:path');
+          const eas = JSON.parse(readFileSync(join(process.env.APP_DIR, 'eas.json'), 'utf8'));
+          const resolve = (name, seen = new Set()) => {
+            const profile = eas.build?.[name];
+            if (!profile) throw new Error(`eas.json has no build profile "${name}"`);
+            if (seen.has(name)) throw new Error(`eas.json profile "${name}" extends itself`);
+            seen.add(name);
+            const base = profile.extends ? resolve(profile.extends, seen) : {};
+            return { ...base, ...profile.env };
+          };
+          for (const [key, value] of Object.entries(resolve(process.env.EAS_PROFILE))) {
+            if (!/^[A-Z_][A-Z0-9_]*$/.test(key) || /[\r\n]/.test(String(value))) {
+              throw new Error(`eas.json env ${key} cannot be exported`);
+            }
+            console.log(`${key}=${value}`);
+          }
+          console.log('NODE_ENV=production');
+          EOF
+
+      - name: Is this version released?
+        id: plan
+        working-directory: ${{ inputs.app-dir }}
+        run: |
+          set -euo pipefail
+          config="$(bunx expo config --json --type public)"
+          version="$(jq -r '.version' <<<"$config")"
+          version_code="$(jq -r '.android.versionCode' <<<"$config")"
+          package="$(jq -r '.android.package' <<<"$config")"
+          tag="${TAG_PREFIX}-v${version}"
+          {
+            echo "version=$version"
+            echo "version-code=$version_code"
+            echo "package=$package"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+              echo "::error::$tag is already released. A new binary is a new version: bump \`version\` in the app config."
+              exit 1
+            fi
+            echo "::notice::$package $version is already released ($tag); this change ships as an OTA update."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prebuild the native project
+        if: steps.plan.outputs.build == 'true'
+        working-directory: ${{ inputs.app-dir }}
+        run: bunx expo prebuild --platform android --clean --no-install
+
+      - name: Build the signed AAB and APK
+        if: steps.plan.outputs.build == 'true'
+        working-directory: ${{ inputs.app-dir }}/android
+        run: ./gradlew :app:bundleRelease :app:assembleRelease --console=plain
+
+      - name: Publish the release
+        if: steps.plan.outputs.build == 'true'
+        working-directory: ${{ inputs.app-dir }}/android/app/build/outputs
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          VERSION_CODE: ${{ steps.plan.outputs.version-code }}
+          PACKAGE: ${{ steps.plan.outputs.package }}
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          name="${PACKAGE}-${VERSION}"
+          cp apk/release/app-release.apk "$name.apk"
+          cp bundle/release/app-release.aab "$name.aab"
+          sha256sum "$name.apk" "$name.aab" > "$name.sha256"
+          gh release create "$TAG" "$name.apk" "$name.aab" "$name.sha256" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "$PACKAGE $VERSION (Android)" \
+            --notes "Android build $VERSION (versionCode $VERSION_CODE) of \`$PACKAGE\` from $GITHUB_SHA, signed with the Oxy ecosystem key. Install the APK directly; the AAB is the Google Play upload."
+          echo "::notice::Released $TAG"

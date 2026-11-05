@@ -172,6 +172,20 @@ signing.
 
 `withOxyAndroidRelease` was removed in 5.0.0; listing it throws and says to delete it.
 
+#### Store build number (always on, 6.0.0+)
+
+The preset derives Android `versionCode` and iOS `buildNumber` from the app's
+`version`: `major * 1_000_000 + minor * 1_000 + patch` (1.2.3 → 1002003; minor
+and patch ≤ 999). Every later version gets a strictly higher number, which is
+what Google Play and the App Store require, and nobody keeps it by hand. An app
+config that still sets `android.versionCode` or `ios.buildNumber` fails to
+load: delete them. `version` must be `MAJOR.MINOR.PATCH`.
+
+`version` is also the OTA boundary (`withOxyUpdates`, `appVersion` policy):
+bump it for a native change and the next push to main releases a new binary
+(oxy's `android-release.yml`, docs/engineering/build-and-deploy.md#native-android-releases);
+a JS-only change keeps the version and ships as an OTA update.
+
 #### Android WebP resources (opt-in)
 
 `withOxyAndroidWebp` needs `sharp` installed, so it is registered explicitly:

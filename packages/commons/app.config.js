@@ -61,7 +61,6 @@ module.exports = {
         backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
-      versionCode: 5,
       ...(PUSH.googleServicesFile ? { googleServicesFile: PUSH.googleServicesFile } : {}),
       predictiveBackGestureEnabled: true,
       softwareKeyboardLayoutMode: 'resize',
