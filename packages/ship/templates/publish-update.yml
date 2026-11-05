@@ -67,13 +67,10 @@ jobs:
         env:
           OXY_SHIP_CLIENT_ID: ${{ env.OXY_CLIENT_ID }}
           OXY_API_URL: https://api.oxy.so
-          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          LC_ALL: C.UTF-8
+          # The whole commit message: oxy-ship (2.0.1+) sends its subject line,
+          # within the API's 500-unit limit.
+          SHIP_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          # The update message is capped at 500 UTF-16 units and a squash
-          # merge's body is longer: send the subject, at most 200 characters.
-          subject="${COMMIT_MESSAGE%%$'\n'*}"
-          SHIP_MESSAGE="${subject:0:200}"
           bunx --no-install oxy-ship publish \
             --channel production \
             --platform all \

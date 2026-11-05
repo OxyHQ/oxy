@@ -103,3 +103,31 @@ export function baseUrlFlag(flags: ShipFlags): string {
   if (explicit) return explicit;
   return stringFlag(flags, 'api-url', 'OXY_API_URL', 'https://api.oxy.so') ?? 'https://api.oxy.so';
 }
+
+/**
+ * The longest update message the API accepts, in UTF-16 code units
+ * (`message` in `@oxy.so/contracts`' `updates.ts`). Mirrored here because the
+ * contracts package is a type-only dependency of the CLI.
+ */
+export const UPDATE_MESSAGE_MAX_LENGTH = 500;
+
+/**
+ * The update message to send for a `--message` value: its first non-empty line,
+ * trimmed, shortened to {@link UPDATE_MESSAGE_MAX_LENGTH} UTF-16 units with an
+ * ellipsis and without splitting a surrogate pair. A CI caller passes a whole
+ * commit message (a squash merge's body runs to thousands of characters); the
+ * API would refuse it with 422 after the export and upload had already run.
+ * `undefined` for an absent or blank value.
+ */
+export function updateMessage(raw: string | undefined): string | undefined {
+  const line = raw
+    ?.split(/\r?\n/)
+    .map((part) => part.trim())
+    .find((part) => part.length > 0);
+  if (!line) return undefined;
+  if (line.length <= UPDATE_MESSAGE_MAX_LENGTH) return line;
+  let end = UPDATE_MESSAGE_MAX_LENGTH - 1;
+  const last = line.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return `${line.slice(0, end).trimEnd()}…`;
+}

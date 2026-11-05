@@ -82,6 +82,9 @@ oxy-ship channel:list
 oxy-ship update:list [--channel production] [--runtime-version 1.2.3] [--platform ios] [--limit 20]
 ```
 
+`--message` is reduced to its first non-empty line, at most 500 UTF-16 units (the
+API's limit), so a whole commit message can be passed.
+
 `publish` derives `gitCommit`/`gitBranch` from `git rev-parse` (overridable with
 `--git-commit`/`--git-branch`, or `GITHUB_SHA`/`GITHUB_REF_NAME` in CI).
 

@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/ship`
 
+## 2.0.1
+
+### `publish --message` sends a message the API accepts
+
+The API caps an update's `message` at 500 UTF-16 code units, and the template
+passes the whole commit message, so a squash merge (whose body lists every
+commit) was refused with 422 after the export and upload had run. `publish`
+now sends the message's first non-empty line, trimmed, shortened to 500 units
+with an ellipsis and never splitting a surrogate pair; a blank message is
+omitted. `templates/publish-update.yml` keeps passing the whole commit message.
+
 ## 2.0.0
 
 ### Breaking: GitHub trusted publishing replaces the client secret
