@@ -16,7 +16,6 @@
 import { eq } from 'drizzle-orm';
 import {
   blueskyHandleFromUsername,
-  blueskyUsernameFromHandle,
   BSKY_NETWORK_DOMAIN,
   canonicalFederationHost,
   federatedUsernameFromUpstreamUrl,
@@ -74,7 +73,7 @@ import {
 } from './federation/transport';
 import {
   ATPROTO_DID_RE,
-  ATPROTO_HANDLE_RE,
+  blueskyAcctFromHandle,
   domainFromHandle,
   lacksRoutedTransport,
   missIsInconclusive,
@@ -404,10 +403,7 @@ class FederationService {
       /* A handle is not a URL. */
     }
     // A bare DNS name is an atproto handle: no `@`, so never a fediverse acct.
-    const bare = value.trim().replace(/^@/, '');
-    if (ATPROTO_HANDLE_RE.test(bare))
-      return `${blueskyUsernameFromHandle(bare.toLowerCase())}@${BSKY_NETWORK_DOMAIN}`;
-    return normalizeFediverseHandle(value);
+    return blueskyAcctFromHandle(value) ?? normalizeFediverseHandle(value);
   }
 
   async needsBridgeCanonicalization(actorUri: string): Promise<boolean> {
