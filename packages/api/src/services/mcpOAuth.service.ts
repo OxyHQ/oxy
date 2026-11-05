@@ -203,6 +203,34 @@ export async function resolveMcpResource(resource: string): Promise<McpResourceD
   };
 }
 
+/**
+ * Resolve an explicit scope request from an MCP client against the resource's
+ * registered ceiling, the same rule every external OAuth request follows
+ * (ADR 0031): unknown or unregistered scopes are dropped, and a request whose
+ * intersection is empty is refused. Clients commonly request the union of
+ * every scope the issuer advertises, so the request must not fail merely
+ * because part of it belongs to another Oxy resource. The consent screen shows
+ * exactly the scopes this returns.
+ */
+export function resolveMcpRequestedScopes(
+  requested: readonly string[],
+  descriptor: McpResourceDescriptor,
+): string[] {
+  const normalized = normalizeMcpScopes(requested);
+  if (normalized.length === 0) {
+    throw new McpOAuthError('invalid_scope', 'At least one MCP scope is required');
+  }
+  const supported = new Set(descriptor.scopes);
+  const resolved = normalized.filter((scope) => supported.has(scope));
+  if (resolved.length === 0) {
+    throw new McpOAuthError(
+      'invalid_scope',
+      'None of the requested scopes are supported by this MCP resource',
+    );
+  }
+  return resolved;
+}
+
 function assertScopesAllowed(
   requested: readonly string[],
   descriptor: McpResourceDescriptor,

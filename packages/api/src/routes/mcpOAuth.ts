@@ -28,6 +28,7 @@ import {
   refreshMcpAccessToken,
   registerMcpClient,
   resolveLiveMcpAccessToken,
+  resolveMcpRequestedScopes,
   resolveMcpResource,
   revokeMcpGrant,
   revokeMcpToken,
@@ -398,7 +399,7 @@ router.get(
           'redirect_uri is not registered for this client',
         );
       }
-      const scopes = normalizeMcpScopes(query.scope);
+      const scopes = resolveMcpRequestedScopes(normalizeMcpScopes(query.scope), descriptor);
       response.json(
         mcpOAuthConsentResponseSchema.parse(
           await mcpConsentDetails({
@@ -444,7 +445,7 @@ router.post(
         descriptor,
         redirectUri: body.redirectUri,
         codeChallenge: body.codeChallenge,
-        scopes: normalizeMcpScopes(body.scope),
+        scopes: resolveMcpRequestedScopes(normalizeMcpScopes(body.scope), descriptor),
       });
       response.json({
         code: issued.code,

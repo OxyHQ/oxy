@@ -433,6 +433,38 @@ it('requires the selected account and never presents an unrequested write action
   expect(mismatchedAccount.body).toMatchObject({ error: 'access_denied' });
 });
 
+it('grants only the resource scopes from a request that names other Oxy scopes too', async () => {
+  const input = await fixture();
+  const registration = await request(app)
+    .post('/auth/mcp/oauth/register')
+    .send({
+      client_name: 'Union scope MCP client',
+      redirect_uris: [input.redirectUri],
+      token_endpoint_auth_method: 'none',
+    });
+  const clientId = registration.body.client_id as string;
+  const query = {
+    clientId,
+    redirectUri: input.redirectUri,
+    resource: input.resource,
+    accountId: principalUserId,
+  };
+
+  const mixed = await request(app)
+    .get('/auth/mcp/oauth/consent')
+    .set('authorization', 'Bearer user-session')
+    .query({ ...query, scope: 'resource.read commerce.search email.send' });
+  expect(mixed.status).toBe(200);
+  expect(mixed.body.context.capabilities).toEqual(['resource.read']);
+
+  const unsupported = await request(app)
+    .get('/auth/mcp/oauth/consent')
+    .set('authorization', 'Bearer user-session')
+    .query({ ...query, scope: 'commerce.search email.send' });
+  expect(unsupported.status).toBe(400);
+  expect(unsupported.body).toMatchObject({ error: 'invalid_scope' });
+});
+
 /** Register a client and run the consent + code exchange for the fixture's owner. */
 async function issueAccessToken(
   input: Awaited<ReturnType<typeof fixture>>,
