@@ -5,6 +5,11 @@ import { oxyAccountIdSchema } from '../inference/identifiers';
 export const personalPlanCheckoutRequestSchema = z
   .object({
     expectedSubjectAccountId: oxyAccountIdSchema,
+    customerLocationEvidenceId: z
+      .string()
+      .regex(/^taxloc_[A-Za-z0-9_]+$/)
+      .check(utf16MaxLength(160))
+      .optional(),
     offerId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(160)),
     offerVersion: z.number().check(integerCheck()).positive().check(safeNumberCheck()),
     idempotencyKey: z

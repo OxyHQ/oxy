@@ -156,6 +156,8 @@ export {
 } from './organizations';
 
 export {
+  billingCustomerLocationRequestCheck,
+  billingCustomerLocationResultCheck,
   cancelProductSubscriptionCheck,
   personalPlanCatalogueCheck,
   personalPlanCheckoutRequestCheck,

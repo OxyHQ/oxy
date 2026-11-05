@@ -1,3 +1,5 @@
+import { billingCustomerLocationRequestSchema } from '@oxy.so/contracts';
+import { recordPeableCustomerLocation } from '../services/peableBillingLocation.service';
 import { utf16MinLength } from '@oxy.so/contracts';
 import {
   productSubscriptionRenewalRequestSchema,
@@ -370,6 +372,36 @@ router.post(
       if (error instanceof ApiError)
         return res.status(error.statusCode).json({ error: error.code });
       return res.status(409).json({ error: 'RENEWAL_UNAVAILABLE' });
+    }
+  },
+);
+
+router.post(
+  '/customer-location',
+  authMiddleware,
+  validate({ body: billingCustomerLocationRequestSchema }),
+  async (req: AuthRequest, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const subject = req.user?._id?.toString();
+    const input = billingCustomerLocationRequestSchema.parse(req.body);
+    if (!subject) return res.status(401).json({ error: 'Authentication required' });
+    if (subject !== input.expectedSubjectAccountId)
+      return res.status(403).json({ error: 'SUBJECT_CHANGED' });
+    const runtime = getPeablePersonalRuntime();
+    if (!runtime) return res.json({ state: 'unconfigured', reason: 'provider_unconfigured' });
+    try {
+      return res.json(
+        await recordPeableCustomerLocation(
+          runtime.management.client,
+          runtime.configuration,
+          subject,
+          input,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof ApiError)
+        return res.status(error.statusCode).json({ error: error.code });
+      return res.status(503).json({ error: 'BILLING_LOCATION_UNAVAILABLE' });
     }
   },
 );

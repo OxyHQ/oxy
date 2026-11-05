@@ -39,6 +39,7 @@ const input = {
   environment: 'staging',
   interval: 'month' as const,
   trial: 'none' as const,
+  customerLocationEvidenceId: 'location_fixture',
 };
 const quote: BillingTaxQuote = {
   schemaVersion: 1,
@@ -117,7 +118,10 @@ it('prepares trusted customer and quote then replays only the frozen checkout sn
   const test = fixture();
   const snapshot = await test.provider.prepare?.(input);
   expect(snapshot?.taxQuote).toEqual(quote);
-  expect(test.resolveCustomerLocationEvidence).toHaveBeenCalledWith(input.subjectAccountId);
+  expect(test.resolveCustomerLocationEvidence).toHaveBeenCalledWith(
+    input.subjectAccountId,
+    input.customerLocationEvidenceId,
+  );
   expect(test.createTaxQuote).toHaveBeenCalledWith({
     storeId: input.subjectAccountId,
     planId: 'one_monthly',

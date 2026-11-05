@@ -1,3 +1,4 @@
+import { resolvePeableCustomerLocation } from './peableBillingLocation.service';
 import {
   integerCheck,
   isoDateTime,
@@ -69,11 +70,6 @@ export const peablePersonalRuntimeConfigurationSchema = peablePersonalManagement
           .check(urlCheck())
           .refine((value) => new URL(value).protocol === 'https:'),
         taxRemitterId: z.string().check(utf16MinLength(1)),
-        /** Reviewed Peable evidence references, not client country/IP guesses. */
-        customerLocationEvidence: z.record(
-          z.string().check(utf16MinLength(1)),
-          z.string().check(utf16MinLength(1)),
-        ),
       })
       .strict()
       .optional(),
@@ -148,10 +144,14 @@ export function createPeablePersonalRuntime(
           dependencies.clock,
           {
             purchasesEnabled: true,
-            async resolveCustomerLocationEvidence(subjectAccountId) {
-              const id = configuration.checkout?.customerLocationEvidence[subjectAccountId];
-              if (!id) throw new Error('Peable trusted customer location unavailable');
-              return { customerLocationEvidenceId: id };
+            resolveCustomerLocationEvidence(subjectAccountId, evidenceId) {
+              return resolvePeableCustomerLocation(
+                client,
+                configuration,
+                subjectAccountId,
+                evidenceId,
+                dependencies.clock,
+              );
             },
           },
         )

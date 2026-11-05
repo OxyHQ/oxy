@@ -1663,3 +1663,5 @@ export type {
   ApplicationAccountRegistrationResponse,
   ApplicationAccountTotal,
 } from './applicationAccounts';
+
+export * from './products/location';

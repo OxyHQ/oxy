@@ -59,6 +59,7 @@ export interface PersonalCheckoutInput {
   trial: 'none';
   snapshot?: PersonalCheckoutSnapshot;
   renewalSubscriptionId?: string;
+  customerLocationEvidenceId?: string;
 }
 export interface PersonalCheckoutProvider {
   kind: 'synthetic' | 'peable';
@@ -309,6 +310,7 @@ export async function startPersonalPlanCheckout(
   return resumePersonalPlanCheckout(intent.id, {
     provider: dependencies.provider,
     now: dependencies.now,
+    customerLocationEvidenceId: request.customerLocationEvidenceId,
   });
 }
 
@@ -449,7 +451,11 @@ function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheck
 /** Recover using the persisted authority and provider replay key, without browser input. */
 export async function resumePersonalPlanCheckout(
   intentId: string,
-  dependencies: { provider: PersonalCheckoutProvider; now?: Date },
+  dependencies: {
+    provider: PersonalCheckoutProvider;
+    now?: Date;
+    customerLocationEvidenceId?: string;
+  },
 ): Promise<PersonalPlanCheckoutResult> {
   // Synthetic adapters never execute outside tests. Real adapters are opt-in.
   if (process.env.NODE_ENV !== 'test' && dependencies.provider?.kind !== 'peable')
@@ -475,6 +481,12 @@ export async function resumePersonalPlanCheckout(
     return intent;
   };
   let intent = await load();
+  if (
+    dependencies.customerLocationEvidenceId &&
+    intent.taxQuoteCustomerLocationEvidenceRef &&
+    dependencies.customerLocationEvidenceId !== intent.taxQuoteCustomerLocationEvidenceRef
+  )
+    throw new ConflictError('Checkout payer location differs from its frozen quote');
   if (
     intent.state !== 'closed' &&
     intent.state !== 'fulfilled' &&
@@ -506,6 +518,7 @@ export async function resumePersonalPlanCheckout(
   const input: PersonalCheckoutInput = {
     intentId,
     idempotencyKey: `personal-checkout:${intentId}`,
+    customerLocationEvidenceId: dependencies.customerLocationEvidenceId,
     subjectAccountId: intent.subjectAccountId,
     offerId: intent.offerId,
     offerVersion: intent.offerVersion,
@@ -579,6 +592,11 @@ export async function resumePersonalPlanCheckout(
   if (!snapshot && dependencies.provider.kind !== 'synthetic')
     throw new ConflictError('Checkout authority is unavailable');
   if (snapshot) {
+    if (
+      input.customerLocationEvidenceId &&
+      snapshot.taxQuote.quote.customerLocationEvidenceId !== input.customerLocationEvidenceId
+    )
+      throw new ConflictError('Checkout payer location differs from its frozen quote');
     assertSnapshot(snapshot, input);
     if (Date.parse(snapshot.taxQuote.quote.expiresAt) <= clock().getTime())
       return { state: 'pending', intentId };

@@ -60,7 +60,7 @@ export function createPeableBillingClient(
 }
 
 export async function assertPeableBillingMerchant(
-  client: Peable,
+  client: Pick<Peable, 'merchants'>,
   configuration: { merchantId: string; applicationId: string; namespace: { environment: string } },
 ): Promise<void> {
   const merchant = await client.merchants.retrieve();
