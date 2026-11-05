@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.23.1
+
+### Fixed
+
+- Depends on `@oxy.so/contracts` `^6.9.0` instead of exactly 6.9.0. The exact pin moved with every contracts release, so an app whose other packages resolved contracts to any other version (a newer contracts, or `@oxy.so/protocol`'s older locked one) installed two copies of the contracts: two schema sets, and a module OxyOS's packager refuses. A caret range lets Bun resolve one copy.
+
 ## 7.23.0
 
 ### Added
