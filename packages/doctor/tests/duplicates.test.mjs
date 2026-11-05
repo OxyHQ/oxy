@@ -80,7 +80,7 @@ describe('duplicate copies in bun.lock', () => {
     expect(finding.message).toContain(
       '6.9.0 (pulled by @oxy.so/core@7.23.0 (^6.9.0), @oxy.so/services@14.3.8 (^6.9.0))',
     );
-    expect(finding.message).toContain('`bun update @oxy.so/contracts`');
+    expect(finding.message).toContain('`bun update -r @oxy.so/contracts`');
   });
 
   test('one locked copy reports nothing', () => {
@@ -203,6 +203,38 @@ describe('duplicate copies in bun.lock', () => {
     expect(finding.message).toContain(
       'widen the range in packages/contracts/package.json to accept 4.6.7',
     );
+  });
+
+  test('Oxy packages on one zod, each nested under a hoisted zod 3, are a hoisting error', () => {
+    const [finding, ...rest] = findingsFor({
+      workspaces: {
+        '': { name: 'app', dependencies: { '@oxy.so/core': '7.23.0' } },
+        'packages/api': { name: '@app/api', dependencies: { zod: '^3.25.76' } },
+      },
+      packages: {
+        '@app/api': ['@app/api@workspace:packages/api'],
+        '@oxy.so/core': [
+          '@oxy.so/core@7.23.0',
+          { dependencies: { '@oxy.so/contracts': '^6.9.0', zod: '^4.6.7' } },
+        ],
+        '@oxy.so/contracts': ['@oxy.so/contracts@6.9.0', { dependencies: { zod: '^4.6.7' } }],
+        zod: ['zod@3.25.76'],
+        '@oxy.so/core/zod': ['zod@4.6.7'],
+        '@oxy.so/contracts/zod': ['zod@4.6.7'],
+      },
+    });
+    expect(rest).toEqual([]);
+    expect(finding).toMatchObject({
+      severity: 'error',
+      code: 'duplicate-hoisted',
+      package: 'zod',
+      target: '4.6.7',
+      hoisted: {
+        version: '3.25.76',
+        pulledBy: [{ by: 'packages/api/package.json', range: '^3.25.76' }],
+      },
+    });
+    expect(finding.message).toContain('declare `"zod": "^4.6.7"` in the root package.json');
   });
 
   test("a bundled copy is its dependent's own, unless the package must be single", () => {

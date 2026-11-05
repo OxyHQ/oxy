@@ -48,13 +48,17 @@ workspaces and packages whose dependency resolves to it), and reports:
   only when it satisfies a range, so after an SDK release moves the hoisted copy
   forward, a dependent's older nested copy stays locked: Dropsea once held
   `@oxy.so/protocol/@oxy.so/contracts@6.8.0` beside the hoisted 6.9.0, though
-  protocol's `^6.5.0` accepts 6.9.0. Fix: `bun update <pkg>` and commit
-  `bun.lock` (it needs no package that is not already locked).
+  protocol's `^6.5.0` accepts 6.9.0. Fix: `bun update -r <pkg>` (`-r` so a
+  workspace's own declaration moves too) and commit `bun.lock`.
 - **`duplicate-pinned`**: every range accepts one older locked version, but a
   dependent pins below the newest, and Bun resolves the wider ranges to the
   newest, so `bun update` keeps both. An **error** for a single-copy package
   (fix: a release of the pinning dependent, or a root `overrides` entry); a
   **warning** for any other.
+- **`duplicate-hoisted`** (error, zod): the Oxy packages agree on one
+  version, but each holds its own nested copy because the hoisted copy is a
+  version they reject (a workspace or tool still on zod 3). Fix: declare their
+  version in the root `package.json`, or move the hoisted copy's users to it.
 - **`duplicate-conflict`** (error, single-copy packages): no one version
   satisfies every range. No update can fix it; it names the dependents whose
   ranges reject the version the rest use, and they need a release (or, for a

@@ -225,13 +225,18 @@ function describeCopies(copies) {
  * dependent's older nested copy can stay locked although the new one would do.
  *
  * - `duplicate-copy` (error, any package): the newest locked copy satisfies
- *   every range that pulls a copy. `bun update <name>` re-resolves them all to
+ *   every range that pulls a copy. `bun update -r <name>` re-resolves them all
+ *   (`-r`: a workspace's own declaration too) to
  *   it.
  * - `duplicate-pinned`: every range accepts one OLDER locked version, but a
  *   dependent pins below the newest, so the resolver's newest-first choice
  *   splits them and `bun update` cannot. An error for a single-copy package
  *   (fix: a release of the pinning dependent, or a root `overrides` entry); a
  *   warning for any other package.
+ * - `duplicate-hoisted` (error, zod): the Oxy packages agree on one version
+ *   but each holds its own nested copy, because the hoisted copy is a version
+ *   they reject (another workspace's or tool's). Fix: declare their version at
+ *   the root, or move the hoisted copy's users to it.
  * - `duplicate-conflict` (error, single-copy packages): no one version
  *   satisfies every range. No update or override is correct; the dependent
  *   whose range is too narrow needs a release.
@@ -308,13 +313,41 @@ export function duplicateFindings(lock) {
             .join('; ') || 'the ranges that pull these copies must be made compatible',
       };
     };
-    if (common !== undefined && common === newest) {
+    // The hoisted copy can be left out of `copies` only for a shared package:
+    // the Oxy packages' copies are then all nested, one per dependent, because
+    // the hoisted slot holds a version their ranges reject. No update moves it.
+    const hoisted = all.find((copy) => copy.key === name);
+    const hoistedRejects =
+      hoisted !== undefined &&
+      !copies.includes(hoisted) &&
+      common !== undefined &&
+      pullers(hoisted).some((edge) => {
+        const range = semverRange(edge.range);
+        return range !== null && !semver.satisfies(common, range);
+      });
+    if (hoistedRejects) {
+      const holders = pullers(hoisted).filter((edge) => {
+        const range = semverRange(edge.range);
+        return range !== null && !semver.satisfies(common, range);
+      });
+      findings.push({
+        severity: 'error',
+        code: 'duplicate-hoisted',
+        ...base,
+        target: common,
+        hoisted: {
+          version: hoisted.version,
+          pulledBy: holders.map(({ by, range }) => ({ by, range })),
+        },
+        message: `${name}: the Oxy packages hold ${copies.length} separate copies (${listing}) because the hoisted ${name} is ${hoisted.version}, pulled by ${describeEdges(holders)}, which rejects ${common}. \`bun update\` cannot move it: declare \`"${name}": "^${common}"\` in the root package.json so they share one hoisted copy (the ${hoisted.version} users then get their own nested one), or move ${describeEdges(holders)} to ${common}`,
+      });
+    } else if (common !== undefined && common === newest) {
       findings.push({
         severity: 'error',
         code: 'duplicate-copy',
         ...base,
         target: common,
-        message: `${name}: ${copies.length} copies in bun.lock where one would do: ${listing}. Every range accepts ${common}: run \`bun update ${name}\` and commit bun.lock`,
+        message: `${name}: ${copies.length} copies in bun.lock where one would do: ${listing}. Every range accepts ${common}: run \`bun update -r ${name}\` and commit bun.lock`,
       });
     } else if (common !== undefined) {
       if (!single && newest === undefined) continue;
