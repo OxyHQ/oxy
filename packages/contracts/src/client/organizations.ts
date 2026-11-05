@@ -24,6 +24,7 @@ import { ACCOUNT_TITLE_MAX_LENGTH, accountTitleCheck } from './accountName';
 import {
   array,
   boolean,
+  checkContract,
   type Check,
   datetime,
   exact,
@@ -119,6 +120,21 @@ const organizationFields = {
 export const createOrganizationCheck = exact<CreateOrganization>()(
   strictObject(organizationFields),
 );
+
+/** Normalize the fields from an organization form and validate the resulting request. */
+export function parseOrganizationDraft(input: {
+  name: string;
+  organizationType: CreateOrganization['organizationType'];
+  websiteUrl: string;
+  countryCode: string;
+}): CreateOrganization | null {
+  return checkContract(createOrganizationCheck, {
+    name: input.name.trim(),
+    organizationType: input.organizationType,
+    websiteUrl: input.websiteUrl.trim() || null,
+    countryCode: input.countryCode.trim().toUpperCase() || null,
+  });
+}
 
 export const updateOrganizationCheck = exact<UpdateOrganization>()(
   strictObject({
