@@ -103,12 +103,19 @@ jobs:
       # A version published minutes ago can be "not found" through a stale
       # manifest cache or a registry mirror that has not caught up: clear the
       # cache and retry before giving up.
+      #
+      # `--minimum-release-age=0`: this step RE-RESOLVES the whole tree, and a
+      # repository's `minimumReleaseAge` quarantine (bunfig.toml) then refuses
+      # every already-locked dependency published in the last week ("No version
+      # matching ... blocked by minimum-release-age"), so the install can never
+      # succeed. The lockfile still pins what it pins; the repository's own CI
+      # drift gate re-resolves the same way.
       - name: Regenerate bun.lock
         if: steps.bump.outputs.changed == 'true'
         run: |
           for attempt in 1 2 3 4; do
             bun pm cache rm >/dev/null 2>&1 || true
-            if bun install --lockfile-only --ignore-scripts; then exit 0; fi
+            if bun install --lockfile-only --ignore-scripts --minimum-release-age=0; then exit 0; fi
             echo "::warning::bun install failed (attempt $attempt), retrying"
             sleep 45
           done
