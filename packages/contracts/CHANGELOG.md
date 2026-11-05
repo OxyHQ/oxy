@@ -1,5 +1,20 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.10.0
+
+### Added
+
+- `PROFILE_LINKS_MAX` (10) and `PROFILE_LINK_TITLE_MAX` (40): the most links a profile may show and the longest title an editor may give one. Exported from the root and `client` entries.
+
+### Changed
+
+- `userProfileUpdateSchema.linksMetadata` holds at most `PROFILE_LINKS_MAX` entries. The server enforces the same cap on every profile write that carries the list.
+
+### Consumers
+
+Bump to 6.10.0. A client that sends more than ten `linksMetadata` entries now gets a 400.
+
+
 ## 6.9.0
 
 ### Added

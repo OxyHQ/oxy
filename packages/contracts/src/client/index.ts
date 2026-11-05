@@ -261,7 +261,7 @@ export {
   usernameCheckForAccountKind,
 } from './username';
 
-export { userNameCheck } from './userResponse';
+export { userNameCheck, PROFILE_LINKS_MAX, PROFILE_LINK_TITLE_MAX } from './userResponse';
 
 export {
   CLAIMANT_RELATIONSHIPS,

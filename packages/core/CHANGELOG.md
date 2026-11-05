@@ -1,5 +1,16 @@
 # Changelog — `@oxy.so/core`
 
+## 7.23.2
+
+### Changed
+
+- Profile links editor strings (`editProfile.items.links`): `linkTitle`, `moveUp`, `moveDown` and `errors.*` in `en-US` and `es-ES`.
+
+### Consumers
+
+Bump to 7.23.2. No API change.
+
+
 ## 7.23.1
 
 ### Fixed

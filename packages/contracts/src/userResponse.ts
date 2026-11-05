@@ -31,6 +31,7 @@ import { isoDateTime } from './stringChecks';
  */
 
 import { z } from 'zod';
+import { PROFILE_LINKS_MAX } from './client/userResponse';
 import { verifiedDomainSchema } from './identity';
 import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
 import { avatarCharacterSchema } from './avatarCharacter';
@@ -358,6 +359,7 @@ export const userProfileUpdateSchema = z
           id: z.string().optional(),
         }),
       )
+      .max(PROFILE_LINKS_MAX)
       .optional(),
     /**
      * Ordered account locales (`language-REGION`), primary first. Replaces

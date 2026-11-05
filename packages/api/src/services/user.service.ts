@@ -95,6 +95,7 @@ import {
   isAccountKind,
   usernameSchemaForAccountKind,
   type UserRelationship,
+  PROFILE_LINKS_MAX,
 } from '@oxy.so/contracts';
 import type { NameParts } from '../utils/displayName';
 
@@ -1094,6 +1095,17 @@ export class UserService {
     // person's own. Reading the kind from the STORED row rather than the request
     // is what makes that true — `kind` is not a field this route may set, so a
     // caller cannot declare itself a person to escape the rule.
+    // A profile shows at most PROFILE_LINKS_MAX links. Checked on every write that
+    // carries the list, so a client cannot store more than the editor allows.
+    if (Array.isArray(filteredUpdates.linksMetadata)) {
+      const count = filteredUpdates.linksMetadata.length;
+      if (count > PROFILE_LINKS_MAX) {
+        throw new BadRequestError(`A profile can show at most ${PROFILE_LINKS_MAX} links`, {
+          field: 'linksMetadata',
+        });
+      }
+    }
+
     const nextUsername = filteredUpdates.username;
     if (typeof nextUsername === 'string' && nextUsername !== existing.username) {
       const parsed = usernameSchemaForAccountKind(existing.kind).safeParse(nextUsername);

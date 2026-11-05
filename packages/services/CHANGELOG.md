@@ -1,5 +1,16 @@
 # Changelog
 
+## 14.5.0
+
+### Added
+
+- Profile links editor (`EditProfileFieldScreen`, `LinkListEditor`): each link has an editable title (40 characters), moves up or down, and is removed. Adding a link normalizes the input to `https://`, refuses a plain `http://` link, a duplicate, and an eleventh link. Helpers in `linkFormat.ts` (`normalizeLinkInput`, `linkIdentity`, `clampLinkTitle`, `moveLinkItem`).
+
+### Consumers
+
+Bump to 14.5.0. Needs `@oxy.so/contracts` 6.10.0 for the link cap.
+
+
 ## [14.4.1] - 2026-11-05
 
 ### Fixed

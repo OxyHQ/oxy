@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, StyleSheet, type TextInputProps } from 'react-native';
-import { ExpoImage } from '../components/ExpoImage';
+import { View, type TextInputProps } from 'react-native';
 import Ionicons from '../icons/Ionicons';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -20,7 +19,17 @@ import { useOxy } from '../context/oxyRuntimeContext';
 import { useProfileEditing } from '../hooks/useProfileEditing';
 import { toast } from '@oxy.so/bloom/toast';
 import { accountNameInvalidKey, accountNameInvalidMessage, isValidAccountName } from '@oxy.so/core';
-import { getLinkTitle, getLinkDescription, linksToListItems } from './linkFormat';
+import {
+  getLinkTitle,
+  getLinkDescription,
+  linkIdentity,
+  linksToListItems,
+  normalizeLinkInput,
+  type LinkInputError,
+} from './linkFormat';
+import { LinkListEditor } from './LinkListEditor';
+import type { LinkListItem } from './linkFormat';
+import { PROFILE_LINKS_MAX } from '@oxy.so/contracts/client';
 
 /**
  * Field types supported by EditProfileFieldScreen
@@ -194,6 +203,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
     () => buildInitialProfileState(user, fieldType).listItems,
   );
   const [newItemValue, setNewItemValue] = useState('');
+  const [linkInputError, setLinkInputError] = useState<LinkInputError | null>(null);
 
   const [phoneCountry, setPhoneCountry] = useState(() => {
     const phone = fieldValues.phone?.replace(/[\s()-]/g, '') || '';
@@ -404,16 +414,31 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
       };
       setListItems((prev) => [...prev, newItem]);
     } else if (fieldType === 'links') {
+      if (listItems.length >= PROFILE_LINKS_MAX) {
+        setLinkInputError('limit');
+        return;
+      }
+      const result = normalizeLinkInput(newItemValue);
+      if ('error' in result) {
+        setLinkInputError(result.error);
+        return;
+      }
+      const identity = linkIdentity(result.url);
+      if (listItems.some((item) => linkIdentity(String(item.url || '')) === identity)) {
+        setLinkInputError('already-added');
+        return;
+      }
       const newItem = {
         id: `link-${Date.now()}`,
-        url: newItemValue.trim(),
-        title: getLinkTitle(newItemValue.trim()),
-        description: getLinkDescription(newItemValue.trim()),
+        url: result.url,
+        title: getLinkTitle(result.url),
+        description: getLinkDescription(result.url),
       };
       setListItems((prev) => [...prev, newItem]);
+      setLinkInputError(null);
     }
     setNewItemValue('');
-  }, [newItemValue, fieldType]);
+  }, [newItemValue, fieldType, listItems]);
 
   // Remove item from list
   const handleRemoveItem = useCallback((id: string) => {
@@ -610,6 +635,26 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
     );
   };
 
+  const linkInputErrorMessage = (error: LinkInputError): string => {
+    switch (error) {
+      case 'empty':
+        return t('editProfile.items.links.errors.empty') || 'Enter a link.';
+      case 'insecure':
+        return t('editProfile.items.links.errors.insecure') || 'Links must start with https://.';
+      case 'already-added':
+        return (
+          t('editProfile.items.links.errors.duplicate') || 'That link is already on your profile.'
+        );
+      case 'limit':
+        return (
+          t('editProfile.items.links.errors.limit', { count: PROFILE_LINKS_MAX }) ||
+          `You can add up to ${PROFILE_LINKS_MAX} links.`
+        );
+      default:
+        return t('editProfile.items.links.errors.invalid') || 'Enter a valid link.';
+    }
+  };
+
   // Render list content (locations or links)
   const renderListContent = () => {
     const addLabel =
@@ -650,27 +695,38 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
           />
         </View>
 
-        {listItems.length > 0 && (
+        {fieldType === 'links' && linkInputError && (
+          <TextFieldHint>{linkInputErrorMessage(linkInputError)}</TextFieldHint>
+        )}
+
+        {fieldType === 'links' && listItems.length > 0 && (
+          <GroupedSection title={`${listTitle} (${listItems.length})`}>
+            <LinkListEditor
+              items={listItems as LinkListItem[]}
+              onChange={(items) => setListItems(items as EditableListItem[])}
+              disabled={isSaving}
+              labels={{
+                title: t('editProfile.items.links.linkTitle') || 'Title',
+                moveUp: t('editProfile.items.links.moveUp') || 'Move up',
+                moveDown: t('editProfile.items.links.moveDown') || 'Move down',
+                remove: t('common.remove') || 'Remove',
+                removeNamed: (title) => `${t('common.remove') || 'Remove'} ${title}`,
+              }}
+            />
+          </GroupedSection>
+        )}
+
+        {fieldType === 'locations' && listItems.length > 0 && (
           <GroupedSection title={`${listTitle} (${listItems.length})`}>
             {listItems.map((item) => (
               <GroupedSectionItem
                 key={item.id}
-                title={String(fieldType === 'locations' ? item.name : item.title || item.url)}
-                description={fieldType === 'links' ? String(item.url) : undefined}
-                icon={
-                  fieldType === 'links' && item.image ? (
-                    <ExpoImage
-                      source={{ uri: item.image }}
-                      style={styles.linkImage}
-                      contentFit="cover"
-                    />
-                  ) : undefined
-                }
+                title={String(item.name)}
                 rightElement={
                   <Button
                     onPress={() => handleRemoveItem(item.id)}
                     disabled={isSaving}
-                    accessibilityLabel={`${t('common.remove') || 'Remove'} ${fieldType === 'locations' ? item.name : item.title || item.url}`}
+                    accessibilityLabel={`${t('common.remove') || 'Remove'} ${String(item.name)}`}
                     icon={
                       <Ionicons name="trash-outline" size={18} color={bloomTheme.colors.negative} />
                     }
@@ -709,13 +765,5 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  linkImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-  },
-});
 
 export default React.memo(EditProfileFieldScreen);
