@@ -566,6 +566,38 @@ export async function initializePeablePersonalRuntime(
   }
 }
 
+let startRetryTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * The boot entry. A runtime that cannot start — Peable unreachable, the
+ * workload's merchant readback refused, a bad file — must not keep the identity
+ * API from serving: every Oxy app calls it fail-closed, and Peable's outage would
+ * otherwise become Oxy's on the next task start. Purchases stay unavailable (no
+ * checkout provider, so every catalogue answers `purchase: unavailable`) and the
+ * start is retried until it succeeds; each failure is logged at error level.
+ */
+export async function startPeablePersonalRuntime(
+  options: {
+    retryMilliseconds?: number;
+    dependencies?: Parameters<typeof initializePeablePersonalRuntime>[0];
+  } = {},
+): Promise<void> {
+  const retryMilliseconds = options.retryMilliseconds ?? 60_000;
+  try {
+    await initializePeablePersonalRuntime(options.dependencies);
+  } catch (error) {
+    logger.error('Peable personal runtime failed to start; purchases unavailable, retrying', {
+      error: error instanceof Error ? error.message : String(error),
+      retryMilliseconds,
+    });
+    if (startRetryTimer) clearTimeout(startRetryTimer);
+    startRetryTimer = setTimeout(() => {
+      startRetryTimer = undefined;
+      void startPeablePersonalRuntime(options);
+    }, retryMilliseconds);
+    startRetryTimer.unref();
+  }
+}
+
 export async function recoverPeablePersonalSources(): Promise<PeablePersonalRecoverySummary> {
   const summary = { scanned: 0, completed: 0, deferred: 0, batchDeferred: false };
   if (!runtime?.configuration.recoveryEnabled) return summary;
@@ -638,6 +670,8 @@ export async function recoverPeablePersonalSources(): Promise<PeablePersonalReco
   return summary;
 }
 export async function stopPeablePersonalRuntime() {
+  if (startRetryTimer) clearTimeout(startRetryTimer);
+  startRetryTimer = undefined;
   if (recoveryTimer) clearInterval(recoveryTimer);
   recoveryTimer = undefined;
   await recoveryInFlight;

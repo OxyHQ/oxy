@@ -14,7 +14,10 @@ runtime uses Peable's native engine (Peable ADR 0018) through `@peable.to/sdk`:
   (`<productId>:<key>`, shared by every plan granting it, so One-includes-Plus is
   one feature). `scripts/sync-peable-catalogue.ts` creates them idempotently
   (dry run by default) and prints the catalogue `prices[]` / runtime `offers[]`
-  binding; it has not been run against production.
+  binding. Run against production on 2026-11-04 (dry run, then `--apply`) for
+  Mention Plus only: `price_c3b3da89b1c174dc77fc11f1` (599 USD/month) and
+  `price_3df8a50ad8d3fe0f224bd2c9` (5750 USD/year), tax inclusive, on
+  `merch_e78538355d2d3c5be4da912a`.
 - **Checkout**: a Checkout Session in `subscription` mode for the account's native
   customer (`metadata.oxy_account_id`), `client_reference_id` = the intent. Orbit
   prices and taxes the order (Peable Tax, fail closed); Oxy refuses a session whose
@@ -31,8 +34,21 @@ runtime uses Peable's native engine (Peable ADR 0018) through `@peable.to/sdk`:
   windows, refunds fences, closure fences and ancestor inheritance are not
   expressible as Peable active entitlements, which are flat per-customer lookup
   keys. The Orbit features mirror the same benefits so Peable's answer agrees.
-- **Still off**: `OXY_ONE_PEABLE_RUNTIME_ENABLED` is unset in production, the
-  deployed catalogue binds no price and `purchasesEnabled` stays false.
+- **Mention Plus runtime live, purchases held (2026-11-05)**:
+  `OXY_ONE_PEABLE_RUNTIME_ENABLED=true`; the runtime file
+  (`/oxy/oxy-api/OXY_ONE_PEABLE_RUNTIME`, oxy-infra
+  `config/personal-plans-runtime.json`) has `eventsEnabled` and
+  `recoveryEnabled`; the catalogue binds both Mention Plus offers; Peable
+  endpoint `we_be428a01c9d837c8a0ff9b7f` delivers `PEABLE_PERSONAL_EVENT_TYPES`
+  to `/billing/peable/events`. `purchasesEnabled` is held false: Peable refuses
+  to create any Checkout Session with automatic tax until the owner approves
+  Oxy's Peable Tax settings in Orbit (`400 tax_settings_not_active`, verified
+  live), and checkout reserves an intent and creates a customer before it asks.
+  After that approval, flip it (oxy-infra runbook 51). With no registrations,
+  every sale is then recorded `not_registered`. Oxy One has no approved price,
+  so it has no rows and stays unpurchasable. The runtime never fails the boot:
+  if it cannot start (Peable unreachable, a bad file), purchases answer
+  `unavailable`, the error is logged and the start retries every minute.
 
 ## Operating company transition (2026-10-20)
 
