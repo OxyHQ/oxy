@@ -136,4 +136,20 @@ describe('publishCommand orchestration', () => {
     expect(iosAssets[0].sha256).toBe(sha(sharedAsset));
     expect(iosAssets[0].fileExtension).toBe('.png');
   });
+
+  test('sends a whole squash-merge commit message as its subject line', async () => {
+    createCalls.length = 0;
+    await publishCommand({
+      channel: 'production',
+      'skip-export': true,
+      'dist-dir': distDir,
+      'client-id': 'x',
+      message: `feat(app): ship it (#12)\n\n${'* a long body line\n'.repeat(200)}`,
+    });
+
+    expect(createCalls).toHaveLength(2);
+    for (const call of createCalls) {
+      expect(call.message).toBe('feat(app): ship it (#12)');
+    }
+  });
 });

@@ -6,6 +6,8 @@ import {
   stringFlag,
   requireString,
   baseUrlFlag,
+  updateMessage,
+  UPDATE_MESSAGE_MAX_LENGTH,
 } from '../args';
 
 describe('parseArgs', () => {
@@ -69,5 +71,39 @@ describe('flag helpers', () => {
     expect(baseUrlFlag({ url: 'http://a' })).toBe('http://a');
     expect(baseUrlFlag({ 'api-url': 'http://b' })).toBe('http://b');
     expect(baseUrlFlag({})).toBe('https://api.oxy.so');
+  });
+});
+
+describe('updateMessage', () => {
+  test('keeps the first non-empty line, trimmed', () => {
+    expect(updateMessage('  fix: a thing  \n\nbody\nmore')).toBe('fix: a thing');
+    expect(updateMessage('\r\n\n  subject\r\nbody')).toBe('subject');
+  });
+
+  test('is undefined for an absent or blank message', () => {
+    expect(updateMessage(undefined)).toBeUndefined();
+    expect(updateMessage('')).toBeUndefined();
+    expect(updateMessage(' \n\t\n')).toBeUndefined();
+  });
+
+  test('keeps a line of exactly the limit', () => {
+    const line = 'a'.repeat(UPDATE_MESSAGE_MAX_LENGTH);
+    expect(updateMessage(line)).toBe(line);
+  });
+
+  test('shortens a longer line to the limit with an ellipsis', () => {
+    const shortened = updateMessage('b'.repeat(UPDATE_MESSAGE_MAX_LENGTH + 50));
+    expect(shortened).toHaveLength(UPDATE_MESSAGE_MAX_LENGTH);
+    expect(shortened?.endsWith('…')).toBe(true);
+  });
+
+  test('never splits a surrogate pair at the cut', () => {
+    // 498 units, then an astral emoji straddling the cut at 499.
+    const shortened = updateMessage(
+      `${'c'.repeat(UPDATE_MESSAGE_MAX_LENGTH - 2)}😀${'d'.repeat(10)}`,
+    );
+    expect(shortened?.length).toBeLessThanOrEqual(UPDATE_MESSAGE_MAX_LENGTH);
+    expect(shortened).toBe(`${'c'.repeat(UPDATE_MESSAGE_MAX_LENGTH - 2)}…`);
+    expect(shortened && /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(shortened)).toBe(false);
   });
 });

@@ -1,5 +1,12 @@
 import path from 'node:path';
-import { stringFlag, requireString, rolloutFlag, platformsFlag, type ShipFlags } from './args';
+import {
+  stringFlag,
+  requireString,
+  rolloutFlag,
+  platformsFlag,
+  updateMessage,
+  type ShipFlags,
+} from './args';
 import {
   collectPlatformAssets,
   readExportMetadata,
@@ -39,7 +46,7 @@ export async function publishCommand(flags: ShipFlags): Promise<void> {
   const channel = requireString(flags, 'channel', 'OXY_SHIP_CHANNEL');
   const platforms = platformsFlag(flags);
   const rolloutPercent = rolloutFlag(flags);
-  const message = stringFlag(flags, 'message');
+  const message = updateMessage(stringFlag(flags, 'message'));
   const projectDir = path.resolve(stringFlag(flags, 'project-dir', undefined, '.') as string);
   const distDir = path.resolve(
     projectDir,

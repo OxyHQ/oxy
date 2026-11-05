@@ -822,7 +822,7 @@
     },
     "packages/ship": {
       "name": "@oxy.so/ship",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "bin": {
         "oxy-ship": "dist/cli.js",
       },
