@@ -20,5 +20,11 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    groups:
+      # Every github/codeql-action step must run the same version: an `analyze`
+      # bumped without its `init` fails every CodeQL run ("Loaded a configuration
+      # file for version 4.39.1, but running version 4.39.0").
+      codeql-action:
+        patterns: ["github/codeql-action*"]
     labels:
       - "type: infra"
