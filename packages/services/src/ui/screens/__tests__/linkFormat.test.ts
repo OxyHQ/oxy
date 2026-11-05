@@ -1,4 +1,12 @@
-import { getLinkTitle, getLinkDescription, linksToListItems } from '../linkFormat';
+import {
+  clampLinkTitle,
+  getLinkTitle,
+  getLinkDescription,
+  linkIdentity,
+  linksToListItems,
+  moveLinkItem,
+  normalizeLinkInput,
+} from '../linkFormat';
 
 describe('linkFormat', () => {
   describe('getLinkTitle', () => {
@@ -65,5 +73,53 @@ describe('linkFormat', () => {
     it('returns an empty array for an empty input', () => {
       expect(linksToListItems([])).toEqual([]);
     });
+  });
+});
+
+describe('normalizeLinkInput', () => {
+  it('adds https to a bare host and keeps its path', () => {
+    expect(normalizeLinkInput(' example.com/me ')).toEqual({ url: 'https://example.com/me' });
+  });
+
+  it('refuses plain http rather than upgrading it silently', () => {
+    expect(normalizeLinkInput('http://example.com')).toEqual({ error: 'insecure' });
+  });
+
+  it('reports empty and unparseable input', () => {
+    expect(normalizeLinkInput('   ')).toEqual({ error: 'empty' });
+    expect(normalizeLinkInput('not a link')).toEqual({ error: 'invalid' });
+  });
+});
+
+describe('linkIdentity', () => {
+  it('treats www, a trailing slash and host case as the same page', () => {
+    expect(linkIdentity('https://WWW.Example.com/me/')).toBe(
+      linkIdentity('https://example.com/me'),
+    );
+  });
+
+  it('keeps the query, which can name a different page', () => {
+    expect(linkIdentity('https://example.com/a?x=1')).not.toBe(
+      linkIdentity('https://example.com/a'),
+    );
+  });
+});
+
+describe('clampLinkTitle', () => {
+  it('cuts to the title limit by characters, not UTF-16 units', () => {
+    const emoji = '🙂'.repeat(50);
+    expect(Array.from(clampLinkTitle(emoji))).toHaveLength(40);
+  });
+});
+
+describe('moveLinkItem', () => {
+  it('swaps an entry with its neighbour', () => {
+    expect(moveLinkItem(['a', 'b', 'c'], 1, -1)).toEqual(['b', 'a', 'c']);
+    expect(moveLinkItem(['a', 'b', 'c'], 1, 1)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('leaves the list alone at either end', () => {
+    expect(moveLinkItem(['a', 'b'], 0, -1)).toEqual(['a', 'b']);
+    expect(moveLinkItem(['a', 'b'], 1, 1)).toEqual(['a', 'b']);
   });
 });

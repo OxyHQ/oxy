@@ -21,7 +21,7 @@ import { userLinkMetadata } from '../../db/schema/userLinkMetadata';
 import { userLocations } from '../../db/schema/userLocations';
 import { users } from '../../db/schema/users';
 import { BadRequestError } from '../../utils/error';
-import { USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
+import { PROFILE_LINKS_MAX, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
 import { userService } from '../user.service';
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
@@ -122,6 +122,23 @@ describe('links', () => {
 });
 
 describe('linksMetadata child rows', () => {
+  it('refuses more than PROFILE_LINKS_MAX links and stores none of them', async () => {
+    const id = await makeUser();
+    const links = Array.from({ length: PROFILE_LINKS_MAX + 1 }, (_, index) => ({
+      url: `https://example.com/${index}`,
+    }));
+
+    await expect(
+      userService.updateUserProfile(id, { linksMetadata: links }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    const rows = await getDb()
+      .select({ url: userLinkMetadata.url })
+      .from(userLinkMetadata)
+      .where(eq(userLinkMetadata.userId, id));
+    expect(rows).toHaveLength(0);
+  });
+
   it('normalizes an indented multi-line remote title and description', async () => {
     const id = await makeUser();
 

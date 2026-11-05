@@ -98,6 +98,8 @@ export {
   NUMERIC_USERNAME_MESSAGE,
 } from './username';
 
+export { PROFILE_LINKS_MAX, PROFILE_LINK_TITLE_MAX } from './client/userResponse';
+
 export {
   // Schemas
   userNameSchema,
