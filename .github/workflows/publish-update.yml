@@ -122,8 +122,14 @@ jobs:
           OXY_SHIP_CLIENT_ID: ${{ matrix.app.client-id }}
           OXY_API_URL: https://api.oxy.so
           CHANNEL: ${{ matrix.app.channel }}
-          SHIP_MESSAGE: ${{ github.event.head_commit.message || format('workflow_dispatch {0}', github.sha) }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || format('workflow_dispatch {0}', github.sha) }}
+          LC_ALL: C.UTF-8
         run: |
+          # The update message is capped at 500 UTF-16 units (contracts
+          # `updates.ts`) and a squash merge's body is longer: send the subject,
+          # at most 200 characters.
+          subject="${COMMIT_MESSAGE%%$'\n'*}"
+          SHIP_MESSAGE="${subject:0:200}"
           bun ../ship/src/cli.ts publish \
             --channel "$CHANNEL" \
             --platform all \
