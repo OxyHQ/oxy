@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { CheckboxCard } from '@oxy.so/bloom/checkbox';
+import { Checkbox, CheckboxCard } from '@oxy.so/bloom/checkbox';
 import { useOxy } from '@oxy.so/services';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
@@ -20,6 +20,13 @@ type ConfirmState = 'form' | 'rotating' | 'success' | 'localPersistFailed';
  * `oxyServices.identity.rotateKey` with the pre-derived new identity so the phrase shown
  * on the previous step is exactly the one committed.
  *
+ * Both proof paths end here, and neither can rotate until the person ticks the
+ * funds acknowledgement: the Peable wallet is derived from the identity key
+ * (`KeyManager.deriveScopedSeed`), so every coin received under the current key
+ * stays spendable only with the current phrase, and after the rotation this
+ * device keeps only the new key (Peable ADR 0002, the organization flow's
+ * `replaceConfirm` in ADR 0061 D7).
+ *
  * `localPersistFailed` is NOT a failure: the server rotated and the user already
  * saw the new phrase, but the new key couldn't be written to this device. We
  * guide the user to restore it from that phrase rather than showing an error.
@@ -33,6 +40,7 @@ export default function RotateKeyConfirmScreen() {
 
   const [state, setState] = useState<ConfirmState>('form');
   const [signOutEverywhere, setSignOutEverywhere] = useState(false);
+  const [fundsAcknowledged, setFundsAcknowledged] = useState(false);
 
   // Guard against a direct/refresh landing without the prerequisite flow state.
   const flowReady = !!proof && !!pendingIdentityRef.current;
@@ -50,7 +58,7 @@ export default function RotateKeyConfirmScreen() {
   const handleRotate = useCallback(async () => {
     if (!oxyServices || !proof) return;
     const pending = pendingIdentityRef.current;
-    if (!pending) return;
+    if (!pending || !fundsAcknowledged) return;
 
     // Biometric/passcode gate BEFORE the identity-key signature.
     const auth = await authenticate(t('rotateKey.confirm.biometricReason'));
@@ -84,7 +92,15 @@ export default function RotateKeyConfirmScreen() {
       toast.error(extractAuthErrorMessage(err, t('rotateKey.confirm.errorGeneric')));
       setState('form');
     }
-  }, [oxyServices, proof, currentPhraseRef, pendingIdentityRef, signOutEverywhere, t]);
+  }, [
+    oxyServices,
+    proof,
+    currentPhraseRef,
+    pendingIdentityRef,
+    signOutEverywhere,
+    fundsAcknowledged,
+    t,
+  ]);
 
   if (!flowReady && state === 'form') {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
@@ -133,6 +149,19 @@ export default function RotateKeyConfirmScreen() {
           : t('rotateKey.confirm.summaryDevice')}
       </Admonition>
 
+      <ImportantBanner title={t('rotateKey.confirm.fundsTitle')}>
+        {t('rotateKey.confirm.fundsBody')}
+      </ImportantBanner>
+
+      <Checkbox
+        checked={fundsAcknowledged}
+        onCheckedChange={setFundsAcknowledged}
+        disabled={rotating}
+        label={t('rotateKey.confirm.fundsConfirm')}
+        accessibilityLabel={t('rotateKey.confirm.fundsConfirm')}
+        testID="rotate-key-funds-ack"
+      />
+
       <CheckboxCard
         title={t('rotateKey.confirm.signOutEverywhere')}
         description={t('rotateKey.confirm.signOutEverywhereHint')}
@@ -147,7 +176,8 @@ export default function RotateKeyConfirmScreen() {
         tone="accent"
         onPress={handleRotate}
         loading={rotating}
-        disabled={rotating}
+        disabled={rotating || !fundsAcknowledged}
+        testID="rotate-key-commit"
       >
         {rotating ? t('rotateKey.confirm.rotating') : t('rotateKey.confirm.cta')}
       </Button>

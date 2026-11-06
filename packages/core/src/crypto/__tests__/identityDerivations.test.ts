@@ -12,6 +12,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { hmac } from '@noble/hashes/hmac.js';
+import { sha256, sha512 } from '@noble/hashes/sha2.js';
 import {
   deriveSecp256k1PublicKey,
   signSecp256k1Digest,
@@ -128,5 +130,37 @@ describe('identity derivations match the Commons identity host vectors', () => {
     expect(() => deriveSocialReceiveKey(key, 1.5)).toThrow();
     expect(() => signSocialReceiveDigest(key, 0, 'AB'.repeat(32))).toThrow();
     expect(() => signSocialReceiveDigest(key, 0, 'ab')).toThrow();
+  });
+});
+
+describe('the public crypto entry never hands out a social-receive child key', () => {
+  // Non-hardened derivation under a public chain code: one child private key
+  // plus the identity public key is the identity private key. Prove it, so the
+  // reason the export is withheld stays true, and that the entry withholds it.
+  test('a child private key and the public key reveal the identity key', () => {
+    const identity = 'aa'.repeat(32);
+    const child = deriveSocialReceiveKey(identity, 7);
+    const parentPublic = Buffer.from(deriveSecp256k1PublicKey(identity, true), 'hex');
+    const chainCode = hmac(
+      sha256,
+      new TextEncoder().encode(SOCIAL_RECEIVE_CHAIN_CODE_KEY),
+      parentPublic,
+    );
+    const data = Buffer.alloc(37);
+    parentPublic.copy(data, 0);
+    data.writeUInt32BE(7, 33);
+    const tweak = BigInt(
+      `0x${Buffer.from(hmac(sha512, chainCode, data).slice(0, 32)).toString('hex')}`,
+    );
+    const recovered = (BigInt(`0x${child.privateKey}`) - tweak + N) % N;
+    expect(recovered.toString(16).padStart(64, '0')).toBe(identity);
+  });
+
+  test('`@oxy.so/core/crypto` does not export deriveSocialReceiveKey', () => {
+    const entry = readFileSync(resolve(__dirname, '../index.ts'), 'utf8');
+    expect(entry).not.toMatch(/^\s*deriveSocialReceiveKey,?\s*$/m);
+    expect(entry).not.toMatch(/export\s*\{[^}]*\bderiveSocialReceiveKey\b[^}]*\}/);
+    expect(entry).not.toMatch(/export\s*\*\s*from\s*'\.\/identityDerivations'/);
+    expect(entry).toMatch(/\bsignSocialReceiveDigest\b/);
   });
 });

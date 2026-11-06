@@ -85,6 +85,7 @@ challenge, plus a fresh email code for `link_commons`):
 | A link request relays; it authorizes nothing | `identity_link_requests` keeps the challenge's hash, the first key and proof Commons posted; only the owner's `/complete` links |
 | A root is never unlinked | No route removes a root |
 | A root is replaced only by rotation | `POST /auth/rotate/*` (old-root + new-root proofs); rotation deletes the old root's backup |
+| Commons rotates only after the person acknowledges the money it leaves behind | The Peable wallet seed and the social-receive tree derive from the root (`KeyManager.deriveScopedSeed`, `signSocialReceive`), so coins received under it stay spendable only with its phrase and the device keeps only the new key. `rotate-key/confirm.tsx` (both proof paths) refuses until `rotateKey.confirm.fundsConfirm` is ticked, as the organization flow does (ADR 0061 D7, Peable ADR 0002) |
 | The DID of a personal root is controlled by the person | `buildDidDocument` → `controller: [userDid]` |
 | An organization's key is created and replaced only by its owners and admins, and signs nobody in | `services/organizationIdentityKey.service.ts`; every key sign-in refuses a non-personal account — [Organization identity keys](organization-keys.md) (ADR 0061) |
 | `auth.oxy.so` runs no third-party analytics | No PostHog dependency or wiring; Pages headers in `sensitive` mode strip the Cloudflare beacon; `packages/auth/lib/__tests__/sensitive-origin.test.ts` |

@@ -1,5 +1,19 @@
 # Changelog — `@oxy.so/core`
 
+## 7.27.0
+
+### Added
+
+- **`oxy.identity.resolveDid(userId, { fresh: true })`** (`ResolveDidOptions`): reads the DID document from the origin now. It skips and drops the client's 60-second cached copy, is not joined to an in-flight read, and sends `Cache-Control: no-cache`. A plain `resolveDid(userId)` is unchanged (cached). Use the fresh read wherever `#key-1` decides where money goes: it is the account's Peable receive key, and it changes when a person rotates their root or an organization's owners replace its key. The API now serves user DID documents with `Cache-Control: public, no-cache` and an ETag (was `public, max-age=300`).
+
+### Removed
+
+- **`deriveSocialReceiveKey` is no longer exported from `@oxy.so/core/crypto`.** It returned a social-receive CHILD private key. The derivation is non-hardened under a chain code anyone can compute from the identity public key, so one leaked child private key plus the public key gives the identity private key. Only signatures leave the module: `signSocialReceiveDigest(privateKey, index, digest)` returns `{ signature, publicKey }`, and `KeyManager.signSocialReceive` is the device path. The function stays inside core for that signer and its parity vectors.
+
+### Consumers
+
+Bump to 7.27.0. If you imported `deriveSocialReceiveKey`, use `signSocialReceiveDigest(...).publicKey` for a child public key, or `@fairco.in/core`'s public-key-only `deriveSocialReceiveAddress`; the only known caller is a Peable wallet test. Servers that derive an address from a DID's `#key-1` (Peable `resolveIdentityPublicKey`) should call `resolveDid(userId, { fresh: true })`.
+
 ## 7.26.0
 
 ### Added

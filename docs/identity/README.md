@@ -6,7 +6,7 @@
 > engine is in `@oxy.so/api`; the crypto + SDK surface is in `@oxy.so/core`; wire
 > types are in `@oxy.so/contracts`.
 >
-> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Organization identity keys](organization-keys.md) · [Identity device backup](device-backup.md) · [Phase 2: every Android app on its own UID](phase-2-shared-uid-migration.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
+> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Organization identity keys](organization-keys.md) · [Identity device backup](device-backup.md) · [Phase 2: every Android app on its own UID](phase-2-shared-uid-migration.md) · [iOS keychain access groups (proposed split)](ios-keychain-access-groups.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
 > [External identities and aliases](external-identities.md) · [Linked accounts](linked-accounts.md) · [Account events (deletion → relying parties)](account-events.md) · [Deleted accounts' stored uploads](account-storage-deletion.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---
@@ -50,11 +50,17 @@ active data node, an `OxyPersonalDataNode` entry (`#oxy-node`, derived from the
 
 | Route | Auth | Cache | Notes |
 |---|---|---|---|
-| `GET /u/:userId/did.json` (`did.ts`) | none | `public, max-age=300` | user DID document; CORS `*` |
+| `GET /u/:userId/did.json` (`did.ts`) | none | `public, no-cache` + ETag | user DID document; CORS `*`. Revalidated on every use (an unchanged document is a 304) because `#key-1` is the account's Peable receive key and changes on a rotation or an organization key replacement |
 | `GET /.well-known/did.json` | none | `public, max-age=300` | the Oxy org DID |
 
 SDK (`oxy.identity`, `packages/core/src/api/identity.ts`): `resolveDid(userId)`,
-and the `did` getter (derives the caller's DID locally).
+and the `did` getter (derives the caller's DID locally). `resolveDid` is cached
+in the client for 60 s; **`resolveDid(userId, { fresh: true })`** skips and drops
+that copy, joins no in-flight read and sends `Cache-Control: no-cache`. Anything
+that derives a money address from `#key-1` (Peable's `resolveIdentityPublicKey`)
+reads fresh: a cached document names the key from before a rotation.
+Cloudflare caches nothing on api.oxy.so (`~/Oxy/docs/cloudflare-proxied-apis.md`),
+and server-to-server calls inside the VPC never reach it.
 
 > **Infra note:** `did:web:api.oxy.so:u:<id>` works today. Routing
 > `oxy.so/u/*/did.json` through the apex proxy (so the anchor can be `oxy.so`) is

@@ -133,6 +133,7 @@ export type {
   IdentityApi,
   VerifyDomainResult,
   RemoveDomainResult,
+  ResolveDidOptions,
   RotateKeyProof,
   RotateKeyOptions,
   RotateKeyResult,

@@ -57,13 +57,16 @@ export type { AeadResult } from './aead';
 export { deriveSharedSecret } from './ecdh';
 
 // What the identity key computes without leaving its holder: the same functions
-// Commons' identity host implements natively on Android.
+// Commons' identity host implements natively on Android. The social-receive
+// CHILD private key (`deriveSocialReceiveKey`) is deliberately not here: the
+// derivation is non-hardened under a chain code anyone can compute from the
+// public key, so one leaked child private key reveals the identity key. Only
+// signatures (`signSocialReceiveDigest`) leave this module.
 export {
   SCOPED_SEED_KDF_SALT,
   SOCIAL_RECEIVE_CHAIN_CODE_KEY,
   MAX_SOCIAL_RECEIVE_INDEX,
   deriveScopedSeedFromKey,
-  deriveSocialReceiveKey,
   signSocialReceiveDigest,
   authChallengeDigest,
 } from './identityDerivations';
