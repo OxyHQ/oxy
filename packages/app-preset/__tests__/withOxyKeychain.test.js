@@ -565,3 +565,32 @@ test('no app config in this repository but Commons names a restricted group', ()
     }
   }
 });
+
+// The implicit own-app group is not an escape from restricted holder policy.
+test('restricted group names cannot be used as app bundle ids', () => {
+  for (const id of [
+    'so.oxy.identity',
+    'so.oxy.wallet',
+    'so.oxy.identity.dev',
+    'so.oxy.wallet.dev',
+  ]) {
+    for (const entries of [undefined, [], [SHARED, `${P}${id}`]]) {
+      assert.throws(
+        () => assertOxyKeychainGroups(id, entries),
+        /reserved.*restricted keychain group/,
+      );
+    }
+    assert.throws(
+      () =>
+        assertOxyKeychainGroups(id, ['ABCDE12345.group.so.oxy.shared', `ABCDE12345.${id}`], {
+          teamId: 'ABCDE12345',
+        }),
+      /reserved.*restricted keychain group/,
+    );
+    assert.throws(() => withOxyKeychain(app(id)), /reserved.*restricted keychain group/);
+    assert.throws(
+      () => withOxyKeychainPolicy(app(id, { 'keychain-access-groups': [SHARED, `${P}${id}`] })),
+      /reserved.*restricted keychain group/,
+    );
+  }
+});

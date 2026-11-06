@@ -177,6 +177,11 @@ function allowedKeychainLayouts(bundleId) {
  *   `<teamId>.<group>` instead of `$(AppIdentifierPrefix)<group>`.
  */
 function assertOxyKeychainGroups(bundleId, entries, options = {}) {
+  // An app's implicit own group must never alias a restricted shared group,
+  // even when its entitlements omit keychain-access-groups altogether.
+  if (typeof bundleId === 'string' && restrictedGroup(bundleId) !== undefined) {
+    refuse(`${bundleId} is reserved for an Oxy restricted keychain group, not an app bundle id`);
+  }
   if (entries === undefined || entries === null) return;
   const app = bundleId ?? 'This app';
   if (!Array.isArray(entries)) {
