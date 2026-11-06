@@ -7,6 +7,7 @@
  * native module that predates the probe), Commons `[identity, wallet, shared]`,
  * the Peable wallet `[wallet, shared]`, any other app `[shared]`.
  */
+import { deriveScopedSeedFromKey } from '../identityDerivations';
 import { APP, ENTITLEMENTS, FakeKeychain, GROUP, sandbox } from './fakeKeychain';
 
 const mockKeychain = new FakeKeychain();
@@ -30,6 +31,7 @@ const PHRASE =
 const PRIVATE = '5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc1';
 const ORG = '0123456789abcdef01234567';
 const LABEL = 'peable/faircoin/v1';
+const OWNER = { ownerAccountId: 'aaaaaaaaaaaaaaaaaaaaaaaa' };
 const DIGEST = 'ab'.repeat(32);
 
 type Launch = Awaited<ReturnType<typeof launch>>;
@@ -408,7 +410,7 @@ describe('retired keys (ADR 0061 D7 as amended) are spending keys', () => {
     await commons.KeyManager.importKeyPair(PRIVATE, { overwrite: true });
     const ring = await import('../retiredKeys');
     const publicKey = commons.KeyManager.derivePublicKey(RETIRED);
-    await ring.retireIdentityKey({ privateKey: RETIRED, publicKey });
+    await ring.retireIdentityKey({ privateKey: RETIRED, publicKey }, OWNER);
     const writes = mockKeychain.calls.filter((c) => c.op === 'set');
     const retiredWrites = writes.filter((w) => w.key.startsWith('oxy_retired_identity'));
     expect(retiredWrites.length).toBeGreaterThan(0);
@@ -418,15 +420,17 @@ describe('retired keys (ADR 0061 D7 as amended) are spending keys', () => {
     }
 
     const peable = await launch(ENTITLEMENTS.wallet);
-    const seed = await peable.KeyManager.deriveScopedSeed(LABEL, { publicKey });
+    const seed = await peable.KeyManager.deriveScopedSeed(LABEL, { publicKey, ...OWNER });
     expect(hex(seed)).not.toBeNull();
     const peableRing = await import('../retiredKeys');
-    expect((await peableRing.listRetiredIdentityKeys()).map((k) => k.publicKey)).toEqual([
+    expect((await peableRing.listRetiredIdentityKeys(OWNER)).map((k) => k.publicKey)).toEqual([
       publicKey,
     ]);
 
     const member = await launch(ENTITLEMENTS.member);
-    await expect(member.KeyManager.deriveScopedSeed(LABEL, { publicKey })).resolves.toBeNull();
+    await expect(
+      member.KeyManager.deriveScopedSeed(LABEL, { publicKey, ...OWNER }),
+    ).resolves.toBeNull();
   });
 });
 
@@ -510,10 +514,21 @@ describe('the migration never loses a key', () => {
     expect(
       mockKeychain.get(GROUP.wallet, `oxy_retired_identity_private_key.personal.${replacedPublic}`),
     ).toBe(replaced);
-    // The wallet still spends what the replaced key received.
+    // Kept QUARANTINED (R5-2, R5-3): whose key it was is unknown, so nobody
+    // reaches it until the account's key history names it.
     const peable = await launch(ENTITLEMENTS.wallet);
+    const owner = { ownerAccountId: 'aaaaaaaaaaaaaaaaaaaaaaaa' };
+    await expect(
+      peable.KeyManager.deriveScopedSeed(LABEL, { publicKey: replacedPublic, ...owner }),
+    ).resolves.toBeNull();
+    await launch(ENTITLEMENTS.commons);
+    const commonsRing = await import('../retiredKeys');
+    await expect(
+      commonsRing.claimRetiredIdentityKeys(owner.ownerAccountId, [replacedPublic]),
+    ).resolves.toBe(1);
+    const wallet = await launch(ENTITLEMENTS.wallet);
     expect(
-      hex(await peable.KeyManager.deriveScopedSeed(LABEL, { publicKey: replacedPublic })),
+      hex(await wallet.KeyManager.deriveScopedSeed(LABEL, { publicKey: replacedPublic, ...owner })),
     ).not.toBeNull();
   });
 
@@ -710,10 +725,13 @@ describe('the migration adopts only what Commons provably wrote, once (R4-7)', (
     const ring = await import('../retiredKeys');
     const key = '66'.repeat(32);
     await expect(
-      ring.retireIdentityKey({
-        privateKey: key,
-        publicKey: peable.KeyManager.derivePublicKey(key),
-      }),
+      ring.retireIdentityKey(
+        {
+          privateKey: key,
+          publicKey: peable.KeyManager.derivePublicKey(key),
+        },
+        OWNER,
+      ),
     ).rejects.toThrow('only Commons');
     expect(mockKeychain.inGroup(GROUP.wallet)).toEqual([]);
   });
@@ -736,3 +754,67 @@ describe('the migration adopts only what Commons provably wrote, once (R4-7)', (
 async function getPreSplitExposureOf(_l: Launch) {
   return (await import('../keychainGroupMigration')).getPreSplitExposure();
 }
+
+describe('a money holder learns its public key from the private key it spends (R5-1)', () => {
+  const ATTACKER = '77'.repeat(32);
+
+  it("a public key planted in the shared group is never the wallet's", async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    const mine = commons.KeyManager.derivePublicKey(PRIVATE);
+    const planted = commons.KeyManager.derivePublicKey(ATTACKER);
+    mockKeychain.put(GROUP.wallet, 'oxy_shared_identity_private_key', PRIVATE);
+    mockKeychain.put(GROUP.shared, 'oxy_shared_identity_public_key', planted);
+
+    const peable = await launch(ENTITLEMENTS.wallet);
+    await expect(peable.KeyManager.getIdentityPublicKeyForMoney()).resolves.toBe(mine);
+    await expect(peable.KeyManager.getSharedPublicKey()).resolves.toBe(mine);
+    await expect(peable.KeyManager.getIdentityKeyState()).resolves.toMatchObject({
+      activePublicKey: mine,
+    });
+    // The key it shows is the key it spends.
+    expect(hex(await peable.KeyManager.deriveScopedSeed(LABEL))).toBe(
+      hex(deriveScopedSeedFromKey(PRIVATE, LABEL)),
+    );
+
+    // No private key: no public key either, never the planted one.
+    await mockKeychain.deleteItemAsync('oxy_shared_identity_private_key', {
+      accessGroup: GROUP.wallet,
+    });
+    const empty = await launch(ENTITLEMENTS.wallet);
+    await expect(empty.KeyManager.getIdentityPublicKeyForMoney()).resolves.toBeNull();
+    await expect(empty.KeyManager.getSharedPublicKey()).resolves.toBeNull();
+
+    // Any other app holds no money key; it still reads the public item.
+    const member = await launch(ENTITLEMENTS.member);
+    await expect(member.KeyManager.getIdentityPublicKeyForMoney()).resolves.toBeNull();
+    await expect(member.KeyManager.getSharedPublicKey()).resolves.toBe(planted);
+  });
+
+  it("an organization's key is derived from its pair in the wallet group", async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    const orgKey = '55'.repeat(32);
+    mockKeychain.put(GROUP.wallet, `oxy_org_identity_private_key.${ORG}`, orgKey);
+    mockKeychain.put(
+      GROUP.wallet,
+      `oxy_org_identity_public_key.${ORG}`,
+      commons.KeyManager.derivePublicKey(orgKey),
+    );
+    const peable = await launch(ENTITLEMENTS.wallet);
+    await expect(peable.KeyManager.getIdentityPublicKeyForMoney({ accountId: ORG })).resolves.toBe(
+      commons.KeyManager.derivePublicKey(orgKey),
+    );
+    // A pair whose public half was swapped is no key at all.
+    mockKeychain.put(
+      GROUP.wallet,
+      `oxy_org_identity_public_key.${ORG}`,
+      commons.KeyManager.derivePublicKey(ATTACKER),
+    );
+    const again = await launch(ENTITLEMENTS.wallet);
+    await expect(
+      again.KeyManager.getIdentityPublicKeyForMoney({ accountId: ORG }),
+    ).resolves.toBeNull();
+    await expect(
+      again.KeyManager.getIdentityPublicKeyForMoney({ accountId: 'not-an-id' }),
+    ).resolves.toBeNull();
+  });
+});

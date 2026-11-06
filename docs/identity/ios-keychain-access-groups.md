@@ -104,6 +104,19 @@ groups. That residual risk is the same on Android (Commons' certificate).
   access, item)` (the wrapper KeyManager and `organizationKeys` use), and
   `ownKeychainItemPlan` for an app's own items. Item names live in
   `src/crypto/keychainItems.ts`.
+- **A money holder derives its public key (R5-1, core 7.33.0).** The shared
+  group's public-key item is writable by every Oxy app, so Commons and the
+  Peable wallet never take their identity public key from it:
+  `KeyManager.getIdentityPublicKeyForMoney({ accountId? })` (and
+  `getSharedPublicKey` in those two apps) derives it from the private key in
+  the restricted groups — the key the wallet actually spends.
+- **The personal retired ring is bound to its owner (R5-2, core 7.33.0).** Each
+  personal entry records the account id of the person whose key it was; every
+  reader names `ownerAccountId` and reaches only that person's entries. An
+  entry with no known owner is quarantined until that account's key history
+  claims it (`claimRetiredIdentityKeys`). On Android the identity host holds
+  only the signed-in person's personal entries (`syncRetiredKeys(owner)`;
+  "Start over" withdraws them all).
 - **Retired keys are spending keys.** The keys a person or an organization
   rotated away from (ADR 0061 D7 as amended 2026-11-06, `crypto/retiredKeys.ts`,
   `oxy_retired_identity_private_key.<scope>.<publicKey>` and the ring's index

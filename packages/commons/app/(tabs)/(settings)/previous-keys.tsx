@@ -8,6 +8,7 @@ import {
   KeyManager,
   listRetiredIdentityKeys,
   retireIdentityKey,
+  syncRetiredKeys,
   retiredKeyFromPhrase,
   retiredKeyFromPrivateKey,
   type RetiredIdentityKey,
@@ -53,17 +54,20 @@ export default function PreviousKeysScreen() {
   const [privateKeyText, setPrivateKeyText] = useState('');
   const [working, setWorking] = useState(false);
 
+  const ownerAccountId = oxyServices?.session.userId ?? null;
+
   const refresh = useCallback(async () => {
+    if (!ownerAccountId) return;
     const [keys, current] = await Promise.all([
-      listRetiredIdentityKeys(),
+      listRetiredIdentityKeys({ ownerAccountId }),
       KeyManager.getPublicKey().catch(() => null),
     ]);
     const currentKey = current ? KeyManager.canonicalPublicKey(current) : null;
     setHeld(keys.filter((key) => key.publicKey !== currentKey));
-  }, []);
+  }, [ownerAccountId]);
 
   useEffect(() => {
-    void refresh();
+    refresh().catch(() => setHeld([]));
   }, [refresh]);
 
   const onWordChange = useCallback((index: number, word: string) => {
@@ -113,7 +117,9 @@ export default function PreviousKeysScreen() {
         setProblem(t(mode === 'phrase' ? 'previousKeys.notYours' : 'previousKeys.notYoursKey'));
         return;
       }
-      await retireIdentityKey(key);
+      if (!ownerAccountId) return;
+      await retireIdentityKey(key, { ownerAccountId });
+      await syncRetiredKeys(ownerAccountId);
       setWords(new Array(RECOVERY_PHRASE_LENGTH).fill(''));
       setPrivateKeyText('');
       toast.success(t('previousKeys.added'));
@@ -134,7 +140,7 @@ export default function PreviousKeysScreen() {
     } finally {
       setWorking(false);
     }
-  }, [mode, oxyServices, privateKeyText, refresh, t, words]);
+  }, [mode, oxyServices, ownerAccountId, privateKeyText, refresh, t, words]);
 
   const complete =
     mode === 'phrase'

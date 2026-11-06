@@ -48,6 +48,9 @@ jest.mock('@oxy.so/protocol', () => ({
 const mockAsyncStorage = require('./identityMocks').createAsyncStorageMock();
 
 const ORG = '0123456789abcdef01234567';
+/** The signed-in person (R5-2: the personal ring is bound to its owner). */
+const ME = { ownerAccountId: 'aaaaaaaaaaaaaaaaaaaaaaaa' };
+const NEXT_PERSON = { ownerAccountId: 'bbbbbbbbbbbbbbbbbbbbbbbb' };
 const CURRENT_KEY = 'c1'.repeat(32);
 const RETIRED_KEY = 'a7'.repeat(32);
 const OTHER_KEY = 'd3'.repeat(32);
@@ -138,16 +141,16 @@ describe('iOS: the keychain group', () => {
   it('keeps a retired key, lists it, and derives and signs with it by its public key', async () => {
     await KeyManager.importKeyPair(CURRENT_KEY);
     const retiredPublic = KeyManager.derivePublicKey(RETIRED_KEY);
-    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: retiredPublic });
+    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: retiredPublic }, ME);
 
-    const listed = await ring.listRetiredIdentityKeys();
+    const listed = await ring.listRetiredIdentityKeys(ME);
     expect(listed.map((k) => k.publicKey)).toEqual([retiredPublic]);
     expect(listed[0]?.accountId).toBeUndefined();
 
-    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey: retiredPublic });
+    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey: retiredPublic, ...ME });
     expect(seed && toHex(seed)).toBe(toHex(deriveScopedSeedFromKey(RETIRED_KEY, INFO)));
     await expect(
-      KeyManager.signSocialReceive(3, DIGEST, { publicKey: retiredPublic }),
+      KeyManager.signSocialReceive(3, DIGEST, { publicKey: retiredPublic, ...ME }),
     ).resolves.toEqual(signSocialReceiveDigest(RETIRED_KEY, 3, DIGEST));
 
     // No selector: still the current key.
@@ -165,16 +168,23 @@ describe('iOS: the keychain group', () => {
 
   it('a key the ring does not hold is null, never another key', async () => {
     await KeyManager.importKeyPair(CURRENT_KEY);
-    await ring.retireIdentityKey({
-      privateKey: RETIRED_KEY,
-      publicKey: KeyManager.derivePublicKey(RETIRED_KEY),
-    });
+    await ring.retireIdentityKey(
+      {
+        privateKey: RETIRED_KEY,
+        publicKey: KeyManager.derivePublicKey(RETIRED_KEY),
+      },
+      ME,
+    );
     const unknown = KeyManager.derivePublicKey(OTHER_KEY);
-    await expect(KeyManager.deriveScopedSeed(INFO, { publicKey: unknown })).resolves.toBeNull();
     await expect(
-      KeyManager.signSocialReceive(0, DIGEST, { publicKey: unknown }),
+      KeyManager.deriveScopedSeed(INFO, { publicKey: unknown, ...ME }),
     ).resolves.toBeNull();
-    await expect(KeyManager.deriveScopedSeed(INFO, { publicKey: 'not-a-key' })).resolves.toBeNull();
+    await expect(
+      KeyManager.signSocialReceive(0, DIGEST, { publicKey: unknown, ...ME }),
+    ).resolves.toBeNull();
+    await expect(
+      KeyManager.deriveScopedSeed(INFO, { publicKey: 'not-a-key', ...ME }),
+    ).resolves.toBeNull();
   });
 
   it('keeps personal and organization rings apart', async () => {
@@ -183,13 +193,13 @@ describe('iOS: the keychain group', () => {
     await orgKeys.storeOrganizationKey(ORG, { privateKey: ORG_KEY, publicKey: orgPublic });
     const personalRetired = KeyManager.derivePublicKey(RETIRED_KEY);
     const orgRetired = KeyManager.derivePublicKey(ORG_RETIRED_KEY);
-    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: personalRetired });
+    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: personalRetired }, ME);
     await ring.retireIdentityKey(
       { privateKey: ORG_RETIRED_KEY, publicKey: orgRetired },
       { accountId: ORG },
     );
 
-    expect((await ring.listRetiredIdentityKeys()).map((k) => k.publicKey)).toEqual([
+    expect((await ring.listRetiredIdentityKeys(ME)).map((k) => k.publicKey)).toEqual([
       personalRetired,
     ]);
     expect(await ring.listRetiredIdentityKeys({ accountId: ORG })).toEqual([
@@ -202,7 +212,9 @@ describe('iOS: the keychain group', () => {
     });
     expect(orgSeed && toHex(orgSeed)).toBe(toHex(deriveScopedSeedFromKey(ORG_RETIRED_KEY, INFO)));
     // The organization's retired key is not reachable as a personal one, and vice versa.
-    await expect(KeyManager.deriveScopedSeed(INFO, { publicKey: orgRetired })).resolves.toBeNull();
+    await expect(
+      KeyManager.deriveScopedSeed(INFO, { publicKey: orgRetired, ...ME }),
+    ).resolves.toBeNull();
     await expect(
       KeyManager.deriveScopedSeed(INFO, { accountId: ORG, publicKey: personalRetired }),
     ).resolves.toBeNull();
@@ -216,20 +228,23 @@ describe('iOS: the keychain group', () => {
 
   it('is idempotent and keeps the first date', async () => {
     const publicKey = KeyManager.derivePublicKey(RETIRED_KEY);
-    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey });
-    const [first] = await ring.listRetiredIdentityKeys();
-    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey });
-    const listed = await ring.listRetiredIdentityKeys();
+    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey }, ME);
+    const [first] = await ring.listRetiredIdentityKeys(ME);
+    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey }, ME);
+    const listed = await ring.listRetiredIdentityKeys(ME);
     expect(listed).toHaveLength(1);
     expect(listed[0]?.retiredAt).toBe(first?.retiredAt);
   });
 
   it('refuses a mismatched pair and a malformed account id', async () => {
     await expect(
-      ring.retireIdentityKey({
-        privateKey: RETIRED_KEY,
-        publicKey: KeyManager.derivePublicKey(OTHER_KEY),
-      }),
+      ring.retireIdentityKey(
+        {
+          privateKey: RETIRED_KEY,
+          publicKey: KeyManager.derivePublicKey(OTHER_KEY),
+        },
+        ME,
+      ),
     ).rejects.toThrow('does not derive');
     await expect(
       ring.retireIdentityKey(
@@ -237,7 +252,7 @@ describe('iOS: the keychain group', () => {
         { accountId: 'nope' },
       ),
     ).rejects.toThrow('accountId');
-    await expect(ring.listRetiredIdentityKeys()).resolves.toEqual([]);
+    await expect(ring.listRetiredIdentityKeys(ME)).resolves.toEqual([]);
   });
 
   it('forgets one key on request; a forced identity delete ("Start over") keeps every ring (R4-4)', async () => {
@@ -245,24 +260,24 @@ describe('iOS: the keychain group', () => {
     const a = KeyManager.derivePublicKey(RETIRED_KEY);
     const b = KeyManager.derivePublicKey(OTHER_KEY);
     const o = KeyManager.derivePublicKey(ORG_RETIRED_KEY);
-    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: a });
-    await ring.retireIdentityKey({ privateKey: OTHER_KEY, publicKey: b });
+    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: a }, ME);
+    await ring.retireIdentityKey({ privateKey: OTHER_KEY, publicKey: b }, ME);
     await ring.retireIdentityKey({ privateKey: ORG_RETIRED_KEY, publicKey: o }, { accountId: ORG });
 
-    await ring.forgetRetiredIdentityKey(a);
-    expect((await ring.listRetiredIdentityKeys()).map((k) => k.publicKey)).toEqual([b]);
-    await expect(KeyManager.deriveScopedSeed(INFO, { publicKey: a })).resolves.toBeNull();
+    await ring.forgetRetiredIdentityKey(a, ME);
+    expect((await ring.listRetiredIdentityKeys(ME)).map((k) => k.publicKey)).toEqual([b]);
+    await expect(KeyManager.deriveScopedSeed(INFO, { publicKey: a, ...ME })).resolves.toBeNull();
 
     await KeyManager.deleteIdentity(true, true, true);
-    expect((await ring.listRetiredIdentityKeys()).map((k) => k.publicKey)).toEqual([b]);
-    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey: b });
+    expect((await ring.listRetiredIdentityKeys(ME)).map((k) => k.publicKey)).toEqual([b]);
+    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey: b, ...ME });
     expect(seed && toHex(seed)).toBe(toHex(deriveScopedSeedFromKey(OTHER_KEY, INFO)));
     expect(
       (await ring.listRetiredIdentityKeys({ accountId: ORG })).map((k) => k.publicKey),
     ).toEqual([o]);
     // Deleting the ACCOUNT is what forgets a ring, explicitly.
-    await ring.forgetRetiredIdentityKeys();
-    await expect(ring.listRetiredIdentityKeys()).resolves.toEqual([]);
+    await ring.forgetRetiredIdentityKeys(ME);
+    await expect(ring.listRetiredIdentityKeys(ME)).resolves.toEqual([]);
   });
 
   it('a previous key imported as a raw private key can be added back (R4-4)', async () => {
@@ -273,8 +288,8 @@ describe('iOS: the keychain group', () => {
     });
     expect(() => ring.retiredKeyFromPrivateKey('00'.repeat(32))).toThrow('private key');
     expect(() => ring.retiredKeyFromPrivateKey('zz')).toThrow('private key');
-    await ring.retireIdentityKey(pair);
-    const exported = await ring.exportRetiredIdentityKeys();
+    await ring.retireIdentityKey(pair, ME);
+    const exported = await ring.exportRetiredIdentityKeys(ME);
     expect(exported.map(({ privateKey, publicKey }) => ({ privateKey, publicKey }))).toEqual([
       pair,
     ]);
@@ -284,7 +299,7 @@ describe('iOS: the keychain group', () => {
     const pair = await ring.retiredKeyFromPhrase(PHRASE_12);
     expect(pair.publicKey).toBe(KeyManager.derivePublicKey(pair.privateKey));
     await expect(ring.retiredKeyFromPhrase('abandon abandon')).rejects.toThrow('recovery phrase');
-    await expect(ring.listRetiredIdentityKeys()).resolves.toEqual([]);
+    await expect(ring.listRetiredIdentityKeys(ME)).resolves.toEqual([]);
   });
 });
 
@@ -295,22 +310,25 @@ describe('Android, Commons (registers the signer store)', () => {
     const signer = memorySigner();
     KeyManager.setIdentitySignerStore(signer);
     const publicKey = KeyManager.derivePublicKey(RETIRED_KEY);
-    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey });
+    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey }, ME);
     expect(signer.retired.get(`personal.${publicKey}`)).toEqual({
       privateKey: RETIRED_KEY,
       publicKey,
     });
-    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey });
+    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey, ...ME });
     expect(seed && toHex(seed)).toBe(toHex(deriveScopedSeedFromKey(RETIRED_KEY, INFO)));
   });
 
   it('refuses to keep a retired key without a signer store that holds them', async () => {
     KeyManager.setIdentitySignerStore(memorySigner(false));
     await expect(
-      ring.retireIdentityKey({
-        privateKey: RETIRED_KEY,
-        publicKey: KeyManager.derivePublicKey(RETIRED_KEY),
-      }),
+      ring.retireIdentityKey(
+        {
+          privateKey: RETIRED_KEY,
+          publicKey: KeyManager.derivePublicKey(RETIRED_KEY),
+        },
+        ME,
+      ),
     ).rejects.toThrow('signer store');
   });
 
@@ -323,6 +341,131 @@ describe('Android, Commons (registers the signer store)', () => {
     await expect(ring.syncRetiredKeys()).resolves.toBe(1);
     expect(signer.retired.get(`${ORG}.${publicKey}`)?.publicKey).toBe(publicKey);
     await expect(ring.syncRetiredKeys()).resolves.toBe(0);
+  });
+});
+
+describe('the personal ring is bound to its owner (R5-2)', () => {
+  const retiredPublic = () => KeyManager.derivePublicKey(RETIRED_KEY);
+
+  describe('iOS', () => {
+    beforeEach(() => load('ios'));
+
+    it("the next person on the phone never lists, derives from or signs with a previous person's key", async () => {
+      await KeyManager.importKeyPair(CURRENT_KEY);
+      await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: retiredPublic() }, ME);
+      // "Start over": the identity goes, the ring stays (money, R4-4).
+      await KeyManager.deleteIdentity(true, true, true);
+      await KeyManager.importKeyPair(OTHER_KEY);
+
+      await expect(ring.listRetiredIdentityKeys(NEXT_PERSON)).resolves.toEqual([]);
+      await expect(ring.listRetiredIdentityKeys()).resolves.toEqual([]);
+      for (const owner of [NEXT_PERSON, {}]) {
+        await expect(
+          KeyManager.deriveScopedSeed(INFO, { publicKey: retiredPublic(), ...owner }),
+        ).resolves.toBeNull();
+        await expect(
+          KeyManager.signSocialReceive(0, DIGEST, { publicKey: retiredPublic(), ...owner }),
+        ).resolves.toBeNull();
+      }
+      await expect(ring.exportRetiredIdentityKeys(NEXT_PERSON)).resolves.toEqual([]);
+      await expect(ring.forgetRetiredIdentityKeys(NEXT_PERSON)).resolves.toBe(0);
+      await expect(ring.forgetRetiredIdentityKey(retiredPublic(), NEXT_PERSON)).rejects.toThrow(
+        'not a key of this account',
+      );
+      await expect(
+        ring.retireIdentityKey(
+          { privateKey: RETIRED_KEY, publicKey: retiredPublic() },
+          NEXT_PERSON,
+        ),
+      ).rejects.toThrow('different account');
+
+      // Its owner still reaches it.
+      expect((await ring.listRetiredIdentityKeys(ME)).map((k) => k.publicKey)).toEqual([
+        retiredPublic(),
+      ]);
+      const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey: retiredPublic(), ...ME });
+      expect(seed && toHex(seed)).toBe(toHex(deriveScopedSeedFromKey(RETIRED_KEY, INFO)));
+    });
+
+    it('a personal key cannot be kept without its owner', async () => {
+      await expect(
+        ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: retiredPublic() }),
+      ).rejects.toThrow('ownerAccountId');
+    });
+
+    it("a quarantined key is reached by nobody until the account's key history claims it", async () => {
+      await ring.retireIdentityKeyDuringMigration({
+        privateKey: RETIRED_KEY,
+        publicKey: retiredPublic(),
+      });
+      await expect(ring.countQuarantinedRetiredKeys()).resolves.toBe(1);
+      await expect(ring.listRetiredIdentityKeys(ME)).resolves.toEqual([]);
+      await expect(
+        KeyManager.deriveScopedSeed(INFO, { publicKey: retiredPublic(), ...ME }),
+      ).resolves.toBeNull();
+
+      // A history that does not name it binds nothing.
+      await expect(
+        ring.claimRetiredIdentityKeys(NEXT_PERSON.ownerAccountId, [
+          KeyManager.derivePublicKey(OTHER_KEY),
+        ]),
+      ).resolves.toBe(0);
+      await expect(
+        ring.claimRetiredIdentityKeys(ME.ownerAccountId, [retiredPublic()]),
+      ).resolves.toBe(1);
+      await expect(ring.countQuarantinedRetiredKeys()).resolves.toBe(0);
+      expect((await ring.listRetiredIdentityKeys(ME)).map((k) => k.publicKey)).toEqual([
+        retiredPublic(),
+      ]);
+      await expect(ring.listRetiredIdentityKeys(NEXT_PERSON)).resolves.toEqual([]);
+      // Bound once: another account's history cannot take it.
+      await expect(
+        ring.claimRetiredIdentityKeys(NEXT_PERSON.ownerAccountId, [retiredPublic()]),
+      ).resolves.toBe(0);
+    });
+
+    it('an index that does not parse is refused, never overwritten (R5-9)', async () => {
+      const store = (await import('expo-secure-store' as string)) as unknown as {
+        setItemAsync(k: string, v: string, o?: object): Promise<void>;
+      };
+      await store.setItemAsync('oxy_retired_identity_index_v1', '{not json', {});
+      await expect(ring.listRetiredIdentityKeys(ME)).rejects.toThrow('retired key ring');
+      await expect(
+        ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: retiredPublic() }, ME),
+      ).rejects.toThrow('retired key ring');
+      await expect(ring.exportRetiredIdentityKeys(ME)).rejects.toThrow('retired key ring');
+    });
+  });
+
+  describe('Android, Commons', () => {
+    beforeEach(() => load('android'));
+
+    it('the identity host holds only the signed-in person\'s entries; "Start over" withdraws them', async () => {
+      const signer = memorySigner();
+      KeyManager.setIdentitySignerStore(signer);
+      await KeyManager.importKeyPair(CURRENT_KEY);
+      await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: retiredPublic() }, ME);
+      const orgPublic = KeyManager.derivePublicKey(ORG_RETIRED_KEY);
+      await ring.retireIdentityKey(
+        { privateKey: ORG_RETIRED_KEY, publicKey: orgPublic },
+        { accountId: ORG },
+      );
+      expect(signer.retired.has(`personal.${retiredPublic()}`)).toBe(true);
+
+      await KeyManager.deleteIdentity(true, true, true);
+      expect(signer.retired.has(`personal.${retiredPublic()}`)).toBe(false);
+      expect(signer.retired.has(`${ORG}.${orgPublic}`)).toBe(true);
+
+      // The next person signs in: nothing of the previous person's is mirrored.
+      await ring.syncRetiredKeys(NEXT_PERSON.ownerAccountId);
+      expect(signer.retired.has(`personal.${retiredPublic()}`)).toBe(false);
+      // Commons' own ring still holds it for its owner, who gets it back.
+      await expect(ring.syncRetiredKeys(ME.ownerAccountId)).resolves.toBe(1);
+      expect(signer.retired.has(`personal.${retiredPublic()}`)).toBe(true);
+      // Without an owner nothing personal is mirrored.
+      await ring.syncRetiredKeys();
+      expect(signer.retired.has(`personal.${retiredPublic()}`)).toBe(false);
+    });
   });
 });
 
@@ -359,10 +502,10 @@ describe('Android, every other app (asks Commons)', () => {
     });
     mockBridge.current = b;
 
-    expect((await ring.listRetiredIdentityKeys()).map((k) => k.publicKey)).toEqual([publicKey]);
-    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey });
+    expect((await ring.listRetiredIdentityKeys(ME)).map((k) => k.publicKey)).toEqual([publicKey]);
+    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey, ...ME });
     expect(seed && toHex(seed)).toBe(seedHex);
-    await expect(KeyManager.signSocialReceive(2, DIGEST, { publicKey })).resolves.toEqual(
+    await expect(KeyManager.signSocialReceive(2, DIGEST, { publicKey, ...ME })).resolves.toEqual(
       signature,
     );
     expect(b.deriveRetiredScopedSeed).toHaveBeenCalledWith(INFO, publicKey, undefined);
@@ -387,18 +530,23 @@ describe('Android, every other app (asks Commons)', () => {
     const compressed = deriveSecp256k1PublicKey(RETIRED_KEY, true);
     const b = bridge({});
     mockBridge.current = b;
-    await KeyManager.deriveScopedSeed(INFO, { publicKey: compressed });
+    await KeyManager.deriveScopedSeed(INFO, { publicKey: compressed, ...ME });
     expect(b.deriveRetiredScopedSeed).toHaveBeenCalledWith(INFO, uncompressed, undefined);
-    await expect(KeyManager.signSocialReceive(0, DIGEST, { publicKey: 'zz' })).resolves.toBeNull();
+    await expect(
+      KeyManager.signSocialReceive(0, DIGEST, { publicKey: 'zz', ...ME }),
+    ).resolves.toBeNull();
     expect(b.signRetiredSocialReceive).not.toHaveBeenCalled();
   });
 
   it('an app cannot keep a retired key itself', async () => {
     await expect(
-      ring.retireIdentityKey({
-        privateKey: RETIRED_KEY,
-        publicKey: KeyManager.derivePublicKey(RETIRED_KEY),
-      }),
+      ring.retireIdentityKey(
+        {
+          privateKey: RETIRED_KEY,
+          publicKey: KeyManager.derivePublicKey(RETIRED_KEY),
+        },
+        ME,
+      ),
     ).rejects.toThrow('signer store');
   });
 });

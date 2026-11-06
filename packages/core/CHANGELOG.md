@@ -1,5 +1,23 @@
 # Changelog — `@oxy.so/core`
 
+## 7.33.0
+
+Round-5 security review of the Peable mainnet identity receive: R5-1 and R5-2 (core halves).
+
+### Security
+
+- **A money holder learns its public key from the private key it spends (R5-1).** New `KeyManager.getIdentityPublicKeyForMoney({ accountId? })`: the public half of exactly the private key `deriveScopedSeed` / `signSocialReceive` use — on iOS DERIVED from the private key in the restricted keychain groups (personal: the wallet group's slot, then Commons' primary; organization: its pair), never the shared group's public-key item every Oxy app can write; on Android Commons' own key inside Commons and the identity host (`describe`) elsewhere; `null` on web and in every other iOS app. `KeyManager.getSharedPublicKey()` (and so `getIdentityKeyState()`) now derives the same way in Commons and the Peable wallet (keychain roles `holder` / `wallet`), and answers `null` there when no private key is held; other apps still read the public item.
+- **The personal retired ring is bound to its owner (R5-2).** Every personal entry records the Oxy account id of the person whose key it was; `listRetiredIdentityKeys`, `deriveScopedSeed` / `signSocialReceive` with `publicKey`, `exportRetiredIdentityKeys`, `forgetRetiredIdentityKey(s)` reach only the entries of `ownerAccountId` (none without it). `retireIdentityKey` requires `ownerAccountId` for a personal key and refuses a key bound to a different account. Entries with no known owner (written before 7.33.0, or kept by the iOS access-group migration) are QUARANTINED — held, reached by nobody — until `claimRetiredIdentityKeys(ownerAccountId, publicKeys)` binds the ones that account's key history names. On Android the identity host only ever holds the signed-in person's personal entries: `syncRetiredKeys(ownerAccountId)` mirrors exactly those (and every organization ring) and withdraws the rest, and `KeyManager.deleteIdentity` ("Start over") withdraws every personal entry from it. Commons' own ring keeps them, bound to their owner.
+- **Strict ring reads (R5-6, R5-9 part).** A ring index that does not parse, or holds an entry this version cannot read, throws `RetiredKeyRingUnreadableError` and is never overwritten; `listRetiredIdentityKeys` throws instead of answering `[]` on a read failure; `exportRetiredIdentityKeys` throws when a listed key has no readable private half.
+
+### Added
+
+- `KeyManager.getIdentityPublicKeyForMoney`, `claimRetiredIdentityKeys`, `countQuarantinedRetiredKeys`, `unmirrorPersonalRetiredKeys`, `RetiredKeyRingUnreadableError`; `ownerAccountId` on `RetiredKeySelector` and on the `deriveScopedSeed` / `signSocialReceive` options.
+
+### Consumers
+
+The Peable wallet: show and compare `getIdentityPublicKeyForMoney({ accountId? })`, never `getSharedPublicKey`; pass the signed-in person's `ownerAccountId` with every personal `publicKey` selector and to `listRetiredIdentityKeys`; treat a thrown ring read as "unknown", never as "no keys". Commons 1.9.0 binds and mirrors the ring for the signed-in person.
+
 ## 7.32.0
 
 Round-4 security review of the Peable mainnet identity receive (R4-4, R4-6, R4-7, R4-12, R4-14).
