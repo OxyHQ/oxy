@@ -182,7 +182,7 @@ export async function hydrateProfileLinks(
       if (row.url) {
         out.push({
           url: row.url,
-          title: row.title ?? row.url,
+          title: row.title ?? '',
           description: row.description ?? '',
           ...(row.image ? { image: row.image } : {}),
         });
@@ -193,7 +193,8 @@ export async function hydrateProfileLinks(
     if (!document) continue;
     out.push({
       url: document.canonicalUrl,
-      title: row.title ?? document.title ?? document.canonicalUrl,
+      // No owner title and no page title: the empty string, so the client names the link by its address.
+      title: row.title ?? document.title ?? '',
       description: document.description ?? '',
       // An absent image or favicon is omitted, not sent as `null`: `null` would be a new value on the wire.
       ...(document.imageUrl ? { image: document.imageUrl } : {}),
