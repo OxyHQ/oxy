@@ -4,7 +4,7 @@ import {
   getLinkDescription,
   linkIdentity,
   linksToListItems,
-  moveLinkItem,
+  applyLinkFormResult,
   normalizeLinkInput,
 } from '../linkFormat';
 
@@ -112,14 +112,57 @@ describe('clampLinkTitle', () => {
   });
 });
 
-describe('moveLinkItem', () => {
-  it('swaps an entry with its neighbour', () => {
-    expect(moveLinkItem(['a', 'b', 'c'], 1, -1)).toEqual(['b', 'a', 'c']);
-    expect(moveLinkItem(['a', 'b', 'c'], 1, 1)).toEqual(['a', 'c', 'b']);
+describe('applyLinkFormResult', () => {
+  const item = (id: string, url: string, title = '') => ({
+    id,
+    url,
+    title,
+    description: `Link to ${url}`,
+  });
+  const existing = [item('a', 'https://a.test/'), item('b', 'https://b.test/')];
+  const newId = () => 'new-1';
+
+  it('appends a saved link, with its title and description', () => {
+    const next = applyLinkFormResult(
+      existing,
+      null,
+      { kind: 'save', url: 'https://c.test/', title: 'Site' },
+      10,
+      newId,
+    );
+    expect(next[2]).toEqual({
+      id: 'new-1',
+      url: 'https://c.test/',
+      title: 'Site',
+      description: 'Link to https://c.test/',
+    });
   });
 
-  it('leaves the list alone at either end', () => {
-    expect(moveLinkItem(['a', 'b'], 0, -1)).toEqual(['a', 'b']);
-    expect(moveLinkItem(['a', 'b'], 1, 1)).toEqual(['a', 'b']);
+  it('replaces the link being edited and keeps its id', () => {
+    const next = applyLinkFormResult(
+      existing,
+      1,
+      { kind: 'save', url: 'https://b2.test/', title: '' },
+      10,
+      newId,
+    );
+    expect(next[1]).toMatchObject({ id: 'b', url: 'https://b2.test/', title: '' });
+    expect(next).toHaveLength(2);
+  });
+
+  it('refuses a new link once the profile is full', () => {
+    const next = applyLinkFormResult(
+      existing,
+      null,
+      { kind: 'save', url: 'https://c.test/', title: '' },
+      2,
+      newId,
+    );
+    expect(next).toEqual(existing);
+  });
+
+  it('removes the link being edited, and nothing for a new one', () => {
+    expect(applyLinkFormResult(existing, 0, { kind: 'remove' }, 10, newId)).toEqual([existing[1]]);
+    expect(applyLinkFormResult(existing, null, { kind: 'remove' }, 10, newId)).toEqual(existing);
   });
 });

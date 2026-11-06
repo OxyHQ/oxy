@@ -111,6 +111,7 @@ export const ioniconsGlyphMap = {
   "repeat-outline": 62768,
   "resize": 62770,
   "rocket": 62791,
+  "save": 62800,
   "scale": 62803,
   "school-outline": 62813,
   "search": 62815,

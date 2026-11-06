@@ -33,17 +33,9 @@ import { useOxy } from '../context/oxyRuntimeContext';
 import { useProfileEditing } from '../hooks/useProfileEditing';
 import { toast } from '@oxy.so/bloom/toast';
 import { accountNameInvalidKey, accountNameInvalidMessage, isValidAccountName } from '@oxy.so/core';
-import {
-  getLinkTitle,
-  getLinkDescription,
-  linkIdentity,
-  linksToListItems,
-  normalizeLinkInput,
-  type LinkInputError,
-} from './linkFormat';
-import { LinkListEditor } from './LinkListEditor';
+import { getLinkTitle, getLinkDescription, linksToListItems } from './linkFormat';
+import { ProfileLinksEditor } from './ProfileLinksEditor';
 import type { LinkListItem } from './linkFormat';
-import { PROFILE_LINKS_MAX } from '@oxy.so/contracts/client';
 
 /**
  * Field types supported by EditProfileFieldScreen
@@ -221,7 +213,6 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
     () => buildInitialProfileState(user, fieldType).listItems,
   );
   const [newItemValue, setNewItemValue] = useState('');
-  const [linkInputError, setLinkInputError] = useState<LinkInputError | null>(null);
 
   const [phoneCountry, setPhoneCountry] = useState(() => {
     const phone = fieldValues.phone?.replace(/[\s()-]/g, '') || '';
@@ -453,32 +444,9 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
         name: newItemValue.trim(),
       };
       setListItems((prev) => [...prev, newItem]);
-    } else if (fieldType === 'links') {
-      if (listItems.length >= PROFILE_LINKS_MAX) {
-        setLinkInputError('limit');
-        return;
-      }
-      const result = normalizeLinkInput(newItemValue);
-      if ('error' in result) {
-        setLinkInputError(result.error);
-        return;
-      }
-      const identity = linkIdentity(result.url);
-      if (listItems.some((item) => linkIdentity(String(item.url || '')) === identity)) {
-        setLinkInputError('already-added');
-        return;
-      }
-      const newItem = {
-        id: `link-${Date.now()}`,
-        url: result.url,
-        title: getLinkTitle(result.url),
-        description: getLinkDescription(result.url),
-      };
-      setListItems((prev) => [...prev, newItem]);
-      setLinkInputError(null);
     }
     setNewItemValue('');
-  }, [newItemValue, fieldType, listItems]);
+  }, [newItemValue, fieldType]);
 
   // Remove item from list
   const handleRemoveItem = useCallback((id: string) => {
@@ -704,36 +672,24 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
     );
   };
 
-  const linkInputErrorMessage = (error: LinkInputError): string => {
-    switch (error) {
-      case 'empty':
-        return t('editProfile.items.links.errors.empty') || 'Enter a link.';
-      case 'insecure':
-        return t('editProfile.items.links.errors.insecure') || 'Links must start with https://.';
-      case 'already-added':
-        return (
-          t('editProfile.items.links.errors.duplicate') || 'That link is already on your profile.'
-        );
-      case 'limit':
-        return (
-          t('editProfile.items.links.errors.limit', { count: PROFILE_LINKS_MAX }) ||
-          `You can add up to ${PROFILE_LINKS_MAX} links.`
-        );
-      default:
-        return t('editProfile.items.links.errors.invalid') || 'Enter a valid link.';
-    }
-  };
-
-  // Render list content (locations or links)
+  // Links are edited as chips (reorder, add, edit); locations stay a text list.
   const renderListContent = () => {
-    const addLabel =
-      fieldType === 'locations'
-        ? t('editProfile.items.locations.add') || 'Add Location'
-        : t('editProfile.items.links.add') || 'Add Link';
-    const listTitle =
-      fieldType === 'locations'
-        ? t('editProfile.items.locations.yourLocations') || 'Your Locations'
-        : t('editProfile.items.links.yourLinks') || 'Your Links';
+    if (fieldType === 'links') {
+      return (
+        <GroupedSection
+          title={`${t('editProfile.items.links.yourLinks') || 'Your Links'} (${listItems.length})`}
+        >
+          <ProfileLinksEditor
+            items={listItems as LinkListItem[]}
+            onChange={(items) => setListItems(items as EditableListItem[])}
+            disabled={isSaving}
+          />
+        </GroupedSection>
+      );
+    }
+
+    const addLabel = t('editProfile.items.locations.add') || 'Add Location';
+    const listTitle = t('editProfile.items.locations.yourLocations') || 'Your Locations';
 
     return (
       <>
@@ -749,7 +705,6 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                 autoCorrect={false}
                 onSubmitEditing={handleAddItem}
                 returnKeyType="done"
-                keyboardType={fieldType === 'links' ? 'url' : 'default'}
               />
             </TextField>
           </View>
@@ -763,27 +718,6 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
             appearance="outline"
           />
         </View>
-
-        {fieldType === 'links' && linkInputError && (
-          <TextFieldHint>{linkInputErrorMessage(linkInputError)}</TextFieldHint>
-        )}
-
-        {fieldType === 'links' && listItems.length > 0 && (
-          <GroupedSection title={`${listTitle} (${listItems.length})`}>
-            <LinkListEditor
-              items={listItems as LinkListItem[]}
-              onChange={(items) => setListItems(items as EditableListItem[])}
-              disabled={isSaving}
-              labels={{
-                title: t('editProfile.items.links.linkTitle') || 'Title',
-                moveUp: t('editProfile.items.links.moveUp') || 'Move up',
-                moveDown: t('editProfile.items.links.moveDown') || 'Move down',
-                remove: t('common.remove') || 'Remove',
-                removeNamed: (title) => `${t('common.remove') || 'Remove'} ${title}`,
-              }}
-            />
-          </GroupedSection>
-        )}
 
         {fieldType === 'locations' && listItems.length > 0 && (
           <GroupedSection title={`${listTitle} (${listItems.length})`}>

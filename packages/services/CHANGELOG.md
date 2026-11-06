@@ -1,5 +1,15 @@
 # Changelog
 
+## 14.12.0
+
+### Changed
+
+- **Edit profile → Links** is a row of chips: drag a link to reorder it (or use the screen reader's move actions), tap one to edit its address and title, and add one with "Add link". The form refuses an address already on the profile and a plain `http://` link, and an empty title shows the address. Built on Bloom's `SortableChipRow` (Bloom 17.15.0).
+
+### Consumers
+
+Bump to 14.12.0 with `@oxy.so/core` 7.35.0 and `@oxy.so/bloom` 17.15.0. The Bloom peer is now `>=17.15.0` (was `>=11.1.0`): the links editor imports `SortableChipRow`, which older Bloom does not have.
+
 ## 14.11.0
 
 ### Added
