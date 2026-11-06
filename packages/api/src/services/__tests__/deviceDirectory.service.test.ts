@@ -1134,6 +1134,49 @@ describe('removal — one context and one principal are different operations', (
     }
   });
 
+  it('review race: deleting before directory re-creates an empty device', async () => {
+    const shared = await sharedOrganization();
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    let release!: () => void;
+    let reached!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    const waiting = new Promise<void>((resolve) => { reached = resolve; });
+    const spy = jest.spyOn(deviceSessionService, 'getDirectory').mockImplementation(async (device) => {
+      reached();
+      await blocked;
+      return original(device);
+    });
+    try {
+      const previousDevice = await storedDevice(shared.device);
+      const pending = deviceSessionService.activateContext(shared.device, shared.viaNate, request());
+      await waiting;
+      await getDb().delete(deviceSessions).where(eq(deviceSessions.id, previousDevice.id));
+      expect(await storedDevice(shared.device)).toBeUndefined();
+      release();
+      const result = await pending;
+      const replacement = await storedDevice(shared.device);
+      expect(replacement).toBeDefined();
+      expect(replacement.id).not.toBe(previousDevice.id);
+      expect(result).toMatchObject({ok:false,reason:'superseded',state:null});
+    } finally { release(); spy.mockRestore(); }
+  });
+
+  it('review race: deleting between directory and state throws', async () => {
+    const shared = await sharedOrganization();
+    const original = deviceSessionService.getDirectory.bind(deviceSessionService);
+    const spy = jest.spyOn(deviceSessionService, 'getDirectory').mockImplementation(async (device) => {
+      const directory = await original(device);
+      const row = await storedDevice(device);
+      await getDb().delete(deviceSessions).where(eq(deviceSessions.id, row.id));
+      return directory;
+    });
+    try {
+      await expect(deviceSessionService.activateContext(shared.device, shared.viaNate, request()))
+        .rejects.toThrow('vanished during readState');
+      expect(await storedDevice(shared.device)).toBeUndefined();
+    } finally { spy.mockRestore(); }
+  });
+
   it('never returns a re-created device as the state of an older activation', async () => {
     const shared = await sharedOrganization();
     const original = deviceSessionService.getDirectory.bind(deviceSessionService);
