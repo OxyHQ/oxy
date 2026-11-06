@@ -311,16 +311,20 @@ export function createPeablePersonalRuntime(
       if (!intent.providerSessionId) {
         const frozen = personalCheckoutSnapshotFromIntent(intent);
         if (frozen && client.billing.retrieveCheckoutOperation) {
-          const input = {
-            idempotency_key: `personal-checkout:${intent.id}`,
+          const idempotencyKey = `personal-checkout:${intent.id}`;
+          const identity = {
             provider_customer_id: frozen.customerId,
             provider_price_id: frozen.priceId,
             store_id: frozen.subjectAccountId,
             plan_id: frozen.planId,
           };
-          const recovered = await client.billing.retrieveCheckoutOperation(input);
+          const recovered = await client.billing.retrieveCheckoutOperation(
+            idempotencyKey,
+            identity,
+          );
           const expected = {
-            ...input,
+            idempotency_key: idempotencyKey,
+            ...identity,
             tax_quote_id: frozen.taxQuote.quote.id,
             merchant_id: frozen.merchantId,
             app_id: frozen.applicationId,
@@ -453,7 +457,7 @@ export function createPeablePersonalRuntime(
               ),
               tax_rate_evidence_id: z.literal(snapshot.taxQuote.quote.tax_rate_evidence_id),
               currency: z.literal('USD'),
-              gross_minor_units: z.literal(intent.amountMinorUnits),
+              gross_minor_units: z.literal(String(intent.amountMinorUnits)),
               net_minor_units: z.literal(snapshot.taxQuote.quote.net_minor_units),
               tax_minor_units: z.literal(snapshot.taxQuote.quote.tax_minor_units),
               tax_treatment: z.literal('inclusive'),

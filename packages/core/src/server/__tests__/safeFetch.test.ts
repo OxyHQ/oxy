@@ -9,7 +9,7 @@ jest.mock('node:dns/promises', () => ({
   lookup: (...args: unknown[]) => mockDnsLookup(...args),
 }));
 
-import { assertSafePublicUrl, isBlockedIp } from '../safeFetch';
+import { assertSafePublicUrl, isBlockedIp, safeFetch, SsrfRejection } from '../safeFetch';
 
 beforeEach(() => {
   mockDnsLookup.mockReset();
@@ -231,5 +231,27 @@ describe('@oxy.so/core/server safeFetch — pinned lookup {all:true} contract', 
       expect(family).toBe(4);
       done();
     });
+  });
+});
+
+describe('@oxy.so/core/server safeFetch — a first-party Oxy host', () => {
+  it('refuses it like any private target, and the message names the SDK client', async () => {
+    // Inside the VPC api.oxy.so resolves to the internal load balancer.
+    mockDnsLookup.mockResolvedValue([{ address: '10.0.12.7', family: 4 }]);
+    const refusal = await safeFetch('https://api.oxy.so/applications/app_1').catch(
+      (error: unknown) => error,
+    );
+    expect(refusal).toBeInstanceOf(SsrfRejection);
+    expect((refusal as Error).message).toMatch(
+      /^hostname resolves to blocked range \(first-party Oxy host/,
+    );
+    expect((refusal as Error).message).toContain('OxyServer');
+  });
+
+  it('keeps the plain reason for an untrusted host', async () => {
+    mockDnsLookup.mockResolvedValue([{ address: '10.0.12.7', family: 4 }]);
+    const refusal = await safeFetch('https://attacker.example/x').catch((error: unknown) => error);
+    expect(refusal).toBeInstanceOf(SsrfRejection);
+    expect((refusal as Error).message).toBe('hostname resolves to blocked range');
   });
 });

@@ -208,6 +208,7 @@ async function storedUser(userId: string) {
       bio: users.bio,
       description: users.description,
       avatar: users.avatar,
+      color: users.color,
       actorUri: users.federationActorUri,
       domain: users.federationDomain,
       lastResolvedAt: users.federationLastResolvedAt,
@@ -331,7 +332,7 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     actorSpy = jest.spyOn(federationService, 'fetchActorProfile');
     avatarSpy = jest
       .spyOn(federationService, 'downloadAndStoreAvatar')
-      .mockResolvedValue({ fileId: 'new-file-id', notModified: false });
+      .mockResolvedValue({ fileId: 'new-file-id', notModified: false, color: '#ee4b16' });
   });
 
   afterEach(() => {
@@ -440,8 +441,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     await settleBackgroundWork();
 
     const row = await storedUser(userId);
-    expect(row?.bio).toBe('');
-    expect(row?.description).toBe('');
+    expect(row?.bio).toBeNull();
+    expect(row?.description).toBeNull();
   });
 
   it('clears the unavailable tombstone on a successful background refresh', async () => {
@@ -617,6 +618,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       bio: 'bio',
       description: 'bio',
       avatar: 'new-file-id',
+      // A federated account wears its avatar's colour.
+      color: '#ee4b16',
       unavailableAt: null,
       unavailableReason: null,
     });
@@ -1468,4 +1471,81 @@ describe('federation source failure diagnostics', () => {
       );
     },
   );
+});
+
+describe('FederationService.resolveExternalIdentity — an unknown Bluesky handle', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetAssetMocks();
+  });
+
+  /** Bluesky's AppView: `handle` resolves to `did`, whose profile names `handle` back. */
+  function mockBluesky(handle: string, did: string, displayName = 'Frente') {
+    mockSafeFetch.mockImplementation(async (url: string) => {
+      const json = { 'content-type': 'application/json' };
+      if (url.includes('com.atproto.identity.resolveHandle'))
+        return new URL(url).searchParams.get('handle') === handle
+          ? makeSafeFetchResult(200, json, JSON.stringify({ did }))
+          : makeSafeFetchResult(400, json, '{}');
+      if (url.includes('app.bsky.actor.getProfile'))
+        return makeSafeFetchResult(200, json, JSON.stringify({ did, handle, displayName }));
+      return makeSafeFetchResult(404, {});
+    });
+  }
+
+  it.each([
+    [
+      'a custom-domain handle',
+      (n: number) => `frente${n}.example`,
+      (h: string) => `${h}@bsky.social`,
+    ],
+    [
+      'a bsky.social handle',
+      (n: number) => `frente${n}.bsky.social`,
+      (h: string) => h.replace('.bsky.social', '@bsky.social'),
+    ],
+  ])('discovers %s through its DID', async (_label, makeHandle, acctOf) => {
+    actorCounter += 1;
+    const handle = makeHandle(actorCounter);
+    const did = `did:plc:frente${actorCounter}`;
+    mockBluesky(handle, did);
+
+    for (const input of [handle, acctOf(handle)]) {
+      const resolved = await federationService.resolveExternalIdentity({ handle: input });
+      expect(resolved?.externalIdentity).toMatchObject({
+        actorUri: did,
+        canonicalAcct: acctOf(handle),
+      });
+    }
+  });
+
+  it("names an account whose handle does not verify by its DID, never Bluesky's shared sentinel", async () => {
+    for (const did of [
+      `did:plc:unverified${++actorCounter}`,
+      `did:plc:unverified${++actorCounter}`,
+    ]) {
+      mockBluesky('handle.invalid', did);
+      const resolved = await federationService.resolveExternalIdentity({ handle: did });
+      expect(resolved?.externalIdentity.canonicalAcct).toBe(`${did}@bsky.social`);
+    }
+  });
+
+  it('background-refreshes a stale cached Bluesky account through its DID', async () => {
+    actorCounter += 1;
+    const handle = `frente${actorCounter}.bsky.social`;
+    const did = `did:plc:frente${actorCounter}`;
+    mockBluesky(handle, did);
+    const resolved = await federationService.resolveExternalIdentity({ handle });
+    const userId = resolved?.externalIdentity.userId ?? '';
+    await getDb()
+      .update(users)
+      .set({ updatedAt: new Date(Date.now() - STALE_AGE_MS) })
+      .where(eq(users.id, userId));
+
+    mockBluesky(handle, did, 'Frente Renamed');
+    await federationService.resolveAndUpsert(handle);
+    await settleBackgroundWork();
+
+    expect((await storedUser(userId))?.nameFirst).toBe('Frente Renamed');
+  });
 });

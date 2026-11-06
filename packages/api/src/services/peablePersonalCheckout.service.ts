@@ -112,7 +112,7 @@ export function createPeablePersonalCheckoutProvider(
   ) => {
     const now = clock().getTime();
     if (
-      quote.schema_version !== 2 ||
+      quote.schema_version !== 3 ||
       quote.source.merchant_id !== configuration.merchantId ||
       quote.source.app_id !== configuration.applicationId ||
       quote.source.store_id !== subjectAccountId ||
@@ -120,13 +120,12 @@ export function createPeablePersonalCheckoutProvider(
       quote.source.mode !== configuration.namespace.mode ||
       quote.source.environment !== configuration.namespace.environment ||
       quote.quote.currency !== 'USD' ||
-      quote.quote.gross_minor_units !== amountMinorUnits ||
+      quote.quote.gross_minor_units !== String(amountMinorUnits) ||
       quote.quote.tax_treatment !== 'inclusive' ||
-      !Number.isSafeInteger(quote.quote.net_minor_units) ||
-      !Number.isSafeInteger(quote.quote.tax_minor_units) ||
-      quote.quote.net_minor_units < 0 ||
-      quote.quote.tax_minor_units < 0 ||
-      quote.quote.net_minor_units + quote.quote.tax_minor_units !== amountMinorUnits ||
+      !/^(0|[1-9][0-9]*)$/.test(quote.quote.net_minor_units) ||
+      !/^(0|[1-9][0-9]*)$/.test(quote.quote.tax_minor_units) ||
+      BigInt(quote.quote.net_minor_units) + BigInt(quote.quote.tax_minor_units) !==
+        BigInt(amountMinorUnits) ||
       quote.quote.seller_id !== configuration.sellerId ||
       quote.quote.invoice_issuer_id !== configuration.invoiceIssuerId ||
       quote.quote.tax_remitter_id !== configuration.taxRemitterId ||

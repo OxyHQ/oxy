@@ -12,8 +12,9 @@ module.exports = {
   // silently dropped type-checking for every file Jest transforms, tests
   // included. Overriding it back to `false` here (and only here) restores
   // the LanguageService — and with it real diagnostics on test files — without
-  // touching the tsconfig.json the tsc builds depend on.
+  // touching the tsconfig.json the tsc builds depend on. `types` adds Jest's
+  // globals, which the build configs (node only) do not load.
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { isolatedModules: false } }],
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { isolatedModules: false, types: ['node', 'jest'] } }],
   },
 };

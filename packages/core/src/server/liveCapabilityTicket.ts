@@ -4,12 +4,17 @@ import {
   type CapabilityTicketClaims,
 } from '@oxy.so/contracts';
 import {
-  verifyCapabilityTicket,
-  type CapabilityTicketVerificationOptions,
+  resolveCapabilityTicketKey,
+  type AsyncCapabilityTicketVerificationOptions,
 } from './capabilityTicket';
 import type { CapabilityTicketIntrospection } from './namespaces';
 
-export interface LiveCapabilityTicketVerifierOptions extends CapabilityTicketVerificationOptions {
+/**
+ * `resolvePublicKey` may be asynchronous — pass `createOxyJwksKeyResolver({ jwksUrl })`
+ * as it is; the ticket's `kid` is looked up once per verification.
+ */
+export interface LiveCapabilityTicketVerifierOptions
+  extends AsyncCapabilityTicketVerificationOptions {
   issuer: string;
   introspect: (
     ticket: string,
@@ -32,7 +37,9 @@ export function createLiveCapabilityTicketVerifier(options: LiveCapabilityTicket
     input: { signal?: AbortSignal } = {},
   ): Promise<CapabilityTicketClaims> => {
     input.signal?.throwIfAborted();
-    const signed = verifyCapabilityTicket(ticket, options);
+    const verifier = await resolveCapabilityTicketKey(ticket, options);
+    input.signal?.throwIfAborted();
+    const signed = verifier.check();
     if (!signed.catalog) throw new Error('Internal MCP requires a signed catalogue binding');
     const controller = new AbortController();
     const abort = () => controller.abort(input.signal?.reason);
@@ -59,7 +66,7 @@ export function createLiveCapabilityTicketVerifier(options: LiveCapabilityTicket
       if (canonicalCapabilityJson(live) !== canonicalCapabilityJson(signed))
         throw new Error('Capability introspection claims mismatch');
       // An authority response delayed past expiry cannot extend the signed grant.
-      return verifyCapabilityTicket(ticket, options);
+      return verifier.check();
     } finally {
       clearTimeout(timer);
       input.signal?.removeEventListener('abort', abort);

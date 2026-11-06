@@ -1041,6 +1041,31 @@ export interface ServiceUserMediaFile {
   visibility: FileVisibility;
 }
 
+/** `POST /assets/service/cache`: the file now in the federation media cache. */
+export interface ServiceMediaCacheUpload {
+  file: { id: string };
+}
+
+/** `POST /assets/service/federation`: durable federated media, owned by the federated user. */
+export interface ServiceFederatedMediaUpload {
+  file: ServiceUserMediaFile;
+  /** The owner already held these bytes from this application: the existing file, maybe shared. */
+  deduplicated: boolean;
+}
+
+/**
+ * Oxy's answer for one id of `assets.federatedMedia.delete`: `deleted` (this
+ * call removed it), `not_found` (nothing to delete), `in_use` (kept: another
+ * account holds the same bytes) or `forbidden` (not federated media this
+ * application uploaded; left untouched).
+ */
+export type ServiceFederatedMediaDeleteResult = 'deleted' | 'not_found' | 'in_use' | 'forbidden';
+
+export interface ServiceFederatedMediaDeletion {
+  id: string;
+  result: ServiceFederatedMediaDeleteResult;
+}
+
 /**
  * How Oxy renders an AUDIO file it stores (ADR 0043 stage 4c). Every audio
  * file gets an audio-only HLS ladder (AAC 64k/128k/256k, a rung above the

@@ -133,7 +133,7 @@ router.get(
   '/packs',
   readLimiter,
   validate({ query: stickerPacksQuery }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { limit, offset } = req.query as unknown as { limit: number; offset: number };
     const { items, total } = await listPublishedPacks({ limit, offset });
     res.setHeader('Cache-Control', CATALOGUE_CACHE_CONTROL);
@@ -146,7 +146,7 @@ router.get(
   '/packs/:slug',
   readLimiter,
   validate({ params: stickerPackSlugParams }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const pack = await getPackBySlug(req.params.slug);
     if (!pack) throw new NotFoundError('Sticker pack not found');
     res.setHeader('Cache-Control', CATALOGUE_CACHE_CONTROL);
@@ -159,7 +159,7 @@ router.get(
   '/search',
   readLimiter,
   validate({ query: stickerSearchQuery }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { emoji, q, limit } = req.query as unknown as {
       emoji?: string;
       q?: string;
@@ -179,7 +179,7 @@ router.post(
   '/resolve',
   readLimiter,
   validate({ body: resolveStickersRequestSchema }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { ids } = req.body as { ids: string[] };
     sendSuccess(res, { stickers: await resolveStickers(ids) });
   }),
@@ -381,7 +381,7 @@ router.get(
   '/:stickerId',
   readLimiter,
   validate({ params: stickerIdParams }),
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const [sticker] = await resolveStickers([req.params.stickerId]);
     if (!sticker) throw new NotFoundError('Sticker not found');
     res.setHeader('Cache-Control', CATALOGUE_CACHE_CONTROL);

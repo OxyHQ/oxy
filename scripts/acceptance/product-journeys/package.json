@@ -8,8 +8,8 @@
     "test:live": "OXY_QA_LIVE=1 node --test browser.test.mjs alia-ownership.test.mjs"
   },
   "dependencies": {
-    "@oxy.so/core": "7.4.0",
-    "@oxy.so/protocol": "1.5.1",
+    "@oxy.so/core": "7.18.0",
+    "@oxy.so/protocol": "1.6.1",
     "playwright": "1.64.1"
   }
 }

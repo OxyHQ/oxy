@@ -1,4 +1,5 @@
 import { isSupervised } from '../services/supervisionPolicy.service';
+import type { NamedRouteParams } from '../types/routeParams';
 /**
  * The `oxy_sk_…` machine credential lane (issue #972 §2.3).
  *
@@ -130,7 +131,7 @@ export interface MachineCredentialPrincipal {
 }
 
 /** A request the machine lane has authenticated. */
-export interface MachineCredentialRequest extends Request {
+export interface MachineCredentialRequest extends Request<NamedRouteParams> {
   machineCredential?: MachineCredentialPrincipal;
 }
 
@@ -304,7 +305,9 @@ function refuse(res: Response): void {
  * A route mounting this accepts ONLY machine credentials — see the module
  * header for why no route mounts it yet, and which workstream will.
  */
-export function requireMachineCredential(scope: ApplicationScope): RequestHandler {
+export function requireMachineCredential(
+  scope: ApplicationScope,
+): RequestHandler<NamedRouteParams> {
   return async (req: MachineCredentialRequest, res: Response, next: NextFunction) => {
     const token = extractTokenFromRequest(req);
     if (!token) {

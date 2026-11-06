@@ -29,6 +29,7 @@ A namespace is created the first time you touch it and kept for the client's lif
 | `oxy.baseURL`, `oxy.cloudURL` | The API and CDN origins. |
 | `oxy.http` | The transport (`HttpService`): auth refresh, cache, dedupe, queue, retry. |
 | `oxy.cache.clear()` / `.delete(key)` / `.deletePrefix(prefix)` / `.stats()` | The GET response cache. |
+| `oxy.withCallOptions({ timeout, deadline, retry, signal })` | The client's namespaces with per-call transport options on every request they send — `oxy.withCallOptions({ timeout: 60_000 }).assets.setVisibility(id, 'public')`. A view of the same client (session, cache, credentials shared; nothing to dispose); also on `OxyServer` (its server namespaces) and a `withUser` client. `session` is not part of it. |
 | `oxy.createLinkedClient({ baseURL })` | An HTTP client for your app's own backend that shares this session. |
 | `oxy.health()` | `GET /health`. |
 | `oxy.dispose()` | Release the client (its cache leaves the global sweep, the session ends). |
@@ -90,6 +91,7 @@ try {
 - **Dedupe.** Concurrent identical GETs share one call; each caller still owns its cancellation. Writes are never merged.
 - **Retry.** Idempotent methods (GET, PUT, DELETE) retry transient failures with backoff; a POST is never re-sent.
 - **Queue.** At most 10 requests in flight; a retry's backoff and a deduplicated caller hold no slot.
+- **Per call.** `timeout` (per attempt) and `retry` default to the client's `requestTimeout` / `enableRetry`; `withCallOptions` overrides them for the calls made through it, adds a whole-call `deadline` and a `signal`, and never re-enables retries on a request a method sends once on purpose.
 
 In a React app `OxyProvider` turns the response cache off: React Query owns caching there.
 
@@ -107,25 +109,28 @@ In a React app `OxyProvider` turns the response cache off: React Query owns cach
 
 ## Servers: `OxyServer`
 
-A backend uses `OxyServer`: the same client plus a service identity.
+A backend uses `OxyServer`: the same client plus a service identity. One per
+process; an Oxy-owned backend authenticates as its workload, with no key pair
+([service tokens](./service-tokens.mdx)):
 
 ```ts
 import { OxyServer } from '@oxy.so/core/server';
 
 const oxy = new OxyServer({
   baseURL: 'https://api.oxy.so',
-  serviceAuth: { apiKey: process.env.OXY_API_KEY!, apiSecret: process.env.OXY_API_SECRET! },
+  applicationId: process.env.OXY_APPLICATION_ID,
+  serviceIdentity: 'when-anonymous',
 });
 
 app.use('/api', oxy.middleware.auth());          // user or service bearer
 io.use(oxy.middleware.socket());
-app.use('/internal', oxy.middleware.service(), oxy.middleware.requireScope('users:read'));
+app.use('/internal', oxy.middleware.service());
 
-const authors = await oxy.users.getMany(ids);    // uses the service token
-await oxy.serviceRequest('POST', '/some/route', body, { actAs: userId });
+const authors = await oxy.users.lookupMany(ids);                          // with the service token
+const node = await oxy.withUser(req, (user) => user.accounts.get(id));    // as the person
 ```
 
-On ECS with workload identity no key pair is needed. With `serviceIdentity: 'when-anonymous'`, every request that carries no user session is sent with the service token (oxy-api charges anonymous traffic to the source address, which a fleet shares). `OxyServer` adds `serviceToken()`, `serviceRequest()`, `verifyActingAs()`, `appPermissionsFor()` / `invalidateAppPermissions()` and `middleware.requireAppPermission()` ([application roles](./application-roles.mdx)), `accountEvents.*`, `middleware.*`, and the service-only namespace methods: `assets.metadataByIds` / `metadataBySha256` / `linkedDownloadUrls` / `uploadUserMedia`, the application-owned files `assets.uploadAppFile` / `uploadAppFileLarge` / `adoptAppFile` / `importAppFile` / `importAppFiles` / `setAppFileVisibility` / `deleteAppFile` / `listAppFiles`, `assets.importUserMedia` / `uploadUserMediaLarge` / `getImport` (a source over 40 MiB is fetched in the background and waited for), the application's own file references `assets.references.add` / `remove` / `reconcile`, revocable play sessions `assets.streams.create` / `get` / `revoke` / `revokeWhere`, and LiveKit recording targets `assets.createAppRecordingTarget` / `createUserRecordingTarget` / `getRecordingTarget` / `completeRecordingTarget` / `abortRecordingTarget` (ADR 0043; verify the file events Oxy sends with `verifyFileEventSignature`, and a play session's key authorization with `verifyStreamKeyAuthorization`), `accounts.accessFor`, `notifications.create`, `linkedAccounts.forUser`, `reputation.award`. See [service tokens](./service-tokens.mdx).
+With `serviceIdentity: 'when-anonymous'`, every request that carries no user session is sent with the service token (oxy-api charges anonymous traffic to the source address, which a fleet shares). `OxyServer` adds `serviceToken()`, `serviceRequest()`, `createServiceClient()`, `withRequester()`, `verifyActingAs()`; the requesting person: `withUser()` / `asUser()` (an isolated `OxyUserClient` bound to their bearer), `accountAccessFor()`, `applicationAccessFor()` and `appPermissionsFor()` (a request after `middleware.auth()`, or an MCP tool call's `context.request`) with `middleware.requireAccountAccess()` / `requireApplicationAccess()` / `requireAppPermission()` ([building a backend](./backend.mdx), [application roles](./application-roles.mdx)), `invalidateAppPermissions()`; `accountEvents.*`, `middleware.*`, and the service-only namespace methods: `assets.metadataByIds` / `metadataBySha256` / `linkedDownloadUrls` / `uploadUserMedia`, the application-owned files `assets.uploadAppFile` / `uploadAppFileLarge` / `adoptAppFile` / `importAppFile` / `importAppFiles` / `setAppFileVisibility` / `deleteAppFile` / `listAppFiles`, `assets.importUserMedia` / `uploadUserMediaLarge` / `getImport` (a source over 40 MiB is fetched in the background and waited for), the application's own file references `assets.references.add` / `remove` / `reconcile` (`add` and `remove` take per-call `{ timeout, deadline, retry, signal }`, as does any call through `withCallOptions`), re-hosted remote media `assets.mediaCache.upload` / `delete` (`/assets/service/cache`) and `assets.federatedMedia.upload` / `delete` (`/assets/service/federation`; a 429's wait is `retryAfterSecondsOf(error)`), revocable play sessions `assets.streams.create` / `get` / `revoke` / `revokeWhere`, and LiveKit recording targets `assets.createAppRecordingTarget` / `createUserRecordingTarget` / `getRecordingTarget` / `completeRecordingTarget` / `abortRecordingTarget` (ADR 0043; verify the file events Oxy sends with `verifyFileEventSignature`, and a play session's key authorization with `verifyStreamKeyAuthorization`), `accounts.accessFor`, `notifications.create`, `linkedAccounts.forUser`, `reputation.award`.
 
 ## Migrating from 2.x
 

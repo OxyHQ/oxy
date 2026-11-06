@@ -7,6 +7,7 @@ import { RiBarChartLine } from '@oxy.so/bloom/icons/RiBarChartLine';
 import { RiCoinsLine } from '@oxy.so/bloom/icons/RiCoinsLine';
 import { RiCpuLine } from '@oxy.so/bloom/icons/RiCpuLine';
 import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
+import { formatCompactNumber } from '@oxy.so/bloom/locale';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { StatCards } from '@oxy.so/bloom/stat-cards';
 import { useAppDetail } from '@/components/apps/app-context';
@@ -20,7 +21,7 @@ import { useModelCatalogue } from '@/hooks/use-models';
 import { useAccountProviderConnections } from '@/hooks/use-provider-connections';
 import { useEffectiveRoutingPolicy } from '@/hooks/use-routing-policy';
 import { useTranslation } from '@/lib/i18n';
-import { formatCompactCount, formatCount, formatMoney } from '@/lib/money';
+import { formatCount, formatMoney } from '@/lib/money';
 import { connectionAppliesToApplication } from '@/lib/provider-connection';
 import { lastCalendarDays } from '@/lib/reporting';
 import { effectivePolicyOrigin } from '@/lib/routing-policy';
@@ -143,7 +144,7 @@ export function InferenceOverview() {
           {
             icon: RiCpuLine,
             label: t('appsInference.overview.stats.tokens'),
-            value: `${formatCompactCount(totals.input)} / ${formatCompactCount(totals.output)}`,
+            value: `${formatCompactNumber(totals.input, 'en-US')} / ${formatCompactNumber(totals.output, 'en-US')}`,
             delta: t('appsInference.overview.stats.tokensDetail'),
             deltaColor: 'neutral' as const,
           },

@@ -592,6 +592,7 @@ describe('Redis errors back off', () => {
       },
       resume() {
         this.resumed += 1;
+        return Promise.resolve();
       },
       emit(event: string, arg?: Error) {
         handlers.get(event)?.(arg);

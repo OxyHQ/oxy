@@ -269,7 +269,7 @@ export function segmentIv(mediaSequence: number): Buffer {
 }
 
 /** A cipher that encrypts one segment for the session's key. */
-export function segmentCipher(key: Buffer, mediaSequence: number): crypto.Cipher {
+export function segmentCipher(key: Buffer, mediaSequence: number): crypto.Cipheriv {
   return crypto.createCipheriv('aes-128-cbc', key, segmentIv(mediaSequence));
 }
 

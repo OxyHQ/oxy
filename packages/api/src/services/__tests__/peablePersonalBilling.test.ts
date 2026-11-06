@@ -62,9 +62,11 @@ it('schedules existing period with stable replay key and never extends it', asyn
     (await cancelOwnedPeableSubscription(f.client, 'payer', owned, 'action_1'))
       .cancel_at_period_end,
   ).toBe(true);
-  expect(f.cancelAtPeriodEnd).toHaveBeenCalledWith('sub_test', {
-    idempotencyKey: expect.stringMatching(/^oxy-one-cancel:[a-f0-9]{64}$/),
-  });
+  expect(f.cancelAtPeriodEnd).toHaveBeenCalledWith(
+    'sub_test',
+    {},
+    { idempotencyKey: expect.stringMatching(/^oxy-one-cancel:[a-f0-9]{64}$/) },
+  );
   f.retrieveSubscription.mockResolvedValue(subscription);
   f.cancelAtPeriodEnd.mockResolvedValue({
     ...subscription,
@@ -94,10 +96,10 @@ const invoice = {
   context,
   platform: 'peable',
   currency: 'USD',
-  gross_minor_units: 2999,
-  net_minor_units: 2500,
-  tax_minor_units: 499,
-  merchant_fee_minor_units: 0,
+  gross_minor_units: '2999',
+  net_minor_units: '2500',
+  tax_minor_units: '499',
+  merchant_fee_minor_units: '0',
   tax_treatment: 'inclusive',
   seller_id: 'seller',
   invoice_issuer_id: 'issuer',
@@ -110,9 +112,9 @@ const invoice = {
 it('requires inclusive final invoice evidence without added fees or assumed zero tax', () => {
   expect(personalFinalInvoiceSchema.safeParse(invoice).success).toBe(true);
   for (const changed of [
-    { tax_minor_units: 0 },
-    { merchant_fee_minor_units: 1 },
-    { gross_minor_units: 3000 },
+    { tax_minor_units: '0' },
+    { merchant_fee_minor_units: '1' },
+    { gross_minor_units: '3000' },
     { tax_quote_id: undefined },
     { seller_id: undefined },
     { expires_at: invoice.issued_at },
@@ -154,7 +156,7 @@ it('rejects invalid provider period snapshots before financial calls', async () 
 it('separates historical parsing from action-time ownership and expiry', () => {
   const now = new Date('2026-10-05T00:01:00Z');
   expect(validatePersonalInvoiceForAction(invoice, context, 'card', now)).toMatchObject({
-    gross_minor_units: 2999,
+    gross_minor_units: '2999',
   });
   expect(() => validatePersonalInvoiceForAction(invoice, context, 'faircoin', now)).toThrow(
     'Faircoin quote',

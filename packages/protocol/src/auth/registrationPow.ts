@@ -24,7 +24,7 @@
  * platform hashing primitive and is trivially unit-testable with fixed
  * digests. Each side hashes with whatever SHA-256 it already has — Node's
  * `crypto` server-side (`packages/api/src/controllers/session.controller.ts`),
- * `@noble/hashes/sha256` client-side (`packages/core/src/crypto/registrationPow.ts`,
+ * `@noble/hashes/sha2.js`'s `sha256` client-side (`packages/core/src/crypto/registrationPow.ts`,
  * already a `@oxy.so/core` dependency — see `crypto/kdf.ts`,
  * `crypto/identityProof.ts`) — and both produce byte-identical digests over
  * the same message, because SHA-256 has exactly one correct output for a
@@ -102,7 +102,7 @@ export function registrationPowMessage(
  * requires of a solved nonce's digest.
  *
  * 16 bits ⇒ 65,536 SHA-256 attempts on average to solve. The client grinds
- * with `@noble/hashes/sha256` — a pure-JS, SYNCHRONOUS implementation with
+ * with `@noble/hashes/sha2.js`'s `sha256` — a pure-JS, SYNCHRONOUS implementation with
  * "identical behaviour on web, Node, and React Native with zero WebCrypto /
  * native-module dependency" (its own doc comment in `crypto/kdf.ts`) — so,
  * unlike a solve loop built on a platform hashing primitive that crosses a

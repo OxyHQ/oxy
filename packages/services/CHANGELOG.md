@@ -1,5 +1,68 @@
 # Changelog
 
+## [14.3.6] - 2026-11-04
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 2.0.0 (was 1.0.2). 2.0 changes only Peable Tax and billing amounts on the wire (base-unit strings, signed documents at `schema_version: 3`); `@peable.to/sdk/display` is byte-identical to 1.0.2's, so `useDisplayPrice` behaves as before, and an app on the 2.0 SDK installs one copy instead of two.
+
+## [14.3.5] - 2026-11-04
+
+### Fixed
+
+- `@peable.to/sdk` 1.0.2 (was 1.0.0). 1.0.0's checkout UI entry imported the `@peable.to/shared-types` barrel, which carries the Node-only webhook signer (`node:crypto`), so a React Native app bundling the checkout UI (Mention's Plus checkout) failed to build its native bundle. 1.0.2's browser entries import only the module they read; the API is unchanged.
+
+## [14.3.4] - 2026-11-04
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 1.0.0 (was 0.20.0). `@peable.to/sdk/display` is unchanged in 1.0, so `useDisplayPrice` behaves as before; an app that also depends on the 1.0 SDK now installs one copy instead of two.
+
+## [14.3.3] - 2026-11-03
+
+### Changed
+
+- Display prices use `@peable.to/sdk` 0.20.0 (was 0.8.0). `@peable.to/sdk/display` keeps its API.
+
+## [14.3.2] - 2026-11-03
+
+### Changed
+
+- Built with TypeScript 6.0 and react-native-builder-bob 0.44. The JavaScript is unchanged; in the declarations `FollowTargetButton` is typed as the `memo` component it is (`MemoExoticComponent`) and some string unions list their members in another order.
+- `lib/commonjs` and `lib/module` carry no `.d.ts` files: bob 0.44 copies a source `.d.ts` next to the JavaScript, and the declarations live in `lib/typescript`. That also drops the stray `lib/*/assets/assets/**/*.d.ts` copies.
+
+## [14.3.0] - 2026-11-03
+
+### Changed
+
+- `@react-native-async-storage/async-storage` peer is `>=2.0.0 <4.0.0`: an app on 3.x (aligned above Expo SDK 58's bundled 2.2.0 and listed in `expo.install.exclude`) installs without a peer conflict; the SDK only uses `getItem`, `setItem`, `removeItem` and `clear`, which both majors provide, and 3.x's default export reads the data 2.x wrote. Expo SDK 54's 2.2.0 is still checked by `compat/expo-54`.
+- Built against `@oxy.so/core` 7.14.0 and `@oxy.so/protocol` 1.6.0 (`@noble/*` 2).
+
+## [14.2.1] - 2026-11-03
+
+### Changed
+
+- Failure toasts go through one `useApiErrorToast` hook; the error wording reuses core's `getErrorStatus`, `isRateLimitError` and `isServerError`, and the follow errors share the offline codes with every other toast.
+- A server username refusal whose message this client does not know reads as "something you entered isn't valid" instead of naming a rule it did not break.
+- The profile username editor checks the policy once (the availability hook), not twice; the check is skipped on edit screens that are not the username's.
+- Dead branches removed: the empty-email invite check (the button is disabled while empty) and the too-long new-password check (the field's `maxLength` bounds it).
+
+## [14.2.0] - 2026-11-03
+
+### Added
+
+- `useAccountColorSave({ canUse })` takes the same app rule as `useAccountColor`: `colors` lists only presets the app allows and `saveColor` refuses the rest, so an app with its own paywall saves through the SDK instead of its own `updateMe`.
+
+### Fixed
+
+- `useAccountColor` applies the account colour when the account's colour (or the app's permission to wear it) changes, not whenever the local theme differs. A colour just picked was pulled back to the stored one while its save was in flight, and an app that saved without updating the session user kept the old colour on its root theme (an open settings modal stayed on the old colour while profile surfaces showed the new one).
+
+## [14.1.2] - 2026-11-03
+
+### Fixed
+
+- The sign-in identifier and every email field (sign-up, change email, member invite) drop spaces as typed: neither a username nor an email address can hold one.
+
 ## [14.1.1] - 2026-11-03
 
 ### Changed

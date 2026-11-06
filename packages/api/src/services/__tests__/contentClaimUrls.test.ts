@@ -82,12 +82,18 @@ describe('the preview token', () => {
   it('refuses anything not minted here', () => {
     const { token } = signClaimPreviewToken(grant);
     const [payload, signature] = token.split('.');
+    // Flip a byte of the decoded signature. Rewriting its last characters is not
+    // a tamper: base64url's trailing padding bits make `...AA` decode to the
+    // same bytes about once in a thousand runs, and the test passed a real one.
+    const signatureBytes = Buffer.from(signature, 'base64url');
+    signatureBytes[0] ^= 0xff;
+    const tamperedSignature = signatureBytes.toString('base64url');
     const forged = Buffer.from(
       JSON.stringify({ c: 'c1', t: 't1', f: 'someone-elses-file', u: 'u1', e: 9_999_999_999 }),
     ).toString('base64url');
     for (const candidate of [
       `${forged}.${signature}`,
-      `${payload}.${signature.slice(0, -2)}AA`,
+      `${payload}.${tamperedSignature}`,
       payload,
       `${token}.extra`,
       '',

@@ -4,7 +4,7 @@ import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { type AssignableAccountRole, useInviteAccountMember } from '@/hooks/use-account';
 import { getErrorMessage } from '@/lib/api-error';
 import { useTranslation } from '@/lib/i18n';

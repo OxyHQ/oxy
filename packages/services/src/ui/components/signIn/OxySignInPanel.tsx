@@ -35,6 +35,7 @@ import { Divider } from '@oxy.so/bloom/divider';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
+import { isRateLimitError } from '@oxy.so/core';
 import type { SwitcherContextRow } from '@oxy.so/core/session';
 import type {
   EmailSignInAccountOption,
@@ -76,12 +77,8 @@ import {
 } from './accountFlowParts';
 import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
 import { resolveSignInMethods } from './signInMethods';
-import {
-  describeApiError,
-  errorCode,
-  isRateLimited,
-  retryAfterSeconds,
-} from '../../utils/apiErrorMessage';
+import { describeApiError, errorCode, retryAfterSeconds } from '../../utils/apiErrorMessage';
+import { withoutWhitespace } from '../../utils/withoutWhitespace';
 
 /** Bloom `AuthCard`'s split card width, which the account dialog grows to for it. */
 const SPLIT_WIDTH = 880;
@@ -236,7 +233,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
 
   const fail = useCallback(
     (reason: unknown) => {
-      if (isRateLimited(reason)) setRateLimitSeconds(retryAfterSeconds(reason));
+      if (isRateLimitError(reason)) setRateLimitSeconds(retryAfterSeconds(reason));
       else setError(describeApiError(reason, t));
     },
     [t],
@@ -819,7 +816,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               label={t('signin.identifier.label')}
               value={identifier}
               onChange={(value) => {
-                setIdentifier(value);
+                setIdentifier(withoutWhitespace(value));
                 clearError();
               }}
               onSubmit={submitIdentifier}

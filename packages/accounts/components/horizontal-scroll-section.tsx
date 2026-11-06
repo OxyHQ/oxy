@@ -12,7 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 
 // The ScrollView ref is a host instance, so it carries `measure` and friends.
 type ScrollViewRef = React.ComponentRef<typeof ScrollView>;
@@ -39,7 +39,7 @@ export function HorizontalScrollSection({
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
   const currentScrollX = useRef(0);
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   const checkScrollPosition = useCallback(
     (contentWidth: number, scrollX: number, layoutWidth: number) => {

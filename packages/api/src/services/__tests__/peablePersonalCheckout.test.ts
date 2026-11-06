@@ -41,7 +41,7 @@ const input = {
   trial: 'none' as const,
 };
 const quote: BillingTaxQuote = {
-  schema_version: 2,
+  schema_version: 3,
   source: {
     merchant_id: 'merch_fixture',
     app_id: 'app_fixture',
@@ -53,9 +53,9 @@ const quote: BillingTaxQuote = {
   quote: {
     id: 'quote_fixture',
     currency: 'USD',
-    gross_minor_units: 2999,
-    net_minor_units: 2499,
-    tax_minor_units: 500,
+    gross_minor_units: '2999',
+    net_minor_units: '2499',
+    tax_minor_units: '500',
     tax_treatment: 'inclusive',
     seller_id: 'seller_fixture',
     invoice_issuer_id: 'issuer_fixture',
@@ -233,8 +233,8 @@ it.each([
 it.each([
   { source: { ...quote.source, store_id: 'foreign' } },
   { source: { ...quote.source, environment: 'production' as const } },
-  { quote: { ...quote.quote, gross_minor_units: 3000 } },
-  { quote: { ...quote.quote, net_minor_units: 2498 } },
+  { quote: { ...quote.quote, gross_minor_units: '3000' } },
+  { quote: { ...quote.quote, net_minor_units: '2498' } },
   { quote: { ...quote.quote, tax_treatment: 'exclusive' as const } },
   {
     quote: { ...quote.quote, quoted_at: Math.floor(Date.parse('2026-10-07T00:00:01.000Z') / 1000) },

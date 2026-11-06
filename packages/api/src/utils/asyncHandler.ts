@@ -6,12 +6,13 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
+import type { NamedRouteParams } from '../types/routeParams';
 import { sendApiError } from '../middleware/errorHandler';
 import { logger } from './logger';
 import { ApiError } from './error';
 
 type AsyncRequestHandler = (
-  req: Request,
+  req: Request<NamedRouteParams>,
   res: Response,
   next: NextFunction,
 ) => Promise<void | Response>;
@@ -21,7 +22,7 @@ type AsyncRequestHandler = (
  * and pass them to Express error handler
  */
 export const asyncHandler = (fn: AsyncRequestHandler) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request<NamedRouteParams>, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch((error) => {
       // If error is already an ApiError, pass it through
       if (error instanceof ApiError) {

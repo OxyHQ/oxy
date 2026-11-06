@@ -11,8 +11,8 @@
  * common chunk, which is the cost the lazy loading exists to avoid.
  */
 
-// MUST stay the first import: `@noble/hashes` captures `globalThis.crypto` when
-// it is evaluated, so the shim has to exist before anything below reaches it.
+// MUST stay the first import: the shim has to exist before any module below
+// evaluates or draws randomness (see `./polyfill`).
 import './polyfill';
 
 export {

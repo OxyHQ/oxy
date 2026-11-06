@@ -4,11 +4,10 @@
  *
  * `@oxy.so/core`'s crypto polyfill imports this entry to install
  * `globalThis.crypto.getRandomValues` on React Native. Everything the polyfill
- * imports is evaluated BEFORE the polyfill body, and `@noble/hashes` 1.x
- * captures `globalThis.crypto` once, at evaluation. When the polyfill imported
- * the root entry instead, noble was reached through the envelope signer,
- * captured `undefined`, and every Android identity creation failed with
- * `crypto.getRandomValues must be defined`. This guard keeps the entry's graph
+ * imports is evaluated BEFORE the polyfill body. When the polyfill imported
+ * the root entry instead, `@noble/hashes` 1.x was reached through the envelope
+ * signer, captured an absent `globalThis.crypto` at evaluation, and every
+ * Android identity creation failed with `crypto.getRandomValues must be defined`. This guard keeps the entry's graph
  * dependency-free, including the `.native` siblings Metro substitutes.
  */
 

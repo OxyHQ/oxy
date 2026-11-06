@@ -217,6 +217,23 @@ describe('OxyServer.assets.references — the calling application’s uses of fi
     await expect(oxy.assets.references.add([])).resolves.toEqual([]);
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it('applies per-call transport options to every request of the batch, and only those set', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const spy = jest.spyOn(oxy, 'serviceRequest').mockResolvedValue({ results: [] });
+    const signal = new AbortController().signal;
+    const items = Array.from({ length: 101 }, (_, index) => reference(index));
+
+    await oxy.assets.references.remove(items, { retry: false, timeout: 5000, signal });
+    expect(spy).toHaveBeenCalledTimes(2);
+    for (const call of spy.mock.calls) {
+      expect(call[3]).toEqual({ retry: false, timeout: 5000, signal, cache: false });
+    }
+
+    spy.mockClear();
+    await oxy.assets.references.add([reference(1)]);
+    expect(spy.mock.calls[0][3]).toEqual({ cache: false });
+  });
 });
 
 describe('OxyServer.assets.references.reconcile — an inventory of one entity type (ADR 0043 D6)', () => {

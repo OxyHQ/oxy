@@ -9,7 +9,7 @@ import { GroupedSection } from '@/components/grouped-section';
 import { useOxy } from '@oxy.so/services';
 import { alert, toast } from '@oxy.so/bloom';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useTranslation } from '@/lib/i18n';
 import type { AccountNode } from '@oxy.so/core';
 import { getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
@@ -19,7 +19,7 @@ import { useManagedAccountGroups } from '@/hooks/managed-accounts/useManagedAcco
 
 export default function ManagedAccountsScreen() {
   const colors = useColors();
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
   const { t, locale } = useTranslation();
 
   // Auth is enforced by the `(tabs)` layout — assume a session here.

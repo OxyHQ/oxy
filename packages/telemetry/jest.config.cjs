@@ -12,7 +12,7 @@ module.exports = {
         diagnostics: false,
         tsconfig: {
           module: 'commonjs',
-          moduleResolution: 'node',
+          moduleResolution: 'bundler',
           isolatedModules: true,
           target: 'es2020',
           lib: ['es2020', 'dom'],

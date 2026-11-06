@@ -42,8 +42,11 @@ export function avatarKeepingMirror(): SQL<string | null> {
 }
 
 export type FederatedAvatarWrite =
-  /** A mirror just stored in Oxy Cloud. Clears any owed retry. */
-  | { fileId: string }
+  /**
+   * A mirror just stored in Oxy Cloud. Clears any owed retry. `color`, the
+   * picture's seed colour, becomes the account's profile colour.
+   */
+  | { fileId: string; color?: string }
   /**
    * The mirror failed: keep the previous file id, else NULL — and when that
    * leaves the user with NO stored picture, owe a retry (backing off per attempt)
@@ -113,6 +116,7 @@ export async function persistFederatedAvatar(
   const state = isFile
     ? {
         avatar: write.fileId,
+        ...(write.color ? { color: write.color } : {}),
         federationAvatarRetryAt: null,
         federationAvatarAttempts: 0,
         federationAvatarFailure: null,

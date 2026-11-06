@@ -32,6 +32,7 @@ import {
 import type { OxyConfig as OxyConfigBase } from './models/interfaces';
 import { toOxyApiError } from './OxyServices.errors';
 import type { HttpMethod, OxyContext } from './client/context';
+import { assertCallOptions, type CallOptions, sendWithCallOptions } from './client/callOptions';
 import { SessionApi } from './api/session';
 import { AuthApi } from './api/auth';
 import { UsersApi } from './api/users';
@@ -78,6 +79,42 @@ export const OXY_CLOUD_URL = 'https://cloud.oxy.so';
 
 /** Default Oxy API URL. */
 export const OXY_API_URL = 'https://api.oxy.so';
+
+/**
+ * The namespaces a call scope ({@link OxyServices.withCallOptions}) carries:
+ * every one but `session`, which is the client's auth state rather than a call.
+ */
+export type OxyCallScopeNamespace =
+  | 'auth'
+  | 'users'
+  | 'follows'
+  | 'privacy'
+  | 'notifications'
+  | 'assets'
+  | 'identity'
+  | 'safety'
+  | 'contentClaims'
+  | 'organizations'
+  | 'accounts'
+  | 'apps'
+  | 'linkedAccounts'
+  | 'agency'
+  | 'store'
+  | 'billing'
+  | 'reputation'
+  | 'civic'
+  | 'nodes'
+  | 'devices'
+  | 'topics'
+  | 'appData'
+  | 'console'
+  | 'contacts';
+
+/**
+ * The namespaces of a client — an `OxyServer`'s server namespaces included —
+ * whose every request carries one set of {@link CallOptions}.
+ */
+export type OxyCallScope<T extends OxyServices = OxyServices> = Pick<T, OxyCallScopeNamespace>;
 
 export class OxyServices {
   /** The transport. Every namespace call goes through it. */
@@ -216,153 +253,170 @@ export class OxyServices {
 
   // ── Namespaces (created on first access) ─────────────────────────────────
 
-  private _session?: SessionApi;
-  private _auth?: AuthApi;
-  private _users?: UsersApi;
-  private _follows?: FollowsApi;
-  private _privacy?: PrivacyApi;
-  private _notifications?: NotificationsApi;
-  private _assets?: AssetsApi;
-  private _identity?: IdentityApi;
-  private _accounts?: AccountsApi;
-  private _organizations?: OrganizationsApi;
-  private _safety?: SafetyApi;
-  private _apps?: AppsApi;
-  private _linkedAccounts?: LinkedAccountsApi;
-  private _agency?: AgencyApi;
-  private _store?: StoreApi;
-  private _billing?: BillingApi;
-  private _reputation?: ReputationApi;
-  private _civic?: CivicApi;
-  private _nodes?: NodesApi;
-  private _devices?: DevicesApi;
-  private _topics?: TopicsApi;
-  private _appData?: AppDataApi;
-  private _contacts?: ContactsApi;
-  private _console?: ConsoleApi;
-  private _contentClaims?: ContentClaimsApi;
+  /** Each namespace, created on first access and kept for the client's life. */
+  private readonly namespaceInstances = new Map<string, unknown>();
+
+  /** The namespace `name`, created with this client's context on first access. */
+  protected namespace<T>(name: string, create: (context: OxyContext) => T): T {
+    let instance = this.namespaceInstances.get(name) as T | undefined;
+    if (instance === undefined) {
+      instance = create(this.context);
+      this.namespaceInstances.set(name, instance);
+    }
+    return instance;
+  }
+
+  /**
+   * This client's namespaces with per-call transport options: every request
+   * made through them carries `options`, on top of what each method sets.
+   *
+   * ```ts
+   * // One slow write, one tight read — one client.
+   * await oxy.withCallOptions({ timeout: 60_000 }).assets.setVisibility(id, 'public');
+   * const page = await oxy.withCallOptions({ deadline: 2_500 }).users.byUsername(name);
+   * // A server's own namespaces too:
+   * await server.withCallOptions({ retry: false }).assets.references.add(refs);
+   * ```
+   *
+   * - `timeout` / `deadline` replace the method's own and the client's.
+   * - `retry: false` sends each request once; `retry: true` never re-enables
+   *   a request the method sends once on purpose.
+   * - `signal` aborts the call; a method's own signal still applies too.
+   *
+   * The scope is a view, not a client: it shares this client's session,
+   * cache, credentials and service lane, holds no resource and needs no
+   * disposal. A namespace one call makes into another (`privacy` reading
+   * `users.me()`) keeps the options. `session` is not part of it.
+   */
+  withCallOptions(options: CallOptions): OxyCallScope<this> {
+    assertCallOptions(options);
+    const scope: CallOptions = { ...options };
+    const base = this.context;
+    const lane = base.service;
+    const view = Object.create(this) as this;
+    const context: OxyContext = {
+      oxy: view,
+      http: base.http,
+      request: (method, url, data, requestOptions) =>
+        sendWithCallOptions(requestOptions, scope, (merged) =>
+          base.request(method, url, data, merged),
+        ),
+      service: lane && {
+        get available() {
+          return lane.available;
+        },
+        request: (method, url, data, requestOptions) =>
+          sendWithCallOptions(requestOptions, scope, (merged) =>
+            lane.request(method, url, data, merged),
+          ),
+      },
+    };
+    // The view's own namespaces are built on the scoped context; everything
+    // else (http, cache, config, credentials) is this client's, by prototype.
+    Object.defineProperties(view, {
+      context: { value: context },
+      namespaceInstances: { value: new Map<string, unknown>() },
+      session: { get: () => this.session },
+    });
+    return view;
+  }
 
   /** This client's auth state (token, user id) and its server session. */
   get session(): SessionApi {
-    if (!this._session) this._session = new SessionApi(this.context);
-    return this._session;
+    return this.namespace('session', (context) => new SessionApi(context));
   }
   /** Signing in, signing up, and the account's credentials. */
   get auth(): AuthApi {
-    if (!this._auth) this._auth = new AuthApi(this.context);
-    return this._auth;
+    return this.namespace('auth', (context) => new AuthApi(context));
   }
   /** People and their profiles. */
   get users(): UsersApi {
-    if (!this._users) this._users = new UsersApi(this.context);
-    return this._users;
+    return this.namespace('users', (context) => new UsersApi(context));
   }
   /** The follow graph: people and every other followable target. */
   get follows(): FollowsApi {
-    if (!this._follows) this._follows = new FollowsApi(this.context);
-    return this._follows;
+    return this.namespace('follows', (context) => new FollowsApi(context));
   }
   /** Privacy settings, blocks and restrictions. */
   get privacy(): PrivacyApi {
-    if (!this._privacy) this._privacy = new PrivacyApi(this.context);
-    return this._privacy;
+    return this.namespace('privacy', (context) => new PrivacyApi(context));
   }
   /** The in-app inbox and push tokens. */
   get notifications(): NotificationsApi {
-    if (!this._notifications) this._notifications = new NotificationsApi(this.context);
-    return this._notifications;
+    return this.namespace('notifications', (context) => new NotificationsApi(context));
   }
   /** Files: upload, link, URLs, content. */
   get assets(): AssetsApi {
-    if (!this._assets) this._assets = new AssetsApi(this.context);
-    return this._assets;
+    return this.namespace('assets', (context) => new AssetsApi(context));
   }
   /** DID, keys, identity links, domains, backup and the signed export. */
   get identity(): IdentityApi {
-    if (!this._identity) this._identity = new IdentityApi(this.context);
-    return this._identity;
+    return this.namespace('identity', (context) => new IdentityApi(context));
   }
   /** The account graph: accounts and their members. */
   get safety(): SafetyApi {
-    if (!this._safety) this._safety = new SafetyApi(this.context);
-    return this._safety;
+    return this.namespace('safety', (context) => new SafetyApi(context));
   }
   /** Content claims: an owner's counter-notice to a takedown (ADR 0043 D10). */
   get contentClaims(): ContentClaimsApi {
-    if (!this._contentClaims) this._contentClaims = new ContentClaimsApi(this.context);
-    return this._contentClaims;
+    return this.namespace('contentClaims', (context) => new ContentClaimsApi(context));
   }
 
   get organizations(): OrganizationsApi {
-    if (!this._organizations) this._organizations = new OrganizationsApi(this.context);
-    return this._organizations;
+    return this.namespace('organizations', (context) => new OrganizationsApi(context));
   }
 
   get accounts(): AccountsApi {
-    if (!this._accounts) this._accounts = new AccountsApi(this.context);
-    return this._accounts;
+    return this.namespace('accounts', (context) => new AccountsApi(context));
   }
   /** Applications an account owns, and the ones this user granted access. */
   get apps(): AppsApi {
-    if (!this._apps) this._apps = new AppsApi(this.context);
-    return this._apps;
+    return this.namespace('apps', (context) => new AppsApi(context));
   }
   /** External accounts (Mastodon, Bluesky) linked by OAuth. */
   get linkedAccounts(): LinkedAccountsApi {
-    if (!this._linkedAccounts) this._linkedAccounts = new LinkedAccountsApi(this.context);
-    return this._linkedAccounts;
+    return this.namespace('linkedAccounts', (context) => new LinkedAccountsApi(context));
   }
   /** Delegated capabilities for agents. */
   get agency(): AgencyApi {
-    if (!this._agency) this._agency = new AgencyApi(this.context);
-    return this._agency;
+    return this.namespace('agency', (context) => new AgencyApi(context));
   }
   /** The app store: storefront, reviews, and a publisher's listing. */
   get store(): StoreApi {
-    if (!this._store) this._store = new StoreApi(this.context);
-    return this._store;
+    return this.namespace('store', (context) => new StoreApi(context));
   }
   /** Subscription, wallet and payments. */
   get billing(): BillingApi {
-    if (!this._billing) this._billing = new BillingApi(this.context);
-    return this._billing;
+    return this.namespace('billing', (context) => new BillingApi(context));
   }
   /** Oxy Trust reputation (read-only for people; apps award it). */
   get reputation(): ReputationApi {
-    if (!this._reputation) this._reputation = new ReputationApi(this.context);
-    return this._reputation;
+    return this.namespace('reputation', (context) => new ReputationApi(context));
   }
   /** Oxy ID: cards, attestations, vouching, personhood, credentials. */
   get civic(): CivicApi {
-    if (!this._civic) this._civic = new CivicApi(this.context);
-    return this._civic;
+    return this.namespace('civic', (context) => new CivicApi(context));
   }
   /** The user's personal data node. */
   get nodes(): NodesApi {
-    if (!this._nodes) this._nodes = new NodesApi(this.context);
-    return this._nodes;
+    return this.namespace('nodes', (context) => new NodesApi(context));
   }
   /** This user's devices, their sessions, and device sign-in. */
   get devices(): DevicesApi {
-    if (!this._devices) this._devices = new DevicesApi(this.context);
-    return this._devices;
+    return this.namespace('devices', (context) => new DevicesApi(context));
   }
   get topics(): TopicsApi {
-    if (!this._topics) this._topics = new TopicsApi(this.context);
-    return this._topics;
+    return this.namespace('topics', (context) => new TopicsApi(context));
   }
   /** Per-app key/value data stored on the user's account. */
   get appData(): AppDataApi {
-    if (!this._appData) this._appData = new AppDataApi(this.context);
-    return this._appData;
+    return this.namespace('appData', (context) => new AppDataApi(context));
   }
   /** Oxy Console: first-run onboarding (terms and use cases) for the signed-in person. */
   get console(): ConsoleApi {
-    if (!this._console) this._console = new ConsoleApi(this.context);
-    return this._console;
+    return this.namespace('console', (context) => new ConsoleApi(context));
   }
   get contacts(): ContactsApi {
-    if (!this._contacts) this._contacts = new ContactsApi(this.context);
-    return this._contacts;
+    return this.namespace('contacts', (context) => new ContactsApi(context));
   }
 }

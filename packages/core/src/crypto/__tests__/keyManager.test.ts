@@ -324,7 +324,7 @@ describe('KeyManager safety invariants', () => {
 
       // Manually generate a different phrase
       const { generateMnemonic } = await import('@scure/bip39');
-      const { wordlist } = await import('@scure/bip39/wordlists/english');
+      const { wordlist } = await import('@scure/bip39/wordlists/english.js');
       const otherPhrase = generateMnemonic(wordlist, 128);
       // Sanity check phrases are different
       expect(otherPhrase).not.toBe(a.phrase);

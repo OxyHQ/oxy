@@ -7,28 +7,29 @@ import { resolve } from 'node:path';
 
 export const ZOD_ADVISORY = 'GHSA-mrhx-c7xc-m3w5';
 const reviewedAtproto = {
-  '@atproto-labs/did-resolver': '0.3.9',
-  '@atproto-labs/fetch': '0.3.6',
-  '@atproto-labs/fetch-node': '0.4.0',
-  '@atproto-labs/handle-resolver': '0.4.9',
-  '@atproto-labs/handle-resolver-node': '0.2.10',
-  '@atproto-labs/identity-resolver': '0.4.9',
-  '@atproto-labs/pipe': '0.2.4',
+  '@atproto-labs/did-resolver': '0.3.12',
+  '@atproto-labs/fetch': '0.4.1',
+  '@atproto-labs/fetch-node': '0.4.4',
+  '@atproto-labs/handle-resolver': '0.4.10',
+  '@atproto-labs/handle-resolver-node': '0.2.16',
+  '@atproto-labs/identity-resolver': '0.4.12',
+  '@atproto-labs/pipe': '0.2.5',
   '@atproto-labs/simple-store': '0.5.1',
   '@atproto-labs/simple-store-memory': '0.2.6',
-  '@atproto/common-web': '0.5.12',
-  '@atproto/did': '0.5.5',
+  '@atproto/common-web': '0.5.16',
+  '@atproto/did': '0.5.6',
   '@atproto/jwk': '0.7.4',
   '@atproto/jwk-jose': '0.2.4',
   '@atproto/jwk-webcrypto': '0.3.4',
-  '@atproto/lex-data': '0.1.7',
-  '@atproto/lex-json': '0.1.6',
-  '@atproto/lexicon': '0.7.14',
-  '@atproto/oauth-client': '0.8.7',
-  '@atproto/oauth-client-node': '0.5.7',
-  '@atproto/oauth-types': '0.7.6',
-  '@atproto/syntax': '0.7.6',
-  '@atproto/xrpc': '0.8.13',
+  '@atproto/lex-data': '0.1.9',
+  '@atproto/lex-json': '0.1.8',
+  '@atproto/lexicon': '0.7.18',
+  '@atproto/oauth-client': '0.9.0',
+  '@atproto/oauth-client-node': '0.5.13',
+  '@atproto/oauth-resolver': '0.0.1',
+  '@atproto/oauth-types': '0.7.7',
+  '@atproto/syntax': '0.7.7',
+  '@atproto/xrpc': '0.8.16',
 };
 const residualParents = new Set([
   '@atproto-labs/did-resolver',
@@ -39,10 +40,9 @@ const residualParents = new Set([
   '@atproto/jwk-webcrypto',
   '@atproto/lexicon',
   '@atproto/oauth-client',
+  '@atproto/oauth-resolver',
   '@atproto/oauth-types',
   '@atproto/xrpc',
-  'shadcn',
-  '@expo/cli',
 ]);
 const fields = ['dependencies', 'optionalDependencies', 'peerDependencies'];
 function segments(key) {
@@ -100,17 +100,6 @@ export function inspectZodLock(lock) {
         `Atproto parser path changed; re-audit transport and restore boundaries: ${identity}`,
       );
   }
-  if (residuals.includes('shadcn/zod') && packages.shadcn?.[0] !== 'shadcn@3.8.5')
-    errors.push('The reviewed dev-only shadcn path/version changed');
-  if (
-    residuals.includes('@expo/cli/zod') &&
-    (packages['@expo/cli']?.[0] !==
-      '@oxy.so/expo-cli-native@./vendor/expo-native/oxy.so-expo-cli-native-58.1.15+oxy.native.1.tgz' ||
-      packages['@expo/cli']?.at(-1) !==
-        'sha512-ECFVeLjnyMvAyb0UOoDkkIwhasj18D+E6GefKXj/pFH7Ndt51CXKlX68y0Q/YvPPRFtc6ZXPhN0mxtfEPvg4mw==')
-  )
-    errors.push('The reviewed Expo build CLI artifact changed');
-
   // Walk every workspace, including published SDKs and tooling. A shared leaf
   // cannot become accepted just because an allowed consumer also uses it.
   for (const [directory, workspace] of Object.entries(workspaces)) {
@@ -123,11 +112,7 @@ export function inspectZodLock(lock) {
           field === 'dependencies' &&
           name === '@atproto/oauth-client-node'
             ? 'atproto'
-            : directory === 'packages/test-app-vite' &&
-                field === 'devDependencies' &&
-                name === 'shadcn'
-              ? 'shadcn'
-              : 'ordinary';
+            : 'ordinary';
         pending.push({
           from: workspace.name ?? directory,
           name,
@@ -140,12 +125,6 @@ export function inspectZodLock(lock) {
       const item = pending.pop();
       const key = lookup(packages, item.from, item.name);
       if (!key) continue; // Optional peers need not be installed; unknown weak leaves are checked above.
-      const reviewedExpoParent =
-        item.from === 'expo' &&
-        packages.expo?.[0] === 'expo@58.0.19' &&
-        metadata(packages.expo).dependencies?.['@expo/cli'] === '^58.1.15';
-      if (key === '@expo/cli' && !reviewedExpoParent)
-        errors.push(`Expo CLI entered through an unreviewed parent: ${item.path} -> ${key}`);
       const visited = `${key}:${item.lane}`;
       if (seen.has(visited)) continue;
       seen.add(visited);
@@ -153,26 +132,17 @@ export function inspectZodLock(lock) {
       const identity = entry[0];
       const path = `${item.path} -> ${key}`;
       if (identity.startsWith('zod@') && !patched(identity.slice(4))) {
-        if (
-          !(item.lane === 'atproto' && key.startsWith('@atproto')) &&
-          !(item.lane === 'shadcn' && key === 'shadcn/zod') &&
-          !(item.lane === 'expo-cli' && key === '@expo/cli/zod')
-        )
+        if (!(item.lane === 'atproto' && key.startsWith('@atproto')))
           errors.push(`Vulnerable Zod reaches an unreviewed workspace path: ${path}`);
         continue;
       }
-      if (key === 'shadcn' && item.lane !== 'shadcn')
-        errors.push(`shadcn must remain the test-app-vite dev CLI: ${path}`);
       if (key.startsWith('@atproto') && item.lane !== 'atproto')
         errors.push(`Atproto must remain behind the API linked-account boundary: ${path}`);
-      // Expo ships a Node CLI as part of the Expo package. This exact vendored
-      // CLI is build tooling, not the React Native runtime or an API parser.
-      const lane = key === '@expo/cli' && reviewedExpoParent ? 'expo-cli' : item.lane;
       const workspaceMatch = identity.match(/@workspace:(.+)$/);
       const deps = workspaceMatch ? (workspaces[workspaceMatch[1]] ?? {}) : metadata(entry);
       for (const field of fields)
         for (const name of Object.keys(deps[field] ?? {}))
-          pending.push({ from: key, name, lane, path });
+          pending.push({ from: key, name, lane: item.lane, path });
     }
   }
   return { errors: [...new Set(errors)], residuals };

@@ -5,14 +5,8 @@ import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { useRouter } from 'expo-router';
 import { useCameraPermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
-import {
-  useReducedMotion,
-  useSharedValue,
-  withDelay,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+import { useHapticFeedback, usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
+import { useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { useOxy, useCurrentUser } from '@oxy.so/services';
 import { buildUserDid } from '@oxy.so/core';
 import { Fab } from '@oxy.so/bloom/fab';
@@ -124,7 +118,8 @@ export default function IdScreen() {
 
   // ---- Attestation-confirmed card feedback --------------------------------
   const attestGlow = useSharedValue(0);
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = usePrefersReducedMotion();
+  const haptics = useHapticFeedback();
 
   const [attestedVisible, setAttestedVisible] = useState(false);
   const attestedBadgeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -134,7 +129,7 @@ export default function IdScreen() {
     };
   }, []);
   const triggerAttestGlow = useCallback(() => {
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    haptics.success();
     setAttestedVisible(true);
     AccessibilityInfo.announceForAccessibility(t('civic.attest.confirmed'));
     if (attestedBadgeTimeoutRef.current) clearTimeout(attestedBadgeTimeoutRef.current);
@@ -144,7 +139,7 @@ export default function IdScreen() {
       withTiming(1, { duration: 400 }),
       withDelay(1000, withTiming(0, { duration: 1400 })),
     );
-  }, [attestGlow, reducedMotion, t]);
+  }, [attestGlow, haptics, reducedMotion, t]);
 
   const handleAttestedEvent = useCallback(
     (payload: AttestedEventPayload) => {

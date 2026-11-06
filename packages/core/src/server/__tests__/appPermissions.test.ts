@@ -215,6 +215,126 @@ describe('appPermissionsFor', () => {
   });
 });
 
+describe('appPermissionsFor an MCP tool call', () => {
+  const MCP_URL = 'https://synthetic.invalid/auth/mcp/oauth/app-permissions';
+
+  /** The `extra` an MCP handler receives once `@oxy.so/mcp` introspected its token. */
+  function mcpCall(token = 'mcp-token-1') {
+    return { authInfo: { token, clientId: 'oxy_mcp_client', scopes: ['website.write'] } };
+  }
+
+  function mcpServerWith(
+    answer: (url: string, options: unknown) => unknown,
+    config: { applicationId?: string | undefined } = {},
+  ) {
+    const built = serverWith(answer, config);
+    jest
+      .spyOn(built.server as unknown as { platformServiceToken: jest.Mock }, 'platformServiceToken')
+      .mockResolvedValue('service-jwt');
+    return built;
+  }
+
+  function oauthRefusal(status: number, code: string) {
+    return () => {
+      throw new OxyApiError('refused', { status, code });
+    };
+  }
+
+  it("presents the token as this service and answers for the token's person", async () => {
+    const { server, request } = mcpServerWith(holds('payments.operate'));
+    const held = await server.appPermissionsFor(mcpCall());
+
+    expect(request).toHaveBeenCalledTimes(1);
+    const [method, url, body, options] = request.mock.calls[0] ?? [];
+    expect(method).toBe('POST');
+    expect(url).toBe(MCP_URL);
+    expect(body).toEqual({ token: 'mcp-token-1' });
+    expect(options).toMatchObject({
+      cache: false,
+      deduplicate: false,
+      retry: false,
+      headers: { Authorization: 'Bearer service-jwt' },
+    });
+    expect(held).toMatchObject({ applicationId: APP_ID, operatorId: 'operator-1' });
+    expect(held.has('payments.operate')).toBe(true);
+  });
+
+  it('caches per token, `fresh` asks again, and invalidating the person drops it', async () => {
+    const { server, request } = mcpServerWith(holds('payments.operate'));
+    await server.appPermissionsFor(mcpCall());
+    await server.appPermissionsFor(mcpCall());
+    expect(request).toHaveBeenCalledTimes(1);
+
+    await server.appPermissionsFor(mcpCall('mcp-token-2'));
+    expect(request).toHaveBeenCalledTimes(2);
+
+    await server.appPermissionsFor(mcpCall(), { fresh: true });
+    expect(request).toHaveBeenCalledTimes(3);
+
+    server.invalidateAppPermissions({ userId: 'operator-1' });
+    await server.appPermissionsFor(mcpCall());
+    expect(request).toHaveBeenCalledTimes(4);
+  });
+
+  it('refuses a call without a usable token, without asking Oxy', async () => {
+    const { server, request } = mcpServerWith(holds('payments.operate'));
+    for (const token of ['', 'two words']) {
+      await expect(server.appPermissionsFor(mcpCall(token))).rejects.toMatchObject({
+        code: 'APP_PERMISSION_SESSION_REQUIRED',
+      });
+    }
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('maps a refused token to no session, and nothing else to a "no"', async () => {
+    for (const [status, code, expected] of [
+      [401, 'invalid_grant', 'APP_PERMISSION_SESSION_REQUIRED'],
+      [401, 'invalid_client', 'APP_PERMISSION_UNAVAILABLE'],
+      [403, 'access_denied', 'APP_PERMISSION_DENIED'],
+      [404, 'not_found', 'APP_PERMISSION_UNAVAILABLE'],
+      [502, 'server_error', 'APP_PERMISSION_UNAVAILABLE'],
+    ] as const) {
+      const { server } = mcpServerWith(oauthRefusal(status, code));
+      await expect(server.appPermissionsFor(mcpCall())).rejects.toMatchObject({ code: expected });
+    }
+  });
+
+  it('never caches a failure', async () => {
+    const { server, request } = mcpServerWith(oauthRefusal(502, 'server_error'));
+    await expect(server.appPermissionsFor(mcpCall())).rejects.toMatchObject({
+      code: 'APP_PERMISSION_UNAVAILABLE',
+    });
+    request.mockImplementation(async () => holds('payments.operate')());
+    expect((await server.appPermissionsFor(mcpCall())).has('payments.operate')).toBe(true);
+  });
+
+  it('refuses an answer about another application, or a malformed one', async () => {
+    const other = mcpServerWith(() => ({
+      applicationId: 'app-other',
+      userId: 'u',
+      permissions: [],
+    }));
+    await expect(other.server.appPermissionsFor(mcpCall())).rejects.toMatchObject({
+      code: 'APP_PERMISSION_NOT_CONFIGURED',
+    });
+
+    // Asking about another application cannot work: Oxy answers about its own.
+    const explicit = mcpServerWith(holds('payments.operate'));
+    await expect(
+      explicit.server.appPermissionsFor(mcpCall(), { applicationId: 'app-other' }),
+    ).rejects.toMatchObject({ code: 'APP_PERMISSION_NOT_CONFIGURED' });
+
+    const malformed = mcpServerWith(() => ({
+      applicationId: APP_ID,
+      userId: 'u',
+      permissions: ['app:update'],
+    }));
+    await expect(malformed.server.appPermissionsFor(mcpCall())).rejects.toMatchObject({
+      code: 'APP_PERMISSION_UNAVAILABLE',
+    });
+  });
+});
+
 describe('middleware.requireAppPermission', () => {
   it('admits a holder and leaves the answer on the request', async () => {
     const { server } = serverWith(holds('payments.operate'));

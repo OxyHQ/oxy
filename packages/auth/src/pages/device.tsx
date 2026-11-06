@@ -164,9 +164,9 @@ export function DevicePage() {
           body: '{}',
         },
       );
-      // The server's `message` is English and developer-facing; the page
-      // says what to do, in the person's language.
-      if (!response.ok) throw new Error('authorize-code refused');
+      // A refusal or a network failure: the server's `message` is English and
+      // developer-facing, so the page says what to do in the person's language.
+      if (!response.ok) throw new Error();
       setOutcome('approved');
     } catch {
       completingRef.current = false;

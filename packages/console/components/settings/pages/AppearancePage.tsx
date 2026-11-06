@@ -1,6 +1,6 @@
 import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
 import { COLOR_PRESET_REGISTRY, FREE_COLOR_NAMES, useBloomTheme } from '@oxy.so/bloom/theme';
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { useTranslation } from '@/lib/i18n';
 
 const MODES = ['light', 'system', 'dark'] as const;

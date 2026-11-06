@@ -25,6 +25,7 @@ import { Router, type Request, type Response } from 'express';
 import type { AccountKind } from '@oxy.so/contracts';
 import type { User } from '@oxy.so/core';
 import { AP_CONTEXT } from '../apContext';
+import { apIri } from '../apValue';
 import { discoveryCacheControl } from './httpCacheControl';
 import { type FetchPublicKey, verifyHttpSignature } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
@@ -233,8 +234,7 @@ export function createActorRouter(config: ActorRouterConfig): Router {
       }
 
       // Verify the actor in the activity matches the signature.
-      const activityActor =
-        typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+      const activityActor = apIri(activity.actor);
       if (activityActor !== actorUri) {
         logger.debug(`Inbox: Actor mismatch. Signed: ${actorUri}, Activity: ${activityActor}`);
         return res.status(403).json({ error: 'Actor mismatch' });

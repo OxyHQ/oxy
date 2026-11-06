@@ -71,9 +71,10 @@ export const CLOUDFLARE_WEB_HOSTS: readonly CloudflareWebHost[] = Object.freeze(
   { host: 'nilo.so', zone: 'nilo.so', service: 'nilo' },
   // OxyHQ/Noted — Worker noted.
   { host: 'noted.oxy.so', zone: 'oxy.so', service: 'noted' },
-  // OxyHQ/Peable — Pages peable-frontend, peable-checkout.
+  // OxyHQ/Peable — Pages peable-frontend, peable-checkout, peable-orbit.
   { host: 'peable.to', zone: 'peable.to', service: 'peable' },
   { host: 'checkout.peable.to', zone: 'peable.to', service: 'peable' },
+  { host: 'orbit.peable.to', zone: 'peable.to', service: 'peable' },
   // OxyHQ/website — Pages oxy-website (oxy.so, and FairCoin's brand host).
   { host: 'oxy.so', zone: 'oxy.so', service: 'website' },
   { host: 'www.oxy.so', zone: 'oxy.so', service: 'website' },

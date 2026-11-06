@@ -191,3 +191,35 @@ it('keeps customer credential authority external, narrows its live scopes, and i
   oxy.middleware.requireScope('files:read')(req, res, next);
   expect(res.statusCode).toBe(403);
 });
+
+describe('OxyServerConfig.expectedAudience', () => {
+  it('is the audience every mount accepts when it names none', async () => {
+    const own = new OxyServer({ baseURL: 'https://api.oxy.so', expectedAudience: audience });
+    try {
+      jest.spyOn(own, 'introspectServiceToken').mockResolvedValue(active);
+      const admitted = jest.fn();
+      await own.middleware.auth()(request(), response(), admitted);
+      await own.middleware.service()(request(), response(), admitted);
+      expect(admitted).toHaveBeenCalledTimes(2);
+
+      // An explicit mount option still wins.
+      const res = response();
+      const refused = jest.fn();
+      await own.middleware.auth({ expectedAudience: 'oxy-service:other' })(request(), res, refused);
+      expect(refused).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(401);
+    } finally {
+      own.dispose();
+    }
+  });
+
+  it('leaves the oxy-api default unchanged when unset', async () => {
+    const live = jest.spyOn(oxy, 'introspectServiceToken');
+    const res = response();
+    const next = jest.fn();
+    await oxy.middleware.auth()(request(), res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(live).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(401);
+  });
+});
