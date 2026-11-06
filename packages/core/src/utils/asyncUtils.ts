@@ -146,6 +146,17 @@ export async function retryAsync<T>(
         break;
       }
 
+      // A changed authentication context is a cancellation of this work, even
+      // if the caller's custom predicate would retry ordinary 401 responses.
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'AUTH_SESSION_CHANGED'
+      ) {
+        break;
+      }
+
       if (!retryOnTimeout && isTimeoutError(error)) {
         break;
       }

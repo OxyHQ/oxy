@@ -795,7 +795,27 @@ export class HttpService {
     // and skip the near-expiry preflight — see RequestOptions.skipAuth. The
     // 401 retry re-enters request() with a fresh config, so it re-resolves
     // this here with the refreshed token.
-    const authHeader = config.skipAuth ? null : await this.getAuthHeader();
+    const explicitAuth = Object.keys(config.headers ?? {}).some(
+      (key) => key.toLowerCase() === 'authorization',
+    );
+    const usesSessionAuth = !config.skipAuth && !explicitAuth;
+    const contextToken = usesSessionAuth ? this.syncAccessTokenFromProvider() : null;
+    const contextEpoch = this.sessionEpoch;
+    const authHeader = usesSessionAuth ? await this.getAuthHeader() : null;
+    const isOriginalSession = () =>
+      this.sessionEpoch === contextEpoch &&
+      sameTokenSession(contextToken, this.syncAccessTokenFromProvider());
+    const newerRequestToken = () => {
+      if (!contextToken || !authHeader?.startsWith('Bearer ')) return null;
+      const requestToken = authHeader.slice('Bearer '.length);
+      const current = this.syncAccessTokenFromProvider();
+      return current && current !== requestToken && sameTokenSession(requestToken, current)
+        ? current
+        : null;
+    };
+    if (usesSessionAuth && !isOriginalSession()) {
+      throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+    }
     // Never awaited: the PoP is a hint, and waiting on its trace fetch put up
     // to a second in front of requests.
     const edgeRegionHeader = peekBrowserEdgeRegionHeader();
@@ -819,6 +839,9 @@ export class HttpService {
       // if a custom `shouldRetry` ever says yes to a cancellation.
       if (domain.aborted) {
         throw createCancelledError('Request cancelled');
+      }
+      if (usesSessionAuth && !isOriginalSession()) {
+        throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
       }
 
       /**
@@ -955,14 +978,33 @@ export class HttpService {
         // it, including on every throw between here and there.
         if (timeoutId) clearTimeout(timeoutId);
 
+        if (usesSessionAuth && !isOriginalSession()) {
+          // Some React Native response bodies do not implement cancel, or
+          // throw synchronously instead of returning a promise.
+          try {
+            const body = response.body;
+            if (typeof body?.cancel === 'function') {
+              void Promise.resolve(body.cancel()).catch(() => {});
+            }
+          } catch {}
+          throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+        }
+
         // Handle response
         if (!response.ok) {
           // On 401, delegate to the installed auth refresh handler and retry
           // once before giving up. HttpService deliberately does not know any
           // session routes; the refresh handler owns session rotation.
-          if (response.status === 401 && !config._isAuthRetry && !config.skipAuth) {
-            const refreshed = await this.refreshAccessToken('response-401');
-            if (refreshed) {
+          if (
+            response.status === 401 &&
+            !config._isAuthRetry &&
+            usesSessionAuth &&
+            isOriginalSession()
+          ) {
+            let refreshed = newerRequestToken();
+            if (!refreshed) refreshed = await this.refreshAccessToken('response-401');
+            refreshed ||= newerRequestToken();
+            if (refreshed && isOriginalSession()) {
               // `deduplicate: false` is REQUIRED on the retry. This re-issue runs
               // while the ORIGINAL request is still in-flight under its dedupe
               // key; the refreshed token is
@@ -984,8 +1026,11 @@ export class HttpService {
               });
             }
             // Refresh failed or no token — clear tokens
-            this.tokenStore.clearTokens();
-            this.notifyTokenChange();
+            if (isOriginalSession()) {
+              if (this.tokenStore.getAccessToken()) this.sessionEpoch += 1;
+              this.tokenStore.clearTokens();
+              this.notifyTokenChange();
+            }
           }
 
           // Read the error body (may be absent, non-JSON, empty or malformed).
@@ -1079,6 +1124,9 @@ export class HttpService {
           responseData = text || null;
         }
 
+        if (usesSessionAuth && !isOriginalSession()) {
+          throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
+        }
         const duration = Date.now() - startTime;
         this.updateMetrics(true, duration);
         this.config.onRequestEnd?.(url, method, duration, true);
@@ -1186,6 +1234,10 @@ export class HttpService {
       } finally {
         disposeCallerLink?.();
       }
+    }
+
+    if (usesSessionAuth && !isOriginalSession()) {
+      throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     }
 
     // Cache the result if caching is enabled
@@ -1516,6 +1568,7 @@ export class HttpService {
       // on the way out would discard the flag it just set.
       this.lastRefreshWasRateLimited = false;
       const epoch = this.sessionEpoch;
+      const tokenAtStart = this.tokenStore.getAccessToken();
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
           if (epoch !== this.sessionEpoch) {
@@ -1527,6 +1580,12 @@ export class HttpService {
             }
             this.logger.debug('Discarded a token refresh that outlived its session');
             return null;
+          }
+          const installed = this.tokenStore.getAccessToken();
+          if (installed !== tokenAtStart && installed !== newToken) {
+            // Another operation installed a token while this refresh was in
+            // flight. Never overwrite it with this older completion.
+            return installed && sameTokenSession(tokenAtStart, installed) ? installed : null;
           }
           if (!newToken) {
             this.lastRefreshFailureAt = Date.now();
