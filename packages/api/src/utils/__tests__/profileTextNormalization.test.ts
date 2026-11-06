@@ -3,7 +3,6 @@ import {
   MAX_LINK_TITLE_LENGTH,
   MAX_LOCATION_TEXT_LENGTH,
   normalizeDisplayValue,
-  normalizeLinks,
   normalizeLinksMetadata,
   normalizeLocations,
 } from '../profileTextNormalization';
@@ -134,19 +133,6 @@ describe('profileTextNormalization', () => {
     it('leaves non-text fields untouched and drops non-object entries', () => {
       const result = normalizeLocations([{ id: 'loc-1', name: 'X' }, 42]);
       expect(result).toEqual([{ id: 'loc-1', name: 'X' }]);
-    });
-  });
-
-  describe('normalizeLinks', () => {
-    it('trims each URL and drops empty / non-string entries', () => {
-      expect(normalizeLinks([' https://a.example ', '', '   ', 7, 'https://b.example'])).toEqual([
-        'https://a.example',
-        'https://b.example',
-      ]);
-    });
-
-    it('returns a non-array input untouched', () => {
-      expect(normalizeLinks(null)).toBeNull();
     });
   });
 });

@@ -24,6 +24,23 @@ import { BadRequestError } from '../../utils/error';
 import { PROFILE_LINKS_MAX, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
 import { userService } from '../user.service';
 
+jest.mock('../clarityLinkDocuments.service', () => {
+  const actual = jest.requireActual('../clarityLinkDocuments.service');
+  return {
+    ...actual,
+    resolveLinkDocuments: async (urls: readonly string[]) => ({
+      documents: new Map(
+        urls.map((url) => [
+          url,
+          // Clarity names one document per page: a trailing slash is the same page.
+          { id: `doc:${url.replace(/\/$/, '')}`, canonicalUrl: url, faviconUrl: null },
+        ]),
+      ),
+      pending: [],
+    }),
+  };
+});
+
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
 /**
@@ -110,14 +127,14 @@ describe('bio', () => {
 });
 
 describe('links', () => {
-  it('trims each entry and drops the empty ones', async () => {
+  it('never stores the bare URL list: a profile link is a Clarity document row', async () => {
     const id = await makeUser();
 
     await userService.updateUserProfile(id, {
-      links: [' https://example.com ', '   '],
+      links: [' https://example.com '],
     });
 
-    expect((await storedRow(id)).links).toEqual(['https://example.com']);
+    expect((await storedRow(id)).links).toBeNull();
   });
 });
 
@@ -133,65 +150,79 @@ describe('linksMetadata child rows', () => {
     ).rejects.toBeInstanceOf(BadRequestError);
 
     const rows = await getDb()
-      .select({ url: userLinkMetadata.url })
+      .select({ id: userLinkMetadata.id })
       .from(userLinkMetadata)
       .where(eq(userLinkMetadata.userId, id));
     expect(rows).toHaveLength(0);
   });
 
-  it('normalizes an indented multi-line remote title and description', async () => {
+  it('stores the Clarity document id, never the URL, with the owner title normalized', async () => {
     const id = await makeUser();
 
     await userService.updateUserProfile(id, {
-      linksMetadata: [
-        {
-          url: 'https://example.com',
-          title: INDENTED_REMOTE_TITLE,
-          description: 'Una   descripción\ncon salto',
-        },
-      ],
+      linksMetadata: [{ url: 'https://example.com', title: INDENTED_REMOTE_TITLE }],
     });
 
     const rows = await getDb()
       .select({
-        url: userLinkMetadata.url,
+        clarityDocumentId: userLinkMetadata.clarityDocumentId,
         title: userLinkMetadata.title,
-        description: userLinkMetadata.description,
       })
       .from(userLinkMetadata)
       .where(eq(userLinkMetadata.userId, id));
 
-    expect(rows).toEqual([
-      {
-        url: 'https://example.com',
-        title: 'Mi título',
-        description: 'Una descripción con salto',
-      },
-    ]);
+    expect(rows).toEqual([{ clarityDocumentId: `doc:https://example.com`, title: 'Mi título' }]);
   });
 
   it('records the submitted order as `position`', async () => {
-    // An embedded array was ordered by construction; a child table is a SET
-    // until a column says otherwise, so the order is part of the contract.
+    // A child table is a set until a column says otherwise, so the order is part of the contract.
     const id = await makeUser();
 
     await userService.updateUserProfile(id, {
-      linksMetadata: [
-        { url: 'https://second.test', title: 'B', description: '' },
-        { url: 'https://first.test', title: 'A', description: '' },
-      ],
+      linksMetadata: [{ url: 'https://second.test' }, { url: 'https://first.test' }],
     });
 
     const rows = await getDb()
-      .select({ url: userLinkMetadata.url, position: userLinkMetadata.position })
+      .select({
+        clarityDocumentId: userLinkMetadata.clarityDocumentId,
+        position: userLinkMetadata.position,
+      })
       .from(userLinkMetadata)
       .where(eq(userLinkMetadata.userId, id))
       .orderBy(asc(userLinkMetadata.position));
 
     expect(rows).toEqual([
-      { url: 'https://second.test', position: 0 },
-      { url: 'https://first.test', position: 1 },
+      { clarityDocumentId: 'doc:https://second.test', position: 0 },
+      { clarityDocumentId: 'doc:https://first.test', position: 1 },
     ]);
+  });
+
+  it('keeps one row per Clarity document, the first position winning', async () => {
+    const id = await makeUser();
+
+    await userService.updateUserProfile(id, {
+      linksMetadata: [{ url: 'https://same.test' }, { url: 'https://same.test/' }],
+    });
+
+    const rows = await getDb()
+      .select({ clarityDocumentId: userLinkMetadata.clarityDocumentId })
+      .from(userLinkMetadata)
+      .where(eq(userLinkMetadata.userId, id));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('refuses a link that is not https and stores nothing', async () => {
+    const id = await makeUser();
+
+    await expect(
+      userService.updateUserProfile(id, { linksMetadata: [{ url: 'http://example.com' }] }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    const rows = await getDb()
+      .select({ id: userLinkMetadata.id })
+      .from(userLinkMetadata)
+      .where(eq(userLinkMetadata.userId, id));
+    expect(rows).toHaveLength(0);
   });
 });
 

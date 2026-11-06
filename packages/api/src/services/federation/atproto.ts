@@ -11,6 +11,7 @@ import {
 import { safeFetch } from '@oxy.so/core/server';
 import { sanitizePlainText } from '../../utils/sanitize';
 import type { SourceObservation } from './externalIdentity';
+import { httpsUrl, uniqueLinks, type ExternalActorLink } from './externalIdentityPolicy';
 import { ATPROTO_DID_RE } from './handles';
 import { readFederationJson, safeFederationFetch } from './transport';
 
@@ -51,12 +52,32 @@ export async function fetchAtprotoSource(did: string): Promise<SourceObservation
       transportAcct: handle,
       stableId: did,
       evidenceLinks: [],
+      links: atprotoLinks(profile.links),
       displayName: typeof profile.displayName === 'string' ? profile.displayName : handle,
       bio: sanitizePlainText(typeof profile.description === 'string' ? profile.description : ''),
       avatarUrl: typeof profile.avatar === 'string' ? profile.avatar : undefined,
     },
     document: profile,
   };
+}
+
+/**
+ * The links a Bluesky profile names (`profileViewDetailed.links`), as the profile
+ * shows them: https only, the author's title, the author's order.
+ */
+function atprotoLinks(value: unknown): ExternalActorLink[] {
+  if (!Array.isArray(value)) return [];
+  const links: ExternalActorLink[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const { url, title } = entry as { url?: unknown; title?: unknown };
+    if (typeof url !== 'string') continue;
+    const href = httpsUrl(url);
+    if (!href) continue;
+    const label = typeof title === 'string' ? sanitizePlainText(title).trim() : '';
+    links.push({ title: label || new URL(href).hostname, url: href });
+  }
+  return uniqueLinks(links);
 }
 
 /** The DID a Bluesky handle names, or null when the AppView cannot resolve it. */

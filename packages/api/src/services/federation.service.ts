@@ -13,6 +13,7 @@
  * `refreshThrottle`. Everything this module exported before is re-exported here.
  */
 
+import { replaceSourceProfileLinks } from './profileLinks.service';
 import { eq } from 'drizzle-orm';
 import {
   blueskyHandleFromUsername,
@@ -840,6 +841,15 @@ class FederationService {
         }
       : undefined;
     const canonicalUserId = await resolveCanonicalUserId(result.identity.userId);
+    // The source's links are the account's profile links, held as a native
+    // account's are. Identity resolution does not wait on them: a Clarity outage
+    // or a failed write keeps the links the account already had.
+    await replaceSourceProfileLinks(canonicalUserId, profile.links).catch((error: unknown) =>
+      logger.warn('Source profile links not synced; keeping the account’s links', {
+        actorUri: profile.actorUri,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
     userCache.invalidate(canonicalUserId);
     userCache.invalidate(result.userId);
     userCache.invalidate(result.identity.userId);

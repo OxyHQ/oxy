@@ -114,7 +114,6 @@ function expectRichPublicRow(dto: PublicUserProfile, id: string): void {
       url: 'https://remote.test/profile',
       title: 'Profile',
       description: 'Remote profile',
-      image: null,
     },
   ]);
   expect(dto.type).toBe('federated');

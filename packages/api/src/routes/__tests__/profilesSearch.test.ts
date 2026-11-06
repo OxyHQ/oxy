@@ -696,7 +696,6 @@ describe('GET /profiles/search — wire shape', () => {
       color: 'purple',
       bio: 'row bio',
       description: 'row description',
-      links: ['https://oxy.so/row'],
       verified: true,
     });
     const [stored] = await getDb()
@@ -717,7 +716,6 @@ describe('GET /profiles/search — wire shape', () => {
         bio: 'row bio',
         description: 'row description',
         color: 'purple',
-        links: ['https://oxy.so/row'],
         linksMetadata: [],
         createdAt: stored.createdAt.toISOString(),
         updatedAt: stored.updatedAt.toISOString(),

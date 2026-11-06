@@ -54,19 +54,21 @@ router.get('/', validate({ query: searchQuerySchema }), async (req: Request, res
         .offset(skip)
         .limit(limit);
 
-      results.users = rows
-        .map((row) => {
-          const view = toPublicUserView(row);
-          return formatUserResponse({
-            ...view,
-            // This surface emits only the public consent leaf,
-            // `privacySettings.fediverseSharing`, while `POST /users/search`
-            // also emits the discoverability gate. The two differ on the wire
-            // deliberately; keep each as it is.
-            privacySettings: { fediverseSharing: view.privacySettings?.fediverseSharing },
-          });
-        })
-        .filter((user): user is NonNullable<typeof user> => user !== null);
+      results.users = (
+        await Promise.all(
+          rows.map(async (row) => {
+            const view = await toPublicUserView(row);
+            return formatUserResponse({
+              ...view,
+              // This surface emits only the public consent leaf,
+              // `privacySettings.fediverseSharing`, while `POST /users/search`
+              // also emits the discoverability gate. The two differ on the wire
+              // deliberately; keep each as it is.
+              privacySettings: { fediverseSharing: view.privacySettings?.fediverseSharing },
+            });
+          }),
+        )
+      ).filter((user): user is NonNullable<typeof user> => user !== null);
       results.pagination.hasMore = rows.length === limit;
     }
 

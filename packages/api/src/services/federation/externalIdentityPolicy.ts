@@ -11,6 +11,15 @@ import {
 import { federationBridges } from '../../config/federationBridgePolicy';
 import { decodeHtmlEntities, sanitizePlainText } from '../../utils/sanitize';
 
+/** A link the source profile names: the title its author gave it and its address. */
+export interface ExternalActorLink {
+  title: string;
+  url: string;
+}
+
+/** Most links a source profile contributes; the owner's own limit applies to the account. */
+export const EXTERNAL_PROFILE_LINKS_MAX = 10;
+
 /** Identity decisions are made exclusively from documents fetched by Oxy. */
 export interface ExternalActorProfile {
   actorUri: string;
@@ -28,6 +37,8 @@ export interface ExternalActorProfile {
   actor?: ActorKindSignals;
   avatarUrl?: string;
   bio: string;
+  /** The profile's links (its link fields, or Bluesky's), in the author's order. */
+  links: ExternalActorLink[];
   evidenceLinks: string[];
   stableId?: string;
 }
@@ -35,6 +46,35 @@ export interface ExternalActorProfile {
 function attribute(tag: string, name: string): string | undefined {
   const match = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(tag);
   return match ? decodeHtmlEntities(match[1] ?? match[2]) : undefined;
+}
+
+/**
+ * The link a profile field names: its value as a URL, or the first `https` href
+ * of the anchor it is written as. The title is the field's own name.
+ */
+export function fieldLink(field: Record<string, unknown>): ExternalActorLink | null {
+  if (typeof field.name !== 'string' || typeof field.value !== 'string') return null;
+  const title = decodeHtmlEntities(field.name).replace(/\s+/g, ' ').trim();
+  const candidates = [
+    field.value.trim(),
+    ...[...field.value.matchAll(/<a\b[^>]*>/gi)].map((match) => attribute(match[0], 'href') ?? ''),
+  ];
+  for (const candidate of candidates) {
+    const url = httpsUrl(candidate);
+    if (url) return { title: title || new URL(url).hostname, url };
+  }
+  return null;
+}
+
+/** The `https` address a string is, normalised; `null` for anything else. */
+export function httpsUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
 }
 
 /** Only explicit rel=me links are identity claims; arbitrary bio links are not. */
@@ -85,6 +125,12 @@ export function deriveExternalActorProfile(
     (entry): entry is Record<string, unknown> => typeof entry === 'object' && !Array.isArray(entry),
   );
   const links = fields.flatMap((field) => identityLinks(field.value));
+  const profileLinks = uniqueLinks(
+    fields.flatMap((field) => {
+      const link = fieldLink(field);
+      return link ? [link] : [];
+    }),
+  );
   const aliases = apIriList(actor.alsoKnownAs);
   const bio = sanitizePlainText(
     typeof actor.summary === 'string' ? actor.summary.replace(/<br\s*\/?\s*>|<\/p>/gi, '\n') : '',
@@ -159,11 +205,25 @@ export function deriveExternalActorProfile(
     // A URL string, an Image (url string, Link or list) or a list of Images.
     avatarUrl: apImageUrl(actor.icon),
     bio: normalizeExternalBio(normalizedBio, domain, host),
+    links: profileLinks,
     evidenceLinks: [
       ...new Set([...links, ...aliases.filter((value) => value.startsWith('https://'))]),
     ],
     stableId,
   };
+}
+
+/** Keeps the first of each address, up to the limit. */
+export function uniqueLinks(links: readonly ExternalActorLink[]): ExternalActorLink[] {
+  const seen = new Set<string>();
+  const out: ExternalActorLink[] = [];
+  for (const link of links) {
+    if (seen.has(link.url)) continue;
+    seen.add(link.url);
+    out.push(link);
+    if (out.length === EXTERNAL_PROFILE_LINKS_MAX) break;
+  }
+  return out;
 }
 
 /**

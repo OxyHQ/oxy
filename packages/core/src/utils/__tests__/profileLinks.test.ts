@@ -1,4 +1,4 @@
-import { normalizeProfileLinks, type ProfileLink } from '../profileLinks';
+import { normalizeProfileLinks, type ProfileLink, supportProviderOf } from '../profileLinks';
 
 describe('normalizeProfileLinks', () => {
   describe('linksMetadata path (preferred)', () => {
@@ -156,5 +156,34 @@ describe('normalizeProfileLinks', () => {
 
     expect(JSON.stringify(linksMetadata)).toBe(metadataSnapshot);
     expect(JSON.stringify(links)).toBe(linksSnapshot);
+  });
+});
+
+describe('favicon', () => {
+  it('carries the favicon through when Clarity supplied one', () => {
+    expect(
+      normalizeProfileLinks([
+        { url: 'https://a.test', faviconUrl: 'https://clarity/favicons/a.test' },
+      ]),
+    ).toEqual([{ id: '0', url: 'https://a.test', faviconUrl: 'https://clarity/favicons/a.test' }]);
+  });
+});
+
+describe('supportProviderOf', () => {
+  it('recognises the support platforms by host, subdomains included', () => {
+    expect(supportProviderOf('https://www.patreon.com/someone')?.id).toBe('patreon');
+    expect(supportProviderOf('https://ko-fi.com/someone')?.name).toBe('Ko-fi');
+    expect(supportProviderOf('https://buymeacoffee.com/someone')?.id).toBe('buymeacoffee');
+    expect(supportProviderOf('https://liberapay.com/someone')?.id).toBe('liberapay');
+  });
+
+  it('counts GitHub only on its sponsors path', () => {
+    expect(supportProviderOf('https://github.com/sponsors/someone')?.id).toBe('github-sponsors');
+    expect(supportProviderOf('https://github.com/someone/repo')).toBeNull();
+  });
+
+  it('returns null for any other site and for text that is not a URL', () => {
+    expect(supportProviderOf('https://example.com/patreon.com')).toBeNull();
+    expect(supportProviderOf('not a url')).toBeNull();
   });
 });

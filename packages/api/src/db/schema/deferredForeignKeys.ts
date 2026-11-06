@@ -121,6 +121,7 @@ import { inferenceMeteredUsage } from './inferenceMeteredUsage';
 import { kaanaGrantAdmittedLines, kaanaGrants } from './kaanaGrants';
 import { inferenceProviderCostAttempts } from './inferenceProviderCostAttempts';
 import { userCredits } from './userCredits';
+import { userLinkMetadata } from './userLinkMetadata';
 import { userLocations } from './userLocations';
 import { users } from './users';
 import { validationRequests } from './validationRequests';
@@ -1359,5 +1360,13 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'release key — is an open owner decision, so no table can be named as ' +
       'its target without presupposing the answer. It is stored so a verifier ' +
       'that lands later has the key name the signer used.',
+  },
+  {
+    table: userLinkMetadata,
+    column: userLinkMetadata.clarityDocumentId,
+    reason:
+      'The id of a Clarity document: Clarity holds the URL and page facts of a profile link. ' +
+      'It names a row in Clarity’s own database, so no constraint can reach it from here; a document Clarity ' +
+      'removes is left out of the profile on read rather than dangling.',
   },
 ];

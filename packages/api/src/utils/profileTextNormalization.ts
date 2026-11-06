@@ -217,22 +217,3 @@ export function normalizeLocations(value: unknown): unknown {
   }
   return normalized;
 }
-
-/**
- * Normalize `links[]`: a plain array of profile URLs. A URL can never contain
- * whitespace, so each entry is inline-normalized and entries that normalize to
- * nothing (or are not strings) are dropped.
- *
- * A non-array input is returned untouched.
- */
-export function normalizeLinks(value: unknown): unknown {
-  if (!Array.isArray(value)) return value;
-
-  const normalized: string[] = [];
-  for (const entry of value) {
-    if (typeof entry !== 'string') continue;
-    const url = normalizeDisplayValue(entry, MAX_LINK_URL_LENGTH);
-    if (url) normalized.push(url);
-  }
-  return normalized;
-}
