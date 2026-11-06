@@ -1,7 +1,7 @@
 {
   "name": "commons",
   "main": "expo-router/entry",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "scripts": {
     "android": "RCT_METRO_PORT=8101 expo run:android",
     "check:classnames": "node scripts/check-classnames.mjs",
