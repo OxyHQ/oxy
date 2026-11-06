@@ -4,6 +4,8 @@ import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Checkbox, CheckboxCard } from '@oxy.so/bloom/checkbox';
 import { useOxy } from '@oxy.so/services';
+import { useQueryClient } from '@tanstack/react-query';
+import { BACKUP_OWED_QUERY_KEY } from '@/hooks/identity/useBackupOwed';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
@@ -36,6 +38,7 @@ export default function RotateKeyConfirmScreen() {
   const colors = useColors();
   const { t } = useTranslation();
   const { oxyServices } = useOxy();
+  const queryClient = useQueryClient();
   const { proof, currentPhraseRef, pendingIdentityRef, reset } = useRotateKeyFlow();
 
   const [state, setState] = useState<ConfirmState>('form');
@@ -79,6 +82,8 @@ export default function RotateKeyConfirmScreen() {
       // The new key material has served its purpose — scrub the in-memory copies.
       currentPhraseRef.current = null;
       pendingIdentityRef.current = null;
+      // Whether the new backup is still owed (R5-9) changed with the rotation.
+      void queryClient.invalidateQueries({ queryKey: BACKUP_OWED_QUERY_KEY });
 
       if (result.localPersistFailed) {
         // Server rotated, phrase already shown — guide to restore, don't error.
@@ -104,6 +109,7 @@ export default function RotateKeyConfirmScreen() {
     pendingIdentityRef,
     signOutEverywhere,
     fundsAcknowledged,
+    queryClient,
     t,
   ]);
 

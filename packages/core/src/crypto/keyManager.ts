@@ -221,6 +221,15 @@ const SLOTS_MIGRATED_FLAG_KEY = 'oxy_identity_slots_migrated_v2';
 const ROTATION_PENDING_KEY = 'oxy_identity_rotation_pending_v1';
 
 /**
+ * The account whose encrypted identity backup is OWED (round-5 review R5-9):
+ * set before a key rotation's server swap (which deletes the old backup) and
+ * cleared once a new backup is sealed. A crash, a failed upload or a closed app
+ * in between leaves it set, so Commons keeps asking until the backup exists.
+ * Not a secret; AsyncStorage.
+ */
+const BACKUP_OWED_KEY = 'oxy_identity_backup_owed_v1';
+
+/**
  * The resolved set of storage key names + keychain services a session reads and
  * writes. Normally {@link V2_SLOT_LAYOUT}; degrades to {@link LEGACY_SLOT_LAYOUT}
  * for the current session only when a v2 migration write could not be verified
@@ -1400,6 +1409,80 @@ export class KeyManager {
         logger.error('Failed to sync the shared identity', error, { component: 'KeyManager' });
       }
       return false;
+    }
+  }
+
+  /**
+   * Every private key this device's personal slots hold — the primary, the
+   * backup slot and the shared slot (iOS: the wallet group; Android: Commons'
+   * signer store) — canonical, deduplicated, valid keys only. Commons, before
+   * a rotation overwrites them (R4-12): a held key that is neither the key
+   * being replaced nor the new one is kept in the retired ring first. STRICT:
+   * a slot that cannot be read throws, so the caller refuses to overwrite
+   * rather than guess what was there.
+   */
+  static async heldIdentityPrivateKeys(): Promise<string[]> {
+    if (isWebPlatform()) {
+      return [];
+    }
+    const migration = await KeyManager._ensureIdentitySlotsMigrated();
+    if (migration.mode === 'deferred') {
+      throw new IdentityUnavailableError('The identity slots cannot be read right now.');
+    }
+    const { layout } = migration;
+    const store = await initSecureStore();
+    const found: Array<string | null> = [
+      await store.getItemAsync(
+        layout.primaryPrivateKeyName,
+        KeyManager._slotOpts(layout.primaryService),
+      ),
+      await store.getItemAsync(
+        layout.backupPrivateKeyName,
+        KeyManager._slotOpts(layout.backupService),
+      ),
+    ];
+    if (isAndroid()) {
+      found.push((await KeyManager.identitySignerStore?.read())?.privateKey ?? null);
+    } else if (isIOS()) {
+      const shared = await keychainItemStore('spending-key');
+      found.push(await shared.getItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, {}));
+    }
+    return [
+      ...new Set(
+        found
+          .filter((key): key is string => key !== null && KeyManager.isValidPrivateKey(key))
+          .map((key) => KeyManager.canonicalPrivateKey(key)),
+      ),
+    ];
+  }
+
+  /**
+   * Record that `userId`'s encrypted identity backup is owed (R5-9): before a
+   * rotation's server swap, which deletes the old backup. Best-effort where
+   * there is no app storage (web).
+   */
+  static async markBackupOwed(userId: string): Promise<void> {
+    const storage = await KeyManager._advisoryStorage();
+    await storage?.setItem(BACKUP_OWED_KEY, userId);
+  }
+
+  /** The backup is sealed: clear the owed flag. Best-effort: never throws. */
+  static async clearBackupOwed(): Promise<void> {
+    try {
+      const storage = await KeyManager._advisoryStorage();
+      await storage?.setItem(BACKUP_OWED_KEY, '');
+    } catch (error) {
+      logger.warn('Failed to clear the backup-owed flag', { component: 'KeyManager' }, error);
+    }
+  }
+
+  /** The account whose backup is owed on this device, or `null`. Never throws. */
+  static async backupOwedFor(): Promise<string | null> {
+    try {
+      const storage = await KeyManager._advisoryStorage();
+      return (await storage?.getItem(BACKUP_OWED_KEY)) || null;
+    } catch {
+      return null;
     }
   }
 

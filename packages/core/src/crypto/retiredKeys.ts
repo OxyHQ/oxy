@@ -195,6 +195,15 @@ interface IndexEntry {
    * Absent: quarantined (never listed, derived from or signed with).
    */
   owner?: string;
+  /**
+   * Organization entries: `true` while the key's provenance is unknown (a copy
+   * the access-group migration found in the shared group, which every Oxy app
+   * could write; R5-3, R5-7). Never listed, derived from or signed with until
+   * {@link claimRetiredOrganizationKeys} binds it against the organization's
+   * own key history. The organization counterpart of a personal entry without
+   * an `owner`.
+   */
+  quarantined?: true;
 }
 
 const ACCOUNT_ID =
@@ -213,8 +222,13 @@ function ownerOf(ownerAccountId: string | undefined): string | null {
  */
 function isVisible(entry: IndexEntry, scope: string, owner: string | null): boolean {
   if (entry.scope !== scope) return false;
-  if (scope !== PERSONAL_SCOPE) return true;
+  if (scope !== PERSONAL_SCOPE) return entry.quarantined !== true;
   return owner !== null && entry.owner === owner;
+}
+
+/** Whether nobody may reach `entry` yet: a personal one without an owner, a quarantined organization one. */
+function isQuarantined(entry: IndexEntry): boolean {
+  return entry.scope === PERSONAL_SCOPE ? entry.owner === undefined : entry.quarantined === true;
 }
 
 function isIndexEntry(value: unknown): value is IndexEntry {
@@ -227,7 +241,9 @@ function isIndexEntry(value: unknown): value is IndexEntry {
     PUBLIC_KEY.test(entry.publicKey) &&
     typeof entry.retiredAt === 'number' &&
     Number.isFinite(entry.retiredAt) &&
-    (entry.owner === undefined || (typeof entry.owner === 'string' && ACCOUNT_ID.test(entry.owner)))
+    (entry.owner === undefined ||
+      (typeof entry.owner === 'string' && ACCOUNT_ID.test(entry.owner))) &&
+    (entry.quarantined === undefined || entry.quarantined === true)
   );
 }
 
@@ -296,6 +312,27 @@ async function assertMayWrite(): Promise<void> {
 }
 
 /**
+ * Whether this app holds a retired ring at all (R5-6): Commons on Android (the
+ * signer store it registers) and on iOS (keychain role `holder`, or a build
+ * without the split). `false` only when this app DEFINITELY holds none (web,
+ * every other app), so a caller can tell "no ring here" from "a ring that
+ * cannot be read" without catching every error. A keychain that cannot say
+ * which role this app has answers `true`: the caller then reads the ring and
+ * meets the real error. Never throws.
+ */
+export async function holdsRetiredRing(): Promise<boolean> {
+  if (isWeb()) return false;
+  if (isAndroid()) return Boolean(registeredIdentitySignerStore()?.writeRetired);
+  if (!isIOS()) return false;
+  try {
+    const access = await resolveKeychainAccess();
+    return access.mode !== 'grouped' || access.role === 'holder';
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Keep `key` in the ring of `selector`'s account. Commons only. A PERSONAL key
  * needs `selector.ownerAccountId`, the person whose key it was (R5-2): the
  * signed-in account at a rotation, the account whose key history or backup
@@ -318,27 +355,35 @@ export async function retireIdentityKey(
 }
 
 /**
- * {@link retireIdentityKey} from inside the iOS access-group migration, which
- * keeps a pre-split copy before deleting it from the shared group and cannot
- * await itself. A personal key without `ownerAccountId` is kept QUARANTINED:
- * held (it may be money) but reached by nobody until
- * {@link claimRetiredIdentityKeys} binds it. @internal
+ * {@link retireIdentityKey} from inside the iOS access-group migration (and a
+ * Commons secret write that finds a different copy in the shared group),
+ * which keeps a pre-split copy before deleting it from the shared group and
+ * cannot await the migration. A personal key without `ownerAccountId` is kept
+ * QUARANTINED: held (it may be money) but reached by nobody until
+ * {@link claimRetiredIdentityKeys} binds it. An organization key with
+ * `quarantine` is kept the same way until {@link claimRetiredOrganizationKeys}
+ * binds it (R5-3, R5-7). @internal
  */
 export async function retireIdentityKeyDuringMigration(
   key: RetiredKeyPair,
   selector?: RetiredKeySelector,
+  options?: { quarantine?: boolean },
 ): Promise<void> {
-  await keepRetired(key, selector, false);
+  await keepRetired(key, selector, false, options?.quarantine === true);
 }
 
 async function keepRetired(
   key: RetiredKeyPair,
   selector: RetiredKeySelector | undefined,
   gate: boolean,
+  quarantine = false,
 ): Promise<void> {
   const scope = retiredKeyScope(selector);
   if (!scope) throw new Error('retired key: accountId must be a 24-hex or uuid account id');
   const owner = scope === PERSONAL_SCOPE ? ownerOf(selector?.ownerAccountId) : null;
+  // An organization key is quarantined only when its provenance is unknown;
+  // a known one (Commons replacing the key it held) binds a quarantined entry.
+  const orgQuarantine = scope !== PERSONAL_SCOPE && quarantine;
   await assertMayWrite();
   if (!isHealthyPair(key.privateKey, key.publicKey)) {
     throw new Error('retired key: the public key does not derive from the private key');
@@ -366,18 +411,30 @@ async function keepRetired(
   }
   const index = await readIndex(store);
   const kept = index.find((entry) => entry.scope === scope && entry.publicKey === publicKey);
+  let stored: IndexEntry;
   if (!kept) {
-    await writeIndex(store, [
-      ...index,
-      owner === null
-        ? { scope, publicKey, retiredAt: Date.now() }
-        : { scope, publicKey, retiredAt: Date.now(), owner },
-    ]);
+    stored =
+      owner !== null
+        ? { scope, publicKey, retiredAt: Date.now(), owner }
+        : orgQuarantine
+          ? { scope, publicKey, retiredAt: Date.now(), quarantined: true }
+          : { scope, publicKey, retiredAt: Date.now() };
+    await writeIndex(store, [...index, stored]);
   } else if (kept.owner === undefined && owner !== null) {
+    stored = { ...kept, owner };
     await writeIndex(
       store,
-      index.map((entry) => (entry === kept ? { ...entry, owner } : entry)),
+      index.map((entry) => (entry === kept ? stored : entry)),
     );
+  } else if (kept.quarantined && !orgQuarantine && scope !== PERSONAL_SCOPE) {
+    const { quarantined: _bound, ...rest } = kept;
+    stored = rest;
+    await writeIndex(
+      store,
+      index.map((entry) => (entry === kept ? stored : entry)),
+    );
+  } else {
+    stored = kept;
   }
   // The identity host answers only from the signer store, which holds the
   // organizations' rings and the CURRENT person's personal entries; a
@@ -385,7 +442,7 @@ async function keepRetired(
   const signer = isAndroid() ? registeredIdentitySignerStore() : null;
   if (
     signer?.writeRetired &&
-    (scope !== PERSONAL_SCOPE || owner !== null) &&
+    !isQuarantined(stored) &&
     !(await signer.writeRetired(scope, privateKey, publicKey))
   ) {
     throw new Error(`The identity signer store (${signer.name}) did not confirm the retired key.`);
@@ -423,6 +480,57 @@ export async function claimRetiredIdentityKeys(
   });
   if (bound > 0) await writeIndex(store, next);
   return bound;
+}
+
+/**
+ * Bind the QUARANTINED entries of `accountId`'s organization ring whose public
+ * key `publicKeys` names (R5-3, R5-7). Commons only, with that organization's
+ * key history from Oxy (`oxy.accounts.identityKey.get(accountId).keys`: every
+ * key it has had, current included): a key the organization's own history
+ * names was the organization's. Keys the history does not name stay
+ * quarantined. Resolves how many it bound; on Android call
+ * {@link syncRetiredKeys} after it.
+ */
+export async function claimRetiredOrganizationKeys(
+  accountId: string,
+  publicKeys: readonly string[],
+): Promise<number> {
+  const scope = retiredKeyScope({ accountId });
+  if (!scope || scope === PERSONAL_SCOPE) {
+    throw new Error('retired key: accountId must be an organization account id');
+  }
+  if (isWeb()) return 0;
+  await assertMayWrite();
+  const named = new Set(
+    publicKeys.map((key) => canonicalPublicKey(key)).filter((key): key is string => key !== null),
+  );
+  const store = await ringStore();
+  const index = await readIndex(store);
+  let bound = 0;
+  const next = index.map((entry) => {
+    if (entry.scope !== scope || !entry.quarantined || !named.has(entry.publicKey)) return entry;
+    bound += 1;
+    const { quarantined: _bound, ...rest } = entry;
+    return rest;
+  });
+  if (bound > 0) await writeIndex(store, next);
+  return bound;
+}
+
+/**
+ * The organization entries that are quarantined, as `{ accountId, publicKey }`
+ * (public data only): Commons asks each organization's key history for them
+ * and binds the ones it names ({@link claimRetiredOrganizationKeys}). Empty
+ * where this app holds no ring. Strict: an unreadable ring throws.
+ */
+export async function listQuarantinedOrganizationKeys(): Promise<
+  Array<{ accountId: string; publicKey: string }>
+> {
+  if (!(await holdsRetiredRing())) return [];
+  const store = await ringStore();
+  return (await readIndex(store))
+    .filter((entry) => entry.scope !== PERSONAL_SCOPE && entry.quarantined === true)
+    .map((entry) => ({ accountId: entry.scope, publicKey: entry.publicKey }));
 }
 
 /**
@@ -623,7 +731,8 @@ export async function syncRetiredKeys(ownerAccountId?: string): Promise<number> 
   await clearPersonalMirror(signer, index, allowed);
   let mirrored = 0;
   for (const entry of index) {
-    if (entry.scope === PERSONAL_SCOPE && !isVisible(entry, PERSONAL_SCOPE, owner)) continue;
+    // A previous person's entries and quarantined ones are never mirrored.
+    if (!isVisible(entry, entry.scope, owner)) continue;
     const privateKey = await store.getItemAsync(
       privateKeyName(entry.scope, entry.publicKey),
       privateOptions(store, false),

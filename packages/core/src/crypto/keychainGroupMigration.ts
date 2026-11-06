@@ -12,29 +12,46 @@
  * - **Provenance.** Commons' identity marker (`./identityMarker`) lives in its
  *   own sandbox (AsyncStorage): no other app can write it and an uninstall
  *   removes it. A personal key is adopted only when it IS the key that marker
- *   records; a phrase only when it derives it. Organization items are adopted
- *   only on such a proven device (before the split every Oxy app could already
- *   read and replace them, so a proven upgrade gains nothing by doubting them).
- *   No marker — a fresh install, a reinstall, a device that never ran a
- *   marker-aware Commons — adopts NOTHING from the shared group, ever.
+ *   records; a phrase only when it derives it. An organization key is adopted
+ *   only when it equals the key this device already holds for that
+ *   organization in the wallet group (R5-7): any app could write the shared
+ *   copy, and the marker says nothing about organizations. No marker — a fresh
+ *   install, a reinstall, a device that never ran a marker-aware Commons —
+ *   adopts NOTHING from the shared group, ever.
+ * - **Nothing is lost (R5-3).** A valid key or phrase that is not adopted is
+ *   kept in the retired ring QUARANTINED (`./retiredKeys`: a personal entry
+ *   without an owner, an organization entry flagged `quarantined`), read back,
+ *   and only then deleted from the shared group. Quarantined entries reach
+ *   nobody until Commons binds them against the account's own key history
+ *   (`claimRetiredIdentityKeys`, `claimRetiredOrganizationKeys`), and an
+ *   organization's current key comes back as its live pair
+ *   (`adoptOrganizationKeyFromRing`). A Commons secret write that finds a
+ *   different copy in the shared group keeps it the same way first
+ *   (`setSharedCopyKeeper`).
+ * - **No prompts (R5-9).** The shared group is read without user interaction
+ *   (`readSharedWithoutInteraction`): another app can plant an item there that
+ *   requires Face ID, and expo-secure-store's own read would prompt for it.
+ * - **Development builds (R5-5)** never read, move or delete anything in the
+ *   shared group: it has no dev variant, so what is there is production's.
  * - **One shot.** When a run settles, a completion record is written to the
  *   identity group (Commons only) and mirrored into the wallet group (for the
  *   Peable wallet). With it, no later run looks at the shared group and no
  *   read falls back to it (`setHolderSharedSecretFallback`,
  *   `closeWalletSharedSecretFallback`).
- * - **A different key is retired, then deleted (R4-6).** On a proven device a
- *   shared copy that is a valid key but not the one being kept (a replaced
- *   root, an old backup slot, an organization's previous key, a phrase of
- *   either) is kept in the retired ring (`./retiredKeys`, spending only), read
- *   back, and only then deleted from the shared group. Nothing that could
- *   hold money is destroyed, and nothing stays where every app can read it.
+ * - **A different key is retired, then deleted (R4-6).** A shared copy that
+ *   is a valid key but not the one being kept (a replaced root, an old backup
+ *   slot, an organization's previous key, a phrase of either) is kept in the
+ *   retired ring (spending only, quarantined), read back, and only then
+ *   deleted from the shared group. Nothing that could hold money is
+ *   destroyed, and nothing stays where every app can read it.
  *
  * Each adopted item moves by VERIFY-BEFORE-DELETE: read it from the shared
  * group, write it to its group, read it back (a pair must be healthy, a value
  * byte-identical), and only then delete the shared copy. A failure at any step
  * leaves the shared copy; the run is `incomplete`, no record is written, and
- * on a proven device Commons' reads may still fall back to the shared group
- * for that launch; the next launch resumes.
+ * Commons' reads may still fall back to the shared group for exactly the
+ * proven items that could not move (R5-9); a later access retries, with a
+ * backoff, and the next launch resumes.
  *
  * `ensureKeychainGroupsMigrated` is awaited by every KeyManager, organization
  * key and retired-ring access in Commons, so no write of theirs can interleave
@@ -55,11 +72,14 @@ import {
   type KeychainAccess,
   type KeychainAccessGroupName,
   type KeychainItemClass,
+  type KeychainItemName,
   closeWalletSharedSecretFallback,
   keychainAccessGroupValue,
   keychainGroupFor,
+  readSharedWithoutInteraction,
   resolveKeychainAccess,
   setHolderSharedSecretFallback,
+  setSharedCopyKeeper,
 } from '../utils/keychainAccessGroups';
 import { readIdentityMarkerStrict } from './identityMarker';
 import {
@@ -73,9 +93,11 @@ import {
   V2_PRIMARY_KEYCHAIN_SERVICE,
   V2_STORAGE_KEYS,
   organizationMnemonicName,
+  organizationOfSecretItem,
   organizationPrivateKeyName,
   organizationPublicKeyName,
   parseOrganizationIndex,
+  parseOrganizationIndexStrict,
   serializeOrganizationIndex,
 } from './keychainItems';
 import { retireIdentityKeyDuringMigration } from './retiredKeys';
@@ -91,10 +113,12 @@ export type KeychainItemMigrationOutcome =
 
 export interface KeychainGroupMigrationReport {
   /**
-   * - `not-applicable`: not Commons on a split-aware iOS build; nothing to move.
+   * - `not-applicable`: not Commons on a split-aware iOS build, or a
+   *   development build (R5-5); nothing to move.
    * - `complete`: the completion record exists; the shared group is never
    *   read again for a secret.
-   * - `incomplete`: a copy or delete failed; retried next launch.
+   * - `incomplete`: a copy or delete failed; retried on a later access (with
+   *   a backoff) and on the next launch.
    * - `deferred`: the keychain or the marker could not be read (locked);
    *   retried on the next storage access.
    */
@@ -188,10 +212,20 @@ async function pairOfPhrase(
 
 class Deferred extends Error {}
 
-/** Which ring a retired copy goes to: the person's, or an organization's. */
-type Ring = { accountId?: string };
+/**
+ * Which ring a retired copy goes to: the person's (always quarantined here: no
+ * owner is known), or an organization's, quarantined unless its provenance is
+ * known.
+ */
+type Ring = { accountId?: string; quarantine?: boolean };
+
+const nameOf = (s: Slot): KeychainItemName =>
+  s.service === undefined ? { key: s.key } : { key: s.key, service: s.service };
 
 class Mover {
+  /** Proven items that were to be ADOPTED and could not move: Commons may still read their shared copy. */
+  readonly adoptFailures: KeychainItemName[] = [];
+
   constructor(
     private readonly store: ExpoSecureStoreLike,
     private readonly access: KeychainAccess,
@@ -207,9 +241,20 @@ class Mover {
     };
   }
 
-  /** A read that throws means the keychain is unavailable: the whole run defers. */
+  /**
+   * A read that throws means the keychain is unavailable: the whole run
+   * defers. The shared group is read without user interaction (R5-9).
+   */
   async read(s: Slot, group: KeychainAccessGroupName): Promise<string | null> {
     try {
+      if (group === 'shared') {
+        return await readSharedWithoutInteraction(
+          this.store,
+          s.key,
+          s.service ? { keychainService: s.service } : {},
+          { accessGroup: keychainAccessGroupValue(this.access, 'shared') },
+        );
+      }
       return (await this.store.getItemAsync(s.key, this.options(s, group))) ?? null;
     } catch (error) {
       throw new Deferred(error instanceof Error ? error.message : 'keychain read threw');
@@ -260,7 +305,11 @@ class Mover {
     if (!publicKey) return (await this.deleteShared(shared)) ? 'discarded' : 'failed';
     try {
       // Resolves only once the ring read it back.
-      await retireIdentityKeyDuringMigration({ privateKey, publicKey }, ring);
+      await retireIdentityKeyDuringMigration(
+        { privateKey, publicKey },
+        ring.accountId === undefined ? {} : { accountId: ring.accountId },
+        { quarantine: ring.quarantine === true },
+      );
     } catch {
       return 'failed';
     }
@@ -296,6 +345,24 @@ class Mover {
     // Adopt (or finish adopting, after a run that died half-way): the private
     // key, and (when its group is not shared) the public key it derives —
     // never a stored public half that disagrees with it.
+    const outcome = await this.adoptPair(
+      privateSlot,
+      publicSlot,
+      sharedPrivate,
+      derived,
+      targetPrivate,
+    );
+    if (outcome === 'failed') this.adoptFailures.push(...movable.map(nameOf));
+    return outcome;
+  }
+
+  private async adoptPair(
+    privateSlot: Slot,
+    publicSlot: Slot,
+    sharedPrivate: string,
+    derived: string,
+    targetPrivate: string | null,
+  ): Promise<KeychainItemMigrationOutcome> {
     if (targetPrivate === null && !(await this.copy(privateSlot, sharedPrivate))) return 'failed';
     if (publicSlot.group !== 'shared') {
       const targetPublic = await this.read(publicSlot, publicSlot.group);
@@ -304,6 +371,7 @@ class Mover {
       }
     }
     if (publicKeyOf(await this.read(privateSlot, privateSlot.group)) !== derived) return 'failed';
+    const movable = [privateSlot, publicSlot].filter((h) => h.group !== 'shared');
     return (await this.deleteShared(movable)) ? 'moved' : 'failed';
   }
 
@@ -321,24 +389,21 @@ class Mover {
     if (!keep(pair.publicKey) || (target !== null && target !== shared)) {
       return this.retireThenDelete(pair.privateKey, ring, [s]);
     }
-    if (target === null && !(await this.copy(s, shared))) return 'failed';
-    return (await this.deleteShared([s])) ? 'moved' : 'failed';
+    const adopted =
+      (target !== null || (await this.copy(s, shared))) && (await this.deleteShared([s]));
+    if (!adopted) this.adoptFailures.push(nameOf(s));
+    return adopted ? 'moved' : 'failed';
   }
 
-  /** A non-secret value (a timestamp, the index): copied when the group has none, merged by `merge`. */
-  async moveValue(
-    s: Slot,
-    merge?: (shared: string, target: string) => string,
-  ): Promise<KeychainItemMigrationOutcome> {
+  /** A non-secret value (a timestamp): copied when the group has none. */
+  async moveValue(s: Slot): Promise<KeychainItemMigrationOutcome> {
     const shared = await this.read(s, 'shared');
     if (shared === null) return 'absent';
     const target = await this.read(s, s.group);
-    const keep = target === null ? shared : merge ? merge(shared, target) : target;
-    if (keep !== target) {
-      if (!(target === null ? await this.copy(s, keep) : await this.write(s, keep)))
-        return 'failed';
-    }
-    return (await this.deleteShared([s])) ? 'moved' : 'failed';
+    const moved =
+      (target !== null || (await this.copy(s, shared))) && (await this.deleteShared([s]));
+    if (!moved) this.adoptFailures.push(nameOf(s));
+    return moved ? 'moved' : 'failed';
   }
 }
 
@@ -409,17 +474,32 @@ const INDEX_SLOT = slot(
 const RECORD_SLOT = slot(COMPLETION_KEY, 'identity-secret', COMPLETION_SERVICE, false);
 const MIRROR_SLOT = slot(COMPLETION_KEY, 'spending-key', COMPLETION_SERVICE, false);
 
-/** Union of two indexes; never drops an id either side lists. */
-function mergeIndexes(shared: string, target: string): string {
-  return serializeOrganizationIndex([
-    ...parseOrganizationIndex(shared),
-    ...parseOrganizationIndex(target),
-  ]);
-}
-
 const ADOPTED = (o: KeychainItemMigrationOutcome) => o === 'moved';
 
-/** The proven run: everything the marker vouches for, every organization item. */
+/** The slots of one organization's pair and phrase. */
+function organizationSlots(accountId: string) {
+  return {
+    privateSlot: slot(organizationPrivateKeyName(accountId), 'spending-key'),
+    publicSlot: slot(organizationPublicKeyName(accountId), 'spending-key', undefined, false),
+    phraseSlot: slot(
+      organizationMnemonicName(accountId),
+      'identity-secret',
+      ORGANIZATION_MNEMONIC_KEYCHAIN_SERVICE,
+    ),
+  };
+}
+
+/** Every organization either copy of the index names (read only to find items; never adopted from). */
+async function namedOrganizations(mover: Mover): Promise<string[]> {
+  return [
+    ...new Set([
+      ...parseOrganizationIndex(await mover.read(INDEX_SLOT, 'shared')),
+      ...parseOrganizationIndex(await mover.read(INDEX_SLOT, INDEX_SLOT.group)),
+    ]),
+  ].sort();
+}
+
+/** The proven run: everything the marker vouches for; organizations only when this device already holds them. */
 async function migrateProven(
   mover: Mover,
   owner: string,
@@ -435,39 +515,100 @@ async function migrateProven(
   items.phrase = await mover.movePhrase(PHRASE_SLOT, isOwner, {});
   personalExposed ||= ADOPTED(items.phrase);
 
-  // Organizations: every id either copy of the index names.
-  const ids = new Set([
-    ...parseOrganizationIndex(await mover.read(INDEX_SLOT, 'shared')),
-    ...parseOrganizationIndex(await mover.read(INDEX_SLOT, INDEX_SLOT.group)),
-  ]);
+  // Organizations (R5-7): the marker vouches for the person only. An
+  // organization's shared copy is adopted only when it IS the key this device
+  // already keeps for it in the wallet group (a run that died half-way, or a
+  // copy Commons wrote twice); anything else is kept quarantined in that
+  // organization's ring until its own key history names it.
   const organizations: string[] = [];
+  const held: string[] = [];
   let n = 0;
-  for (const accountId of [...ids].sort()) {
+  for (const accountId of await namedOrganizations(mover)) {
     n += 1;
-    const ring = { accountId };
-    const privateSlot = slot(organizationPrivateKeyName(accountId), 'spending-key');
-    const publicSlot = slot(organizationPublicKeyName(accountId), 'spending-key', undefined, false);
-    // The organization's key is whichever this device keeps after the move:
-    // the wallet group's when it has one, else the shared copy.
-    const kept =
-      publicKeyOf(await mover.read(privateSlot, privateSlot.group)) ??
-      publicKeyOf(await mover.read(privateSlot, 'shared'));
-    const isKept = (publicKey: string) => publicKey === kept;
+    const ring = { accountId, quarantine: true };
+    const { privateSlot, publicSlot, phraseSlot } = organizationSlots(accountId);
+    const kept = publicKeyOf(await mover.read(privateSlot, privateSlot.group));
+    const isKept = (publicKey: string) => kept !== null && publicKey === kept;
     items[`organization-${n}`] = await mover.movePair(privateSlot, publicSlot, isKept, ring);
-    items[`organization-${n}-phrase`] = await mover.movePhrase(
-      slot(
-        organizationMnemonicName(accountId),
-        'identity-secret',
-        ORGANIZATION_MNEMONIC_KEYCHAIN_SERVICE,
-      ),
-      isKept,
-      ring,
-    );
-    if (ADOPTED(items[`organization-${n}`])) organizations.push(accountId);
+    items[`organization-${n}-phrase`] = await mover.movePhrase(phraseSlot, isKept, ring);
+    const outcome = items[`organization-${n}`];
+    if (outcome === 'moved' || outcome === 'retired') organizations.push(accountId);
+    if (kept !== null) held.push(accountId);
   }
-  // The index last: it is how a later run finds the organizations above.
-  items['organization-index'] = await mover.moveValue(INDEX_SLOT, mergeIndexes);
+  // The index last: the organizations this device KEEPS a pair for, never one
+  // the shared copy alone names. The shared copy is how a later run finds the
+  // organizations' shared items, so it stays while any of them is left.
+  const orgLeft = Object.entries(items).some(
+    ([label, outcome]) => label.startsWith('organization-') && outcome === 'failed',
+  );
+  items['organization-index'] = await moveIndex(mover, held, !orgLeft);
   return { personalExposed, organizations };
+}
+
+/**
+ * The identity group's index gains the organizations this device holds a pair
+ * for; the shared copy is then deleted (it is not adopted). Strict: an own
+ * index that cannot be read is never overwritten (`failed`).
+ */
+async function moveIndex(
+  mover: Mover,
+  held: string[],
+  deleteShared: boolean,
+): Promise<KeychainItemMigrationOutcome> {
+  const shared = await mover.read(INDEX_SLOT, 'shared');
+  const target = await mover.read(INDEX_SLOT, INDEX_SLOT.group);
+  let own: string[];
+  try {
+    own = parseOrganizationIndexStrict(target);
+  } catch {
+    return 'failed';
+  }
+  const grows = held.some((id) => !own.includes(id));
+  if (grows) {
+    const next = serializeOrganizationIndex([...own, ...held]);
+    if (
+      !(target === null ? await mover.copy(INDEX_SLOT, next) : await mover.write(INDEX_SLOT, next))
+    )
+      return 'failed';
+  }
+  if (shared === null) return grows ? 'moved' : 'absent';
+  if (!deleteShared) return 'failed';
+  return (await mover.deleteShared([INDEX_SLOT])) ? 'moved' : 'failed';
+}
+
+/**
+ * The unproven run (R5-3): no marker vouches for anything in the shared group,
+ * so nothing is adopted — but nothing that could be money is destroyed or left
+ * where every app can read it either. Every valid key and phrase there (the
+ * personal slots, the shared slot, the personal phrase, the pairs and phrases
+ * of every organization either index names) is kept QUARANTINED in its ring,
+ * read back, and only then deleted. Non-secrets (timestamps, the index) stay.
+ */
+async function migrateUnproven(
+  mover: Mover,
+  items: Record<string, KeychainItemMigrationOutcome>,
+): Promise<void> {
+  const never = () => false;
+  for (const pair of personalPairs()) {
+    items[pair.label] = await mover.movePair(pair.privateSlot, pair.publicSlot, never, {});
+  }
+  items.phrase = await mover.movePhrase(PHRASE_SLOT, never, {});
+  let n = 0;
+  for (const accountId of await namedOrganizations(mover)) {
+    n += 1;
+    const ring = { accountId, quarantine: true };
+    const { privateSlot, publicSlot, phraseSlot } = organizationSlots(accountId);
+    items[`organization-${n}`] = await mover.movePair(privateSlot, publicSlot, never, ring);
+    items[`organization-${n}-phrase`] = await mover.movePhrase(phraseSlot, never, ring);
+  }
+}
+
+/** Write the completion record and its mirror; `true` once both read back. */
+async function writeRecord(mover: Mover, record: CompletionRecord): Promise<boolean> {
+  return (
+    (await mover.write(RECORD_SLOT, JSON.stringify(record))) &&
+    (await mover.write(MIRROR_SLOT, JSON.stringify({ v: 1, completedAt: record.completedAt })))
+  );
 }
 
 /** Run the migration once. Exported for tests; production code awaits the gate. */
@@ -489,7 +630,20 @@ export async function runKeychainGroupMigration(): Promise<KeychainGroupMigratio
   }
   const mover = new Mover(store, access);
   const items: Record<string, KeychainItemMigrationOutcome> = {};
-  setHolderSharedSecretFallback(false);
+  setHolderSharedSecretFallback([]);
+  if (access.variant) {
+    // A development build (R5-5): the shared group has no dev variant, so what
+    // is there is production's. Never read, moved or deleted; only the record
+    // is written (best effort), so the dev wallet stops asking.
+    try {
+      if (parseRecord(await mover.read(RECORD_SLOT, RECORD_SLOT.group)) === null) {
+        await writeRecord(mover, { v: 1, completedAt: Date.now() });
+      }
+    } catch {
+      // Locked: nothing depends on the record in a dev build.
+    }
+    return { state: 'not-applicable', items };
+  }
   let record: CompletionRecord;
   let proven = false;
   try {
@@ -514,9 +668,12 @@ export async function runKeychainGroupMigration(): Promise<KeychainGroupMigratio
       const exposure = await migrateProven(mover, owner, items);
       if (exposure.personalExposed) record.exposedPublicKey = owner;
       if (exposure.organizations.length > 0) record.exposedOrganizations = exposure.organizations;
+    } else {
+      // No marker: this Commons cannot prove it wrote anything in the shared
+      // group. Nothing there is adopted, now or later; every key and phrase is
+      // kept quarantined before it is deleted.
+      await migrateUnproven(mover, items);
     }
-    // No marker: this Commons wrote nothing that is in the shared group (or
-    // cannot prove it did). Nothing there is adopted, now or later.
   } catch (error) {
     if (error instanceof Deferred) {
       return { state: 'deferred', items, proven };
@@ -525,23 +682,53 @@ export async function runKeychainGroupMigration(): Promise<KeychainGroupMigratio
   }
   const failed = Object.entries(items).filter(([, o]) => o === 'failed');
   if (failed.length > 0) {
-    // Proven copies are still in the shared group: let Commons read them for
-    // this launch, and try again on the next one.
-    setHolderSharedSecretFallback(true);
+    // The proven items that could not move are still in the shared group:
+    // Commons may read exactly those there until a retry moves them (R5-9).
+    // Nothing unproven, nothing being retired and no index ever opens.
+    setHolderSharedSecretFallback(proven ? mover.adoptFailures : []);
     logger.warn('Keychain access-group migration left items in the shared group', {
       component: 'KeychainGroupMigration',
       items: failed.map(([label]) => label).join(','),
     });
     return { state: 'incomplete', items, proven };
   }
-  if (
-    !(await mover.write(RECORD_SLOT, JSON.stringify(record))) ||
-    !(await mover.write(MIRROR_SLOT, JSON.stringify({ v: 1, completedAt: record.completedAt })))
-  ) {
+  if (!(await writeRecord(mover, record))) {
     return { state: 'incomplete', items, proven };
   }
   return { state: 'complete', items, proven };
 }
+
+/**
+ * A Commons secret write found a DIFFERENT copy of the same item in the shared
+ * group (R5-3): keep it before that copy is deleted. A valid private key or
+ * phrase under one of the names Commons kept secrets under before the split
+ * goes to its ring QUARANTINED (an organization's for its pair and phrase, the
+ * person's otherwise) and is read back; any other value is not a secret and is
+ * left to the delete. Throws when it cannot be kept, which fails the write.
+ */
+async function keepSharedCopy(name: KeychainItemName, value: string): Promise<void> {
+  const accountId = organizationOfSecretItem(name.key);
+  if (accountId === null && !PERSONAL_SECRET_NAMES.has(`${name.service ?? 'app'}|${name.key}`)) {
+    return;
+  }
+  const privateKey = publicKeyOf(value) ? normalizeSecp256k1PrivateKey(value) : null;
+  const pair = privateKey
+    ? { privateKey, publicKey: publicKeyOf(privateKey) as string }
+    : await pairOfPhrase(value);
+  if (!pair) return;
+  await retireIdentityKeyDuringMigration(pair, accountId === null ? {} : { accountId }, {
+    quarantine: true,
+  });
+}
+
+/** The personal secret items Commons kept in the shared group before the split. */
+const PERSONAL_SECRET_NAMES = new Set(
+  [...personalPairs().map((pair) => pair.privateSlot), PHRASE_SLOT].map(
+    (s) => `${s.service ?? 'app'}|${s.key}`,
+  ),
+);
+
+setSharedCopyKeeper(keepSharedCopy);
 
 /**
  * What every keychain-backed identity access awaits first, by role: Commons
@@ -609,19 +796,38 @@ export async function getPreSplitExposure(): Promise<{
 
 let settledReport: KeychainGroupMigrationReport | null = null;
 let inFlight: Promise<KeychainGroupMigrationReport> | null = null;
+/** An `incomplete` run's retries in this process (R5-9): when the next may start, and how many ran. */
+let retryAt = 0;
+let retries = 0;
+
+/** First retry after 30 s, doubling; at most {@link MAX_INCOMPLETE_RETRIES} per process. */
+const RETRY_BASE_MS = 30_000;
+const MAX_INCOMPLETE_RETRIES = 5;
 
 /**
- * The gate every Commons identity-storage access awaits. One run per process
- * (`complete`, `incomplete` and `not-applicable` are kept; `incomplete` is
- * retried on the next launch); a `deferred` run is forgotten, so the next
- * access tries again once the keychain unlocks. Concurrent callers share one
- * run. Never throws.
+ * The gate every Commons identity-storage access awaits. `complete` and
+ * `not-applicable` are kept for the process. An `incomplete` run is retried on
+ * a later access once its backoff has passed (30 s, doubling, at most five
+ * times per process; R5-9) and again on the next launch; until then the
+ * report stands and only the proven items that could not move fall back to
+ * the shared group. A `deferred` run is forgotten, so the next access tries
+ * again once the keychain unlocks. Concurrent callers share one run. Never
+ * throws.
  */
 export function ensureKeychainGroupsMigrated(): Promise<KeychainGroupMigrationReport> {
-  if (settledReport) {
+  if (
+    settledReport &&
+    !(
+      settledReport.state === 'incomplete' &&
+      retries < MAX_INCOMPLETE_RETRIES &&
+      Date.now() >= retryAt
+    )
+  ) {
     return Promise.resolve(settledReport);
   }
   if (!inFlight) {
+    const retrying = settledReport?.state === 'incomplete';
+    if (retrying) retries += 1;
     inFlight = runKeychainGroupMigration()
       .catch((error: unknown): KeychainGroupMigrationReport => {
         logger.warn(
@@ -632,7 +838,10 @@ export function ensureKeychainGroupsMigrated(): Promise<KeychainGroupMigrationRe
         return { state: 'deferred', items: {} };
       })
       .then((report) => {
-        if (report.state !== 'deferred') {
+        if (report.state === 'incomplete') {
+          retryAt = Date.now() + RETRY_BASE_MS * 2 ** retries;
+          settledReport = report;
+        } else if (report.state !== 'deferred') {
           settledReport = report;
         }
         inFlight = null;
@@ -647,4 +856,6 @@ export function resetKeychainGroupMigrationForTests(): void {
   settledReport = null;
   inFlight = null;
   walletSawCompletion = false;
+  retryAt = 0;
+  retries = 0;
 }

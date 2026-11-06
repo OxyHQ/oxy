@@ -128,3 +128,39 @@ describe('loadKeychainApplicationAccessGroup (native, ADR 0062 D6)', () => {
     });
   });
 });
+
+describe('loadKeychainReadWithoutInteraction (native, R5-9)', () => {
+  beforeEach(() => {
+    jest.resetModules();
+  });
+
+  test('a native module without it answers null: the caller reads as before', async () => {
+    mockNative({ describe: async () => null });
+    const mod = await import('../platform/crypto.native');
+    await expect(mod.loadKeychainReadWithoutInteraction()).resolves.toBeNull();
+  });
+
+  test('passes the key, service and group through; only a string or null crosses back', async () => {
+    const readKeychainItemWithoutInteraction = jest.fn(async (key: string) =>
+      key === 'present' ? 'value' : key === 'junk' ? 42 : null,
+    );
+    mockNative({ readKeychainItemWithoutInteraction });
+    const mod = await import('../platform/crypto.native');
+    const read = await mod.loadKeychainReadWithoutInteraction();
+    expect(read).not.toBeNull();
+    await expect(read?.('present', 'svc', 'ABCDE12345.group.so.oxy.shared')).resolves.toBe('value');
+    expect(readKeychainItemWithoutInteraction).toHaveBeenCalledWith(
+      'present',
+      'svc',
+      'ABCDE12345.group.so.oxy.shared',
+    );
+    await expect(read?.('absent', undefined, 'g')).resolves.toBeNull();
+    expect(readKeychainItemWithoutInteraction).toHaveBeenLastCalledWith('absent', null, 'g');
+    await expect(read?.('junk', undefined, 'g')).rejects.toThrow('not a string');
+  });
+
+  test('the web / Node variant has none', async () => {
+    const mod = await import('../platform/crypto');
+    await expect(mod.loadKeychainReadWithoutInteraction()).resolves.toBeNull();
+  });
+});

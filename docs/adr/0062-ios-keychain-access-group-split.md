@@ -214,3 +214,24 @@ narrower mechanism:
   same exposure as the dedicated slot. A later release deletes them, with D3's
   release 4.
 
+
+## Amendment 2026-11-06 (round-5 review) — D4: nothing found in the shared group is lost, trusted or prompted for
+
+- **R5-3.** A device without Commons' identity marker adopts nothing, as
+  before, but no longer leaves the shared copies behind: every valid key and
+  phrase is kept in the retired ring QUARANTINED, read back, and then deleted.
+  A Commons secret write or delete that meets a different shared copy keeps it
+  the same way first, or fails.
+- **R5-7.** An organization pair is adopted only when it equals the one the
+  wallet group already holds for that organization; anything else is
+  quarantined in the organization's ring until Commons binds it against the
+  organization's key history (`GET /accounts/:id/identity-key`).
+- **R5-5.** A development build (`variant: '.dev'`) never reads, moves or
+  deletes anything in the shared group.
+- **R5-9.** The shared group is read without user interaction (a native read
+  that never touches expo-secure-store's `:auth` copy); a failed run's fallback
+  is per item and retried within the process.
+
+`@oxy.so/core` 7.34.0, `@oxy.so/protocol` 1.11.0, `@oxy.so/services` 14.11.0
+(native), Commons 1.10.0. Details: docs/identity/ios-keychain-access-groups.md
+"As implemented", round 5.

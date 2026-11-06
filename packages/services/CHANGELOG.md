@@ -1,5 +1,13 @@
 # Changelog
 
+## 14.13.0
+
+- The iOS `OxyIdentity` native module answers `readKeychainItemWithoutInteraction(key, service, accessGroup)`: one expo-secure-store item read with an `LAContext` that refuses interaction, from its `:no-auth` and legacy copies only, never the `:auth` copy that would show a Face ID prompt (round-5 review R5-9). `@oxy.so/core` 7.36.0 reads the shared keychain group through it. Native: an app needs a new build to get it; until then it reads through expo-secure-store as before.
+
+### Changed
+
+- Depends on `@oxy.so/core` 7.36.0 (round-5 identity fixes). No JavaScript API change in services.
+
 ## 14.12.0
 
 ### Changed

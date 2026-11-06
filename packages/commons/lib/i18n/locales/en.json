@@ -1076,6 +1076,11 @@
     "previousKeysTitle": "Previous keys",
     "previousKeysSubtitle": "Keys you rotated away from, kept so Peable can spend what was sent to them"
   },
+  "backupOwed": {
+    "title": "Create your encrypted backup again",
+    "body": "Your key was rotated, and the encrypted backup that held your previous keys was replaced. A new one hasn't been created yet, so those keys are only on this phone. Create the backup with your new recovery phrase.",
+    "action": "Create encrypted backup"
+  },
   "deviceBackupWarning": {
     "title": "This identity isn't backed up on this device",
     "body": "This device can't keep an automatic backup of your identity: on Android that needs Google Play services. If Commons is uninstalled or its storage is cleared, your identity is erased from this device, and only your recovery phrase can bring it back. Write your phrase down now, and set up an encrypted backup.",

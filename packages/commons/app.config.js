@@ -70,8 +70,11 @@ module.exports = {
     // 1.6.0 is the iOS keychain access-group split (new entitlements, the
     // keychain probe in @oxy.so/services' native module, the migration);
     // 1.7.0 keeps retired keys; 1.8.0 is the one-shot, provenance-checked
-    // migration and the .dev-only restricted groups of the dev variant.
-    version: '1.9.0',
+    // migration and the .dev-only restricted groups of the dev variant;
+    // 1.9.0 binds the retired ring to its owner; 1.10.0 reads the shared group
+    // without prompts (@oxy.so/services' native no-interaction read) and keeps
+    // what it finds there quarantined.
+    version: '1.10.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /
