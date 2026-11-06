@@ -123,6 +123,29 @@ describe('oxy.identity.backup carries retired keys', () => {
     expect(mockRing.kept).toEqual([]);
   });
 
+  it('does not import an identity after its signed-in owner changes', async () => {
+    const envelope = await createAndCapture();
+    const importKeyPair = jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue('restored');
+    fetchMock.mockResolvedValueOnce(json(envelope));
+    const restoration = oxy.identity.backup.restore(PHRASE);
+    oxy.session.setAccessToken(makeJwt({ userId: 'someone-else' }));
+    await expect(restoration).rejects.toThrow('signed-in account changed');
+    expect(importKeyPair).not.toHaveBeenCalled();
+    expect(mockRing.kept).toEqual([]);
+  });
+
+  it('refuses a signed-out recovery when another account signs in before import', async () => {
+    const envelope = await createAndCapture();
+    oxy.session.clear();
+    const importKeyPair = jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue('restored');
+    fetchMock.mockResolvedValueOnce(json(envelope));
+    const restoration = oxy.identity.backup.restore(PHRASE);
+    oxy.session.setAccessToken(makeJwt({ userId: 'someone-else' }));
+    await expect(restoration).rejects.toThrow('signed-in account changed');
+    expect(importKeyPair).not.toHaveBeenCalled();
+    expect(mockRing.kept).toEqual([]);
+  });
+
   it('a ring that cannot be checked against the key history fails the backup', async () => {
     mockRing.held = [
       { privateKey: RETIRED, publicKey: KeyManager.derivePublicKey(RETIRED), retiredAt: 1 },

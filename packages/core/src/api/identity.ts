@@ -1004,6 +1004,12 @@ export class IdentityBackupApi {
     return kept;
   }
 
+  private assertRestoreSession(ownerAccountId: string | null): void {
+    if (this.ctx.oxy.session.userId !== ownerAccountId) {
+      throw new Error('The signed-in account changed — restart identity restoration.');
+    }
+  }
+
   private assertRestoreOwner(ownerAccountId: string | null): asserts ownerAccountId is string {
     if (!ownerAccountId || this.ctx.oxy.session.userId !== ownerAccountId) {
       throw new Error('The signed-in account changed — restart identity restoration.');
@@ -1059,10 +1065,11 @@ export class IdentityBackupApi {
     const { KeyManager } = await import('../crypto/index');
     const payload = await this.open(phrase);
     if (!payload) throw new Error('No encrypted backup was found for this recovery phrase.');
-    if (ownerAccountId) this.assertRestoreOwner(ownerAccountId);
+    this.assertRestoreSession(ownerAccountId);
     const publicKey = await KeyManager.importKeyPair(payload.privateKey, {
       overwrite: options?.overwrite === true,
     });
+    this.assertRestoreSession(ownerAccountId);
     // Phrase-only recovery can precede sign-in; never assign its ring to a
     // different account that appeared while the backup was opening.
     if (ownerAccountId) {
