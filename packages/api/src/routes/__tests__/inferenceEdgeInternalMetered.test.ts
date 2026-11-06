@@ -1884,7 +1884,8 @@ describe('approved production pilot admission', () => {
     const before = await getDb()
       .select()
       .from(inferenceMeteredUsage)
-      .where(eq(inferenceMeteredUsage.applicationId, approvedCaller.applicationId));
+      .where(eq(inferenceMeteredUsage.applicationId, approvedCaller.applicationId))
+      .orderBy(inferenceMeteredUsage.id);
     expect(
       (await post({ ...payload, input: `${input}x` }, bearer(serviceToken(approvedCaller)))).status,
     ).toBe(400);
@@ -1893,7 +1894,8 @@ describe('approved production pilot admission', () => {
       await getDb()
         .select()
         .from(inferenceMeteredUsage)
-        .where(eq(inferenceMeteredUsage.applicationId, approvedCaller.applicationId)),
+        .where(eq(inferenceMeteredUsage.applicationId, approvedCaller.applicationId))
+        .orderBy(inferenceMeteredUsage.id),
     ).toEqual(before);
   });
 
