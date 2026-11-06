@@ -7,6 +7,7 @@ import type {
   ThemePreference,
   OxyNotificationEntityType,
   OxyNotificationType,
+  Pronouns,
 } from '@oxy.so/contracts';
 
 export interface OxyConfig {
@@ -154,6 +155,11 @@ export interface User {
     image?: string;
     id?: string;
   }>;
+  /**
+   * How a person account names its pronouns, from the closed list. An account
+   * that is not a person (organization, channel, bot, …) is always `unspecified`.
+   */
+  pronouns?: Pronouns;
   // Social counts
   _count?: {
     followers?: number;

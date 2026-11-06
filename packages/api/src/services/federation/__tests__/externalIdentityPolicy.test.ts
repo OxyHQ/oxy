@@ -3,6 +3,7 @@ import {
   fieldLink,
   identityLinks,
   normalizeExternalBio,
+  pronounsFromFields,
   uniqueLinks,
 } from '../externalIdentityPolicy';
 import { federationBridges, identityDomainOfHost } from '../../../config/federationBridgePolicy';
@@ -226,6 +227,16 @@ describe('profile links of a source actor', () => {
     });
     expect(fieldLink({ name: 'Old', value: 'http://example.test' })).toBeNull();
     expect(fieldLink({ name: 'Pronouns', value: 'they/them' })).toBeNull();
+  });
+
+  it('reads a Pronouns field as the closed pair it names, and free text as unspecified', () => {
+    expect(pronounsFromFields([{ name: 'Pronouns', value: 'They/Them' }])).toBe('they_them');
+    expect(pronounsFromFields([{ name: 'pronouns:', value: ' she / her ' }])).toBe('she_her');
+    expect(pronounsFromFields([{ name: 'Pronouns', value: 'whatever I like' }])).toBe(
+      'unspecified',
+    );
+    expect(pronounsFromFields([{ name: 'Pronouns', value: 'constructor' }])).toBe('unspecified');
+    expect(pronounsFromFields([{ name: 'Web', value: 'https://example.test' }])).toBeUndefined();
   });
 
   it('keeps one link per address, in the author’s order, up to the limit', () => {

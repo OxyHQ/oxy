@@ -695,6 +695,20 @@ const dict = {
         month: 'Month',
         year: 'Year',
       },
+      pronouns: {
+        title: 'Pronouns',
+        subtitle: 'How people should refer to you',
+        label: 'Pronouns',
+        options: {
+          unspecified: 'Not set',
+          he_him: 'He/him',
+          she_her: 'She/her',
+          they_them: 'They/them',
+          he_they: 'He/they',
+          she_they: 'She/they',
+          it_its: 'It/its',
+        },
+      },
       locations: {
         title: 'Locations',
         subtitle: "Places you've been or live",

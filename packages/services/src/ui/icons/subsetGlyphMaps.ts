@@ -151,6 +151,7 @@ export const materialCommunityIconsGlyphMap = {
   "account-plus": 983060,
   "account-search": 983062,
   "account-switch": 983065,
+  "account-voice": 984523,
   "alert": 983078,
   "alert-circle": 983080,
   "alert-circle-outline": 984534,

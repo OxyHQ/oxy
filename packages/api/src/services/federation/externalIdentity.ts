@@ -40,10 +40,16 @@ export interface WebFingerResolution {
 
 /**
  * The text a source profile hands the identity registry: the name UNCLEANED
- * (the registry cleans it by kind) and the kind the source declares.
+ * (the registry cleans it by kind), the kind the source declares, and the
+ * pronoun its "Pronouns" field names.
  */
 export function federatedProfile(profile: ExternalActorProfile) {
-  return { displayName: profile.displayName, bio: profile.bio, kind: externalProfileKind(profile) };
+  return {
+    displayName: profile.displayName,
+    bio: profile.bio,
+    kind: externalProfileKind(profile),
+    pronouns: profile.pronouns,
+  };
 }
 
 /** The resolve answer for one verified source of a canonical person. */
