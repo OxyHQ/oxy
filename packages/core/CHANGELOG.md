@@ -1,5 +1,29 @@
 # Changelog — `@oxy.so/core`
 
+## 7.32.0
+
+Round-4 security review of the Peable mainnet identity receive (R4-4, R4-6, R4-7, R4-12, R4-14).
+
+### Changed
+
+- **The iOS access-group migration is one-shot and adopts only what Commons provably wrote (R4-7).** A shared-group personal key is adopted only when it IS the key Commons' sandbox identity marker records (a phrase only when it derives it); organization items only on such a proven device. A fresh install, a reinstall or a device without a marker adopts nothing from the shared group, ever. A settled run writes a completion record to the identity group (mirrored into the wallet group); after it no read falls back to the shared group: Commons never again, the Peable wallet once it has seen the mirror. `identityMarker.readIdentityMarkerStrict()` throws when the sandbox cannot answer, so "unreadable" never reads as "never written".
+- **A different key in the shared group is retired, verified, then deleted (R4-6).** On a proven device a shared copy that is a valid key but not the one kept (a replaced root, a stale backup slot, an organization's previous key, the phrase of either) goes into the retired ring and is read back before the shared copy is deleted. Outcomes are now `absent | moved | retired | discarded | failed | deferred`; there is no `conflict` or `unhealthy` left in place. An unhealthy pair holding the proven key is adopted with the public key it derives.
+- **Every Commons secret write deletes the item's shared-group copy** (`groupedKeychainStore`), and fails when it cannot. Deletes always reach the shared group.
+- **Only Commons writes the retired ring and every other secret (R4-14).** `mayWriteKeychainItem(role, item)`: the Peable wallet reads, derives and signs, and `retireIdentityKey` refuses it on iOS.
+- **Development builds use their own restricted groups (R4-14):** a default group `so.oxy.identity.dev` / `so.oxy.wallet.dev` is the holder / wallet role with `variant: '.dev'`, and every restricted-group value carries it (`@oxy.so/app-preset` 6.3.0 writes those entitlements for the `.dev` bundle ids).
+- **`storeOrganizationKey` keeps a different held key in the organization's ring before overwriting it, and refuses when it cannot (R4-12).**
+- **`KeyManager.deleteIdentity` no longer forgets the retired ring, forced or not (R4-4).** "Start over" keeps the money under previous keys; only deleting the Oxy account clears it (Commons calls `forgetRetiredIdentityKeys` there).
+
+### Added
+
+- **The encrypted identity backup carries the retired ring (R4-4).** `oxy.identity.backup.create(phrase)` seals the person's retired keys that Oxy's key history names as this account's (`retiredKeys` in the payload, ignored by older readers); `restore` keeps them in the ring; `oxy.identity.backup.restoreRetiredKeys(phrase)` restores only them (0 without a backup). `rotateKey` re-creates the backup under the NEW phrase after a rotation (`backupRefreshed` in its result), because the rotation deletes the old one.
+- `retiredKeyFromPrivateKey(hex)`: add back a previous key that was imported as a raw private key. `exportRetiredIdentityKeys()` (Commons, for the backup).
+- `getPreSplitExposure()`: whether the current personal key (and which organization keys) sat in the shared keychain group before the split, so Commons can recommend a rotation.
+
+### Consumers
+
+Bump to 7.32.0 with `@oxy.so/services` 14.10.1 and `@oxy.so/app-preset` 6.3.0. The Peable wallet's dev variant must list `so.oxy.wallet.dev`. Commons 1.8.0.
+
 ## 7.31.0
 
 ### Security

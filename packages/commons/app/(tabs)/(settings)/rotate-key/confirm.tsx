@@ -87,6 +87,11 @@ export default function RotateKeyConfirmScreen() {
       }
 
       toast.success(t('rotateKey.confirm.successBody'));
+      if (result.backupRefreshed === false) {
+        // The old backup was deleted with the rotation and the new one could
+        // not be sealed: the replaced key is on this phone only (R4-4).
+        toast.error(t('rotateKey.confirm.backupNotRefreshed'));
+      }
       setState('success');
     } catch (err: unknown) {
       toast.error(extractAuthErrorMessage(err, t('rotateKey.confirm.errorGeneric')));

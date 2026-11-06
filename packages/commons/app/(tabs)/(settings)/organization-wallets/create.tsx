@@ -109,14 +109,18 @@ export default function CreateOrganizationKeyScreen() {
     setStep('working');
     // The current key signs too when this phone holds it (recorded as proven).
     const current = wallet.data.status === 'held' ? wallet.data.deviceKey : null;
-    const currentPrivate = current ? await getOrganizationPrivateKey(accountId) : null;
-    // A replaced key stays on this phone as one of the organization's previous
-    // keys, so Peable can still spend what it received and will receive
-    // (ADR 0061 D7 as amended). Kept BEFORE the change: a phone that cannot
-    // keep it does not replace it.
-    if (current && currentPrivate) {
+    // The key this phone holds for the organization, current or stale.
+    const held = wallet.data.deviceKey;
+    const heldPrivate = held ? await getOrganizationPrivateKey(accountId) : null;
+    const currentPrivate = current ? heldPrivate : null;
+    // Whatever key this phone holds for the organization — its current key or
+    // one another owner already replaced — stays on this phone as one of its
+    // previous keys, so Peable can still spend what it received (ADR 0061 D7
+    // as amended; R4-12). Kept BEFORE the change: a phone that cannot keep it
+    // does not replace it.
+    if (held && heldPrivate) {
       try {
-        await retireIdentityKey({ privateKey: currentPrivate, publicKey: current }, { accountId });
+        await retireIdentityKey({ privateKey: heldPrivate, publicKey: held }, { accountId });
       } catch {
         toast.error(t('organizationWallet.errors.retainFailed'));
         setStep('confirm');

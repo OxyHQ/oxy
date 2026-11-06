@@ -47,7 +47,8 @@ import {
 } from '../utils/keychainAccessGroups';
 import { isAndroid, isIOS, isWeb } from '../utils/platform';
 import { registeredIdentitySignerStore } from './identitySigner';
-import { ensureKeychainGroupsMigrated } from './keychainGroupMigration';
+import { prepareKeychainAccess } from './keychainGroupMigration';
+import { retireIdentityKey } from './retiredKeys';
 import {
   ORGANIZATION_ANDROID_KEYCHAIN_SERVICE as ANDROID_KEYCHAIN_SERVICE,
   ORGANIZATION_INDEX_KEYCHAIN_SERVICE as INDEX_KEYCHAIN_SERVICE,
@@ -158,9 +159,7 @@ export async function organizationKeyFromPhrase(phrase: string): Promise<Organiz
 async function secureStore(item: KeychainItemClass): Promise<ExpoSecureStoreLike> {
   const raw = await loadSecureStore();
   const access = await resolveKeychainAccess();
-  if (access.mode === 'grouped' && access.role === 'holder') {
-    await ensureKeychainGroupsMigrated();
-  }
+  await prepareKeychainAccess(access);
   return groupedKeychainStore(raw, access, item);
 }
 
@@ -252,8 +251,10 @@ async function readLocalPair(accountId: string): Promise<OrganizationKeyPair | n
  * it; on iOS only Commons holds the groups it writes (any other app throws).
  *
  * Refuses a pair whose public key does not derive from its private key, and a
- * phrase that does not derive the pair. Overwrites whatever this device held for
- * the organization (a replaced key is the caller's decision, ADR 0061 D7).
+ * phrase that does not derive the pair. A DIFFERENT key this device already
+ * held for the organization is first kept in the organization's retired ring
+ * (ADR 0061 D7 as amended; R4-12): coins under it still need it. When that
+ * cannot be confirmed nothing is overwritten and this throws.
  */
 export async function storeOrganizationKey(
   accountId: string,
@@ -280,6 +281,19 @@ export async function storeOrganizationKey(
     );
   }
   const store = await pairStore();
+  const previous = await heldPrivateKey(store, accountId);
+  if (previous) {
+    const previousPublic = deriveSecp256k1PublicKey(previous);
+    if (previousPublic !== publicKey) {
+      try {
+        await retireIdentityKey({ privateKey: previous, publicKey: previousPublic }, { accountId });
+      } catch (error) {
+        throw new Error(
+          `organization key: the key this device held could not be kept as a previous key, so it was not replaced (${error instanceof Error ? error.message : 'unknown'})`,
+        );
+      }
+    }
+  }
   await store.setItemAsync(privateKeyName(accountId), privateKey, pairOptions(store, true));
   await store.setItemAsync(publicKeyName(accountId), publicKey, pairOptions(store, false));
   if (
@@ -360,6 +374,24 @@ export async function getOrganizationRecoveryPhrase(accountId: string): Promise<
 export async function listOrganizationKeys(): Promise<string[]> {
   if (isWeb()) return [];
   return readIndex(await indexStore());
+}
+
+/**
+ * The private key this device holds for `accountId`, whatever its public half
+ * says (an unhealthy pair is still a key coins may sit under): the slot, then
+ * on Android the signer store's copy. `null` when there is none.
+ */
+async function heldPrivateKey(
+  store: ExpoSecureStoreLike,
+  accountId: string,
+): Promise<string | null> {
+  const local = await store.getItemAsync(privateKeyName(accountId), pairOptions(store, false));
+  if (local && isValidSecp256k1PrivateKey(local)) return normalizeSecp256k1PrivateKey(local);
+  const signer = isAndroid() ? registeredIdentitySignerStore() : null;
+  const mirrored = (await signer?.readOrganization?.(accountId)) ?? null;
+  return mirrored && isValidSecp256k1PrivateKey(mirrored.privateKey)
+    ? normalizeSecp256k1PrivateKey(mirrored.privateKey)
+    : null;
 }
 
 /** Forget an organization key on this device: its pair, its phrase, its signer copy and its index entry. */

@@ -353,3 +353,6 @@ jobs:
         run: |
           bunx expo prebuild --platform ios --no-install
           grep -q 'group.so.oxy.shared' ios/*/*.entitlements
+          # The keychain access-group policy over what prebuild WROTE (ADR 0062):
+          # a scaffolded app names no restricted group, in any spelling.
+          node "$(node -p 'require.resolve("@oxy.so/app-preset/check-entitlements")')" com.example.smokeapp ios

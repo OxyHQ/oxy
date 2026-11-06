@@ -60,6 +60,7 @@ function resolveBuildPropertiesPlugin(projectRoot) {
       "[@oxy.so/app-preset] withOxyBuildProperties requires the peer dependency 'expo-build-properties'. " +
         'Install it with `npx expo install expo-build-properties`, or disable it by passing ' +
         '`{ ios: false, android: false }` to the preset.',
+      { cause: error },
     );
   }
   const plugin = typeof mod === 'function' ? mod : mod.withBuildProperties || mod.default;

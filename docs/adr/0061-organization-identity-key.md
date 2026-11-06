@@ -228,6 +228,32 @@ The wallet compares the device's key with the DID's `#key-1` and stops offering
 to receive on a mismatch (ADR 0002); it reads the key history
 (`GET /accounts/:id/identity-key`) to know which keys were the organization's.
 
+**Amended 2026-11-06 again (round-4 review, R4-4, R4-12): the ring survives
+the phone.**
+
+5. **The encrypted backup carries the personal ring.** `oxy.identity.backup`
+   (zero-knowledge, keyed by the phrase) seals, beside the current key, every
+   retired key of the person that `GET /identity/key-history` names as this
+   account's; restoring with the CURRENT phrase puts them back in the ring
+   (also on a phrase import and, once per launch, when the ring is empty and
+   the phone holds the current phrase). A rotation deletes the old backup in
+   its transaction, so `rotateKey` seals a new one under the new phrase at
+   once. Losing the phone then costs the person no more than losing the
+   current phrase would. A key imported as a raw private key (no phrase) is
+   added back from that key, checked against the history the same way.
+6. **"Start over" keeps the ring.** Deleting the identity from the device,
+   forced or not, never deletes retired keys: they are money, and the same
+   person restoring later must find them; a different identity on that phone
+   cannot use them (each consumer checks the account's key history). Only
+   deleting the Oxy account clears the ring, explicitly.
+7. **No slot write drops a key.** `storeOrganizationKey` keeps a different key
+   the device holds for that organization in its ring before overwriting it,
+   and refuses (changing nothing) when it cannot.
+
+Organization rings are not in the personal backup: an organization's key has
+its own phrase, and a phone that loses an organization's previous key needs that
+key's phrase (point 3), as before.
+
 ### D8 — A keyless organization
 
 Its DID lists no `#key-1` (Oxy is its controller, as for every account without

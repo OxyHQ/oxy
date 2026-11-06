@@ -166,3 +166,22 @@ export class FakeKeychain {
         ? { state: 'resolved' as const, accessGroup: this.application }
         : { state: 'unsupported' as const };
 }
+
+/**
+ * Commons' sandbox storage (AsyncStorage on a phone; `localStorage` is what the
+ * identity marker reaches under node). It survives a "launch" and is wiped by
+ * an uninstall, unlike the keychain: clear it to simulate a reinstall.
+ */
+export const sandbox = new Map<string, string>();
+const globals = globalThis as { localStorage?: unknown };
+if (!globals.localStorage) {
+  globals.localStorage = {
+    getItem: (key: string) => sandbox.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      sandbox.set(key, String(value));
+    },
+    removeItem: (key: string) => {
+      sandbox.delete(key);
+    },
+  };
+}

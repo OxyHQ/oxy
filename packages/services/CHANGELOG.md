@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.10.1
+
+### Changed
+
+- Depends on `@oxy.so/core` 7.32.0 (the round-4 identity fixes: one-shot provenance-checked iOS keychain migration, the retired ring in the encrypted backup, dev-only restricted keychain groups). No API change in services.
+
 ## 14.10.0
 
 ### Security

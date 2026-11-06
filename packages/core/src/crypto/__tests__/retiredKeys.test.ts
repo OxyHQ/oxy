@@ -240,7 +240,7 @@ describe('iOS: the keychain group', () => {
     await expect(ring.listRetiredIdentityKeys()).resolves.toEqual([]);
   });
 
-  it('forgets one key, and a forced identity delete forgets the personal ring only', async () => {
+  it('forgets one key on request; a forced identity delete ("Start over") keeps every ring (R4-4)', async () => {
     await KeyManager.importKeyPair(CURRENT_KEY);
     const a = KeyManager.derivePublicKey(RETIRED_KEY);
     const b = KeyManager.derivePublicKey(OTHER_KEY);
@@ -254,10 +254,30 @@ describe('iOS: the keychain group', () => {
     await expect(KeyManager.deriveScopedSeed(INFO, { publicKey: a })).resolves.toBeNull();
 
     await KeyManager.deleteIdentity(true, true, true);
-    await expect(ring.listRetiredIdentityKeys()).resolves.toEqual([]);
+    expect((await ring.listRetiredIdentityKeys()).map((k) => k.publicKey)).toEqual([b]);
+    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey: b });
+    expect(seed && toHex(seed)).toBe(toHex(deriveScopedSeedFromKey(OTHER_KEY, INFO)));
     expect(
       (await ring.listRetiredIdentityKeys({ accountId: ORG })).map((k) => k.publicKey),
     ).toEqual([o]);
+    // Deleting the ACCOUNT is what forgets a ring, explicitly.
+    await ring.forgetRetiredIdentityKeys();
+    await expect(ring.listRetiredIdentityKeys()).resolves.toEqual([]);
+  });
+
+  it('a previous key imported as a raw private key can be added back (R4-4)', async () => {
+    const pair = ring.retiredKeyFromPrivateKey(`0x${RETIRED_KEY.toUpperCase()}`);
+    expect(pair).toEqual({
+      privateKey: RETIRED_KEY,
+      publicKey: KeyManager.derivePublicKey(RETIRED_KEY),
+    });
+    expect(() => ring.retiredKeyFromPrivateKey('00'.repeat(32))).toThrow('private key');
+    expect(() => ring.retiredKeyFromPrivateKey('zz')).toThrow('private key');
+    await ring.retireIdentityKey(pair);
+    const exported = await ring.exportRetiredIdentityKeys();
+    expect(exported.map(({ privateKey, publicKey }) => ({ privateKey, publicKey }))).toEqual([
+      pair,
+    ]);
   });
 
   it('derives a previous phrase the personal-root way, storing nothing', async () => {

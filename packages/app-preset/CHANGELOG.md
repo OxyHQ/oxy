@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.3.0
+
+### Security
+
+- The keychain access-group policy judges every SPELLING of a group, not only `$(AppIdentifierPrefix)<group>`. Each entry is normalised first (leading build variables such as `$(TeamIdentifierPrefix)` or `${AppIdentifierPrefix}`, nested ones included, a leading ten-character team id and surrounding whitespace are stripped; the name is compared without case), so `ABCDE12345.so.oxy.identity` or `$(TeamIdentifierPrefix)so.oxy.identity` no longer passes for an app that is not a holder. A restricted group must be spelled exactly `$(AppIdentifierPrefix)<group>`, even by its holder, and an entry that still carries a build variable, a wildcard or whitespace after normalisation is refused. `withOxyKeychain` keeps a misspelled restricted group another plugin wrote, so the check refuses it instead of repairing it.
+- The dev builds no longer get the production restricted groups: `so.oxy.commons.dev` lists `[so.oxy.identity.dev, so.oxy.wallet.dev, group.so.oxy.shared]` and `to.peable.app.dev` `[so.oxy.wallet.dev, group.so.oxy.shared]` (`OXY_KEYCHAIN_GROUPS.identityDev` / `walletDev`). A dev build naming a production restricted group, a production app naming a `.dev` one, or any other app naming either, fails prebuild. A dev build sits next to the production app on the same phone, under the same team, running JavaScript from a dev server; it must not read the production identity or phrases.
+
+### Added
+
+- `oxy-check-keychain-entitlements <bundle-id> <entitlements-file-or-ios-dir> [--team-id <TEAMID>]` (also `@oxy.so/app-preset/check-entitlements`): the same policy over the entitlements a prebuild or a codesign actually wrote. Exits 1 on a violation, 2 when there is nothing readable to check. `--team-id` checks codesigned output, whose restricted entries must read `<TEAMID>.<group>`.
+- `@oxy.so/app-preset/plugin/oxyKeychainGroups` is exported.
+
 ## 6.2.0
 
 ### Security

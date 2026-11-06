@@ -82,8 +82,10 @@ plugins: [
 
 This adds the iOS `keychain-access-groups` entitlement
 (`$(AppIdentifierPrefix)group.so.oxy.shared`; only Commons and the Peable wallet get
-more, and any other app naming `so.oxy.identity` or `so.oxy.wallet` fails prebuild —
-ADR 0062 of the oxy repo), the Oxy `expo-build-properties`
+more, their `.dev` builds the `.dev` groups, and any other app naming `so.oxy.identity` or
+`so.oxy.wallet` in any spelling fails prebuild — ADR 0062 of the oxy repo;
+`oxy-check-keychain-entitlements <bundle-id> ios` runs the same policy over what prebuild
+wrote), the Oxy `expo-build-properties`
 defaults (iOS `deploymentTarget 16.4`; Android ProGuard + resource shrinking — the
 Android compile/target SDK and build tools are the Expo SDK's own, never pinned here), and `@oxy.so/services/plugins/withOxySharedPermissions`:
 the app declares and requests the signature-level `so.oxy.permission.IDENTITY` and

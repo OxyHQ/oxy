@@ -60,8 +60,8 @@ import { logger } from '../logger';
 import { groupedKeychainStore, resolveKeychainAccess } from '../utils/keychainAccessGroups';
 import { isAndroid, isIOS, isWeb } from '../utils/platform';
 import { registeredIdentitySignerStore } from './identitySigner';
-import { ensureKeychainGroupsMigrated } from './keychainGroupMigration';
-import { isOrganizationAccountId } from './organizationKeys';
+import { isOrganizationAccountId } from './keychainItems';
+import { prepareKeychainAccess } from './keychainGroupMigration';
 import type { OxySecureStoreOptions as SecureStoreOptions } from './secureStoreOptions';
 
 /** Whose ring: the person's (`accountId` absent) or an organization's. */
@@ -97,15 +97,14 @@ const PUBLIC_KEY = /^04[0-9a-f]{128}$/;
  * The secure store for the ring. On iOS every item is a `spending-key`
  * (ADR 0062): the private keys AND the index live in the wallet group, which
  * only Commons and the Peable wallet can read, never the shared one. In
- * Commons every access first awaits the access-group migration. On Android
- * the grouping is a no-op and Commons' own services below apply.
+ * Commons every access first awaits the access-group migration (`gate: false`
+ * is the migration itself, keeping a pre-split copy). On Android the grouping
+ * is a no-op and Commons' own services below apply.
  */
-async function ringStore(): Promise<ExpoSecureStoreLike> {
+async function ringStore(gate = true): Promise<ExpoSecureStoreLike> {
   const raw = await loadSecureStore();
   const access = await resolveKeychainAccess();
-  if (access.mode === 'grouped' && access.role === 'holder') {
-    await ensureKeychainGroupsMigrated();
-  }
+  if (gate) await prepareKeychainAccess(access);
   return groupedKeychainStore(raw, access, 'spending-key');
 }
 
@@ -213,13 +212,24 @@ function toListed(entry: IndexEntry): RetiredIdentityKey {
     : { publicKey: entry.publicKey, accountId: entry.scope, retiredAt: entry.retiredAt };
 }
 
-/** Whether this app writes the ring: Commons (Android: the signer store it registers; iOS: native). */
-function assertMayWrite(): void {
+/**
+ * Whether this app writes the ring: Commons only (Android: the signer store it
+ * registers; iOS: the keychain role `holder`). The Peable wallet holds the
+ * wallet group too, but only reads, derives and signs: a key the wallet could
+ * add to the ring is a key it could choose (R4-14).
+ */
+async function assertMayWrite(): Promise<void> {
   if (isWeb()) throw new Error('retired key: only a native device holds one');
   if (isAndroid() && !registeredIdentitySignerStore()?.writeRetired) {
     throw new Error(
       'On Android only Commons holds retired keys; this app has no identity signer store for them.',
     );
+  }
+  if (isIOS()) {
+    const access = await resolveKeychainAccess();
+    if (access.mode === 'grouped' && access.role !== 'holder') {
+      throw new Error('On iOS only Commons writes retired keys; this app may only read them.');
+    }
   }
 }
 
@@ -234,15 +244,35 @@ export async function retireIdentityKey(
   key: RetiredKeyPair,
   selector?: RetiredKeySelector,
 ): Promise<void> {
+  await keepRetired(key, selector, true);
+}
+
+/**
+ * {@link retireIdentityKey} from inside the iOS access-group migration, which
+ * keeps a replaced pre-split copy before deleting it from the shared group and
+ * cannot await itself. @internal
+ */
+export async function retireIdentityKeyDuringMigration(
+  key: RetiredKeyPair,
+  selector?: RetiredKeySelector,
+): Promise<void> {
+  await keepRetired(key, selector, false);
+}
+
+async function keepRetired(
+  key: RetiredKeyPair,
+  selector: RetiredKeySelector | undefined,
+  gate: boolean,
+): Promise<void> {
   const scope = retiredKeyScope(selector);
   if (!scope) throw new Error('retired key: accountId must be a 24-hex or uuid account id');
-  assertMayWrite();
+  await assertMayWrite();
   if (!isHealthyPair(key.privateKey, key.publicKey)) {
     throw new Error('retired key: the public key does not derive from the private key');
   }
   const privateKey = normalizeSecp256k1PrivateKey(key.privateKey);
   const publicKey = normalizeSecp256k1PublicKey(key.publicKey);
-  const store = await ringStore();
+  const store = await ringStore(gate);
   await store.setItemAsync(
     privateKeyName(scope, publicKey),
     privateKey,
@@ -357,7 +387,7 @@ export async function forgetRetiredIdentityKey(
   const scope = retiredKeyScope(selector);
   const canonical = canonicalPublicKey(publicKey);
   if (!scope || !canonical) throw new Error('retired key: invalid selector or public key');
-  assertMayWrite();
+  await assertMayWrite();
   const store = await ringStore();
   await store.deleteItemAsync(privateKeyName(scope, canonical), privateOptions(store, false));
   const signer = isAndroid() ? registeredIdentitySignerStore() : null;
@@ -371,10 +401,12 @@ export async function forgetRetiredIdentityKey(
 }
 
 /**
- * Forget every retired key of one ring (the person's, or an organization's):
- * called when the identity itself is deleted from this device, so a phone
- * handed on keeps none of the person's old keys. Commons only. Resolves how
- * many it removed.
+ * Forget every retired key of one ring (the person's, or an organization's).
+ * Commons only, and only when the person deletes their Oxy ACCOUNT (Commons'
+ * delete-account flow), which tells them the coins go with it. Deleting the
+ * identity from this device — "Start over", a forced delete — never calls it:
+ * the ring is money, and the same person restoring their identity later must
+ * find it (R4-4). Resolves how many it removed.
  */
 export async function forgetRetiredIdentityKeys(selector?: RetiredKeySelector): Promise<number> {
   const scope = retiredKeyScope(selector);
@@ -430,6 +462,44 @@ export async function syncRetiredKeys(): Promise<number> {
     }
   }
   return mirrored;
+}
+
+/**
+ * Every retired key of `selector`'s ring WITH its private half, for the
+ * encrypted identity backup (`oxy.identity.backup.create`), which carries them
+ * under the CURRENT phrase so a lost phone costs no more than the current
+ * phrase does (R4-4). Commons only; an entry whose private half is missing or
+ * does not derive its public key is left out. Never log or transmit the result
+ * except inside that encrypted envelope.
+ */
+export async function exportRetiredIdentityKeys(
+  selector?: RetiredKeySelector,
+): Promise<Array<RetiredKeyPair & { retiredAt: number }>> {
+  const scope = retiredKeyScope(selector);
+  if (!scope || isWeb()) return [];
+  await assertMayWrite();
+  const out: Array<RetiredKeyPair & { retiredAt: number }> = [];
+  for (const entry of await listRetiredIdentityKeys(selector)) {
+    const privateKey = await getRetiredPrivateKey(entry.publicKey, selector);
+    if (privateKey)
+      out.push({ privateKey, publicKey: entry.publicKey, retiredAt: entry.retiredAt });
+  }
+  return out;
+}
+
+/**
+ * The pair a previous key's raw PRIVATE KEY gives (64 hex, an optional `0x`),
+ * for a person whose old identity was imported as a private key and so has no
+ * phrase to re-enter. Stores nothing: the caller checks the public key against
+ * the account's key history and only then calls {@link retireIdentityKey}.
+ */
+export function retiredKeyFromPrivateKey(privateKeyHex: string): RetiredKeyPair {
+  const trimmed = privateKeyHex.trim().toLowerCase().replace(/^0x/, '');
+  if (!/^[0-9a-f]{64}$/.test(trimmed) || !isValidSecp256k1PrivateKey(trimmed)) {
+    throw new Error('retired key: not a valid private key');
+  }
+  const privateKey = normalizeSecp256k1PrivateKey(trimmed);
+  return { privateKey, publicKey: publicKeyOf(privateKey) };
 }
 
 /**

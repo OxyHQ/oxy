@@ -131,14 +131,28 @@ groups. That residual risk is the same on Android (Commons' certificate).
   (`signInWithOxy` → `startDeviceFlowSession`). `wallet`: spending keys and
   public keys. `holder`: all, written with explicit groups.
 - **The migration** is `ensureKeychainGroupsMigrated()`
-  (`src/crypto/keychainGroupMigration.ts`), awaited by every KeyManager and
-  organization-key storage access in Commons and reported by Commons' boot.
-  Units: primary, backup (+ timestamp), legacy slots, the phrase, the shared
-  slot (private → wallet, public stays), each organization pair (→ wallet) and
-  phrase (→ identity), then the index (→ identity, merged as a union). Outcomes
-  per unit: `absent`, `moved`, `conflict` (two different values: both kept),
-  `unhealthy` (never moved), `failed` (retried next launch), `deferred` (locked;
-  retried on the next access).
+  (`src/crypto/keychainGroupMigration.ts`), awaited by every KeyManager,
+  organization-key and retired-ring access in Commons. It is ONE-SHOT and
+  adopts only what Commons provably wrote (round-4 review R4-6, R4-7): every
+  Oxy app can write the shared group and keychain items survive an uninstall,
+  so a personal key there is adopted only when it is the key Commons' sandbox
+  identity marker records (a phrase only when it derives it), and organization
+  items only on such a proven device. A device without the marker (a fresh
+  install, a reinstall) adopts nothing from the shared group. On a proven
+  device a shared copy that is a valid key but not the one kept is retired into
+  the ring, read back, and only then deleted. A settled run writes a completion
+  record (identity group) and its mirror (wallet group); from then on no secret
+  read falls back to the shared group (Commons never; the Peable wallet once it
+  has seen the mirror), and every Commons secret write deletes the item's
+  shared copy. Outcomes per unit: `absent`, `moved`, `retired`, `discarded`,
+  `failed` (retried next launch, no record), `deferred` (locked). The record
+  also notes whether the current personal key sat in the shared group
+  (`getPreSplitExposure()`): Commons then recommends, never forces, a
+  rotation while that key is current.
+- **App items.** `@oxy.so/services`' native SecureStore adapter and Peable's
+  `kv-store` write an app's own items to its default group explicitly and read
+  it first in Commons and the Peable wallet, because the split changed their
+  default group; Peable also moves its wallet items out of the shared group.
 - **App items** (ADR 0062 D6, amended the same day). Every app's own items go
   to its own group, `<TEAM>.<bundle id>` (item class `app`): the application
   identifier, which Apple makes every app a member of and no other app can
@@ -157,6 +171,16 @@ groups. That residual risk is the same on Android (Commons' certificate).
 - **Entitlements.** `@oxy.so/app-preset` (`plugin/oxyKeychainGroups.js`) holds
   the policy; `withOxyKeychain` writes it, and `withOxyKeychainPolicy` (applied
   by `withOxyUpdates`) checks apps that declare `ios.entitlements` themselves.
+  Since 6.3.0 every entry is normalised before it is judged (leading build
+  variables, a leading team id, whitespace and case), and a restricted group
+  must be spelled exactly `$(AppIdentifierPrefix)<group>`, so no other
+  spelling reaches a restricted group. The dev builds (`so.oxy.commons.dev`,
+  `to.peable.app.dev`) hold `so.oxy.identity.dev` / `so.oxy.wallet.dev`, never
+  the production groups, because they sit beside the production apps under the
+  same team and run JavaScript from a dev server. `oxy-check-keychain-entitlements
+  <bundle-id> <ios-dir-or-file> [--team-id <TEAMID>]` runs the same policy over
+  the entitlements a prebuild or a codesign actually wrote (the scaffold smoke
+  runs it after its iOS prebuild).
 - **Android is unchanged**: `resolveKeychainAccess()` is `ungrouped` there and
   every call is the call it was; the identity host already narrows.
 

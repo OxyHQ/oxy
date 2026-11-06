@@ -1,16 +1,21 @@
 {
   "name": "@oxy.so/app-preset",
-  "version": "6.2.0",
+  "version": "6.3.0",
   "description": "The Oxy distro of Expo \u2014 centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, \u2026). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
     "access": "public"
+  },
+  "bin": {
+    "oxy-check-keychain-entitlements": "./bin/oxy-check-keychain-entitlements.js"
   },
   "exports": {
     ".": "./app.plugin.js",
     "./app.plugin.js": "./app.plugin.js",
     "./plugin/withOxyAppPreset": "./plugin/withOxyAppPreset.js",
     "./plugin/withOxyKeychain": "./plugin/withOxyKeychain.js",
+    "./plugin/oxyKeychainGroups": "./plugin/oxyKeychainGroups.js",
+    "./check-entitlements": "./bin/oxy-check-keychain-entitlements.js",
     "./plugin/withOxyBuildProperties": "./plugin/withOxyBuildProperties.js",
     "./plugin/withOxyAndroidRelease": "./plugin/withOxyAndroidRelease.js",
     "./plugin/withOxyAndroidWebp": "./plugin/withOxyAndroidWebp.js",
@@ -29,6 +34,7 @@
     "NOTICE",
     "app.plugin.js",
     "plugin",
+    "bin",
     "metro",
     "babel",
     "build-id",

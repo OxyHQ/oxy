@@ -7,8 +7,10 @@
  * the shared group (`group.so.oxy.shared`: public keys and the device-session
  * credential), Commons `[so.oxy.identity, so.oxy.wallet, group.so.oxy.shared]`
  * and the Peable wallet `[so.oxy.wallet, group.so.oxy.shared]` — the first
- * entry is the default group, so it is part of the rule. The Android half is
- * Commons' identity host (`withOxySharedPermissions` in @oxy.so/services).
+ * entry is the default group, so it is part of the rule. Their dev builds
+ * (`.dev` bundle ids) get the `.dev` restricted groups instead. The Android
+ * half is Commons' identity host (`withOxySharedPermissions` in
+ * @oxy.so/services).
  *
  * The Oxy groups are put FIRST, in their order; entries the app or another
  * plugin already declared are kept after them. Then the policy is checked on
@@ -22,9 +24,10 @@
 const { withEntitlementsPlist } = require('expo/config-plugins');
 const {
   assertOxyKeychainGroups,
-  groupName,
   keychainEntries,
   keychainGroupsFor,
+  normalizeGroupName,
+  restrictedGroup,
 } = require('./oxyKeychainGroups');
 
 const KEY = 'keychain-access-groups';
@@ -54,8 +57,15 @@ function withOxyKeychain(config, keychainGroups) {
 
   const next = withEntitlementsPlist(config, (config) => {
     const existing = Array.isArray(config.modResults[KEY]) ? config.modResults[KEY] : [];
-    const wantedNames = new Set(wanted.map(groupName));
-    const rest = existing.filter((entry) => !wantedNames.has(groupName(entry)));
+    // Drop what `wanted` already lists. Another spelling of a restricted group
+    // is KEPT, so the check below refuses it instead of quietly repairing it.
+    const wantedNames = new Set(wanted.map((entry) => normalizeGroupName(entry).toLowerCase()));
+    const rest = existing.filter((entry) => {
+      if (wanted.includes(entry)) return false;
+      if (typeof entry !== 'string') return true;
+      const name = normalizeGroupName(entry);
+      return restrictedGroup(name) !== undefined || !wantedNames.has(name.toLowerCase());
+    });
     const groups = [...wanted, ...rest];
     assertOxyKeychainGroups(bundleId, groups);
     config.modResults[KEY] = groups;

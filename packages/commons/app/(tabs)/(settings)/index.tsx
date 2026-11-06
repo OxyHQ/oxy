@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
@@ -8,6 +7,7 @@ import { Screen, StackHeader, SettingsListItem } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
+import { PreSplitExposureNotice } from '@/components/identity/PreSplitExposureNotice';
 import { useNotificationOffer } from '@/hooks/notifications/useNotificationOffer';
 
 /**
@@ -71,6 +71,10 @@ export default function SettingsScreen() {
       {/* No device backup on this device (OxyHQ/oxy#1388): stays until the user
           confirms they saved the recovery phrase. */}
       <DeviceBackupWarning variant="settings" />
+
+      {/* iOS: this identity was readable by every Oxy app before the keychain
+          split (ADR 0062); recommend, never force, a rotation. */}
+      <PreSplitExposureNotice />
 
       {/* Key-management actions */}
       <SettingsListGroup title={t('vault.home.manageKeys')}>
@@ -160,5 +164,3 @@ export default function SettingsScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({});
