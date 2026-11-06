@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed (the platform's own Settings changes the account's security)
+
+ADR 0058: an application token naming the platform's own application
+(`req.oxyToken.host.self`, OxyOS's Settings) may make the account's own security
+writes under `/users/me` (reauth, password, authenticator, email, sign-in
+methods) with each write's reauth unchanged; one that signs other sessions out
+keeps the platform's session. Every other application token, and every app token
+on everything else (deletion, linking, keys, identity proofs, families, sessions,
+devices), is still refused with `app_token_device_access_denied`.
+
 ### Fixed (an application token manages no session or device)
 
 ADR 0058: every route outside `/session/device/*` that ends, lists, renames or

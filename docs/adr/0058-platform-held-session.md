@@ -558,7 +558,28 @@ application token with the same `app_token_device_access_denied`
 managed-account switch, approving a sign-in elsewhere, OAuth and MCP
 authorization, MCP grant revocation), and so do the account-level writes behind
 `requireFirstPartyDeviceAccess` (sign-in methods, linking, keys, families,
-deletion): signing out and managing the account are the platform's (decision 1). `checkAccessTokenBinding`
+deletion): signing out and managing the account are the platform's (decision 1).
+
+**The platform's own Settings is the account UI on a host (2026-11-06).**
+Decision 1 gives the account graph's writes to the platform's Settings, and
+Settings is the platform's own application: its token is a `self` application
+token, whose `azp` is the platform credential's `platform_application_id`
+(`req.oxyToken.host.self`). As a Mac's System Settings changes the Apple
+Account's password, a `self` token may make the account's own security writes
+behind `requireFirstPartyDeviceAccess`, through `requireAccountSecurityAccess`:
+reauth, the password (set, change, remove), the authenticator (enrol, confirm,
+disable, backup codes), the email change and the sign-in methods. Each keeps
+its reauth freshness rule unchanged, and a write that signs out the account's
+other sessions keeps the acting session, which for a `self` token is the
+platform's own (the session its `sid` names), so the machine stays signed in and
+every application token minted from it survives. Everything else stays refused
+for every application token, `self` included: account deletion, Commons and auth
+linking, agent keys, organization identity keys, identity proofs, families, and
+all session and device management. Another application's token is refused on
+the security writes too. On OxyOS a password changed this way reaches the
+machine's verifier through OxyOS ADR 0020's online check: at the next unlock
+with the new password the local check fails, Oxy accepts it, and the verifier
+is replaced. `checkAccessTokenBinding`
 refuses `host` (`host_not_accepted`) unless its caller re-checks it live
 (`validateSession` and the realtime-recipient proofs do,
 `hostTokenAuthority.service.ts`), so a lane written before this ADR cannot

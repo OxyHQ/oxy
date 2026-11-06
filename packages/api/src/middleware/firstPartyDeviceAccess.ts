@@ -57,6 +57,27 @@ export function refuseApplicationToken(req: AuthRequest, res: Response, next: ()
   next();
 }
 
+/**
+ * `requireFirstPartyDeviceAccess` for the account's OWN security writes
+ * (`/users/me` reauth, password, authenticator, email, sign-in methods), with
+ * one exception (ADR 0058): an application token naming the platform's own
+ * application (`host.self`, OxyOS's Settings) may make them, as a Mac's System
+ * Settings changes the Apple Account's password. The platform's Settings is the
+ * account UI on a host. Every other application token is refused, and the
+ * reauth freshness rule of each write applies unchanged.
+ */
+export function requireAccountSecurityAccess(
+  req: AuthRequest,
+  res: Response,
+  next: () => void,
+): void {
+  if (req.oxyToken?.host?.self) {
+    next();
+    return;
+  }
+  requireFirstPartyDeviceAccess(req, res, next);
+}
+
 export const requireFirstPartyDeviceAccess = asyncHandler(
   async (req: AuthRequest, res: Response, next: () => void) => {
     // An APPLICATION token (ADR 0058) names one application on the shared

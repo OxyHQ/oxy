@@ -48,7 +48,7 @@ import {
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
-import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
+import { requireAccountSecurityAccess } from '../middleware/firstPartyDeviceAccess';
 import { requireOfficialOrigin } from '../middleware/officialOrigin';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
@@ -101,7 +101,9 @@ router.use(
     next();
   },
   authMiddleware,
-  requireFirstPartyDeviceAccess,
+  // The platform's own Settings may make these writes with its `self`
+  // application token (ADR 0058); no other application token may.
+  requireAccountSecurityAccess,
 );
 
 interface Owner {

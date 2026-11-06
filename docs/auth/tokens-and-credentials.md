@@ -236,7 +236,12 @@ creates sessions or devices (`refuseApplicationToken`): `/session/sessions`,
 `DELETE /auth/mcp/oauth/grants/:id`; and the account-level writes behind
 `requireFirstPartyDeviceAccess` (sign-in methods and password, authenticator,
 email, Commons linking, agent and organization keys, families, account
-deletion). An application token joins no `device:<id>` socket room.
+deletion). One exception: an application token naming the platform's own
+application (`host.self`, OxyOS's Settings) may make the account's own security
+writes (reauth, password, authenticator, email, sign-in methods,
+`requireAccountSecurityAccess`), keeping the platform's session when it signs
+the others out (ADR 0058). An application token joins no `device:<id>` socket
+room.
 
 The trust decision is the **registry's**, re-read per request rather than frozen
 into the token (`isTrustedApplication`, plus `status === 'active'`). Flipping an
