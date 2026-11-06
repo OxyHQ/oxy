@@ -1,5 +1,15 @@
 # Changelog
 
+## 14.6.1
+
+### Changed
+
+- Depends on `@peable.to/sdk` `^4.0.0` (was `^3.0.0`). Services imports only `@peable.to/sdk/display`, which 4.0.0 leaves unchanged; the bump keeps an app on Peable 4 (FairCoin offered on every Checkout Session, ADR 0021 of OxyHQ/Peable) on one SDK copy instead of a 3.x nested under services.
+
+### Consumers
+
+Bump to 14.6.1 together with `@peable.to/sdk` 4.0.0.
+
 ## 14.6.0
 
 ### Added
