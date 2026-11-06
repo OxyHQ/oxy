@@ -1,8 +1,8 @@
 # ADR 0060 — A universal topic catalog and relatedness across Oxy products
 
-- Status: Proposed; the open decisions listed below must be settled before acceptance
+- Status: Accepted for the contract (decisions 1–7 below); the open decisions gate their own rollout phases
 - Date: 2026-11-05
-- Decided by: the owner of Oxy (proposal, awaiting review)
+- Decided by: the owner of Oxy
 
 ## Context
 
