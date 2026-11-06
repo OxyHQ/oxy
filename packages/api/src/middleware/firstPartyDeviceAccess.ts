@@ -31,18 +31,41 @@ import { isTrustedApplication } from '../utils/trustedApplication';
 import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
 
+/**
+ * Refuse an APPLICATION token (ADR 0058, `req.oxyToken.host`) with
+ * `403 app_token_device_access_denied`, and let every other bearer through.
+ *
+ * For the routes outside `/session/device/*` that end, list, rename or create
+ * sessions or devices: signing out (one session, everywhere, a device),
+ * listing a person's sessions and devices, approving a sign-in elsewhere
+ * (`/auth/session/authorize-code`, OAuth and MCP authorization), switching into
+ * a managed account. An application token is a five-minute view of the
+ * platform's session for one application; the session, the devices and the
+ * person's other sessions are the platform's (ADR 0058 decision 1). Mount it
+ * after `authMiddleware`.
+ */
+export function refuseApplicationToken(req: AuthRequest, res: Response, next: () => void): void {
+  if (req.oxyToken?.host) {
+    logger.warn('session.lane.app_token_refused', {
+      platform: req.oxyToken.host.platform,
+      applicationId: req.oxyToken.host.applicationId,
+      path: req.path,
+    });
+    res.status(403).json({ error: APP_TOKEN_DEVICE_ACCESS_DENIED });
+    return;
+  }
+  next();
+}
+
 export const requireFirstPartyDeviceAccess = asyncHandler(
   async (req: AuthRequest, res: Response, next: () => void) => {
     // An APPLICATION token (ADR 0058) names one application on the shared
-    // session; the device is the platform's. No directory, switch, sign-out,
-    // add, state or background credential for it, whatever its application.
+    // session; the device and the account's controls are the platform's. No
+    // directory, switch, sign-out, add, state or background credential for it,
+    // and none of the account-level writes this guard also protects (sign-in
+    // methods, linking, keys, deletion), whatever its application.
     if (req.oxyToken?.host) {
-      logger.warn('device.lane.app_token_refused', {
-        platform: req.oxyToken.host.platform,
-        applicationId: req.oxyToken.host.applicationId,
-        path: req.path,
-      });
-      res.status(403).json({ error: APP_TOKEN_DEVICE_ACCESS_DENIED });
+      refuseApplicationToken(req, res, next);
       return;
     }
     const applicationId = req.oxyToken?.applicationId;

@@ -44,6 +44,7 @@ import {
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { refuseApplicationToken } from '../middleware/firstPartyDeviceAccess';
 import { rateLimit } from '../middleware/rateLimiter';
 import { serviceRateLimitKey } from '../utils/serviceRateLimitKey';
 import { hashedIpKey } from '../utils/ipKey';
@@ -1872,6 +1873,7 @@ const authSessionAuthorizeCodeLimiter = rateLimit({
 router.post(
   '/session/authorize-code/:authorizeCode',
   authMiddleware,
+  refuseApplicationToken,
   authSessionAuthorizeCodeLimiter,
   validate({ params: authorizeCodeParams, body: authorizeSessionBodySchema }),
   asyncHandler(async (req: AuthRequest, res) => {
@@ -2556,6 +2558,7 @@ const grantsRevokeLimiter = rateLimit({
 router.post(
   '/oauth/authorize',
   authMiddleware,
+  refuseApplicationToken,
   oauthAuthorizeLimiter,
   validate({ body: oauthAuthorizeSchema }),
   asyncHandler(async (req: AuthRequest, res) => {

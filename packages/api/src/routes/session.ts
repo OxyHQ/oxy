@@ -1,6 +1,7 @@
 import express from 'express';
 import { SessionController } from '../controllers/session.controller';
 import { authMiddleware } from '../middleware/auth';
+import { refuseApplicationToken } from '../middleware/firstPartyDeviceAccess';
 import { idpServiceLimiter, sessionHeaderValidationBudget } from '../middleware/security';
 import { validate } from '../middleware/validate';
 import {
@@ -97,6 +98,7 @@ router.get(
 router.get(
   '/sessions/:sessionId',
   authMiddleware,
+  refuseApplicationToken,
   validate({ params: sessionIdParams }),
   SessionController.getUserSessions,
 );
@@ -133,6 +135,7 @@ router.get(
 router.post(
   '/logout/:sessionId',
   authMiddleware,
+  refuseApplicationToken,
   validate({ params: sessionIdParams }),
   SessionController.logoutSession,
 );
@@ -174,6 +177,7 @@ router.post(
 router.post(
   '/logout/:sessionId/:targetSessionId',
   authMiddleware,
+  refuseApplicationToken,
   validate({ params: logoutTargetParams }),
   SessionController.logoutSession,
 );
@@ -207,6 +211,7 @@ router.post(
 router.post(
   '/logout-all/:sessionId',
   authMiddleware,
+  refuseApplicationToken,
   validate({ params: sessionIdParams }),
   SessionController.logoutAllSessions,
 );
@@ -345,6 +350,7 @@ router.get(
 router.get(
   '/device/sessions/:sessionId',
   authMiddleware,
+  refuseApplicationToken,
   validate({ params: sessionIdParams }),
   SessionController.getDeviceSessions,
 );
@@ -379,6 +385,7 @@ router.get(
 router.post(
   '/device/logout-all/:sessionId',
   authMiddleware,
+  refuseApplicationToken,
   validate({ params: sessionIdParams }),
   SessionController.logoutAllDeviceSessions,
 );
@@ -427,6 +434,7 @@ router.post(
 router.put(
   '/device/name/:sessionId',
   authMiddleware,
+  refuseApplicationToken,
   validate({ params: sessionIdParams, body: updateDeviceNameSchema }),
   SessionController.updateDeviceName,
 );

@@ -551,7 +551,14 @@ activation's token answer the JWT's `exp`); the sign-in responses keep their
 `expiresAt`. `GET /session/validate-header/:id` answers an application token
 with `host: { applicationId, platform }`. The holder evidence route
 (`/session/device/context-evidence-v1`) answers an application token
-`unsupported_bearer`, its own contract's refusal. `checkAccessTokenBinding`
+`unsupported_bearer`, its own contract's refusal. Outside `/session/device/*`,
+every route that ends, lists, renames or creates sessions or devices refuses an
+application token with the same `app_token_device_access_denied`
+(`refuseApplicationToken`: session listing and sign-out, `/devices`, the
+managed-account switch, approving a sign-in elsewhere, OAuth and MCP
+authorization, MCP grant revocation), and so do the account-level writes behind
+`requireFirstPartyDeviceAccess` (sign-in methods, linking, keys, families,
+deletion): signing out and managing the account are the platform's (decision 1). `checkAccessTokenBinding`
 refuses `host` (`host_not_accepted`) unless its caller re-checks it live
 (`validateSession` and the realtime-recipient proofs do,
 `hostTokenAuthority.service.ts`), so a lane written before this ADR cannot
