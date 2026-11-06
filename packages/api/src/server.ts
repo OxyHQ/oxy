@@ -285,6 +285,13 @@ app.all(inboxMcpHttpService.protectedResourceMetadataPath, (request, response) =
 app.all(inboxMcpHttpService.mcpPath, (request, response) => {
   void inboxMcpHttpService.handleMcp(request, response);
 });
+// The Inbox MCP host's root answers like its MCP endpoint, so a client that probes the
+// bare resource URL gets the 401 OAuth challenge. Without it the root serves the public
+// API welcome JSON with no authentication, and the client concludes no login is needed.
+app.all('/', (request, response, next) => {
+  if (!isInboxMcpResourceHost(request.headers.host)) return next();
+  void inboxMcpHttpService.handleMcp(request, response);
+});
 
 // The internal Capability transport owns its body, never the external OAuth lane.
 app.all('/_oxy/mcp', rateLimiter, (request, response) => {
