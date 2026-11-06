@@ -18,7 +18,6 @@ import {
   KeyManager,
   ensureKeychainGroupsMigrated,
   syncOrganizationKeys,
-  syncRetiredKeys,
 } from '@oxy.so/core/crypto';
 import { logger } from '@oxy.so/core';
 import { useNavigationTheme } from '@oxy.so/bloom/theme';
@@ -381,15 +380,8 @@ function AppStackContent() {
           component: 'AppStackContent',
         });
       }
-      // The same for retired keys (kept for spending after a rotation or a
-      // replacement, ADR 0061 D7 as amended), so Peable still reaches them.
-      try {
-        await syncRetiredKeys();
-      } catch (error) {
-        logger.error('[commons] retired-key sync threw unexpectedly', error, {
-          component: 'AppStackContent',
-        });
-      }
+      // Retired keys are mirrored by `useIdentity` once the signed-in person is
+      // known (R5-2): the identity host holds only that person's entries.
     })();
   }, [identityPresent]);
 

@@ -108,7 +108,8 @@ export default function DeleteAccountScreen() {
         // over" and a forced delete keep them, R4-4), then the identity.
         purgeIdentity: async () => {
           try {
-            await forgetRetiredIdentityKeys();
+            const ownerAccountId = oxyServices.session.userId;
+            if (ownerAccountId) await forgetRetiredIdentityKeys({ ownerAccountId });
           } catch {
             // Best effort, like the other recovery sources; the purge proceeds.
           }

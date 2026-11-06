@@ -71,7 +71,7 @@ module.exports = {
     // keychain probe in @oxy.so/services' native module, the migration);
     // 1.7.0 keeps retired keys; 1.8.0 is the one-shot, provenance-checked
     // migration and the .dev-only restricted groups of the dev variant.
-    version: '1.8.0',
+    version: '1.9.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /

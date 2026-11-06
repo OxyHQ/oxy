@@ -63,6 +63,7 @@ jest.mock('@oxy.so/core/crypto', () => ({
     shortenPublicKey: (key: string) => key.slice(0, 8),
   },
   listRetiredIdentityKeys: () => mockList(),
+  syncRetiredKeys: jest.fn(async () => 0),
   retireIdentityKey: (...args: unknown[]) => mockRetire(...(args as [])),
   retiredKeyFromPhrase: (...args: unknown[]) => mockFromPhrase(...(args as [])),
 }));
@@ -92,7 +93,9 @@ async function enterAndSubmit(getByTestId: (id: string) => HTMLElement) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  __setOxyState({ oxyServices: { identity: { keyHistory } } });
+  __setOxyState({
+    oxyServices: { identity: { keyHistory }, session: { userId: 'aaaaaaaaaaaaaaaaaaaaaaaa' } },
+  });
 });
 
 it('keeps a phrase whose key the account retired, as a previous key', async () => {
@@ -102,7 +105,11 @@ it('keeps a phrase whose key the account retired, as a previous key', async () =
   });
   const { getByTestId } = renderScreen();
   await enterAndSubmit(getByTestId);
-  await waitFor(() => expect(mockRetire).toHaveBeenCalledWith(PREVIOUS));
+  await waitFor(() =>
+    expect(mockRetire).toHaveBeenCalledWith(PREVIOUS, {
+      ownerAccountId: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+    }),
+  );
 });
 
 it('refuses the current phrase and keeps nothing', async () => {

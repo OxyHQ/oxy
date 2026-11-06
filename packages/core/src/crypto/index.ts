@@ -92,6 +92,10 @@ export {
   retiredKeyFromPhrase,
   retiredKeyFromPrivateKey,
   exportRetiredIdentityKeys,
+  claimRetiredIdentityKeys,
+  countQuarantinedRetiredKeys,
+  unmirrorPersonalRetiredKeys,
+  RetiredKeyRingUnreadableError,
 } from './retiredKeys';
 export type { RetiredIdentityKey, RetiredKeyPair, RetiredKeySelector } from './retiredKeys';
 export { SignatureService } from './signatureService';

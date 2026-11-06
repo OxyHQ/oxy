@@ -8,7 +8,9 @@ import {
   IdentityAlreadyExistsError,
   IdentityPersistError,
   IdentityUnavailableError,
+  claimRetiredIdentityKeys,
   listRetiredIdentityKeys,
+  syncRetiredKeys,
   readIdentityMarker,
 } from '@oxy.so/core/crypto';
 import { useBiometricSignIn } from './useBiometricSignIn';
@@ -552,22 +554,42 @@ export const useIdentity = (): UseIdentityResult => {
     checkAndRestoreIdentity();
   }, [queryClient]);
 
-  // Previous keys after a reinstall or a new phone (R4-4): when this account
-  // has retired keys, this phone holds none and it holds the current phrase
-  // (Android's device backup restores it silently), keep the ones the
-  // encrypted backup carries. Once per launch; best effort.
+  // The signed-in person's previous keys, once per launch (R4-4, R5-2):
+  // 1. bind the ring's quarantined personal entries this account's key history
+  //    names (entries kept by the access-group migration or an older Commons);
+  // 2. on Android, make the identity host hold this person's entries and no
+  //    one else's (a previous person's stay in Commons' own ring, unreachable);
+  // 3. when the history names a retired key this phone does not hold for this
+  //    account and this phone holds the current phrase (Android's device backup
+  //    restores it silently), keep the ones the encrypted backup carries.
   useEffect(() => {
     if (Platform.OS === 'web' || !oxyServices || !isAuthenticated || retiredRingChecked) return;
+    const ownerAccountId = oxyServices.session.userId;
+    if (!ownerAccountId) return;
     retiredRingChecked = true;
     void (async () => {
       try {
-        if ((await listRetiredIdentityKeys()).length > 0) return;
         const history = await oxyServices.identity.keyHistory();
+        const named = [
+          ...(history.publicKey ? [history.publicKey] : []),
+          ...history.retired.map((entry) => entry.publicKey),
+        ];
+        await claimRetiredIdentityKeys(ownerAccountId, named);
+        await syncRetiredKeys(ownerAccountId);
         if (history.retired.length === 0) return;
-        const phrase = await KeyManager.getRecoveryMnemonic();
-        if (phrase) await oxyServices.identity.backup.restoreRetiredKeys(phrase);
+        const held = new Set(
+          (await listRetiredIdentityKeys({ ownerAccountId })).map((key) => key.publicKey),
+        );
+        const missing = history.retired.some(
+          (entry) => !held.has(KeyManager.canonicalPublicKey(entry.publicKey)),
+        );
+        if (!missing) return;
+        const phrase = await KeyManager.getRecoveryMnemonicForCurrentIdentity();
+        if (phrase && (await oxyServices.identity.backup.restoreRetiredKeys(phrase)) > 0) {
+          await syncRetiredKeys(ownerAccountId);
+        }
       } catch (error) {
-        console.warn('[useIdentity] Could not restore previous keys from the backup', error);
+        console.warn('[useIdentity] Could not bring back previous keys', error);
       }
     })();
   }, [oxyServices, isAuthenticated]);

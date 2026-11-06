@@ -64,10 +64,36 @@ import { isOrganizationAccountId } from './keychainItems';
 import { prepareKeychainAccess } from './keychainGroupMigration';
 import type { OxySecureStoreOptions as SecureStoreOptions } from './secureStoreOptions';
 
-/** Whose ring: the person's (`accountId` absent) or an organization's. */
+/**
+ * Whose ring: the person's (`accountId` absent) or an organization's.
+ *
+ * The personal ring is BOUND TO ITS OWNER (R5-2): every personal entry records
+ * the Oxy account id of the person whose key it was, and a personal read
+ * reaches only the entries of `ownerAccountId`. A phone outlives the person on
+ * it ("Start over" keeps the ring: it is money, recoverable from that account's
+ * backup), so the next person on the phone must never list, derive from or
+ * sign with a previous person's keys. A personal read without `ownerAccountId`
+ * reaches nothing. An entry whose owner is not known (a key the access-group
+ * migration kept, an entry written before 7.33.0) is QUARANTINED: invisible to
+ * every reader until Commons binds it with {@link claimRetiredIdentityKeys},
+ * which requires the account's key history to name it.
+ */
 export interface RetiredKeySelector {
   /** An organization's account id; absent for the personal ring. */
   accountId?: string;
+  /**
+   * The person's Oxy account id, for the PERSONAL ring: whose entries are
+   * reached. Ignored for an organization's ring (its owner is `accountId`).
+   */
+  ownerAccountId?: string;
+}
+
+/** Thrown when the ring's index cannot be read as the ring: never treated as empty (R5-9). */
+export class RetiredKeyRingUnreadableError extends Error {
+  constructor(reason: string) {
+    super(`retired key ring: ${reason}`);
+    this.name = 'RetiredKeyRingUnreadableError';
+  }
 }
 
 /** One retired key as the ring lists it: public data only. */
@@ -164,6 +190,31 @@ interface IndexEntry {
   scope: string;
   publicKey: string;
   retiredAt: number;
+  /**
+   * Personal entries: the Oxy account id of the person whose key it was.
+   * Absent: quarantined (never listed, derived from or signed with).
+   */
+  owner?: string;
+}
+
+const ACCOUNT_ID =
+  /^(?:[0-9a-f]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+/** A well-formed Oxy account id (24-hex or uuid), else `null`. */
+function ownerOf(ownerAccountId: string | undefined): string | null {
+  return ownerAccountId !== undefined && ACCOUNT_ID.test(ownerAccountId)
+    ? ownerAccountId.toLowerCase()
+    : null;
+}
+
+/**
+ * Whether `entry` may be reached by a reader of `scope` acting for `owner`: an
+ * organization's entries by its own scope, a personal entry only by its owner.
+ */
+function isVisible(entry: IndexEntry, scope: string, owner: string | null): boolean {
+  if (entry.scope !== scope) return false;
+  if (scope !== PERSONAL_SCOPE) return true;
+  return owner !== null && entry.owner === owner;
 }
 
 function isIndexEntry(value: unknown): value is IndexEntry {
@@ -175,23 +226,33 @@ function isIndexEntry(value: unknown): value is IndexEntry {
     typeof entry.publicKey === 'string' &&
     PUBLIC_KEY.test(entry.publicKey) &&
     typeof entry.retiredAt === 'number' &&
-    Number.isFinite(entry.retiredAt)
+    Number.isFinite(entry.retiredAt) &&
+    (entry.owner === undefined || (typeof entry.owner === 'string' && ACCOUNT_ID.test(entry.owner)))
   );
 }
 
+/**
+ * The ring's index. STRICT (R5-6, R5-9): an index that does not parse, or that
+ * holds an entry this version cannot read, THROWS
+ * {@link RetiredKeyRingUnreadableError} instead of reading as empty, so no
+ * writer overwrites it (losing every entry) and no backup is sealed without
+ * the keys it names. A thrown keychain read propagates.
+ */
 async function readIndex(store: ExpoSecureStoreLike): Promise<IndexEntry[]> {
   const raw = await store.getItemAsync(INDEX_STORAGE_KEY, indexOptions());
   if (!raw) return [];
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isIndexEntry) : [];
-  } catch (error) {
-    logger.warn('Retired key index unreadable; treating as empty', {
-      component: 'RetiredKeys',
-      error: error instanceof Error ? error.name : 'unknown',
-    });
-    return [];
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new RetiredKeyRingUnreadableError('the index does not parse');
   }
+  if (!Array.isArray(parsed) || !parsed.every(isIndexEntry)) {
+    throw new RetiredKeyRingUnreadableError('the index holds an entry this version cannot read');
+  }
+  return parsed.map((entry: IndexEntry) =>
+    entry.owner === undefined ? entry : { ...entry, owner: entry.owner.toLowerCase() },
+  );
 }
 
 async function writeIndex(store: ExpoSecureStoreLike, entries: IndexEntry[]): Promise<void> {
@@ -207,6 +268,7 @@ async function writeIndex(store: ExpoSecureStoreLike, entries: IndexEntry[]): Pr
 }
 
 function toListed(entry: IndexEntry): RetiredIdentityKey {
+  // The owner is the reader's own id; it is not repeated.
   return entry.scope === PERSONAL_SCOPE
     ? { publicKey: entry.publicKey, retiredAt: entry.retiredAt }
     : { publicKey: entry.publicKey, accountId: entry.scope, retiredAt: entry.retiredAt };
@@ -234,9 +296,13 @@ async function assertMayWrite(): Promise<void> {
 }
 
 /**
- * Keep `key` in the ring of `selector`'s account. Commons only. Idempotent: a
- * key already kept stays, with its first date. Refuses a pair whose public key
- * does not derive from its private key. Resolves once every copy confirmed it
+ * Keep `key` in the ring of `selector`'s account. Commons only. A PERSONAL key
+ * needs `selector.ownerAccountId`, the person whose key it was (R5-2): the
+ * signed-in account at a rotation, the account whose key history or backup
+ * named it. Idempotent: a key already kept stays, with its first date; a
+ * quarantined entry of the same key is bound to that owner; an entry bound to
+ * a DIFFERENT owner is refused. Refuses a pair whose public key does not
+ * derive from its private key. Resolves once every copy confirmed it
  * (Android: the signer store's read-back too), and throws otherwise, so a
  * caller about to replace the key can stop before anything is lost.
  */
@@ -244,13 +310,19 @@ export async function retireIdentityKey(
   key: RetiredKeyPair,
   selector?: RetiredKeySelector,
 ): Promise<void> {
+  const scope = retiredKeyScope(selector);
+  if (scope === PERSONAL_SCOPE && ownerOf(selector?.ownerAccountId) === null) {
+    throw new Error('retired key: a personal key needs ownerAccountId, the account it belongs to');
+  }
   await keepRetired(key, selector, true);
 }
 
 /**
  * {@link retireIdentityKey} from inside the iOS access-group migration, which
- * keeps a replaced pre-split copy before deleting it from the shared group and
- * cannot await itself. @internal
+ * keeps a pre-split copy before deleting it from the shared group and cannot
+ * await itself. A personal key without `ownerAccountId` is kept QUARANTINED:
+ * held (it may be money) but reached by nobody until
+ * {@link claimRetiredIdentityKeys} binds it. @internal
  */
 export async function retireIdentityKeyDuringMigration(
   key: RetiredKeyPair,
@@ -266,6 +338,7 @@ async function keepRetired(
 ): Promise<void> {
   const scope = retiredKeyScope(selector);
   if (!scope) throw new Error('retired key: accountId must be a 24-hex or uuid account id');
+  const owner = scope === PERSONAL_SCOPE ? ownerOf(selector?.ownerAccountId) : null;
   await assertMayWrite();
   if (!isHealthyPair(key.privateKey, key.publicKey)) {
     throw new Error('retired key: the public key does not derive from the private key');
@@ -273,6 +346,12 @@ async function keepRetired(
   const privateKey = normalizeSecp256k1PrivateKey(key.privateKey);
   const publicKey = normalizeSecp256k1PublicKey(key.publicKey);
   const store = await ringStore(gate);
+  // Strict: an unreadable index stops the write before the key is touched.
+  const before = await readIndex(store);
+  const existing = before.find((entry) => entry.scope === scope && entry.publicKey === publicKey);
+  if (existing?.owner !== undefined && owner !== null && existing.owner !== owner) {
+    throw new Error('retired key: this key is kept for a different account');
+  }
   await store.setItemAsync(
     privateKeyName(scope, publicKey),
     privateKey,
@@ -285,48 +364,112 @@ async function keepRetired(
   if (readBack !== privateKey) {
     throw new Error('retired key: the keychain did not confirm the key');
   }
-  const signer = isAndroid() ? registeredIdentitySignerStore() : null;
-  if (signer?.writeRetired && !(await signer.writeRetired(scope, privateKey, publicKey))) {
-    throw new Error(`The identity signer store (${signer.name}) did not confirm the retired key.`);
-  }
   const index = await readIndex(store);
-  if (!index.some((entry) => entry.scope === scope && entry.publicKey === publicKey)) {
-    await writeIndex(store, [...index, { scope, publicKey, retiredAt: Date.now() }]);
+  const kept = index.find((entry) => entry.scope === scope && entry.publicKey === publicKey);
+  if (!kept) {
+    await writeIndex(store, [
+      ...index,
+      owner === null
+        ? { scope, publicKey, retiredAt: Date.now() }
+        : { scope, publicKey, retiredAt: Date.now(), owner },
+    ]);
+  } else if (kept.owner === undefined && owner !== null) {
+    await writeIndex(
+      store,
+      index.map((entry) => (entry === kept ? { ...entry, owner } : entry)),
+    );
+  }
+  // The identity host answers only from the signer store, which holds the
+  // organizations' rings and the CURRENT person's personal entries; a
+  // quarantined entry is never mirrored.
+  const signer = isAndroid() ? registeredIdentitySignerStore() : null;
+  if (
+    signer?.writeRetired &&
+    (scope !== PERSONAL_SCOPE || owner !== null) &&
+    !(await signer.writeRetired(scope, privateKey, publicKey))
+  ) {
+    throw new Error(`The identity signer store (${signer.name}) did not confirm the retired key.`);
   }
 }
 
 /**
+ * Bind the QUARANTINED personal entries whose public key `publicKeys` names to
+ * `ownerAccountId` (R5-2, R5-3). Commons only, with the signed-in person's
+ * account id and that account's key history from Oxy
+ * (`oxy.identity.keyHistory()`: retired and current public keys): a key the
+ * account's own history names is that account's. Entries bound to anyone, and
+ * keys the history does not name, are left as they are. Resolves how many it
+ * bound; call {@link syncRetiredKeys} after it on Android.
+ */
+export async function claimRetiredIdentityKeys(
+  ownerAccountId: string,
+  publicKeys: readonly string[],
+): Promise<number> {
+  const owner = ownerOf(ownerAccountId);
+  if (owner === null) throw new Error('retired key: ownerAccountId must be an account id');
+  if (isWeb()) return 0;
+  await assertMayWrite();
+  const named = new Set(
+    publicKeys.map((key) => canonicalPublicKey(key)).filter((key): key is string => key !== null),
+  );
+  const store = await ringStore();
+  const index = await readIndex(store);
+  let bound = 0;
+  const next = index.map((entry) => {
+    if (entry.scope !== PERSONAL_SCOPE || entry.owner !== undefined) return entry;
+    if (!named.has(entry.publicKey)) return entry;
+    bound += 1;
+    return { ...entry, owner };
+  });
+  if (bound > 0) await writeIndex(store, next);
+  return bound;
+}
+
+/**
+ * How many personal entries are quarantined (no known owner). Commons shows
+ * them as "keys from before" the person can claim by adding the phrase, and
+ * {@link claimRetiredIdentityKeys} binds the ones the account's history names.
+ */
+export async function countQuarantinedRetiredKeys(): Promise<number> {
+  if (isWeb() || (isAndroid() && !registeredIdentitySignerStore())) return 0;
+  const store = await ringStore();
+  return (await readIndex(store)).filter(
+    (entry) => entry.scope === PERSONAL_SCOPE && entry.owner === undefined,
+  ).length;
+}
+
+/**
  * The retired keys of `selector`'s account this app can reach, oldest first.
- * iOS and Commons: the ring's index. Android elsewhere: Commons' identity host
- * (the wallet only), which leaves out the scope's current key. After an
- * interrupted rotation the local list can include the current key: compare
- * with the DID's `#key-1` before treating an entry as retired.
+ * The personal ring answers only `selector.ownerAccountId`'s entries (none
+ * without it; R5-2). iOS and Commons: the ring's index. Android elsewhere:
+ * Commons' identity host (the wallet only), which holds only the personal
+ * entries of the person Commons is signed in as and leaves out the scope's
+ * current key. After an interrupted rotation the local list can include the
+ * current key: compare with the DID's `#key-1` before treating an entry as
+ * retired, and check every entry against the account's key history.
+ *
+ * STRICT (R5-6): a ring that cannot be read throws (the keychain's error, or
+ * {@link RetiredKeyRingUnreadableError}); it never reads as empty.
  */
 export async function listRetiredIdentityKeys(
   selector?: RetiredKeySelector,
 ): Promise<RetiredIdentityKey[]> {
   const scope = retiredKeyScope(selector);
   if (!scope || isWeb()) return [];
-  try {
-    if (isAndroid() && !registeredIdentitySignerStore()) {
-      const bridge = await loadCommonsIdentityBridge();
-      const keys = (await bridge?.listRetiredKeys?.(selector?.accountId)) ?? null;
-      return (keys ?? []).map((publicKey) =>
-        scope === PERSONAL_SCOPE
-          ? { publicKey, retiredAt: 0 }
-          : { publicKey, accountId: scope, retiredAt: 0 },
-      );
-    }
-    if (!isIOS() && !isAndroid()) return [];
-    const store = await ringStore();
-    return (await readIndex(store)).filter((entry) => entry.scope === scope).map(toListed);
-  } catch (error) {
-    logger.warn('Failed to list retired keys', {
-      component: 'RetiredKeys',
-      error: error instanceof Error ? error.name : 'unknown',
-    });
-    return [];
+  const owner = ownerOf(selector?.ownerAccountId);
+  if (scope === PERSONAL_SCOPE && owner === null) return [];
+  if (isAndroid() && !registeredIdentitySignerStore()) {
+    const bridge = await loadCommonsIdentityBridge();
+    const keys = (await bridge?.listRetiredKeys?.(selector?.accountId)) ?? null;
+    return (keys ?? []).map((publicKey) =>
+      scope === PERSONAL_SCOPE
+        ? { publicKey, retiredAt: 0 }
+        : { publicKey, accountId: scope, retiredAt: 0 },
+    );
   }
+  if (!isIOS() && !isAndroid()) return [];
+  const store = await ringStore();
+  return (await readIndex(store)).filter((entry) => isVisible(entry, scope, owner)).map(toListed);
 }
 
 /**
@@ -343,11 +486,20 @@ export async function getRetiredPrivateKey(
   const scope = retiredKeyScope(selector);
   const canonical = canonicalPublicKey(publicKey);
   if (!scope || !canonical || isWeb()) return null;
+  const owner = ownerOf(selector?.ownerAccountId);
+  if (scope === PERSONAL_SCOPE && owner === null) return null;
   try {
     if (isAndroid()) {
       const signer = registeredIdentitySignerStore();
       if (!signer) return null;
       const store = await ringStore();
+      if (
+        !(await readIndex(store)).some(
+          (entry) => isVisible(entry, scope, owner) && entry.publicKey === canonical,
+        )
+      ) {
+        return null;
+      }
       const local = await store.getItemAsync(
         privateKeyName(scope, canonical),
         privateOptions(store, false),
@@ -361,6 +513,15 @@ export async function getRetiredPrivateKey(
     }
     if (!isIOS()) return null;
     const store = await ringStore();
+    // The index decides who may reach a key (R5-2); a key it does not list for
+    // this reader is not theirs, whatever item exists.
+    if (
+      !(await readIndex(store)).some(
+        (entry) => isVisible(entry, scope, owner) && entry.publicKey === canonical,
+      )
+    ) {
+      return null;
+    }
     const value = await store.getItemAsync(
       privateKeyName(scope, canonical),
       privateOptions(store, false),
@@ -387,8 +548,13 @@ export async function forgetRetiredIdentityKey(
   const scope = retiredKeyScope(selector);
   const canonical = canonicalPublicKey(publicKey);
   if (!scope || !canonical) throw new Error('retired key: invalid selector or public key');
+  const owner = ownerOf(selector?.ownerAccountId);
   await assertMayWrite();
   const store = await ringStore();
+  const visible = (await readIndex(store)).some(
+    (entry) => isVisible(entry, scope, owner) && entry.publicKey === canonical,
+  );
+  if (!visible) throw new Error('retired key: not a key of this account');
   await store.deleteItemAsync(privateKeyName(scope, canonical), privateOptions(store, false));
   const signer = isAndroid() ? registeredIdentitySignerStore() : null;
   await signer?.clearRetired?.(scope, canonical);
@@ -412,12 +578,14 @@ export async function forgetRetiredIdentityKeys(selector?: RetiredKeySelector): 
   const scope = retiredKeyScope(selector);
   if (!scope || isWeb()) return 0;
   if (isAndroid() && !registeredIdentitySignerStore()) return 0;
+  const owner = ownerOf(selector?.ownerAccountId);
+  if (scope === PERSONAL_SCOPE && owner === null) return 0;
   const store = await ringStore();
   const index = await readIndex(store);
   const signer = isAndroid() ? registeredIdentitySignerStore() : null;
   let removed = 0;
   for (const entry of index) {
-    if (entry.scope !== scope) continue;
+    if (!isVisible(entry, scope, owner)) continue;
     await store.deleteItemAsync(
       privateKeyName(scope, entry.publicKey),
       privateOptions(store, false),
@@ -427,23 +595,35 @@ export async function forgetRetiredIdentityKeys(selector?: RetiredKeySelector): 
   }
   await writeIndex(
     store,
-    index.filter((entry) => entry.scope !== scope),
+    index.filter((entry) => !isVisible(entry, scope, owner)),
   );
   return removed;
 }
 
 /**
- * Commons on Android: copy every retired key into the identity signer store
- * again, so the identity host answers for it after that file was rebuilt (its
- * self-heal leaves it empty). Call on every boot, beside `syncOrganizationKeys`.
- * Resolves how many it mirrored. Elsewhere 0.
+ * Commons on Android: make the identity signer store hold exactly what the
+ * identity host may answer — every organization ring, and the personal entries
+ * of `ownerAccountId` (the person Commons is signed in as) — so the host
+ * answers for them after that file was rebuilt (its self-heal leaves it
+ * empty), and never for a previous person's keys (R5-2): every other personal
+ * entry is removed from the signer store (its own slot keeps it). Without
+ * `ownerAccountId` no personal entry is mirrored. Call on every boot and after
+ * every sign-in, beside `syncOrganizationKeys`. Resolves how many it mirrored.
+ * Elsewhere 0.
  */
-export async function syncRetiredKeys(): Promise<number> {
+export async function syncRetiredKeys(ownerAccountId?: string): Promise<number> {
   const signer = isAndroid() ? registeredIdentitySignerStore() : null;
   if (!signer?.writeRetired || !signer.readRetired) return 0;
+  const owner = ownerOf(ownerAccountId);
   const store = await ringStore();
+  const index = await readIndex(store);
+  const allowed = new Set(
+    index.filter((entry) => isVisible(entry, PERSONAL_SCOPE, owner)).map((e) => e.publicKey),
+  );
+  await clearPersonalMirror(signer, index, allowed);
   let mirrored = 0;
-  for (const entry of await readIndex(store)) {
+  for (const entry of index) {
+    if (entry.scope === PERSONAL_SCOPE && !isVisible(entry, PERSONAL_SCOPE, owner)) continue;
     const privateKey = await store.getItemAsync(
       privateKeyName(entry.scope, entry.publicKey),
       privateOptions(store, false),
@@ -465,12 +645,14 @@ export async function syncRetiredKeys(): Promise<number> {
 }
 
 /**
- * Every retired key of `selector`'s ring WITH its private half, for the
- * encrypted identity backup (`oxy.identity.backup.create`), which carries them
- * under the CURRENT phrase so a lost phone costs no more than the current
- * phrase does (R4-4). Commons only; an entry whose private half is missing or
- * does not derive its public key is left out. Never log or transmit the result
- * except inside that encrypted envelope.
+ * Every retired key of `selector`'s ring (personal: `ownerAccountId`'s entries)
+ * WITH its private half, for the encrypted identity backup
+ * (`oxy.identity.backup.create`), which carries them under the CURRENT phrase
+ * so a lost phone costs no more than the current phrase does (R4-4). Commons
+ * only. STRICT (R5-6): an unreadable ring, or a listed entry whose private
+ * half is missing or does not derive its public key, THROWS — a backup is
+ * never sealed without a key the ring says it holds. Never log or transmit the
+ * result except inside that encrypted envelope.
  */
 export async function exportRetiredIdentityKeys(
   selector?: RetiredKeySelector,
@@ -480,11 +662,63 @@ export async function exportRetiredIdentityKeys(
   await assertMayWrite();
   const out: Array<RetiredKeyPair & { retiredAt: number }> = [];
   for (const entry of await listRetiredIdentityKeys(selector)) {
-    const privateKey = await getRetiredPrivateKey(entry.publicKey, selector);
-    if (privateKey)
-      out.push({ privateKey, publicKey: entry.publicKey, retiredAt: entry.retiredAt });
+    const privateKey = await readRetiredStrict(entry.publicKey, scope);
+    out.push({ privateKey, publicKey: entry.publicKey, retiredAt: entry.retiredAt });
   }
   return out;
+}
+
+/** A listed entry's private half, or a throw: Commons' own slot, then (Android) the signer copy. */
+async function readRetiredStrict(publicKey: string, scope: string): Promise<string> {
+  const store = await ringStore();
+  const local = await store.getItemAsync(
+    privateKeyName(scope, publicKey),
+    privateOptions(store, false),
+  );
+  if (local && isHealthyPair(local, publicKey)) return normalizeSecp256k1PrivateKey(local);
+  const signer = isAndroid() ? registeredIdentitySignerStore() : null;
+  const mirrored = (await signer?.readRetired?.(scope, publicKey)) ?? null;
+  if (mirrored && isHealthyPair(mirrored.privateKey, publicKey)) {
+    return normalizeSecp256k1PrivateKey(mirrored.privateKey);
+  }
+  throw new RetiredKeyRingUnreadableError('a listed key has no readable private half');
+}
+
+/**
+ * Commons on Android, when the identity leaves this device ("Start over", a
+ * forced delete): remove every PERSONAL entry from the identity signer store,
+ * so the identity host answers no other app with them before the next person
+ * signs in (R5-2). Commons' own slot and index keep them (money, bound to
+ * their owner). Elsewhere a no-op.
+ */
+export async function unmirrorPersonalRetiredKeys(): Promise<void> {
+  const signer = isAndroid() ? registeredIdentitySignerStore() : null;
+  if (!signer?.clearRetired) return;
+  let index: IndexEntry[] = [];
+  try {
+    index = await readIndex(await ringStore());
+  } catch {
+    // The signer store's own list below still reaches every mirrored entry.
+  }
+  await clearPersonalMirror(signer, index, new Set());
+}
+
+/** Remove from the signer store every personal entry not in `allowed`: the index's and the store's own list. */
+async function clearPersonalMirror(
+  signer: NonNullable<ReturnType<typeof registeredIdentitySignerStore>>,
+  index: readonly IndexEntry[],
+  allowed: ReadonlySet<string>,
+): Promise<void> {
+  if (!signer.clearRetired) return;
+  const mirrored = new Set(
+    index.filter((entry) => entry.scope === PERSONAL_SCOPE).map((entry) => entry.publicKey),
+  );
+  for (const publicKey of (await signer.listRetired?.(PERSONAL_SCOPE)) ?? []) {
+    mirrored.add(publicKey.toLowerCase());
+  }
+  for (const publicKey of mirrored) {
+    if (!allowed.has(publicKey)) await signer.clearRetired(PERSONAL_SCOPE, publicKey);
+  }
 }
 
 /**

@@ -337,7 +337,10 @@ export class IdentityApi {
     if (!isWeb()) {
       try {
         if (!oldPrivateKeyForRing) throw new Error('no readable private key');
-        await retireIdentityKey({ privateKey: oldPrivateKeyForRing, publicKey: oldPublicKey });
+        await retireIdentityKey(
+          { privateKey: oldPrivateKeyForRing, publicKey: oldPublicKey },
+          { ownerAccountId: userId },
+        );
       } catch (retainError) {
         logger.warn(
           'Could not keep the current key as a retired key; not rotating.',
@@ -896,9 +899,11 @@ export class IdentityBackupApi {
   private async retiredKeysToCarry(currentPublicKey: string): Promise<BackupRetiredKey[]> {
     if (isWeb()) return [];
     const { exportRetiredIdentityKeys } = await import('../crypto/index');
+    const userId = this.ctx.oxy.session.userId;
+    if (!userId) throw new Error('No authenticated user — sign in before backing up.');
     let held: BackupRetiredKey[];
     try {
-      held = await exportRetiredIdentityKeys();
+      held = await exportRetiredIdentityKeys({ ownerAccountId: userId });
     } catch {
       return []; // Not Commons: this app holds no ring to carry.
     }
@@ -966,6 +971,10 @@ export class IdentityBackupApi {
    */
   private async keepCarriedRetiredKeys(payload: BackupPayload): Promise<number> {
     const { KeyManager, retireIdentityKey } = await import('../crypto/index');
+    // The backup is the signed-in account's (its phrase opened it): its keys
+    // are kept for that account only (R5-2).
+    const ownerAccountId = this.ctx.oxy.session.userId;
+    if (!ownerAccountId) throw new Error('No authenticated user — sign in before restoring.');
     let kept = 0;
     for (const key of Array.isArray(payload.retiredKeys) ? payload.retiredKeys : []) {
       try {
@@ -976,7 +985,10 @@ export class IdentityBackupApi {
         ) {
           continue;
         }
-        await retireIdentityKey({ privateKey: key.privateKey, publicKey: key.publicKey });
+        await retireIdentityKey(
+          { privateKey: key.privateKey, publicKey: key.publicKey },
+          { ownerAccountId },
+        );
         kept += 1;
       } catch (error) {
         logger.warn(

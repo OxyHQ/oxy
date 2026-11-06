@@ -32,7 +32,7 @@ import { isDev, logger } from '../logger';
 import { deriveScopedSeedFromKey, signSocialReceiveDigest } from './identityDerivations';
 import { type IdentitySignerStore, registerIdentitySignerStore } from './identitySigner';
 import { getOrganizationPrivateKey, isOrganizationAccountId } from './organizationKeys';
-import { getRetiredPrivateKey, retiredKeyScope } from './retiredKeys';
+import { getRetiredPrivateKey, retiredKeyScope, unmirrorPersonalRetiredKeys } from './retiredKeys';
 import {
   type KeychainItemClass,
   groupedKeychainStore,
@@ -1070,11 +1070,29 @@ export class KeyManager {
    * `signSocialReceive`) is fresh, so a cached key here would let a caller
    * compare a new seed against an old key.
    *
+   * iOS, in an app that holds the private key (Commons, the Peable wallet:
+   * keychain roles `holder` and `wallet`): DERIVED from the private key in the
+   * wallet group, never read from the public-key item, which sits in the shared
+   * group every Oxy app can write (R5-1); `null` when that app holds no private
+   * key. Every other iOS app reads the public-key item: it holds nothing it
+   * could derive from, and it never spends. Money code uses
+   * {@link getIdentityPublicKeyForMoney}.
+   *
    * @returns Shared public key or null if no shared identity exists
    */
   static async getSharedPublicKey(): Promise<string | null> {
     if (isWebPlatform()) {
       return null;
+    }
+
+    if (isIOS() && (await KeyManager._holdsSpendingKeys())) {
+      // Not cached: a rotation in Commons changes it under the wallet.
+      try {
+        const privateKey = await KeyManager.getSharedPrivateKey();
+        return privateKey ? KeyManager.derivePublicKey(privateKey) : null;
+      } catch {
+        return null;
+      }
     }
 
     // Return cached value if available (iOS only; see above).
@@ -1109,6 +1127,70 @@ export class KeyManager {
       KeyManager.cachedSharedPublicKey = null;
       return null;
     }
+  }
+
+  /**
+   * Whether this iOS app holds spending keys (keychain role `holder` or
+   * `wallet`), so a public key it uses for money must be derived from them.
+   * Throws while the keychain cannot say. @internal
+   */
+  private static async _holdsSpendingKeys(): Promise<boolean> {
+    const access = await resolveKeychainAccess();
+    return access.mode === 'grouped' && access.role !== 'member';
+  }
+
+  /**
+   * THE public key of the identity a money holder (the Peable wallet, Commons)
+   * receives and spends with: the personal key, or with `opts.accountId` that
+   * organization's (ADR 0061 D6). It is the public half of exactly the private
+   * key {@link deriveScopedSeed} and {@link signSocialReceive} use, so an
+   * address shown from it is one this app can spend (R5-1).
+   *
+   * - iOS (Commons, the Peable wallet): DERIVED from the private key in the
+   *   restricted keychain groups (personal: the wallet group's slot, then
+   *   Commons' primary; organization: its pair). Never the shared group's
+   *   public-key item, which every Oxy app can write. `null` when no private
+   *   key is held, and in every other iOS app.
+   * - Android: inside Commons derived from its own key; elsewhere Commons'
+   *   identity host (`describe`), which answers from Commons' own signer
+   *   store over signature-protected IPC.
+   * - Web: `null`.
+   *
+   * Compare the answer with the account's published `#key-1` before showing a
+   * receive address (Peable ADR 0002). Lowercase uncompressed (`04…`).
+   */
+  static async getIdentityPublicKeyForMoney(opts?: { accountId?: string }): Promise<string | null> {
+    if (isWebPlatform()) {
+      return null;
+    }
+    const accountId = opts?.accountId;
+    if (accountId !== undefined) {
+      if (!isOrganizationAccountId(accountId)) return null;
+      if (isAndroid() && !KeyManager.identitySignerStore) {
+        const bridge = await loadCommonsIdentityBridge();
+        const description = (await bridge?.describe(accountId)) ?? null;
+        return description?.accountId === accountId && description.publicKey
+          ? KeyManager.canonicalPublicKey(description.publicKey)
+          : null;
+      }
+      const organizationKey = await getOrganizationPrivateKey(accountId);
+      return organizationKey ? KeyManager.derivePublicKey(organizationKey) : null;
+    }
+    if (isAndroid()) {
+      if (KeyManager.identitySignerStore) {
+        const local = await KeyManager.getPrivateKey();
+        return local ? KeyManager.derivePublicKey(local) : null;
+      }
+      const bridge = await loadCommonsIdentityBridge();
+      const publicKey = (await bridge?.describe())?.publicKey ?? null;
+      return publicKey ? KeyManager.canonicalPublicKey(publicKey) : null;
+    }
+    if (!isIOS()) {
+      return null;
+    }
+    const privateKey =
+      (await KeyManager.getSharedPrivateKey()) ?? (await KeyManager.getPrivateKey());
+    return privateKey ? KeyManager.derivePublicKey(privateKey) : null;
   }
 
   /**
@@ -2612,10 +2694,10 @@ export class KeyManager {
       await KeyManager._clearSharedSlot(store);
       // The retired ring is NOT cleared (R4-4): it is money under the person's
       // previous keys, and "Start over" or a forced delete must not cost it.
-      // The same person restoring their identity finds it again; a different
-      // identity on this phone cannot use it (each entry is checked against
-      // that account's key history before use). Only deleting the Oxy ACCOUNT
-      // clears it, explicitly (`forgetRetiredIdentityKeys`, Commons' flow).
+      // Every personal entry is bound to its owner's account id (R5-2), so the
+      // same person signing in again finds it, and a different person on this
+      // phone never lists, derives from or signs with it. Only deleting the Oxy
+      // ACCOUNT clears it, explicitly (`forgetRetiredIdentityKeys`).
     }
 
     // The device backup goes on EVERY delete, forced or not: it is restored
@@ -2624,8 +2706,19 @@ export class KeyManager {
     await KeyManager._clearDeviceBackup();
 
     // Same for the Android signer store: Commons' identity host must stop
-    // answering for a deleted identity, forced or not.
+    // answering for a deleted identity, forced or not — its personal retired
+    // keys included (R5-2): they stay in Commons' own ring, bound to their
+    // owner, but the host must not hand them to the next person on the phone.
     await KeyManager._clearIdentitySigner();
+    try {
+      await unmirrorPersonalRetiredKeys();
+    } catch (error) {
+      logger.warn(
+        'Failed to withdraw the personal retired keys from the identity host',
+        { component: 'KeyManager' },
+        error,
+      );
+    }
 
     // Clear the marker AFTER key deletion succeeds — a marker must never outlive
     // its identity (a leftover marker would route a truly-absent device to
@@ -3238,17 +3331,22 @@ export class KeyManager {
    * (personal, or `accountId`'s) whose public key it names: the current key
    * when it matches, else a RETIRED key Commons kept after a rotation or
    * replacement (`./retiredKeys`, ADR 0061 D7 as amended). Spending only: a
-   * retired key never signs in. Never falls back to another key.
+   * retired key never signs in. Never falls back to another key. A PERSONAL
+   * retired key is reached only with `opts.ownerAccountId`, the signed-in
+   * person's account id, and only when the ring keeps it for that account
+   * (R5-2); on Android outside Commons the identity host holds only the
+   * personal keys of the person Commons is signed in as.
    *
    * @param info Context/domain-binding label (distinct labels → independent seeds).
    * @param opts.accountId An organization's account id, for its key.
    * @param opts.publicKey Selects one key of that account by its public key.
+   * @param opts.ownerAccountId The person's account id, for a personal retired key.
    * @returns 32 bytes of derived keying material, or `null` on web / when no
    *          identity key is available to this app.
    */
   static async deriveScopedSeed(
     info: string,
-    opts?: { accountId?: string; publicKey?: string },
+    opts?: { accountId?: string; publicKey?: string; ownerAccountId?: string },
   ): Promise<Uint8Array | null> {
     if (isWebPlatform()) {
       return null;
@@ -3262,7 +3360,7 @@ export class KeyManager {
           (await bridge?.deriveRetiredScopedSeed?.(info, selected, opts.accountId)) ?? null;
         return seed ? hexToBytes(seed) : null;
       }
-      const selected = await KeyManager._selectedPrivateKey(opts.publicKey, opts.accountId);
+      const selected = await KeyManager._selectedPrivateKey({ ...opts, publicKey: opts.publicKey });
       return selected ? deriveScopedSeedFromKey(selected, info) : null;
     }
     if (opts?.accountId !== undefined) {
@@ -3326,7 +3424,7 @@ export class KeyManager {
   static async signSocialReceive(
     index: number,
     digest: string,
-    opts?: { accountId?: string; publicKey?: string },
+    opts?: { accountId?: string; publicKey?: string; ownerAccountId?: string },
   ): Promise<CommonsSocialReceiveSignature | null> {
     if (isWebPlatform()) {
       return null;
@@ -3341,7 +3439,7 @@ export class KeyManager {
           null
         );
       }
-      const selected = await KeyManager._selectedPrivateKey(opts.publicKey, opts.accountId);
+      const selected = await KeyManager._selectedPrivateKey({ ...opts, publicKey: opts.publicKey });
       return selected ? signSocialReceiveDigest(selected, index, digest) : null;
     }
     const accountId = opts?.accountId;
@@ -3382,10 +3480,12 @@ export class KeyManager {
     return KeyManager.isValidPublicKey(publicKey) ? KeyManager.canonicalPublicKey(publicKey) : null;
   }
 
-  private static async _selectedPrivateKey(
-    publicKey: string,
-    accountId?: string,
-  ): Promise<string | null> {
+  private static async _selectedPrivateKey(opts: {
+    publicKey: string;
+    accountId?: string;
+    ownerAccountId?: string;
+  }): Promise<string | null> {
+    const { publicKey, accountId, ownerAccountId } = opts;
     if (retiredKeyScope({ accountId }) === null || !KeyManager.isValidPublicKey(publicKey)) {
       return null;
     }
@@ -3399,7 +3499,14 @@ export class KeyManager {
     if (current && KeyManager.canonicalPublicKey(KeyManager.derivePublicKey(current)) === wanted) {
       return current;
     }
-    return getRetiredPrivateKey(wanted, accountId !== undefined ? { accountId } : undefined);
+    return getRetiredPrivateKey(
+      wanted,
+      accountId !== undefined
+        ? { accountId }
+        : ownerAccountId !== undefined
+          ? { ownerAccountId }
+          : undefined,
+    );
   }
 
   /**
