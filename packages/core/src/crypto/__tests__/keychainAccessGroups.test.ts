@@ -555,7 +555,8 @@ describe('the migration never loses a key', () => {
     expect(await commons.org.listOrganizationKeys()).toEqual([a, b]);
   });
 
-  // Every mutation of a clean run, in turn, is where the process dies (every
+  // Exhaustive (two modes x every mutation, each with phrase derivations), so
+  // it gets its own budget. Every mutation of a clean run, in turn, is where the process dies (every
   // later mutation in that launch fails too) or where one write fails alone.
   // After each, every secret must still be readable with its original value,
   // and the next clean launch must finish the move.
@@ -625,7 +626,7 @@ describe('the migration never loses a key', () => {
         expect(await commonsView(next)).toEqual(expected);
       }
     }
-  });
+  }, 120_000);
 });
 
 describe('the migration adopts only what Commons provably wrote, once (R4-7)', () => {
