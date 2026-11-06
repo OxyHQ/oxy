@@ -33,6 +33,7 @@
  * neither token parsing nor Redis).
  */
 
+import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import express from 'express';
 import type http from 'http';
 import crypto from 'node:crypto';
@@ -349,5 +350,113 @@ describe('GET /identity/backup/:lookupId (public restore)', () => {
     const res = await request('GET', `/identity/backup/${rawLookupId}`);
     expect(res.status).toBe(200);
     expect(res.body.publicKeyHint).toBe('04abcdef01234567');
+  });
+});
+
+describe('a backup a key rotation superseded (R6-8)', () => {
+  /** Mark OWNER's stored backup superseded, as `POST /auth/rotate/complete` does for a v2 one. */
+  async function supersede(): Promise<void> {
+    await getDb()
+      .update(identityBackups)
+      .set({ supersededAt: new Date() })
+      .where(eq(identityBackups.userId, OWNER));
+  }
+
+  it('reads as no backup of the current key in /status', async () => {
+    await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+    await supersede();
+    const res = await request('GET', '/identity/backup/status');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ exists: false });
+  });
+
+  it('is still served by its locator, marked superseded', async () => {
+    const rawLookupId = freshLookupId();
+    await request('POST', '/identity/backup', uploadBody({ version: 2, lookupId: rawLookupId }));
+    await supersede();
+    const res = await request('GET', `/identity/backup/${rawLookupId}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ version: 2, superseded: true });
+  });
+
+  it('an older client cannot replace it (v1 refused); a v2 upload replaces it and clears the mark', async () => {
+    await request('POST', '/identity/backup', uploadBody({ version: 2, ciphertext: 'c0ffee' }));
+    await supersede();
+
+    const older = await request('POST', '/identity/backup', uploadBody({ version: 1 }));
+    expect(older.status).toBe(409);
+    const [kept] = await storedRows(OWNER);
+    expect(kept.ciphertext).toBe('c0ffee');
+    expect(kept.supersededAt).toBeInstanceOf(Date);
+
+    const replaced = await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+    expect(replaced.status).toBe(200);
+    const [row] = await storedRows(OWNER);
+    expect(row.supersededAt).toBeNull();
+    expect((await request('GET', '/identity/backup/status')).body).toMatchObject({ exists: true });
+  });
+
+  it('DELETE removes it', async () => {
+    await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+    await supersede();
+    expect((await request('DELETE', '/identity/backup')).status).toBe(200);
+    expect(await storedRows(OWNER)).toHaveLength(0);
+  });
+});
+
+describe('POST /identity/backup only under the current root (R6-9)', () => {
+  /** A fresh uncompressed root per case (`public_key` is unique), as the client derives its hint from. */
+  let ROOT = '';
+  beforeEach(() => {
+    ROOT = generateSecp256k1KeyPair().publicKey;
+  });
+
+  async function setRoot(publicKey: string): Promise<void> {
+    await getDb().update(users).set({ publicKey }).where(eq(users.id, OWNER));
+  }
+
+  it('accepts a hint that is the prefix of the current root', async () => {
+    await setRoot(ROOT);
+    const res = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ publicKeyHint: ROOT.slice(0, 16) }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('refuses a backup sealed under another (a rotated-away) key, keeping the stored one', async () => {
+    await setRoot(ROOT);
+    await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ publicKeyHint: ROOT.slice(0, 16), ciphertext: 'c0ffee' }),
+    );
+    const stale = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ publicKeyHint: generateSecp256k1KeyPair().publicKey.slice(0, 16) }),
+    );
+    expect(stale.status).toBe(409);
+    const [kept] = await storedRows(OWNER);
+    expect(kept.ciphertext).toBe('c0ffee');
+  });
+
+  it('refuses a hint too short to name a key', async () => {
+    await setRoot(ROOT);
+    const res = await request('POST', '/identity/backup', uploadBody({ publicKeyHint: '04' }));
+    expect(res.status).toBe(409);
+  });
+
+  it('compares against the canonical spelling of a root stored compressed or upper-case', async () => {
+    // A valid point: the generator's x with its even-y prefix.
+    const compressed = '0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798';
+    await setRoot(compressed);
+    const res = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ publicKeyHint: '0479be667ef9dcbb' }),
+    );
+    expect(res.status).toBe(200);
   });
 });

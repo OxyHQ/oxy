@@ -6,8 +6,11 @@
 const mockList = jest.fn();
 const mockClaim = jest.fn();
 const mockAdopt = jest.fn();
+const mockRevalidate = jest.fn();
 
 jest.mock('@oxy.so/core/crypto', () => ({
+  revalidateHeldOrganizationKeys: (read: (accountId: string) => Promise<unknown>) =>
+    mockRevalidate(read),
   listQuarantinedOrganizationKeys: () => mockList(),
   claimRetiredOrganizationKeys: (accountId: string, keys: string[]) => mockClaim(accountId, keys),
   adoptOrganizationKeyFromRing: (accountId: string, publicKey: string) =>
@@ -24,6 +27,33 @@ describe('bindQuarantinedOrganizationKeys', () => {
     mockList.mockReset();
     mockClaim.mockReset().mockResolvedValue(1);
     mockAdopt.mockReset().mockResolvedValue(true);
+    mockRevalidate.mockReset().mockResolvedValue(0);
+  });
+
+  it('re-validates held pairs against the published key BEFORE binding (R6-3)', async () => {
+    const order: string[] = [];
+    mockRevalidate.mockImplementation(async (read: (id: string) => Promise<unknown>) => {
+      order.push('revalidate');
+      await expect(read(ORG_A)).resolves.toEqual({ publicKey: '04a2', keys: [] });
+      return 1;
+    });
+    mockList.mockImplementation(async () => {
+      order.push('list');
+      return [];
+    });
+    const get = jest.fn(async () => ({ publicKey: '04a2', keys: [] }));
+    await bindQuarantinedOrganizationKeys({ accounts: { identityKey: { get } } });
+    expect(order).toEqual(['revalidate', 'list']);
+    expect(get).toHaveBeenCalledWith(ORG_A);
+  });
+
+  it('a failed re-validation still binds what it can', async () => {
+    mockRevalidate.mockRejectedValue(new Error('locked'));
+    mockList.mockResolvedValue([{ accountId: ORG_A, publicKey: '04a1' }]);
+    const get = jest.fn(async () => ({ publicKey: '04a1', keys: [{ publicKey: '04a1' }] }));
+    await expect(
+      bindQuarantinedOrganizationKeys({ accounts: { identityKey: { get } } }),
+    ).resolves.toBe(1);
   });
 
   it('binds against each organization’s history once, and restores its current key', async () => {

@@ -19,7 +19,15 @@ export function reconcileRetiredRing(
   const run = pending.then(async () => {
     try {
       if (!isCurrent()) return;
-      const history = await oxy.identity.keyHistory();
+      let history = await oxy.identity.keyHistory();
+      if (!isCurrent()) return;
+      // Keys kept without an owner that Oxy's own records prove were this
+      // account's root before it kept a key history (R6-5).
+      try {
+        history = await oxy.identity.claimQuarantinedKeys(history);
+      } catch (error) {
+        console.warn('[retiredRing] Could not ask Oxy about kept previous keys', error);
+      }
       if (!isCurrent()) return;
       const named = [
         ...(history.publicKey ? [history.publicKey] : []),

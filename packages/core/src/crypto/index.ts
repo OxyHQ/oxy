@@ -38,11 +38,13 @@ export {
   deleteOrganizationKey,
   syncOrganizationKeys,
   adoptOrganizationKeyFromRing,
+  revalidateHeldOrganizationKeys,
   isOrganizationAccountId,
   isHealthyOrganizationKeyPair,
 } from './organizationKeys';
 export { OrganizationKeyIndexUnreadableError } from './keychainItems';
 export type {
+  OrganizationPublishedKeyReader,
   OrganizationKeyPair,
   GeneratedOrganizationKey,
   StoredOrganizationKey,
@@ -100,6 +102,11 @@ export {
   listQuarantinedOrganizationKeys,
   holdsRetiredRing,
   unmirrorPersonalRetiredKeys,
+  quarantineRetiredIdentityKey,
+  listQuarantinedIdentityKeys,
+  signWithQuarantinedIdentityKey,
+  MAX_QUARANTINED_RING_ENTRIES,
+  RetiredKeyQuarantineFullError,
   RetiredKeyRingUnreadableError,
 } from './retiredKeys';
 export type { RetiredIdentityKey, RetiredKeyPair, RetiredKeySelector } from './retiredKeys';

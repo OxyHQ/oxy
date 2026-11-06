@@ -16,3 +16,9 @@ export const identityKeyHistoryCheck = exact<IdentityKeyHistory>()(
     retired: array(strictObject({ publicKey: canonicalPublicKey, retiredAt: string(datetime) })),
   }),
 );
+
+/**
+ * The `action` a `POST /identity/key-history/claim` signature names: the signed
+ * message is `JSON.stringify({ action, userId, publicKey, timestamp })`.
+ */
+export const IDENTITY_KEY_HISTORY_CLAIM_ACTION = 'claim_retired_identity_key' as const;

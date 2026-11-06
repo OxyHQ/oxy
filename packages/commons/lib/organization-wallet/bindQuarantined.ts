@@ -15,6 +15,7 @@ import {
   adoptOrganizationKeyFromRing,
   claimRetiredOrganizationKeys,
   listQuarantinedOrganizationKeys,
+  revalidateHeldOrganizationKeys,
 } from '@oxy.so/core/crypto';
 
 export interface OrganizationKeyHistoryReader {
@@ -28,10 +29,20 @@ export interface OrganizationKeyHistoryReader {
   };
 }
 
-/** Resolves how many quarantined organization keys were bound. */
+/**
+ * Resolves how many quarantined organization keys were bound. First (R6-3)
+ * every pair an older migration may have adopted without provenance is
+ * checked against the key the organization publishes; a pair it does not
+ * publish is quarantined here, and bound below when its history names it.
+ */
 export async function bindQuarantinedOrganizationKeys(
   oxy: OrganizationKeyHistoryReader,
 ): Promise<number> {
+  try {
+    await revalidateHeldOrganizationKeys((accountId) => oxy.accounts.identityKey.get(accountId));
+  } catch {
+    // Pending organizations stay pending for a later launch.
+  }
   const quarantined = await listQuarantinedOrganizationKeys();
   let bound = 0;
   for (const accountId of new Set(quarantined.map((entry) => entry.accountId))) {

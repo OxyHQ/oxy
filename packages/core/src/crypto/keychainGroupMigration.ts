@@ -100,7 +100,7 @@ import {
   parseOrganizationIndexStrict,
   serializeOrganizationIndex,
 } from './keychainItems';
-import { retireIdentityKeyDuringMigration } from './retiredKeys';
+import { RetiredKeyQuarantineFullError, retireIdentityKeyDuringMigration } from './retiredKeys';
 
 /** What happened to one item (or pair) in a run. */
 export type KeychainItemMigrationOutcome =
@@ -109,7 +109,14 @@ export type KeychainItemMigrationOutcome =
   | 'retired'
   | 'discarded'
   | 'failed'
-  | 'deferred';
+  | 'deferred'
+  /**
+   * A valid key the ring may not keep now: its quarantine is full (R6-14).
+   * The shared copy is LEFT where it is (never lost, never trusted), and it
+   * does not keep the run from settling: a planted shared group must not make
+   * every launch redo the run.
+   */
+  | 'over-limit';
 
 export interface KeychainGroupMigrationReport {
   /**
@@ -134,30 +141,64 @@ export interface KeychainGroupMigrationReport {
  * record also remembers whether the CURRENT personal key, and which
  * organization keys, were found in the shared group: every Oxy iOS app could
  * read those before the split ({@link getPreSplitExposure}).
+ *
+ * `v` is the SWEEP version (security review R6-6/R6-3). A `v: 1` record says
+ * only that some earlier core settled a run, and core 7.32 (Commons 1.8, 1.9)
+ * settled one after adopting nothing on a device without the identity marker
+ * (leaving every shared copy where every Oxy app reads it) or after adopting
+ * organization pairs nothing vouched for. So a `v: 1` record is not complete:
+ * the run that meets it sweeps the shared group as an unproven device would
+ * (every valid key and phrase quarantined, read back, then deleted there) and
+ * marks every organization pair this device holds for re-validation against
+ * the key the organization publishes ({@link pendingOrganizationRevalidation};
+ * Commons runs it at launch, `revalidateHeldOrganizationKeys`). Only then is
+ * the record rewritten as `v: 2`.
  */
 const COMPLETION_KEY = 'oxy_keychain_group_migration_v1';
 const COMPLETION_SERVICE = 'oxy_keychain_group_migration';
+const SWEEP_VERSION = 2;
 
 interface CompletionRecord {
-  v: 1;
+  v: 1 | typeof SWEEP_VERSION;
   completedAt: number;
   /** The personal public key that sat in the shared group, when one did. */
   exposedPublicKey?: string;
   /** Organization account ids whose key sat in the shared group. */
   exposedOrganizations?: string[];
+  /**
+   * v2: organizations whose held pair a `v: 1` run may have adopted without
+   * provenance, still to be checked against the organization's published key.
+   */
+  revalidate?: string[];
 }
 
 function parseRecord(raw: string | null): CompletionRecord | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<CompletionRecord>;
-    return parsed && parsed.v === 1 && typeof parsed.completedAt === 'number'
-      ? (parsed as CompletionRecord)
-      : null;
+    if (
+      !parsed ||
+      (parsed.v !== 1 && parsed.v !== SWEEP_VERSION) ||
+      typeof parsed.completedAt !== 'number'
+    ) {
+      return null;
+    }
+    const record = parsed as CompletionRecord;
+    if (
+      record.revalidate !== undefined &&
+      !(Array.isArray(record.revalidate) && record.revalidate.every((id) => typeof id === 'string'))
+    ) {
+      return { ...record, revalidate: [] };
+    }
+    return record;
   } catch {
     return null;
   }
 }
+
+/** What the wallet group's mirror says: only that Commons settled a run. */
+const mirrorOf = (record: CompletionRecord) =>
+  JSON.stringify({ v: record.v, completedAt: record.completedAt });
 
 /** One stored value, and the group it belongs in. `deviceOnly` for secrets. */
 interface Slot {
@@ -310,8 +351,9 @@ class Mover {
         ring.accountId === undefined ? {} : { accountId: ring.accountId },
         { quarantine: ring.quarantine === true },
       );
-    } catch {
-      return 'failed';
+    } catch (error) {
+      // The quarantine is full (R6-14): the shared copy stays, never lost.
+      return error instanceof RetiredKeyQuarantineFullError ? 'over-limit' : 'failed';
     }
     return (await this.deleteShared(shared)) ? 'retired' : 'failed';
   }
@@ -489,14 +531,23 @@ function organizationSlots(accountId: string) {
   };
 }
 
-/** Every organization either copy of the index names (read only to find items; never adopted from). */
+/**
+ * How many organizations one run looks at (R6-14). The shared copy of the
+ * index is writable by every Oxy app, so it can name any number of accounts,
+ * and each costs several keychain reads; a real phone holds a few. The
+ * organizations this device's OWN index names come first and are always
+ * looked at; the shared copy fills the rest of the bound, sorted.
+ */
+export const MAX_MIGRATION_ORGANIZATIONS = 100;
+
+/** Every organization either copy of the index names (read only to find items; never adopted from), bounded. */
 async function namedOrganizations(mover: Mover): Promise<string[]> {
-  return [
-    ...new Set([
-      ...parseOrganizationIndex(await mover.read(INDEX_SLOT, 'shared')),
-      ...parseOrganizationIndex(await mover.read(INDEX_SLOT, INDEX_SLOT.group)),
-    ]),
-  ].sort();
+  const own = [...new Set(parseOrganizationIndex(await mover.read(INDEX_SLOT, INDEX_SLOT.group)))];
+  const shared = [...new Set(parseOrganizationIndex(await mover.read(INDEX_SLOT, 'shared')))]
+    .filter((id) => !own.includes(id))
+    .sort();
+  const room = Math.max(0, MAX_MIGRATION_ORGANIZATIONS - own.length);
+  return [...own, ...shared.slice(0, room)].sort();
 }
 
 /** The proven run: everything the marker vouches for; organizations only when this device already holds them. */
@@ -607,8 +658,23 @@ async function migrateUnproven(
 async function writeRecord(mover: Mover, record: CompletionRecord): Promise<boolean> {
   return (
     (await mover.write(RECORD_SLOT, JSON.stringify(record))) &&
-    (await mover.write(MIRROR_SLOT, JSON.stringify({ v: 1, completedAt: record.completedAt })))
+    (await mover.write(MIRROR_SLOT, mirrorOf(record)))
   );
+}
+
+/**
+ * The organizations this device holds a pair for, from its own index (the
+ * identity group), for re-validation after a `v: 1` record. Strict: `null`
+ * for an index that cannot be read as one (the run is then `incomplete` and
+ * retried, never settled without them). A thrown keychain read defers.
+ */
+async function heldOrganizations(mover: Mover): Promise<string[] | null> {
+  const raw = await mover.read(INDEX_SLOT, INDEX_SLOT.group);
+  try {
+    return parseOrganizationIndexStrict(raw);
+  } catch {
+    return null;
+  }
 }
 
 /** Run the migration once. Exported for tests; production code awaits the gate. */
@@ -636,8 +702,9 @@ export async function runKeychainGroupMigration(): Promise<KeychainGroupMigratio
     // is there is production's. Never read, moved or deleted; only the record
     // is written (best effort), so the dev wallet stops asking.
     try {
-      if (parseRecord(await mover.read(RECORD_SLOT, RECORD_SLOT.group)) === null) {
-        await writeRecord(mover, { v: 1, completedAt: Date.now() });
+      const existing = parseRecord(await mover.read(RECORD_SLOT, RECORD_SLOT.group));
+      if (existing === null || existing.v !== SWEEP_VERSION) {
+        await writeRecord(mover, { v: SWEEP_VERSION, completedAt: Date.now() });
       }
     } catch {
       // Locked: nothing depends on the record in a dev build.
@@ -648,12 +715,29 @@ export async function runKeychainGroupMigration(): Promise<KeychainGroupMigratio
   let proven = false;
   try {
     const existing = parseRecord(await mover.read(RECORD_SLOT, RECORD_SLOT.group));
-    if (existing) {
+    if (existing?.v === SWEEP_VERSION) {
       // Done before. Re-mirror (the wallet group may have been cleared).
       if ((await mover.read(MIRROR_SLOT, MIRROR_SLOT.group)) === null) {
-        await mover.write(MIRROR_SLOT, JSON.stringify({ v: 1, completedAt: existing.completedAt }));
+        await mover.write(MIRROR_SLOT, mirrorOf(existing));
       }
       return { state: 'complete', items };
+    }
+    if (existing) {
+      // A `v: 1` record (R6-3): whatever wrote it may have left copies in the
+      // shared group or adopted organization pairs nothing vouched for. Sweep
+      // as an unproven device does, then hand every held organization pair to
+      // the launch-time re-validation. The `v: 1` record stays until the sweep
+      // settled, so a failure here never reopens a fallback.
+      const held = await heldOrganizations(mover);
+      if (held === null) items['organization-index'] = 'failed';
+      const revalidate = [...new Set([...(existing.revalidate ?? []), ...(held ?? [])])].sort();
+      await migrateUnproven(mover, items);
+      record = {
+        ...existing,
+        v: SWEEP_VERSION,
+        ...(revalidate.length > 0 ? { revalidate } : {}),
+      };
+      return await settle(mover, items, record, false);
     }
     let marker: Awaited<ReturnType<typeof readIdentityMarkerStrict>>;
     try {
@@ -662,7 +746,7 @@ export async function runKeychainGroupMigration(): Promise<KeychainGroupMigratio
       throw new Deferred(error instanceof Error ? error.message : 'marker unreadable');
     }
     const owner = marker ? canonicalPublic(marker.publicKey) : null;
-    record = { v: 1, completedAt: Date.now() };
+    record = { v: SWEEP_VERSION, completedAt: Date.now() };
     if (owner) {
       proven = true;
       const exposure = await migrateProven(mover, owner, items);
@@ -680,7 +764,24 @@ export async function runKeychainGroupMigration(): Promise<KeychainGroupMigratio
     }
     throw error;
   }
+  return settle(mover, items, record, proven);
+}
+
+/** Settle a run: `incomplete` while any unit failed, else the record is written. */
+async function settle(
+  mover: Mover,
+  items: Record<string, KeychainItemMigrationOutcome>,
+  record: CompletionRecord,
+  proven: boolean,
+): Promise<KeychainGroupMigrationReport> {
   const failed = Object.entries(items).filter(([, o]) => o === 'failed');
+  const overLimit = Object.entries(items).filter(([, o]) => o === 'over-limit');
+  if (overLimit.length > 0) {
+    logger.warn('Keychain access-group migration left keys in the shared group: quarantine full', {
+      component: 'KeychainGroupMigration',
+      items: overLimit.map(([label]) => label).join(','),
+    });
+  }
   if (failed.length > 0) {
     // The proven items that could not move are still in the shared group:
     // Commons may read exactly those there until a retry moves them (R5-9).
@@ -706,19 +807,26 @@ export async function runKeychainGroupMigration(): Promise<KeychainGroupMigratio
  * person's otherwise) and is read back; any other value is not a secret and is
  * left to the delete. Throws when it cannot be kept, which fails the write.
  */
-async function keepSharedCopy(name: KeychainItemName, value: string): Promise<void> {
+async function keepSharedCopy(name: KeychainItemName, value: string): Promise<boolean> {
   const accountId = organizationOfSecretItem(name.key);
   if (accountId === null && !PERSONAL_SECRET_NAMES.has(`${name.service ?? 'app'}|${name.key}`)) {
-    return;
+    return true;
   }
   const privateKey = publicKeyOf(value) ? normalizeSecp256k1PrivateKey(value) : null;
   const pair = privateKey
     ? { privateKey, publicKey: publicKeyOf(privateKey) as string }
     : await pairOfPhrase(value);
-  if (!pair) return;
-  await retireIdentityKeyDuringMigration(pair, accountId === null ? {} : { accountId }, {
-    quarantine: true,
-  });
+  if (!pair) return true;
+  try {
+    await retireIdentityKeyDuringMigration(pair, accountId === null ? {} : { accountId }, {
+      quarantine: true,
+    });
+  } catch (error) {
+    // Full (R6-14): leave the shared copy, never lose it.
+    if (error instanceof RetiredKeyQuarantineFullError) return false;
+    throw error;
+  }
+  return true;
 }
 
 /** The personal secret items Commons kept in the shared group before the split. */
@@ -760,6 +868,40 @@ export async function prepareKeychainAccess(access: KeychainAccess): Promise<voi
 }
 
 let walletSawCompletion = false;
+
+/**
+ * Commons, iOS: the organizations whose held pair still waits for
+ * re-validation after a `v: 1` completion record (R6-3), from the v2 record.
+ * Empty elsewhere, before the run settled, or when there is nothing to check.
+ * @internal — `revalidateHeldOrganizationKeys` (organization keys) reads it.
+ */
+export async function pendingOrganizationRevalidation(): Promise<string[]> {
+  const context = await holderRecordContext();
+  return context?.record.revalidate ?? [];
+}
+
+/**
+ * Drop `accountId` from the pending re-validation list, once it was checked.
+ * Resolves whether the record was rewritten (or had nothing to drop). @internal
+ */
+export async function settleOrganizationRevalidation(accountId: string): Promise<boolean> {
+  const context = await holderRecordContext();
+  if (!context?.record.revalidate?.includes(accountId)) return true;
+  const revalidate = context.record.revalidate.filter((id) => id !== accountId);
+  const { revalidate: _done, ...rest } = context.record;
+  const next: CompletionRecord = revalidate.length > 0 ? { ...rest, revalidate } : rest;
+  return context.mover.write(RECORD_SLOT, JSON.stringify(next));
+}
+
+/** Commons' settled v2 record, with the mover to rewrite it; `null` elsewhere. */
+async function holderRecordContext(): Promise<{ mover: Mover; record: CompletionRecord } | null> {
+  const access = await resolveKeychainAccess();
+  if (access.mode !== 'grouped' || access.role !== 'holder' || access.variant) return null;
+  await ensureKeychainGroupsMigrated();
+  const mover = new Mover(await loadSecureStore(), access);
+  const record = parseRecord(await mover.read(RECORD_SLOT, RECORD_SLOT.group));
+  return record?.v === SWEEP_VERSION ? { mover, record } : null;
+}
 
 /**
  * Commons: whether this device's identity keys sat in the shared keychain

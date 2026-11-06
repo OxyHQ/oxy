@@ -201,3 +201,121 @@ test('the bin runs as a process and exits non-zero on a violation', () => {
     rmSync(dir.root, { recursive: true, force: true });
   }
 });
+
+/** Signed entitlements as `codesign -d --entitlements - --xml` prints them. */
+function signedXml(appId, team, groups) {
+  const array =
+    groups === undefined
+      ? ''
+      : `<key>keychain-access-groups</key><array>${groups
+          .map((group) => `<string>${escapeXml(group)}</string>`)
+          .join('')}</array>`;
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    `<plist version="1.0"><dict><key>application-identifier</key><string>${team}.${appId}</string>` +
+    `<key>com.apple.developer.team-identifier</key><string>${team}</string>${array}</dict></plist>\n`
+  );
+}
+
+/** A signed-build layout: `<name>.xcarchive/Products/Applications/<App>.app` with extensions. */
+function archive(extensions = []) {
+  const root = mkdtempSync(join(tmpdir(), 'oxy-archive-'));
+  const app = join(root, 'Commons.xcarchive', 'Products', 'Applications', 'Commons.app');
+  mkdirSync(app, { recursive: true });
+  for (const name of extensions)
+    mkdirSync(join(app, 'PlugIns', `${name}.appex`), { recursive: true });
+  return { root, archive: join(root, 'Commons.xcarchive'), app };
+}
+
+const TEAM = 'ABCDE12345';
+
+test('a signed archive is checked from codesign: the app and every extension, each under its signed id (R6-15)', () => {
+  const { root, archive: path, app } = archive(['Widget']);
+  const signed = new Map([
+    [
+      app,
+      signedXml('so.oxy.commons', TEAM, [
+        `${TEAM}.so.oxy.identity`,
+        `${TEAM}.so.oxy.wallet`,
+        `${TEAM}.group.so.oxy.shared`,
+      ]),
+    ],
+    [
+      join(app, 'PlugIns', 'Widget.appex'),
+      signedXml('so.oxy.commons.widget', TEAM, [`${TEAM}.group.so.oxy.shared`]),
+    ],
+  ]);
+  const codesign = (bundle) => signed.get(bundle);
+  try {
+    const results = checkKeychainEntitlements({
+      bundleId: 'so.oxy.commons',
+      target: path,
+      codesign,
+    });
+    assert.equal(results.length, 2);
+    // An extension that names the identity group is refused, under its own id.
+    signed.set(
+      join(app, 'PlugIns', 'Widget.appex'),
+      signedXml('so.oxy.commons.widget', TEAM, [`${TEAM}.so.oxy.identity`]),
+    );
+    assert.throws(
+      () => checkKeychainEntitlements({ bundleId: 'so.oxy.commons', target: path, codesign }),
+      /Widget\.appex.*may not list/s,
+    );
+    // The app must be signed as the bundle id asked about.
+    signed.set(app, signedXml('so.oxy.mention', TEAM, [`${TEAM}.group.so.oxy.shared`]));
+    assert.throws(
+      () => checkKeychainEntitlements({ bundleId: 'so.oxy.commons', target: path, codesign }),
+      /signed as so\.oxy\.mention/,
+    );
+    // The team comes from the signature, never the command line.
+    assert.throws(
+      () =>
+        checkKeychainEntitlements({
+          bundleId: 'so.oxy.commons',
+          target: path,
+          teamId: TEAM,
+          codesign,
+        }),
+      UsageError,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a signed bundle id is compared without case, as Apple does (R6-15)', () => {
+  const { root, app } = archive();
+  const codesign = () =>
+    signedXml('So.Oxy.Commons', TEAM, [
+      `${TEAM}.so.oxy.identity`,
+      `${TEAM}.so.oxy.wallet`,
+      `${TEAM}.group.so.oxy.shared`,
+    ]);
+  try {
+    // A holder id in another case is the holder misspelled, never "another app".
+    assert.throws(
+      () => checkKeychainEntitlements({ bundleId: 'so.oxy.commons', target: app, codesign }),
+      /spelled exactly "so\.oxy\.commons"/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an unsigned build is a usage error, not a pass', () => {
+  const { root, app } = archive();
+  try {
+    assert.throws(
+      () =>
+        checkKeychainEntitlements({
+          bundleId: 'so.oxy.commons',
+          target: app,
+          codesign: () => '<?xml version="1.0"?><plist version="1.0"><dict></dict></plist>',
+        }),
+      UsageError,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -57,7 +57,7 @@ export const backupLookupIdSchema = z
  *   without exposing the full key. Bound into the AEAD associated data.
  * - `createdAt`     — ISO-8601 creation timestamp.
  */
-export const encryptedBackupEnvelopeSchema = z.object({
+const backupEnvelopeFields = z.object({
   version: z.number().check(integerCheck()).positive(),
   algorithm: z.literal('xchacha20poly1305'),
   kdfInfo: z.string().check(utf16MinLength(1)),
@@ -65,6 +65,19 @@ export const encryptedBackupEnvelopeSchema = z.object({
   ciphertext: z.string().trim().check(utf16MinLength(1)),
   publicKeyHint: z.string().trim().check(utf16MinLength(1)),
   createdAt: z.string().trim().check(utf16MinLength(1)),
+});
+
+/**
+ * The envelope as `GET /identity/backup/:lookupId` serves it. `superseded:
+ * true` (security review R6-8) marks a backup the account's key rotation
+ * replaced while it carried retired keys (version >= 2): it is kept, so the
+ * previous phrase still recovers the money it holds, but it backs up a key
+ * that is no longer the account's root — restore its keys as RETIRED keys,
+ * never as the current identity. Absent on a current backup. Never part of an
+ * upload (the server decides it).
+ */
+export const encryptedBackupEnvelopeSchema = backupEnvelopeFields.extend({
+  superseded: z.boolean().optional(),
 });
 
 export type EncryptedBackupEnvelope = z.infer<typeof encryptedBackupEnvelopeSchema>;
@@ -75,7 +88,7 @@ export type EncryptedBackupEnvelope = z.infer<typeof encryptedBackupEnvelopeSche
  * persists the raw value), and upserts by the authenticated user id so a
  * re-upload REPLACES the prior backup rather than accumulating duplicates.
  */
-export const backupUploadRequestSchema = encryptedBackupEnvelopeSchema.extend({
+export const backupUploadRequestSchema = backupEnvelopeFields.extend({
   /**
    * The raw 256-bit backup locator (hex), derived client-side from the seed
    * with a domain-separated HKDF `info`. The server stores ONLY its sha256; a

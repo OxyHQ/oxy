@@ -27,7 +27,7 @@
  */
 
 import { integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { generatedId, updatedAt } from '@oxy.so/db';
+import { generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 export const identityBackups = pgTable(
@@ -59,6 +59,18 @@ export const identityBackups = pgTable(
     version: integer().notNull(),
     /** The client's ISO-8601 snapshot timestamp, verbatim. See the header. */
     clientCreatedAt: text().notNull(),
+    /**
+     * When a key rotation replaced the root this backup holds while it carried
+     * retired keys (envelope version >= 2; security review R6-8). It is KEPT,
+     * not deleted: an older client that cannot seal a version-2 replacement
+     * (the upload refuses a lower version) would otherwise leave the account
+     * with no off-device copy of those keys, and the previous phrase still
+     * recovers them through it. NULL: the backup holds the account's current
+     * root. `GET /status` reads a superseded backup as none (the current key is
+     * not backed up) and the restore lookup marks its envelope `superseded`.
+     * The next upload clears it.
+     */
+    supersededAt: timestamptz(),
     updatedAt: updatedAt(),
   },
   (t) => [

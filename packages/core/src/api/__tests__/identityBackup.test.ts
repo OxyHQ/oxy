@@ -47,7 +47,15 @@ describe('oxy.identity.backup', () => {
   beforeEach(() => {
     originalFetch = globalThis.fetch;
     fetchMock = jest.fn();
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    // The account's key history (a backup is sealed only under its CURRENT
+    // key, R6-9) is answered apart, so the call indexes below are the backup's.
+    globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) =>
+      String(url).endsWith('/identity/key-history')
+        ? plainResponse({
+            publicKey: KeyManager.derivePublicKey(EXPECTED_PRIVATE_KEY),
+            retired: [],
+          })
+        : fetchMock(url, init)) as unknown as typeof globalThis.fetch;
     oxy = new OxyServices({ baseURL: 'http://test.invalid' });
     oxy.session.setAccessToken(makeJwt({ userId: 'me' }));
   });

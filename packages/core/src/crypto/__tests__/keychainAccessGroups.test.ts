@@ -1107,3 +1107,213 @@ describe('a money holder learns its public key from the private key it spends (R
     ).resolves.toBeNull();
   });
 });
+
+describe('round 6: a v1 record is swept again; the ring is bounded and never in the shared group', () => {
+  const ORG_KEY = '88'.repeat(32);
+  const RECORD = ['oxy_keychain_group_migration_v1', 'oxy_keychain_group_migration'] as const;
+  const record = () => {
+    const raw = mockKeychain.get(GROUP.identity, RECORD[0], RECORD[1]);
+    return raw ? (JSON.parse(raw) as { v: number; revalidate?: string[] }) : null;
+  };
+  /** What core 7.32 left on a phone: a v1 record, and the shared copies it never swept. */
+  function leftByCore732(commons: Launch) {
+    mockKeychain.put(
+      GROUP.identity,
+      RECORD[0],
+      JSON.stringify({ v: 1, completedAt: 1 }),
+      RECORD[1],
+    );
+    mockKeychain.put(GROUP.wallet, RECORD[0], JSON.stringify({ v: 1, completedAt: 1 }), RECORD[1]);
+    const planted = '33'.repeat(32);
+    mockKeychain.put(GROUP.shared, 'oxy_identity_private_key_v2', planted, 'oxy_identity');
+    mockKeychain.put(GROUP.shared, 'oxy_identity_mnemonic_v1', PHRASE, 'oxy_identity_mnemonic');
+    // An organization pair 7.32 adopted with no provenance: live in the wallet group.
+    mockKeychain.put(GROUP.wallet, `oxy_org_identity_private_key.${ORG}`, ORG_KEY);
+    mockKeychain.put(
+      GROUP.wallet,
+      `oxy_org_identity_public_key.${ORG}`,
+      commons.KeyManager.derivePublicKey(ORG_KEY),
+    );
+    mockKeychain.put(
+      GROUP.identity,
+      'oxy_org_identity_index_v1',
+      JSON.stringify([ORG]),
+      'oxy_org_identity_index',
+    );
+    return { planted, plantedPublic: commons.KeyManager.derivePublicKey(planted) };
+  }
+
+  it('a v1 record does not end the migration: the shared group is swept and held organizations re-validated (R6-3)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    const { planted, plantedPublic } = leftByCore732(commons);
+    const report = await commons.migration.ensureKeychainGroupsMigrated();
+    expect(report).toMatchObject({
+      state: 'complete',
+      proven: false,
+      items: { primary: 'retired', phrase: 'retired' },
+    });
+    expect(secretsInSharedGroup()).toEqual([]);
+    // Kept, quarantined: nobody reaches it until a key history names it.
+    expect(
+      mockKeychain.get(GROUP.wallet, `oxy_retired_identity_private_key.personal.${plantedPublic}`),
+    ).toBe(planted);
+    const ring = await import('../retiredKeys');
+    expect(await ring.listRetiredIdentityKeys(OWNER)).toEqual([]);
+    expect(record()).toMatchObject({ v: 2, revalidate: [ORG] });
+    expect(await commons.migration.pendingOrganizationRevalidation()).toEqual([ORG]);
+
+    // A v2 record is final: the next launch looks at nothing.
+    mockKeychain.put(GROUP.shared, 'oxy_identity_private_key_v2', '44'.repeat(32), 'oxy_identity');
+    const next = await launch(ENTITLEMENTS.commons);
+    expect((await next.migration.ensureKeychainGroupsMigrated()).items).toEqual({});
+  });
+
+  it('a held organization pair the organization does not publish is quarantined, then bound by its history (R6-3)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    leftByCore732(commons);
+    await commons.migration.ensureKeychainGroupsMigrated();
+    const orgPublic = commons.KeyManager.derivePublicKey(ORG_KEY);
+    const published = commons.KeyManager.derivePublicKey('99'.repeat(32));
+    await expect(
+      commons.org.revalidateHeldOrganizationKeys(async () => ({ publicKey: published })),
+    ).resolves.toBe(1);
+    // No live pair: the wallet derives nothing from it.
+    expect(await commons.org.getOrganizationPrivateKey(ORG)).toBeNull();
+    expect(await commons.org.listOrganizationKeys()).toEqual([]);
+    expect(orgRingHolds(ORG_KEY, orgPublic)).toBe(true);
+    const ring = await import('../retiredKeys');
+    expect(await ring.listQuarantinedOrganizationKeys()).toEqual([
+      { accountId: ORG, publicKey: orgPublic },
+    ]);
+    expect(await commons.migration.pendingOrganizationRevalidation()).toEqual([]);
+    // The organization's history names it (a previous key): bound, spendable.
+    await expect(ring.claimRetiredOrganizationKeys(ORG, [published, orgPublic])).resolves.toBe(1);
+    expect(
+      (await ring.listRetiredIdentityKeys({ accountId: ORG })).map((k) => k.publicKey),
+    ).toEqual([orgPublic]);
+  });
+
+  it('a held pair equal to the published key stays live; an unreadable organization stays pending (R6-3)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    leftByCore732(commons);
+    await commons.migration.ensureKeychainGroupsMigrated();
+    await expect(
+      commons.org.revalidateHeldOrganizationKeys(async () => {
+        throw new Error('forbidden');
+      }),
+    ).resolves.toBe(0);
+    expect(await commons.migration.pendingOrganizationRevalidation()).toEqual([ORG]);
+    await expect(
+      commons.org.revalidateHeldOrganizationKeys(async () => ({
+        publicKey: commons.KeyManager.derivePublicKey(ORG_KEY),
+      })),
+    ).resolves.toBe(0);
+    expect(await commons.org.getOrganizationPrivateKey(ORG)).toBe(ORG_KEY);
+    expect(await commons.migration.pendingOrganizationRevalidation()).toEqual([]);
+  });
+
+  it('the wallet never reads a ring item from the shared group, even before Commons migrated (R6-12)', async () => {
+    const key = '21'.repeat(32);
+    const peable = await launch(ENTITLEMENTS.wallet);
+    const publicKey = peable.KeyManager.derivePublicKey(key);
+    mockKeychain.put(
+      GROUP.shared,
+      'oxy_retired_identity_index_v1',
+      JSON.stringify([{ scope: ORG, publicKey, retiredAt: 1 }]),
+    );
+    mockKeychain.put(GROUP.shared, `oxy_retired_identity_private_key.${ORG}.${publicKey}`, key);
+    // The wallet's pre-migration fallback is open for the current keys…
+    mockKeychain.put(GROUP.shared, `oxy_org_identity_private_key.${ORG}`, ORG_KEY);
+    expect(await peable.org.getOrganizationPrivateKey(ORG)).toBeNull(); // no public half: no pair
+    // …never for the ring.
+    const ring = await import('../retiredKeys');
+    expect(await ring.listRetiredIdentityKeys({ accountId: ORG })).toEqual([]);
+    expect(
+      hex(await peable.KeyManager.deriveScopedSeed(LABEL, { accountId: ORG, publicKey })),
+    ).toBeNull();
+    expect(
+      mockKeychain.calls.some(
+        (c) => c.options.accessGroup === GROUP.shared && c.key.startsWith('oxy_retired_identity'),
+      ),
+    ).toBe(false);
+  });
+
+  it('a planted shared index is looked at only up to the bound (R6-14)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    const planted = Array.from({ length: 500 }, (_, i) => i.toString(16).padStart(24, '0'));
+    mockKeychain.put(
+      GROUP.shared,
+      'oxy_org_identity_index_v1',
+      JSON.stringify(planted),
+      'oxy_org_identity_index',
+    );
+    const report = await commons.migration.runKeychainGroupMigration();
+    const organizations = Object.keys(report.items).filter((label) =>
+      /^organization-\d+$/.test(label),
+    );
+    expect(organizations).toHaveLength(commons.migration.MAX_MIGRATION_ORGANIZATIONS);
+  });
+
+  it('the quarantine is bounded: past it a shared key is LEFT where it is and the run still settles (R6-14)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    const ring = await import('../retiredKeys');
+    for (let i = 0; i < ring.MAX_QUARANTINED_RING_ENTRIES; i += 1) {
+      const key = (i + 1).toString(16).padStart(64, '0');
+      await ring.quarantineRetiredIdentityKey({
+        privateKey: key,
+        publicKey: commons.KeyManager.derivePublicKey(key),
+      });
+    }
+    const extra = 'fe'.repeat(32);
+    mockKeychain.put(GROUP.shared, 'oxy_identity_private_key_v2', extra, 'oxy_identity');
+    // A phone whose migration has not run yet (its record is not there).
+    for (const group of [GROUP.identity, GROUP.wallet]) {
+      await mockKeychain.deleteItemAsync(RECORD[0], {
+        accessGroup: group,
+        keychainService: RECORD[1],
+      });
+    }
+    const next = await launch(ENTITLEMENTS.commons);
+    const report = await next.migration.ensureKeychainGroupsMigrated();
+    expect(report.state).toBe('complete');
+    expect(report.items.primary).toBe('over-limit');
+    expect(mockKeychain.get(GROUP.shared, 'oxy_identity_private_key_v2', 'oxy_identity')).toBe(
+      extra,
+    );
+    expect(await ring.countQuarantinedRetiredKeys()).toBe(ring.MAX_QUARANTINED_RING_ENTRIES);
+    await expect(
+      ring.quarantineRetiredIdentityKey({
+        privateKey: extra,
+        publicKey: commons.KeyManager.derivePublicKey(extra),
+      }),
+    ).rejects.toBeInstanceOf(ring.RetiredKeyQuarantineFullError);
+  });
+
+  it('a development Commons writes no public key into the production shared group', async () => {
+    const dev = await launch([`${GROUP.identity}.dev`, `${GROUP.wallet}.dev`, GROUP.shared]);
+    await dev.KeyManager.importKeyPair(PRIVATE, { overwrite: true });
+    expect(await dev.KeyManager.syncSharedIdentity()).toBe(true);
+    expect(mockKeychain.inGroup(GROUP.shared)).toEqual([]);
+    // It still knows its own key, from the private key it holds.
+    await expect(dev.KeyManager.getSharedPublicKey()).resolves.toBe(
+      dev.KeyManager.derivePublicKey(PRIVATE),
+    );
+  });
+
+  it('only a quarantined personal key signs a claim, and the key never leaves the ring (R6-5)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    const ring = await import('../retiredKeys');
+    const key = '31'.repeat(32);
+    const publicKey = commons.KeyManager.derivePublicKey(key);
+    await ring.quarantineRetiredIdentityKey({ privateKey: key, publicKey });
+    expect(await ring.listQuarantinedIdentityKeys()).toEqual([publicKey]);
+    const signature = await ring.signWithQuarantinedIdentityKey(publicKey, 'claim');
+    const { verifySignature } = await import('@oxy.so/protocol/sign');
+    expect(signature).not.toBeNull();
+    expect(await verifySignature('claim', signature as string, publicKey)).toBe(true);
+    // Once bound to its owner it no longer signs claims.
+    await ring.claimRetiredIdentityKeys(OWNER.ownerAccountId, [publicKey]);
+    expect(await ring.signWithQuarantinedIdentityKey(publicKey, 'claim')).toBeNull();
+    expect(await ring.listQuarantinedIdentityKeys()).toEqual([]);
+  });
+});

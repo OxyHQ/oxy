@@ -1,5 +1,15 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.15.0
+
+Round-6 security review of Peable's FairCoin mainnet identity receive (R6-5, R6-8).
+
+### Added
+
+- `identityKeyHistoryClaimRequestSchema` / `IdentityKeyHistoryClaimRequest` for `POST /identity/key-history/claim`: `{ publicKey, signature, timestamp }` (strict; `publicKey` canonical `04` + 128 lowercase hex, `timestamp` Unix ms). The signature is `signMessage(JSON.stringify({ action: 'claim_retired_identity_key', userId, publicKey, timestamp }), privateKey)`; the action is `IDENTITY_KEY_HISTORY_CLAIM_ACTION` (also in the `client` entry). The answer is `identityKeyHistorySchema`.
+- `IDENTITY_ERROR_CODES.keyNotProven` (`IDENTITY_KEY_NOT_PROVEN`): Oxy's records do not show the key was this account's root.
+- `encryptedBackupEnvelopeSchema` gains optional `superseded: boolean`: the restore lookup marks a backup a key rotation replaced while it carried retired keys. `backupUploadRequestSchema` does not take it.
+
 ## 6.13.0
 
 ### Added

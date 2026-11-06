@@ -20,7 +20,8 @@
  */
 import { Router, type Request, type Response } from 'express';
 import crypto from 'node:crypto';
-import { eq, lte } from 'drizzle-orm';
+import { and, eq, isNull, lte } from 'drizzle-orm';
+import { isValidSecp256k1PublicKey, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ConflictError, NotFoundError, UnauthorizedError, BadRequestError } from '../utils/error';
@@ -36,6 +37,7 @@ import {
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { identityBackups } from '../db/schema/identityBackups';
+import { users } from '../db/schema/users';
 import { isUniqueViolation } from '@oxy.so/db';
 
 const router = Router();
@@ -64,6 +66,7 @@ interface StoredEnvelopeFields {
   ciphertext: string;
   publicKeyHint: string;
   clientCreatedAt: string;
+  supersededAt: Date | null;
 }
 
 /** The columns `toEnvelope` needs — named explicitly, never a whole-row read. */
@@ -74,6 +77,7 @@ const ENVELOPE_COLUMNS = {
   ciphertext: identityBackups.ciphertext,
   publicKeyHint: identityBackups.publicKeyHint,
   clientCreatedAt: identityBackups.clientCreatedAt,
+  supersededAt: identityBackups.supersededAt,
 } as const;
 
 /** Project a stored backup row into the public `EncryptedBackupEnvelope`. */
@@ -86,6 +90,9 @@ function toEnvelope(doc: StoredEnvelopeFields): EncryptedBackupEnvelope {
     ciphertext: doc.ciphertext,
     publicKeyHint: doc.publicKeyHint,
     createdAt: doc.clientCreatedAt,
+    // A key rotation replaced the root this backup holds (R6-8): restore its
+    // keys as retired keys, never as the identity.
+    ...(doc.supersededAt ? { superseded: true } : {}),
   };
 }
 
@@ -130,6 +137,34 @@ const backupDeleteLimiter = rateLimit({
   },
 });
 
+/** The shortest `publicKeyHint` the root check accepts (clients send 16 hex characters). */
+const MIN_PUBLIC_KEY_HINT_LENGTH = 16;
+
+/**
+ * Throw 409 unless `publicKeyHint` names the account's CURRENT root (R6-9). The
+ * root is compared in its canonical spelling (uncompressed, lowercase), the one
+ * the client derives the hint from. An account with no root (a keyless account)
+ * has nothing to compare and is not refused.
+ */
+async function assertSealedUnderCurrentRoot(userId: string, publicKeyHint: string): Promise<void> {
+  const [account] = await getDb()
+    .select({ publicKey: users.publicKey })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const root = account?.publicKey?.trim();
+  if (!root) return;
+  const canonical = isValidSecp256k1PublicKey(root)
+    ? normalizeSecp256k1PublicKey(root)
+    : root.toLowerCase();
+  const hint = publicKeyHint.trim().toLowerCase();
+  if (hint.length < MIN_PUBLIC_KEY_HINT_LENGTH || !canonical.startsWith(hint)) {
+    throw new ConflictError(
+      "This backup is not of the account's current key: create it again with your current recovery phrase.",
+    );
+  }
+}
+
 /**
  * POST /identity/backup — create or REPLACE the caller's encrypted backup.
  * Upsert by `userId`, so a re-upload never accumulates duplicates. The raw
@@ -141,6 +176,12 @@ const backupDeleteLimiter = rateLimit({
  * keys), and an older Commons would otherwise replace it with one that drops
  * them. The comparison is part of the same upsert statement, so two racing
  * writers cannot interleave a downgrade.
+ *
+ * Only under the CURRENT root (security review R6-9): an upload whose
+ * `publicKeyHint` is not the prefix of the account's root is refused with 409.
+ * A backup sealed with a stale phrase (a slot that still held the phrase of a
+ * rotated-away key) backs up a retired key, and would replace the backup of
+ * the key the account signs in with. An account without a root is not checked.
  */
 router.post(
   '/',
@@ -154,6 +195,7 @@ router.post(
     }
 
     const body = req.body as BackupUploadRequest;
+    await assertSealedUnderCurrentRoot(userId, body.publicKeyHint);
     const stored = {
       lookupIdHash: lookupIdHashOf(body.lookupId),
       publicKeyHint: body.publicKeyHint,
@@ -163,6 +205,8 @@ router.post(
       kdfInfo: body.kdfInfo,
       version: body.version,
       clientCreatedAt: body.createdAt,
+      // A backup of the current root is never superseded (R6-8).
+      supersededAt: null,
     };
 
     try {
@@ -207,8 +251,9 @@ router.post(
 );
 
 /**
- * GET /identity/backup/status — whether the caller has a backup, plus the
- * non-sensitive hint + timestamp when one exists. No ciphertext, no locator.
+ * GET /identity/backup/status — whether the caller has a backup of its CURRENT
+ * root, plus the non-sensitive hint + timestamp when one exists. No ciphertext,
+ * no locator. A backup a key rotation superseded (R6-8) reads as none.
  */
 router.get(
   '/status',
@@ -225,7 +270,9 @@ router.get(
         clientCreatedAt: identityBackups.clientCreatedAt,
       })
       .from(identityBackups)
-      .where(eq(identityBackups.userId, userId))
+      // A superseded backup (R6-8) holds a retired root: the account's CURRENT
+      // key has no backup, so the client is asked to create one.
+      .where(and(eq(identityBackups.userId, userId), isNull(identityBackups.supersededAt)))
       .limit(1);
 
     const payload: BackupStatusResponse = row
@@ -258,7 +305,9 @@ router.delete(
  * GET /identity/backup/:lookupId — PUBLIC restore fetch. Hash the supplied raw
  * locator and return the matching envelope, or a constant-shape 404. No user
  * enumeration is possible: the response reveals only found/not-found, gated by
- * the locator's 256-bit entropy.
+ * the locator's 256-bit entropy. A superseded backup (R6-8) is still served —
+ * its phrase is the only way to the retired keys it carries — with
+ * `superseded: true`.
  */
 router.get(
   '/:lookupId',

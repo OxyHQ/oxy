@@ -152,6 +152,11 @@ export const IDENTITY_ERROR_CODES = {
   rootLinkedElsewhere: 'IDENTITY_ROOT_LINKED_ELSEWHERE',
   freshFactorRequired: 'IDENTITY_FRESH_FACTOR_REQUIRED',
   notPersonal: 'IDENTITY_NOT_PERSONAL_ACCOUNT',
+  /**
+   * `POST /identity/key-history/claim`: Oxy's own records do not show the key
+   * was this account's root (security review R6-5).
+   */
+  keyNotProven: 'IDENTITY_KEY_NOT_PROVEN',
 } as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[keyof typeof IDENTITY_ERROR_CODES];

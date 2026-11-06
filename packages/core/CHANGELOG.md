@@ -1,5 +1,32 @@
 # Changelog — `@oxy.so/core`
 
+## 7.39.0
+
+Round-6 security review of the Peable mainnet identity receive: R6-3, R6-5, R6-8, R6-9, R6-10, R6-12, R6-14 and the dev-build note.
+
+### Security
+
+- **A v1 migration record is not the end (R6-3).** The access-group completion record carries its sweep version (`v: 2`). Core 7.32 (Commons 1.8, 1.9) wrote `v: 1` after adopting nothing on a device without the identity marker, or after adopting organization pairs nothing vouched for. A run that meets `v: 1` now sweeps the shared group as an unproven device does (every valid key and phrase kept QUARANTINED, read back, then deleted there) and lists every organization this device holds a pair for in the v2 record; only then is `v: 2` written. Commons calls `revalidateHeldOrganizationKeys(read)` at launch: a held pair equal to the key the organization publishes stays; any other is kept quarantined in that organization's ring, read back, and removed as the live pair (index entry and Android mirror too), to be bound by `claimRetiredOrganizationKeys` only if the organization's history names it. An organization whose key cannot be read now stays pending.
+- **Pre-history keys can be proven (R6-5).** `oxy.identity.claimQuarantinedKeys(history?)` asks Oxy (`POST /identity/key-history/claim`) to add to the signed-in account's key history each QUARANTINED personal key this device holds that the history does not name, with a possession signature made inside the ring (`signWithQuarantinedIdentityKey`; the private key never leaves it). Oxy adds a key only when its own records prove it was that account's root. At most 8 keys per call, each tried once per process. `listQuarantinedIdentityKeys()` lists them.
+- **A backup a rotation kept is never restored as the identity (R6-8).** An envelope the API marks `superseded` (an older client rotated and could not re-seal) is refused by `backup.restore`, while `backup.restoreRetiredKeys` gives back its key and the keys it carried.
+- **The owed backup is cleared only by a confirmed upload (R6-9).** `rotateKey` marks the backup owed only after every step that cannot change anything server-side, and clears it only on a definitive 4xx refusal of `/auth/rotate/complete`; an ambiguous failure (no response, a 5xx, a DID that cannot be read) keeps it. `backup.create` seals only under the account's CURRENT key (a stale phrase uploads nothing) and clears the flag only when the server answered the upload.
+- **No key is bound to an account its history does not name (R6-10).** `rotateKey` reads the key history first (unreadable: nothing changes), refuses a key that is not the account's current root, and keeps any other key a slot holds bound only when the history names it, QUARANTINED otherwise (`quarantineRetiredIdentityKey`). Keys a backup carries are bound the same way on create, `restore` and `restoreRetiredKeys`; with no readable history they are all quarantined.
+- **The ring never lives in the shared group (R6-12).** Ring items are read, written and deleted in the wallet group only (`groupedKeychainStore(..., { ownGroupOnly: true })`): the Peable wallet's pre-migration fallback no longer covers them.
+- **Bounded work and ring growth (R6-14).** One migration run looks at most at `MAX_MIGRATION_ORGANIZATIONS` (100) organizations, the device's own index first. The ring holds at most `MAX_QUARANTINED_RING_ENTRIES` (64) quarantined entries; past that a new one is refused (`RetiredKeyQuarantineFullError`), the migration reports the unit `over-limit` and LEAVES the shared copy (never lost, never trusted) without keeping the run from settling, and a Commons write meeting such a copy leaves it too (`SharedCopyKeeper` resolves whether the copy may be deleted).
+- **A dev Commons or dev wallet writes nothing into the production shared group.** Its `shared` items (the identity public key) are no-ops; it derives its public key from its own private key.
+
+### Added
+
+- `revalidateHeldOrganizationKeys`, `OrganizationPublishedKeyReader`, `quarantineRetiredIdentityKey`, `listQuarantinedIdentityKeys`, `signWithQuarantinedIdentityKey`, `MAX_QUARANTINED_RING_ENTRIES`, `RetiredKeyQuarantineFullError`; `oxy.identity.claimQuarantinedKeys`; the `over-limit` migration outcome; `GroupedKeychainStoreOptions`.
+
+### Changed
+
+- `SharedCopyKeeper` resolves a boolean (whether the shared copy may be deleted).
+
+### Consumers
+
+Commons 1.11.0 calls `revalidateHeldOrganizationKeys` before binding quarantined organization keys and `claimQuarantinedKeys` before binding its personal ring. The Peable wallet: nothing to change.
+
 ## 7.38.0
 
 ### Added
