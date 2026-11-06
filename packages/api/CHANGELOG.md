@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Fixed (an application token manages no session or device)
+
+ADR 0058: every route outside `/session/device/*` that ends, lists, renames or
+creates sessions or devices refuses an application token (`host` claim) with
+`403 app_token_device_access_denied` (`refuseApplicationToken`): `/session/sessions`,
+`/session/logout*`, `/session/device/{sessions,logout-all,name}`, `/devices/*`,
+`POST /accounts/:id/switch`, `POST /auth/session/authorize-code/:code`,
+`POST /auth/oauth/authorize`, `POST /auth/mcp/oauth/authorize`,
+`DELETE /auth/mcp/oauth/grants/:id`.
+
 ### Changed (the encrypted identity backup is never downgraded)
 
 `POST /identity/backup` refuses (409, the stored backup kept) an upload whose

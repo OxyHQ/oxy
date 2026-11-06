@@ -1,13 +1,15 @@
 import express from 'express';
 import { DevicesController } from '../controllers/devices.controller';
 import { authMiddleware } from '../middleware/auth';
+import { refuseApplicationToken } from '../middleware/firstPartyDeviceAccess';
 import { validate } from '../middleware/validate';
 import { deviceIdParams } from '../schemas/devices.schemas';
 
 const router = express.Router();
 
 // All device routes require authentication
-router.use(authMiddleware);
+// An application token (ADR 0058) neither lists nor removes the platform's devices.
+router.use(authMiddleware, refuseApplicationToken);
 
 /**
  * @openapi

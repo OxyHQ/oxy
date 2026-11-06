@@ -96,6 +96,10 @@ import { resolveSocketIdentity } from '../../utils/socketAuth';
 import { socketRoomsFor } from '../../utils/socket';
 import { awayFromTotpStepEdge } from '../../../test-support/totpStep';
 import appAssertionsRouter from '../appAssertions';
+import accountsRouter from '../accounts';
+import authRouter from '../auth';
+import devicesRouter from '../devices';
+import mcpOAuthRouter from '../mcpOAuth';
 import sessionRouter from '../session';
 import sessionDeviceRouter from '../sessionDevice';
 import signInRouter from '../signIn';
@@ -108,6 +112,10 @@ app.use('/auth', signInRouter);
 app.use('/session/device', sessionDeviceRouter);
 app.use('/session', sessionRouter);
 app.use('/apps', appAssertionsRouter);
+app.use('/devices', devicesRouter);
+app.use('/accounts', accountsRouter);
+app.use('/auth/mcp/oauth', mcpOAuthRouter);
+app.use('/auth', authRouter);
 app.use(errorHandler);
 
 const ISSUER = 'https://api.oxy.test';
@@ -586,6 +594,58 @@ describe('an application’s token (ADR 0058 2.2 to 2.4, R2)', () => {
       identity?.kind === 'user' ? { user: identity.user } : { deviceId: null },
     );
     expect(rooms).toEqual([`user:${identity?.kind === 'user' ? identity.user.id : ''}`]);
+  });
+
+  it('ends, lists or manages no session, device or grant anywhere else either', async () => {
+    const { deviceId, platformSecret, sessionId } = await enrolled();
+    const appToken = dataOf(
+      (
+        await mint({
+          deviceId,
+          deviceSecret: platformSecret,
+          attestation: { platform: 'oxyos', desktopEntryId: dropseaEntry },
+        })
+      ).body,
+    ).accessToken as string;
+    const deviceToken = dataOf(
+      (await post('/session/device/token', { deviceId, deviceSecret: platformSecret })).body,
+    ).accessToken as string;
+    const routes: Array<['get' | 'post' | 'put' | 'delete', string, Body?]> = [
+      ['get', `/session/sessions/${sessionId}`],
+      ['post', `/session/logout/${sessionId}`],
+      ['post', `/session/logout/${sessionId}/${sessionId}`],
+      ['post', `/session/logout-all/${sessionId}`],
+      ['get', `/session/device/sessions/${sessionId}`],
+      ['post', `/session/device/logout-all/${sessionId}`],
+      ['put', `/session/device/name/${sessionId}`, { deviceName: 'x' }],
+      ['get', '/devices'],
+      ['get', '/devices/security'],
+      ['delete', `/devices/${deviceId}`],
+      ['post', `/accounts/${randomUUID()}/switch`],
+      ['post', `/auth/session/authorize-code/${'a'.repeat(32)}`, {}],
+      ['post', '/auth/oauth/authorize', {}],
+      ['post', '/auth/mcp/oauth/authorize', {}],
+      ['delete', `/auth/mcp/oauth/grants/${randomUUID()}`],
+    ];
+    for (const [method, path, body] of routes) {
+      const refused = await request(app)
+        [method](path)
+        .set('authorization', `Bearer ${appToken}`)
+        .send(body ?? {});
+      expect({ path, status: refused.status, error: refused.body.error }).toEqual({
+        path,
+        status: 403,
+        error: 'app_token_device_access_denied',
+      });
+    }
+    // Nothing was ended: the session still validates.
+    expect((await validateHeader(appToken, sessionId)).status).toBe(200);
+    // The guard is for application tokens only: the device's own token reads
+    // through it (its writes are not replayed here: they would end the session).
+    for (const [method, path] of routes.filter(([method]) => method === 'get')) {
+      const own = await request(app)[method](path).set('authorization', `Bearer ${deviceToken}`);
+      expect({ path, status: own.status }).toEqual({ path, status: 200 });
+    }
   });
 
   it('refuses a web Origin, a malformed body, a wrong or non-platform secret, another platform and every unrecognised application', async () => {

@@ -14,6 +14,7 @@ import {
   type AuthRequest,
   type ServiceAuthRequest,
 } from '../middleware/auth';
+import { refuseApplicationToken } from '../middleware/firstPartyDeviceAccess';
 import { rateLimit } from '../middleware/rateLimiter';
 import {
   McpOAuthError,
@@ -428,6 +429,7 @@ router.post(
   '/authorize',
   authorizeLimiter,
   authMiddleware,
+  refuseApplicationToken,
   async (request: AuthRequest, response) => {
     try {
       const body = authorizeSchema.parse(request.body);
@@ -868,6 +870,7 @@ router.delete(
   '/grants/:grantId',
   authorizeLimiter,
   authMiddleware,
+  refuseApplicationToken,
   async (request: AuthRequest, response) => {
     try {
       const params = grantParamsSchema.parse(request.params);

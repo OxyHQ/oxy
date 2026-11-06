@@ -228,7 +228,15 @@ third-party token with `403 third_party_device_access_denied` — the directory,
 `activate`, `add`, `switch`, `signout`, `state`, and the background-credential
 mint — and an application token (ADR 0058) with `403
 app_token_device_access_denied`, whatever its application: the device is the
-platform's. An application token joins no `device:<id>` socket room.
+platform's. So does every route outside that lane that ends, lists, renames or
+creates sessions or devices (`refuseApplicationToken`): `/session/sessions`,
+`/session/logout*`, `/session/device/{sessions,logout-all,name}`, `/devices/*`,
+`POST /accounts/:id/switch`, `POST /auth/session/authorize-code/:code`,
+`POST /auth/oauth/authorize`, `POST /auth/mcp/oauth/authorize` and
+`DELETE /auth/mcp/oauth/grants/:id`; and the account-level writes behind
+`requireFirstPartyDeviceAccess` (sign-in methods and password, authenticator,
+email, Commons linking, agent and organization keys, families, account
+deletion). An application token joins no `device:<id>` socket room.
 
 The trust decision is the **registry's**, re-read per request rather than frozen
 into the token (`isTrustedApplication`, plus `status === 'active'`). Flipping an

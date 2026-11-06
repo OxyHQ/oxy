@@ -10,6 +10,7 @@ import {
   type ChildAccountKind,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { refuseApplicationToken } from '../middleware/firstPartyDeviceAccess';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
@@ -406,6 +407,8 @@ router.get(
  */
 router.post(
   '/:id/switch',
+  // The device's active account is the platform's (ADR 0058).
+  refuseApplicationToken,
   writeLimiter,
   validate({ params: accountIdRouteParams }),
   asyncHandler(async (req: AuthRequest, res) => {
