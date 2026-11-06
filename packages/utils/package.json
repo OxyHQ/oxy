@@ -13,6 +13,9 @@
       "paging": [
         "dist/types/paging.d.ts"
       ],
+      "cursor": [
+        "dist/types/cursor.d.ts"
+      ],
       "text": [
         "dist/types/text.d.ts"
       ],
@@ -60,6 +63,16 @@
       "require": {
         "types": "./dist/types/paging.d.ts",
         "default": "./dist/cjs/paging.js"
+      }
+    },
+    "./cursor": {
+      "import": {
+        "types": "./dist/types/cursor.d.ts",
+        "default": "./dist/esm/cursor.js"
+      },
+      "require": {
+        "types": "./dist/types/cursor.d.ts",
+        "default": "./dist/cjs/cursor.js"
       }
     },
     "./text": {

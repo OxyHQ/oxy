@@ -34,7 +34,7 @@
  *
  * Following `@oxy.so/core`'s rule: no `export *`, no barrels. If a symbol does
  * not appear below it is not part of the public API. Subpaths (`./sql`,
- * `./paging`, `./text`, `./date`, `./image`, `./currency`) exist because two consumers' bundle gates refuse
+ * `./paging`, `./cursor`, `./text`, `./date`, `./image`, `./currency`) exist because two consumers' bundle gates refuse
  * root-barrel imports — Metro does not tree-shake, so a frontend importing one
  * function must be able to reach it without dragging the rest in.
  */
