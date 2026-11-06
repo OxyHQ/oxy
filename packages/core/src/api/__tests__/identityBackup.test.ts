@@ -58,6 +58,14 @@ describe('oxy.identity.backup', () => {
     jest.clearAllMocks();
   });
 
+  /** `create`: the phrase has no backup yet (404), then the upload. */
+  async function createBackup(): Promise<void> {
+    fetchMock
+      .mockResolvedValueOnce(plainResponse({ error: 'not found' }, 404))
+      .mockResolvedValueOnce(plainResponse({ exists: true }));
+    await oxy.identity.backup.create(FIXED_PHRASE);
+  }
+
   /** Read + parse the body of the Nth fetch call as the upload request. */
   function uploadBodyFromCall(index: number): BackupUploadRequest {
     const init = fetchMock.mock.calls[index][1];
@@ -65,20 +73,26 @@ describe('oxy.identity.backup', () => {
   }
 
   it('createEncryptedBackup uploads an envelope + raw lookupId derived from the phrase', async () => {
-    fetchMock.mockResolvedValueOnce(
-      plainResponse({ exists: true, publicKeyHint: '04abc', createdAt: 'x' }),
-    );
+    fetchMock
+      .mockResolvedValueOnce(plainResponse({ error: 'not found' }, 404))
+      .mockResolvedValueOnce(
+        plainResponse({ exists: true, publicKeyHint: '04abc', createdAt: 'x' }),
+      );
 
     await oxy.identity.backup.create(FIXED_PHRASE);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    // The phrase's existing backup is read first (R5-6), then replaced.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      `http://test.invalid/identity/backup/${EXPECTED_LOOKUP_ID}`,
+    );
+    const [url, init] = fetchMock.mock.calls[1];
     expect(String(url)).toBe('http://test.invalid/identity/backup');
     expect(init?.method).toBe('POST');
 
-    const body = uploadBodyFromCall(0);
+    const body = uploadBodyFromCall(1);
     // Envelope metadata.
-    expect(body.version).toBe(1);
+    expect(body.version).toBe(2);
     expect(body.algorithm).toBe('xchacha20poly1305');
     expect(body.kdfInfo).toBe('oxy-backup-encryption-key');
     // The raw lookup id is the phrase-derived value (server will hash it).
@@ -96,11 +110,8 @@ describe('oxy.identity.backup', () => {
 
   it('round-trips: the uploaded envelope decrypts back to the SAME private key', async () => {
     // 1) Encrypt + capture the real envelope.
-    fetchMock.mockResolvedValueOnce(
-      plainResponse({ exists: true, publicKeyHint: '04', createdAt: 'x' }),
-    );
-    await oxy.identity.backup.create(FIXED_PHRASE);
-    const uploaded = uploadBodyFromCall(0);
+    await createBackup();
+    const uploaded = uploadBodyFromCall(1);
     const envelope: EncryptedBackupEnvelope = {
       version: uploaded.version,
       algorithm: uploaded.algorithm,
@@ -120,7 +131,7 @@ describe('oxy.identity.backup', () => {
     const publicKey = await oxy.identity.backup.restore(FIXED_PHRASE);
 
     // The GET targets the locator; import receives the decrypted private key.
-    const [url, init] = fetchMock.mock.calls[1];
+    const [url, init] = fetchMock.mock.calls[2];
     expect(String(url)).toBe(`http://test.invalid/identity/backup/${EXPECTED_LOOKUP_ID}`);
     expect(init?.method).toBe('GET');
     expect(importSpy).toHaveBeenCalledWith(EXPECTED_PRIVATE_KEY, { overwrite: false });
@@ -128,9 +139,8 @@ describe('oxy.identity.backup', () => {
   });
 
   it('rejects a tampered ciphertext (Poly1305 authentication fails)', async () => {
-    fetchMock.mockResolvedValueOnce(plainResponse({ exists: true }));
-    await oxy.identity.backup.create(FIXED_PHRASE);
-    const uploaded = uploadBodyFromCall(0);
+    await createBackup();
+    const uploaded = uploadBodyFromCall(1);
 
     // Flip the first ciphertext byte.
     const firstByte = uploaded.ciphertext.slice(0, 2);
@@ -153,9 +163,8 @@ describe('oxy.identity.backup', () => {
   });
 
   it('rejects when the AAD-bound publicKeyHint is altered', async () => {
-    fetchMock.mockResolvedValueOnce(plainResponse({ exists: true }));
-    await oxy.identity.backup.create(FIXED_PHRASE);
-    const uploaded = uploadBodyFromCall(0);
+    await createBackup();
+    const uploaded = uploadBodyFromCall(1);
 
     const tampered: EncryptedBackupEnvelope = {
       version: uploaded.version,
@@ -175,9 +184,8 @@ describe('oxy.identity.backup', () => {
   });
 
   it('rejects a mismatched nonce', async () => {
-    fetchMock.mockResolvedValueOnce(plainResponse({ exists: true }));
-    await oxy.identity.backup.create(FIXED_PHRASE);
-    const uploaded = uploadBodyFromCall(0);
+    await createBackup();
+    const uploaded = uploadBodyFromCall(1);
 
     const tampered: EncryptedBackupEnvelope = {
       version: uploaded.version,
@@ -194,9 +202,8 @@ describe('oxy.identity.backup', () => {
   });
 
   it('rejects when decrypted payload publicKey does not match the recovery phrase', async () => {
-    fetchMock.mockResolvedValueOnce(plainResponse({ exists: true }));
-    await oxy.identity.backup.create(FIXED_PHRASE);
-    const uploaded = uploadBodyFromCall(0);
+    await createBackup();
+    const uploaded = uploadBodyFromCall(1);
 
     const { backupKey } = await RecoveryPhraseService.deriveBackupMaterial(FIXED_PHRASE);
     const aad = new TextEncoder().encode(
@@ -250,9 +257,8 @@ describe('oxy.identity.backup', () => {
   });
 
   it('propagates IdentityAlreadyExistsError UNCHANGED (so the caller can offer overwrite)', async () => {
-    fetchMock.mockResolvedValueOnce(plainResponse({ exists: true }));
-    await oxy.identity.backup.create(FIXED_PHRASE);
-    const uploaded = uploadBodyFromCall(0);
+    await createBackup();
+    const uploaded = uploadBodyFromCall(1);
     const envelope: EncryptedBackupEnvelope = {
       version: uploaded.version,
       algorithm: uploaded.algorithm,
@@ -274,9 +280,8 @@ describe('oxy.identity.backup', () => {
   });
 
   it('forwards overwrite:true to importKeyPair', async () => {
-    fetchMock.mockResolvedValueOnce(plainResponse({ exists: true }));
-    await oxy.identity.backup.create(FIXED_PHRASE);
-    const uploaded = uploadBodyFromCall(0);
+    await createBackup();
+    const uploaded = uploadBodyFromCall(1);
     const envelope: EncryptedBackupEnvelope = {
       version: uploaded.version,
       algorithm: uploaded.algorithm,

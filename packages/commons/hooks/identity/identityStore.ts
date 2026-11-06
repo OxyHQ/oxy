@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
-import { readIdentityMarker, updateIdentityMarker } from '@oxy.so/core/crypto';
+import {
+  ownKeychainItemPlan,
+  readIdentityMarker,
+  readThroughPlan,
+  resolveKeychainAccess,
+  updateIdentityMarker,
+} from '@oxy.so/core/crypto';
 
 /**
  * Minimal async key/value storage surface used by the identity store.
@@ -58,6 +64,16 @@ class WebKeyValueStorage implements KeyValueStorage {
  * Loaded lazily so the web bundle never pulls the native module in, and
  * so a missing/broken module degrades gracefully (reads resolve to
  * `null`, writes no-op) instead of throwing during module evaluation.
+ *
+ * iOS (round-5 review R5-9): every call names Commons' OWN keychain groups
+ * (`ownKeychainItemPlan(access, 'every-oxy-app')`: its application group,
+ * then its default group, the identity group), never the shared group. A
+ * read with no group searched every group Commons holds, so a value another
+ * Oxy app planted in the shared group — `oxy_recovery_phrase_acknowledged =
+ * true`, silencing the "write down your phrase" warning — was honoured. A
+ * copy an older Commons left there is no longer read; each flag here is safe
+ * to lose (a warning comes back, the onboarding milestone falls back to the
+ * identity marker). Android and web: no options, as before.
  */
 class SecureStoreKeyValueStorage implements KeyValueStorage {
   private modulePromise: Promise<typeof import('expo-secure-store') | null> | null = null;
@@ -76,12 +92,16 @@ class SecureStoreKeyValueStorage implements KeyValueStorage {
     return this.modulePromise;
   }
 
+  private async plan() {
+    return ownKeychainItemPlan(await resolveKeychainAccess(), 'every-oxy-app');
+  }
+
   async getItem(key: string): Promise<string | null> {
     const module = await this.loadModule();
     if (!module) {
       return null;
     }
-    return module.getItemAsync(key);
+    return readThroughPlan(module, key, {}, (await this.plan()).read);
   }
 
   async setItem(key: string, value: string): Promise<void> {
@@ -89,7 +109,7 @@ class SecureStoreKeyValueStorage implements KeyValueStorage {
     if (!module) {
       return;
     }
-    await module.setItemAsync(key, value);
+    await module.setItemAsync(key, value, (await this.plan()).write);
   }
 }
 
@@ -201,7 +221,7 @@ const defaultState: IdentityState = {
  * the acknowledgement flag persists from {@link IdentityStore.setRecoveryPhraseAcknowledged}.
  */
 export const useIdentityStore = create<IdentityStore>(
-  (set: (state: Partial<IdentityState>) => void, get: () => IdentityStore) => ({
+  (set: (state: Partial<IdentityState>) => void, _get: () => IdentityStore) => ({
     ...defaultState,
 
     setSynced: (synced: boolean) => {

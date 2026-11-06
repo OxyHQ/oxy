@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Changed (the encrypted identity backup is never downgraded)
+
+`POST /identity/backup` refuses (409, the stored backup kept) an upload whose
+envelope `version` is LOWER than the stored one, in the same upsert statement,
+so an older Commons cannot replace a version-2 backup (which carries the
+person's retired keys) with one that drops them. Same or higher versions
+replace it as before. No migration: `identity_backups.version` already exists.
+
 ### Added (an organization has its own identity key)
 
 Organization identity keys (ADR 0061). A claimed, active organization can have a

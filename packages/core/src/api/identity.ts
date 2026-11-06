@@ -131,10 +131,12 @@ export interface RotateKeyResult {
   localPersistFailed?: true;
   /**
    * Whether the encrypted identity backup was re-created under the NEW phrase,
-   * carrying the retired ring with the key just replaced (R4-4). The server
-   * deletes the old backup in the rotation's transaction; `false` (native, the
-   * upload failed) means the caller should offer "Create backup" again, or the
-   * replaced key lives only on this phone. Absent on web.
+   * carrying the retired ring with the key just replaced (R4-4) and every key
+   * the previous backup carried (R5-6). The server deletes the old backup in
+   * the rotation's transaction; `false` (the upload failed) means the caller
+   * should offer "Create backup" again — `oxy.identity.backup.isOwed()` stays
+   * `true` until one is sealed — or the replaced key lives only on this phone.
+   * Absent on web when the account had no backup.
    */
   backupRefreshed?: boolean;
 }
@@ -295,6 +297,7 @@ export class IdentityApi {
 
     const { KeyManager, RecoveryPhraseService, SignatureService, signMessage, retireIdentityKey } =
       await import('../crypto/index');
+    const proofPhrase = options.proof === 'phrase' ? options.phrase?.trim() : undefined;
 
     // 1. The NEW identity (in memory only). The UI may pre-derive + pre-show
     //    it and pass it back here so the phrase shown === the phrase committed.
@@ -353,6 +356,25 @@ export class IdentityApi {
       }
     }
 
+    // 2c. The rotation deletes the encrypted backup in its transaction. Read it
+    //     first, with the CURRENT phrase, so the re-seal under the new phrase
+    //     carries every key it carried (R5-6): its retired keys and the key
+    //     being replaced. A backup that exists but cannot be read here stops
+    //     the rotation with nothing changed — sealing without it would drop
+    //     keys only that backup holds.
+    const previousBackup = await this.backup.readBeforeRotation(
+      async () =>
+        proofPhrase ?? (isWeb() ? null : await KeyManager.getRecoveryMnemonicForCurrentIdentity()),
+    );
+    const resealBackup = !isWeb() || previousBackup.existed;
+
+    // 2d. The new backup is owed from the swap until it is sealed (R5-9): a
+    //     crash, a failed upload or a closed app in between leaves the flag,
+    //     and Commons keeps asking (`backup.isOwed()`).
+    if (resealBackup && !isWeb()) {
+      await KeyManager.markBackupOwed(userId);
+    }
+
     // 3. Request a single-use rotate_key challenge (bearer).
     const { challenge } = await this.ctx.request<RotateKeyChallengeResponse>(
       'POST',
@@ -391,6 +413,11 @@ export class IdentityApi {
     // 5. Complete the rotation. On an AMBIGUOUS failure, reconcile against the
     //    DID before deciding the rotation failed.
     let applied = false;
+    const notRotated = async (error: unknown): Promise<never> => {
+      // Nothing changed server-side: the old backup still exists.
+      if (resealBackup && !isWeb()) await KeyManager.clearBackupOwed();
+      throw error;
+    };
     try {
       const result = await this.ctx.request<RotateKeyCompleteResponse>(
         'POST',
@@ -408,13 +435,15 @@ export class IdentityApi {
       applied = result.success && result.publicKey.toLowerCase() === newPublicKey.toLowerCase();
     } catch (error) {
       if (!(await this.rotationAlreadyApplied(userId, newPublicKey))) {
-        throw error;
+        await notRotated(error);
       }
       applied = true;
     }
 
     if (!applied) {
-      throw new Error('Key rotation did not complete — your previous key is unchanged.');
+      await notRotated(
+        new Error('Key rotation did not complete — your previous key is unchanged.'),
+      );
     }
 
     // 6. ONLY after the server confirms the swap, persist the new key locally.
@@ -436,6 +465,23 @@ export class IdentityApi {
     let localPersistFailed = false;
     if (!isWeb()) {
       try {
+        // No slot write drops a key (R4-12): a key a slot holds that is
+        // neither the one just replaced (kept in 2b) nor the new one — an
+        // older identity this phone still had — is kept in the ring first.
+        // When that cannot be confirmed nothing is overwritten
+        // (`localPersistFailed`: the user re-imports from the phrase shown).
+        const keep = new Set([
+          KeyManager.canonicalPublicKey(oldPublicKey).toLowerCase(),
+          KeyManager.canonicalPublicKey(newPublicKey).toLowerCase(),
+        ]);
+        for (const held of await KeyManager.heldIdentityPrivateKeys()) {
+          const heldPublic = KeyManager.derivePublicKey(held).toLowerCase();
+          if (keep.has(heldPublic)) continue;
+          await retireIdentityKey(
+            { privateKey: held, publicKey: heldPublic },
+            { ownerAccountId: userId },
+          );
+        }
         const holdsSharedSlot = isAndroid()
           ? KeyManager.hasIdentitySignerStore()
           : await KeyManager.hasSharedIdentity();
@@ -490,14 +536,17 @@ export class IdentityApi {
 
     // 8. The rotation deleted the encrypted backup (it was sealed under the
     //    replaced phrase). Seal a new one under the new phrase, carrying the
-    //    retired ring — now with the key just replaced — so the coins under it
-    //    survive a lost phone as long as the NEW phrase does (R4-4). Always,
-    //    not only when one existed: after a rotation it is the only copy of the
-    //    replaced key off this phone. Best-effort: the rotation already succeeded.
+    //    retired ring — now with the key just replaced — and everything the
+    //    previous backup carried, so the coins under them survive a lost phone
+    //    as long as the NEW phrase does (R4-4, R5-6). On a phone always, not
+    //    only when one existed: after a rotation it is the only copy of the
+    //    replaced key off this phone; on web only when there was one.
+    //    Best-effort: the rotation already succeeded, and the owed flag stays
+    //    set until a backup is sealed.
     let backupRefreshed: boolean | undefined;
-    if (!isWeb() && !localPersistFailed) {
+    if (resealBackup && !localPersistFailed) {
       try {
-        await this.backup.create(pending.phrase);
+        await this.backup.seal(pending.phrase, previousBackup.carried);
         backupRefreshed = true;
       } catch (backupError) {
         backupRefreshed = false;
@@ -763,8 +812,14 @@ export class IdentityDomainsApi {
 
 // ── Encrypted backup ───────────────────────────────────────────────────────
 
-/** Envelope/KDF version — bump only on a breaking scheme change. */
-const BACKUP_ENVELOPE_VERSION = 1;
+/**
+ * Envelope/payload version. 2 (core 7.34.0): the payload carries the retired
+ * ring and every writer merges the previous backup's keys. The server refuses
+ * (409) an upload whose version is LOWER than the stored one, so an older
+ * Commons can no longer replace a backup with one that drops `retiredKeys`
+ * (R5-9). Readers accept every version (the AAD binds it).
+ */
+const BACKUP_ENVELOPE_VERSION = 2;
 /** The AEAD the backup is sealed with. Pinned so a mismatched decryptor fails loudly. */
 const BACKUP_ALGORITHM = 'xchacha20poly1305' as const;
 /**
@@ -791,6 +846,39 @@ interface BackupPayload {
   publicKey: string;
   createdAt: string;
   retiredKeys?: BackupRetiredKey[];
+}
+
+/**
+ * The well-formed pairs among keys a backup carried (or a rotation carries
+ * over): the private key must derive the public key; `currentPublicKey`, the
+ * key being sealed as the current one, is left out. Deduplicated, canonical.
+ */
+async function healthyCarried(
+  keys: readonly unknown[],
+  currentPublicKey: string | null,
+): Promise<BackupRetiredKey[]> {
+  const { KeyManager } = await import('../crypto/index');
+  const current = currentPublicKey?.toLowerCase() ?? null;
+  const out = new Map<string, BackupRetiredKey>();
+  for (const value of keys) {
+    const key = value as Partial<BackupRetiredKey> | null;
+    if (typeof key?.privateKey !== 'string' || typeof key.publicKey !== 'string') continue;
+    let publicKey: string;
+    try {
+      if (!KeyManager.isValidPrivateKey(key.privateKey)) continue;
+      publicKey = KeyManager.derivePublicKey(key.privateKey).toLowerCase();
+      if (publicKey !== KeyManager.canonicalPublicKey(key.publicKey).toLowerCase()) continue;
+    } catch {
+      continue;
+    }
+    if (publicKey === current || out.has(publicKey)) continue;
+    out.set(publicKey, {
+      privateKey: key.privateKey.toLowerCase(),
+      publicKey,
+      retiredAt: typeof key.retiredAt === 'number' ? key.retiredAt : Date.now(),
+    });
+  }
+  return [...out.values()];
 }
 
 /** Whether a request error is the restore lookup's constant-shape 404. */
@@ -848,20 +936,51 @@ export class IdentityBackupApi {
   /**
    * Encrypt the identity derived from `phrase` and upload the ciphertext + raw
    * `lookupId` (`POST /identity/backup`). The server stores only
-   * `sha256(lookupId)` + the ciphertext. A re-upload REPLACES the prior backup.
-   * Works cross-platform: the identity is derived from the phrase, not read
-   * from SecureStore.
+   * `sha256(lookupId)` + the ciphertext. A re-upload REPLACES the prior backup,
+   * so it never drops a key the prior one carried (R5-6): the backup this
+   * phrase already has is opened first and its retired keys are kept (in this
+   * device's ring, and in the new payload). Works cross-platform: the identity
+   * is derived from the phrase, not read from SecureStore.
+   *
+   * @throws when the existing backup cannot be read (anything but "none"),
+   *   when this device's ring cannot be read, or when a key the previous
+   *   backup carried would be missing from the new one — nothing is uploaded.
    */
   async create(phrase: string): Promise<BackupStatusResponse> {
+    return this.seal(phrase, []);
+  }
+
+  /**
+   * {@link create}, also carrying `carried` (a rotation's previous backup,
+   * sealed under the replaced phrase, which the server deletes). @internal
+   */
+  async seal(phrase: string, carried: readonly BackupRetiredKey[]): Promise<BackupStatusResponse> {
     const { KeyManager, RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO, encryptAead } =
       await import('../crypto/index');
+    const userId = this.ctx.oxy.session.userId;
+    if (!userId) throw new Error('No authenticated user — sign in before backing up.');
     const { backupKey, lookupId } = await RecoveryPhraseService.deriveBackupMaterial(phrase);
     const privateKey = await RecoveryPhraseService.derivePrivateKeyFromPhrase(phrase);
     const publicKey = KeyManager.derivePublicKey(privateKey);
     const createdAt = new Date().toISOString();
     const publicKeyHint = publicKey.slice(0, PUBLIC_KEY_HINT_LENGTH);
 
-    const retiredKeys = await this.retiredKeysToCarry(publicKey);
+    // The backup this phrase already has (404: none). Any other failure throws:
+    // a re-seal never replaces a backup it could not read.
+    const previous = await this.open(phrase, true);
+    const mustCarry = await healthyCarried(
+      [...(Array.isArray(previous?.retiredKeys) ? previous.retiredKeys : []), ...carried],
+      publicKey,
+    );
+    if (mustCarry.length > 0) await this.keepInRing(mustCarry, userId);
+
+    const retiredKeys = await this.retiredKeysToCarry(publicKey, mustCarry);
+    const sealed = new Set(retiredKeys.map((key) => key.publicKey.toLowerCase()));
+    if (mustCarry.some((key) => !sealed.has(key.publicKey.toLowerCase()))) {
+      throw new Error(
+        'The encrypted backup was not replaced: a previous key it carried is not one this account retired.',
+      );
+    }
     const payload: BackupPayload = {
       privateKey,
       publicKey,
@@ -883,31 +1002,135 @@ export class IdentityBackupApi {
       lookupId,
     };
 
-    return this.ctx.request<BackupStatusResponse>('POST', '/identity/backup', body, {
+    const status = await this.ctx.request<BackupStatusResponse>('POST', '/identity/backup', body, {
       cache: false,
     });
+    if ((await KeyManager.backupOwedFor()) === userId) await KeyManager.clearBackupOwed();
+    return status;
   }
 
   /**
-   * The retired ring this device holds for the person, limited to keys Oxy's
-   * key history names as THIS account's retired keys (the ring's iOS group is
-   * writable by the wallet app too, and a previous person's ring can outlive a
-   * "Start over"). Empty where no ring is held (web, any app but Commons).
-   * Throws when the history cannot be read while a ring exists, so a backup
-   * never silently drops keys it should carry.
+   * Whether the signed-in account's encrypted backup is OWED on this device
+   * (R5-9): a key rotation deleted the previous one and no new one has been
+   * sealed yet (an upload that failed, a crash or a closed app after the
+   * swap). Commons asks the person to create it until this is `false`. Always
+   * `false` on web. Never throws.
    */
-  private async retiredKeysToCarry(currentPublicKey: string): Promise<BackupRetiredKey[]> {
-    if (isWeb()) return [];
-    const { exportRetiredIdentityKeys } = await import('../crypto/index');
+  async isOwed(): Promise<boolean> {
+    if (isWeb()) return false;
+    const userId = this.ctx.oxy.session.userId;
+    if (!userId) return false;
+    const { KeyManager } = await import('../crypto/index');
+    return (await KeyManager.backupOwedFor()) === userId;
+  }
+
+  /**
+   * Before a rotation (R5-6): the backup the account has now, opened with the
+   * CURRENT phrase, and the keys a re-seal must carry — every retired key it
+   * carried and the key it backed up (the one being replaced). `existed` is
+   * whether the account has a backup. THROWS (nothing has changed yet) when a
+   * backup exists but cannot be read: no phrase on this device, or a failure
+   * other than "no backup for this phrase". `currentPhrase` is asked only
+   * when a backup exists. @internal
+   */
+  async readBeforeRotation(
+    currentPhrase: () => Promise<string | null>,
+  ): Promise<{ existed: boolean; carried: BackupRetiredKey[] }> {
+    let existed: boolean;
+    try {
+      existed = (await this.status()).exists;
+    } catch (error) {
+      throw new Error(
+        `Your encrypted backup could not be checked, so your key was not rotated. Nothing changed. (${error instanceof Error ? error.message : 'unknown'})`,
+      );
+    }
+    if (!existed) return { existed, carried: [] };
+    let phrase: string | null;
+    try {
+      phrase = await currentPhrase();
+    } catch {
+      phrase = null;
+    }
+    if (!phrase) {
+      throw new Error(
+        'Your encrypted backup cannot be read without your current recovery phrase, so your key was not rotated. Nothing changed. Rotate with your recovery phrase instead.',
+      );
+    }
+    let previous: BackupPayload | null;
+    try {
+      previous = await this.open(phrase, true);
+    } catch (error) {
+      throw new Error(
+        `Your encrypted backup could not be read, so your key was not rotated. Nothing changed. (${error instanceof Error ? error.message : 'unknown'})`,
+      );
+    }
+    // 404: the account's backup is not this phrase's; it carries nothing of this key.
+    if (!previous) return { existed, carried: [] };
+    const carried = [
+      ...(previous.retiredKeys ?? []),
+      {
+        privateKey: previous.privateKey,
+        publicKey: previous.publicKey,
+        retiredAt: Date.parse(previous.createdAt) || Date.now(),
+      },
+    ];
+    return { existed, carried: await healthyCarried(carried, null) };
+  }
+
+  /**
+   * Keep keys a backup carried in this device's ring, for the signed-in
+   * account (R5-6). Best-effort where a ring is held (they are also sealed
+   * into the new payload); a no-op where none is.
+   */
+  private async keepInRing(
+    keys: readonly BackupRetiredKey[],
+    ownerAccountId: string,
+  ): Promise<void> {
+    const { holdsRetiredRing, retireIdentityKey } = await import('../crypto/index');
+    if (!(await holdsRetiredRing())) return;
+    for (const key of keys) {
+      try {
+        await retireIdentityKey(
+          { privateKey: key.privateKey, publicKey: key.publicKey },
+          { ownerAccountId },
+        );
+      } catch (error) {
+        logger.warn(
+          'Could not keep a previous backup key in the ring; it is still sealed into the new backup',
+          { component: 'oxy.identity', method: 'backup.create' },
+          error,
+        );
+      }
+    }
+  }
+
+  /**
+   * The retired keys the new payload carries: this device's ring for the
+   * person (where one is held) and `carried`, limited to keys Oxy's key
+   * history names as THIS account's retired keys (the ring's iOS group is
+   * writable by the wallet app too, and a previous person's ring can outlive
+   * a "Start over"). STRICT (R5-6): a ring that cannot be read throws — only
+   * an app that holds no ring at all (`holdsRetiredRing()`) contributes none —
+   * and so does a history that cannot be read while there is anything to
+   * carry.
+   */
+  private async retiredKeysToCarry(
+    currentPublicKey: string,
+    carried: readonly BackupRetiredKey[],
+  ): Promise<BackupRetiredKey[]> {
+    const { exportRetiredIdentityKeys, holdsRetiredRing } = await import('../crypto/index');
     const userId = this.ctx.oxy.session.userId;
     if (!userId) throw new Error('No authenticated user — sign in before backing up.');
-    let held: BackupRetiredKey[];
-    try {
-      held = await exportRetiredIdentityKeys({ ownerAccountId: userId });
-    } catch {
-      return []; // Not Commons: this app holds no ring to carry.
+    const held: BackupRetiredKey[] =
+      !isWeb() && (await holdsRetiredRing())
+        ? await exportRetiredIdentityKeys({ ownerAccountId: userId })
+        : [];
+    const byKey = new Map<string, BackupRetiredKey>();
+    for (const key of [...held, ...carried]) {
+      const id = key.publicKey.toLowerCase();
+      if (!byKey.has(id)) byKey.set(id, key);
     }
-    if (held.length === 0) return [];
+    if (byKey.size === 0) return [];
     const history = await this.ctx.request<unknown>('GET', '/identity/key-history', undefined, {
       cache: false,
     });
@@ -915,7 +1138,7 @@ export class IdentityBackupApi {
     if (!parsed) throw new Error('identity/key-history returned an unexpected response shape');
     const retired = new Set(parsed.retired.map((entry) => entry.publicKey.toLowerCase()));
     const current = currentPublicKey.toLowerCase();
-    return held.filter(
+    return [...byKey.values()].filter(
       (key) => key.publicKey.toLowerCase() !== current && retired.has(key.publicKey.toLowerCase()),
     );
   }

@@ -23,6 +23,7 @@ import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { CameraPermissionSheet } from '@/components/civic/CameraPermissionSheet';
 import { useIdentity } from '@/hooks/useIdentity';
 import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
+import { BackupOwedBanner } from '@/components/identity/BackupOwedBanner';
 import { NotificationOffer } from '@/components/notifications/NotificationOffer';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useAttestedEvent, type AttestedEventPayload } from '@/hooks/civic/useAttestedEvent';
@@ -199,6 +200,8 @@ export default function IdScreen() {
             "Write down your recovery phrase" action (Pixel 8a, no Play
             services). */}
         <DeviceBackupWarning variant="prompt" />
+        {/* A rotation's backup is still owed (R5-9). */}
+        <BackupOwedBanner />
         {/* Once, for an identity never asked about notifications (it finished
             onboarding before that step existed); after the backup prompt. */}
         <NotificationOffer />

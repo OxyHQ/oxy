@@ -67,6 +67,53 @@ export function parseOrganizationIndex(raw: string | null): string[] {
   }
 }
 
+/** Thrown when Commons' own organization index cannot be read as one: never treated as empty (R5-9). */
+export class OrganizationKeyIndexUnreadableError extends Error {
+  constructor(reason: string) {
+    super(`organization key index: ${reason}`);
+    this.name = 'OrganizationKeyIndexUnreadableError';
+  }
+}
+
+/**
+ * Commons' OWN organization index, strictly (R5-9): an index that does not
+ * parse, or that holds an entry this version cannot read, THROWS
+ * {@link OrganizationKeyIndexUnreadableError}, so no writer overwrites it and
+ * drops the organizations it names. `null` is an empty index.
+ */
+export function parseOrganizationIndexStrict(raw: string | null): string[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new OrganizationKeyIndexUnreadableError('the index does not parse');
+  }
+  if (
+    !Array.isArray(parsed) ||
+    !parsed.every((id) => typeof id === 'string' && isOrganizationAccountId(id))
+  ) {
+    throw new OrganizationKeyIndexUnreadableError(
+      'the index holds an entry this version cannot read',
+    );
+  }
+  return parsed as string[];
+}
+
+/**
+ * The organization a pre-split SECRET item name belongs to: its private key
+ * or its phrase (`null` for any other name).
+ */
+export function organizationOfSecretItem(key: string): string | null {
+  for (const prefix of ['oxy_org_identity_private_key.', 'oxy_org_identity_mnemonic.']) {
+    if (key.startsWith(prefix)) {
+      const accountId = key.slice(prefix.length);
+      return isOrganizationAccountId(accountId) ? accountId : null;
+    }
+  }
+  return null;
+}
+
 /** The stored form of an organization index: unique, sorted. */
 export function serializeOrganizationIndex(ids: readonly string[]): string {
   return JSON.stringify([...new Set(ids)].sort());

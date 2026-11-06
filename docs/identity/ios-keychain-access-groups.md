@@ -214,6 +214,40 @@ groups. That residual risk is the same on Android (Commons' certificate).
   also notes whether the current personal key sat in the shared group
   (`getPreSplitExposure()`): Commons then recommends, never forces, a
   rotation while that key is current.
+- **Round 5 (core 7.34.0, services 14.11.0, Commons 1.10.0).**
+  - *Nothing is lost (R5-3).* A device without the marker still adopts
+    nothing, but every valid key and phrase in the shared group (personal
+    slots, shared slot, personal phrase, every organization pair and phrase
+    either index names) is kept in the ring QUARANTINED (a personal entry
+    without an owner, an organization entry flagged `quarantined`), read back,
+    then deleted. A Commons secret write or delete that finds a different copy
+    in the shared group hands it to the same keeper first and fails when it
+    cannot keep it; an equal copy is just deleted.
+  - *Organizations need the device's own word (R5-7).* A shared organization
+    pair is adopted only when it equals the pair the wallet group already
+    holds for it; anything else is quarantined in that organization's ring and
+    never indexed from the shared copy. Commons binds quarantined organization
+    entries at launch against `oxy.accounts.identityKey.get(accountId)`
+    (`claimRetiredOrganizationKeys`) and restores the current key as the live
+    pair (`adoptOrganizationKeyFromRing`). An upgraded phone's organization
+    phrase is therefore not kept (a phrase never enters the ring).
+  - *Dev builds (R5-5)* never read, move or delete anything in the shared
+    group: the migration only writes its record, and neither the read nor the
+    delete plan of a secret includes the shared group.
+  - *No prompts (R5-9).* expo-secure-store's read tries `<service>:no-auth`,
+    then `<service>:auth` (an item stored with `requireAuthentication`, which
+    shows a Face ID prompt), then `<service>` — and there is no option to skip
+    the second (`expo-secure-store` 58.0.2 `SecureStoreModule.swift`, `get`).
+    Any app can plant an `:auth` copy in the shared group, so core reads that
+    group through `OxyIdentity.readKeychainItemWithoutInteraction` (services
+    14.11.0): the `:no-auth` and legacy copies only, with an `LAContext` whose
+    `interactionNotAllowed` is set. An older native module reads as before.
+  - *Retries (R5-9).* An `incomplete` run opens the shared-group fallback only
+    for the proven items that could not move (by service and key), never for
+    an unproven item, a key being retired or the index, and is retried on a
+    later access (30 s, doubling, five per process) and on the next launch.
+    Commons' own flags (`hooks/identity/identityStore.ts`) name its own groups
+    (`ownKeychainItemPlan(access, 'every-oxy-app')`), never the shared one.
 - **App items.** `@oxy.so/services`' native SecureStore adapter and Peable's
   `kv-store` write an app's own items to its default group explicitly and read
   it first in Commons and the Peable wallet, because the split changed their

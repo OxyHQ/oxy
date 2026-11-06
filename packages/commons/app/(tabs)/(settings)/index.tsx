@@ -7,6 +7,7 @@ import { Screen, StackHeader, SettingsListItem } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
+import { BackupOwedBanner } from '@/components/identity/BackupOwedBanner';
 import { PreSplitExposureNotice } from '@/components/identity/PreSplitExposureNotice';
 import { useNotificationOffer } from '@/hooks/notifications/useNotificationOffer';
 
@@ -71,6 +72,10 @@ export default function SettingsScreen() {
       {/* No device backup on this device (OxyHQ/oxy#1388): stays until the user
           confirms they saved the recovery phrase. */}
       <DeviceBackupWarning variant="settings" />
+
+      {/* A rotation replaced the encrypted backup and no new one was sealed
+          yet (R5-9): stays until the person creates it. */}
+      <BackupOwedBanner />
 
       {/* iOS: this identity was readable by every Oxy app before the keychain
           split (ADR 0062); recommend, never force, a rotation. */}
