@@ -55,15 +55,22 @@ const issuer = (): string => (process.env.OXY_API_URL ?? 'https://api.oxy.so').r
 const authorizationEndpoint = (): string =>
   new URL('/authorize', process.env.OXY_AUTH_URL ?? 'https://auth.oxy.so').toString();
 
+// These limiters key on the caller's IP. Every MCP client connection registers its own
+// client and then reads it back, and every user of one MCP client (an AI app's backend,
+// or a shared egress) leaves through a single address. The old ceilings (20
+// registrations an hour, 90 reads a minute per address) were exhausted by a few
+// dozen connections from one shared address, after which new connections failed with
+// "We couldn't load the details of this request". Sized for that traffic; abuse is
+// still bounded per address.
 const registrationLimiter = rateLimit({
   prefix: 'rl:auth:mcp:register:',
   windowMs: 60 * 60 * 1_000,
-  max: process.env.NODE_ENV === 'development' ? 100 : 20,
+  max: process.env.NODE_ENV === 'development' ? 100 : 300,
 });
 const publicReadLimiter = rateLimit({
   prefix: 'rl:auth:mcp:public-read:',
   windowMs: 60 * 1_000,
-  max: process.env.NODE_ENV === 'development' ? 300 : 90,
+  max: process.env.NODE_ENV === 'development' ? 300 : 600,
 });
 const authorizeLimiter = rateLimit({
   prefix: 'rl:auth:mcp:authorize:',
