@@ -1,3 +1,4 @@
+import { reconcileRetiredRing } from './identity/retiredRing';
 import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,9 +9,6 @@ import {
   IdentityAlreadyExistsError,
   IdentityPersistError,
   IdentityUnavailableError,
-  claimRetiredIdentityKeys,
-  listRetiredIdentityKeys,
-  syncRetiredKeys,
   readIdentityMarker,
 } from '@oxy.so/core/crypto';
 import { useBiometricSignIn } from './useBiometricSignIn';
@@ -104,11 +102,10 @@ export interface UseIdentityResult {
  * Handles identity creation, import, sync, and network reconnect sync logic.
  * Uses oxy services for server operations (registration, sign-in, sessions).
  */
-/** Whether this process already checked the retired ring against the backup. */
-let retiredRingChecked = false;
 
 export const useIdentity = (): UseIdentityResult => {
   const { oxyServices, isAuthenticated } = useOxy();
+  const accountId = useAuthStore((state) => state.user?.id);
   const { signIn } = useBiometricSignIn();
   const queryClient = useQueryClient();
 
@@ -555,53 +552,30 @@ export const useIdentity = (): UseIdentityResult => {
     checkAndRestoreIdentity();
   }, [queryClient]);
 
-  // The signed-in person's previous keys, once per launch (R4-4, R5-2):
-  // 1. bind the ring's quarantined personal entries this account's key history
-  //    names (entries kept by the access-group migration or an older Commons);
-  // 2. on Android, make the identity host hold this person's entries and no
-  //    one else's (a previous person's stay in Commons' own ring, unreachable);
-  // 3. when the history names a retired key this phone does not hold for this
-  //    account and this phone holds the current phrase (Android's device backup
-  //    restores it silently), keep the ones the encrypted backup carries.
+  // Serialize native ring updates and abandon work when its session changes.
   useEffect(() => {
-    if (Platform.OS === 'web' || !oxyServices || !isAuthenticated || retiredRingChecked) return;
+    if (Platform.OS === 'web' || !oxyServices || !isAuthenticated || !accountId) return;
     const ownerAccountId = oxyServices.session.userId;
-    if (!ownerAccountId) return;
-    retiredRingChecked = true;
+    if (!ownerAccountId || ownerAccountId !== accountId) return;
+    let canceled = false;
+    const isCurrent = () => !canceled && oxyServices.session.userId === ownerAccountId;
     void (async () => {
-      // Organization keys the iOS access-group migration kept quarantined: bound
-      // (and the current one made live again) only when the organization's own
-      // key history names them (R5-7).
+      // Preserve migration recovery for organization keys, whose authority is
+      // each organization's own key history rather than this personal ring.
       try {
         await bindQuarantinedOrganizationKeys(oxyServices);
       } catch (error) {
         console.warn('[useIdentity] Could not bind kept organization keys', error);
       }
-      try {
-        const history = await oxyServices.identity.keyHistory();
-        const named = [
-          ...(history.publicKey ? [history.publicKey] : []),
-          ...history.retired.map((entry) => entry.publicKey),
-        ];
-        await claimRetiredIdentityKeys(ownerAccountId, named);
-        await syncRetiredKeys(ownerAccountId);
-        if (history.retired.length === 0) return;
-        const held = new Set(
-          (await listRetiredIdentityKeys({ ownerAccountId })).map((key) => key.publicKey),
-        );
-        const missing = history.retired.some(
-          (entry) => !held.has(KeyManager.canonicalPublicKey(entry.publicKey)),
-        );
-        if (!missing) return;
-        const phrase = await KeyManager.getRecoveryMnemonicForCurrentIdentity();
-        if (phrase && (await oxyServices.identity.backup.restoreRetiredKeys(phrase)) > 0) {
-          await syncRetiredKeys(ownerAccountId);
-        }
-      } catch (error) {
-        console.warn('[useIdentity] Could not bring back previous keys', error);
-      }
-    })();
-  }, [oxyServices, isAuthenticated]);
+      if (!isCurrent()) return;
+      await reconcileRetiredRing(oxyServices, ownerAccountId, isCurrent);
+    })().catch((error) => {
+      console.warn('[useIdentity] Could not bring back previous keys', error);
+    });
+    return () => {
+      canceled = true;
+    };
+  }, [oxyServices, isAuthenticated, accountId]);
 
   // Network reconnect sync logic
   useNetworkReconnect({

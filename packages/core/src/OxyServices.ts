@@ -55,6 +55,7 @@ import { DevicesApi } from './api/devices';
 import { TopicsApi } from './api/topics';
 import { AppDataApi } from './api/appData';
 import { ContactsApi } from './api/contacts';
+import { AddressesApi } from './api/addresses';
 import { ConsoleApi } from './api/console';
 
 export interface OxyConfig extends OxyConfigBase {
@@ -328,6 +329,10 @@ export class OxyServices {
   /** Signing in, signing up, and the account's credentials. */
   get auth(): AuthApi {
     return this.namespace('auth', (context) => new AuthApi(context));
+  }
+  /** Private saved postal addresses for the active account. */
+  get addresses(): AddressesApi {
+    return this.namespace('addresses', (context) => new AddressesApi(context));
   }
   /** People and their profiles. */
   get users(): UsersApi {

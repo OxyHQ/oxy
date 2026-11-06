@@ -1192,14 +1192,17 @@ export class IdentityBackupApi {
    * authenticated by the phrase. Commons only (the ring refuses elsewhere).
    * Resolves how many keys are now held; a key that fails is skipped.
    */
-  private async keepCarriedRetiredKeys(payload: BackupPayload): Promise<number> {
+  private async keepCarriedRetiredKeys(
+    payload: BackupPayload,
+    ownerAccountId: string,
+  ): Promise<number> {
     const { KeyManager, retireIdentityKey } = await import('../crypto/index');
     // The backup is the signed-in account's (its phrase opened it): its keys
     // are kept for that account only (R5-2).
-    const ownerAccountId = this.ctx.oxy.session.userId;
-    if (!ownerAccountId) throw new Error('No authenticated user — sign in before restoring.');
+    this.assertRestoreOwner(ownerAccountId);
     let kept = 0;
     for (const key of Array.isArray(payload.retiredKeys) ? payload.retiredKeys : []) {
+      this.assertRestoreOwner(ownerAccountId);
       try {
         if (typeof key?.privateKey !== 'string' || typeof key.publicKey !== 'string') continue;
         if (key.publicKey.toLowerCase() === payload.publicKey.toLowerCase()) continue;
@@ -1224,14 +1227,29 @@ export class IdentityBackupApi {
     return kept;
   }
 
+  private assertRestoreSession(ownerAccountId: string | null): void {
+    if (this.ctx.oxy.session.userId !== ownerAccountId) {
+      throw new Error('The signed-in account changed — restart identity restoration.');
+    }
+  }
+
+  private assertRestoreOwner(ownerAccountId: string | null): asserts ownerAccountId is string {
+    if (!ownerAccountId || this.ctx.oxy.session.userId !== ownerAccountId) {
+      throw new Error('The signed-in account changed — restart identity restoration.');
+    }
+  }
+
   /**
    * Restore ONLY the retired keys the phrase's backup carries into this
    * device's ring (Commons, after a phrase import or a silent device-backup
    * restore). Resolves how many were kept; 0 when there is no backup.
    */
   async restoreRetiredKeys(phrase: string): Promise<number> {
+    const ownerAccountId = this.ctx.oxy.session.userId;
+    this.assertRestoreOwner(ownerAccountId);
     const payload = await this.open(phrase, true);
-    return payload ? this.keepCarriedRetiredKeys(payload) : 0;
+    this.assertRestoreOwner(ownerAccountId);
+    return payload ? this.keepCarriedRetiredKeys(payload, ownerAccountId) : 0;
   }
 
   /**
@@ -1266,13 +1284,21 @@ export class IdentityBackupApi {
    *   fails authentication (tamper), or an existing identity blocks the import.
    */
   async restore(phrase: string, options?: { overwrite?: boolean }): Promise<string> {
+    const ownerAccountId = this.ctx.oxy.session.userId;
     const { KeyManager } = await import('../crypto/index');
     const payload = await this.open(phrase);
     if (!payload) throw new Error('No encrypted backup was found for this recovery phrase.');
+    this.assertRestoreSession(ownerAccountId);
     const publicKey = await KeyManager.importKeyPair(payload.privateKey, {
       overwrite: options?.overwrite === true,
     });
-    await this.keepCarriedRetiredKeys(payload);
+    this.assertRestoreSession(ownerAccountId);
+    // Phrase-only recovery can precede sign-in; never assign its ring to a
+    // different account that appeared while the backup was opening.
+    if (ownerAccountId) {
+      this.assertRestoreOwner(ownerAccountId);
+      await this.keepCarriedRetiredKeys(payload, ownerAccountId);
+    }
     return publicKey;
   }
 }

@@ -227,3 +227,5 @@ export * from './applicationInvitationEmails';
 
 export * from './accountAcquisition';
 export * from './managedApplicationDeployments';
+
+export * from './postalAddresses';
