@@ -711,3 +711,6 @@ export type {
 
 export type { ProfileAccessInput, ProfileAccessDecision } from '@oxy.so/contracts';
 export type { AccountInvitation, AccountInvitationPreview } from './api/accounts';
+
+export type { AddressesApi } from './api/addresses';
+export type { PostalAddress, PostalAddressInput, PostalAddressUpdate } from '@oxy.so/contracts';
