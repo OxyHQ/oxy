@@ -66,6 +66,10 @@ export default function BackupRecoveryScreen() {
     router.push('/(tabs)/(settings)/rotate-key');
   }, [router]);
 
+  const handlePreviousKeys = useCallback(() => {
+    router.push('/(tabs)/(settings)/previous-keys');
+  }, [router]);
+
   const noPhrase = status === 'absent';
 
   return (
@@ -114,6 +118,13 @@ export default function BackupRecoveryScreen() {
           onPress={noPhrase ? undefined : handleCreateBackup}
           showChevron={!noPhrase}
           disabled={noPhrase}
+        />
+        <SettingsListItem
+          icon={<Icons.history size="md" fill={colors.text} />}
+          title={t('backupRecovery.previousKeysTitle')}
+          description={t('backupRecovery.previousKeysSubtitle')}
+          onPress={handlePreviousKeys}
+          showChevron
         />
       </SettingsListGroup>
     </Screen>

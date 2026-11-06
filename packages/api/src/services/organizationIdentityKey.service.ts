@@ -53,7 +53,7 @@ import {
   sha256Hex,
   verifyIdentityProof,
 } from './identityProof.service';
-import { organizationKeyEverUsed } from './organizationKeyHistory';
+import { organizationKeyEverUsed, personalKeyEverRetired } from './organizationKeyHistory';
 import SignatureService from './signature.service';
 
 /** The roles that may hold and change an organization's key (ADR 0061 D3). */
@@ -224,7 +224,8 @@ async function checkOperation(
     .from(users)
     .where(sql`lower(btrim(${users.publicKey})) = ${publicKey}`)
     .limit(1);
-  if (holder) {
+  // A person's retired root was a person's: answered as one linked elsewhere.
+  if (holder || (await personalKeyEverRetired(db, publicKey))) {
     throw new ApiError(
       409,
       'This identity is already linked to another account',

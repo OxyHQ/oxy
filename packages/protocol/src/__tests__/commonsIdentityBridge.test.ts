@@ -166,6 +166,175 @@ describe('loadCommonsIdentityBridge (native)', () => {
     ).resolves.toBeNull();
   });
 
+  describe('retired keys', () => {
+    const ORG = '0123456789abcdef01234567';
+    const RETIRED = `04${'cd'.repeat(64)}`;
+    const OTHER = `04${'ef'.repeat(64)}`;
+    const base = {
+      describe: async () => ({ v: 4, publicKey: PUBLIC_KEY }),
+      proveIdentity: async () => null,
+      deriveScopedSeed: async () => 'cd'.repeat(32),
+      signSocialReceive: async () => ({ signature: '3045bb', publicKey: `02${'ef'.repeat(32)}` }),
+    };
+
+    test('requests carry the key and the scope, and well-formed echoed answers pass', async () => {
+      const calls: unknown[][] = [];
+      mockNative({
+        ...base,
+        listRetiredKeys: async (accountId: string | null) => {
+          calls.push(['listRetiredKeys', accountId]);
+          return accountId === null
+            ? { publicKeys: [RETIRED, OTHER, RETIRED] }
+            : { publicKeys: [OTHER], accountId };
+        },
+        deriveRetiredScopedSeed: async (
+          info: string,
+          publicKey: string,
+          accountId: string | null,
+        ) => {
+          calls.push(['deriveRetiredScopedSeed', info, publicKey, accountId]);
+          return accountId === null
+            ? { seed: 'aa'.repeat(32), keyPublicKey: publicKey }
+            : { seed: 'bb'.repeat(32), keyPublicKey: publicKey, accountId };
+        },
+        signRetiredSocialReceive: async (
+          index: number,
+          digest: string,
+          publicKey: string,
+          accountId: string | null,
+        ) => {
+          calls.push(['signRetiredSocialReceive', index, digest, publicKey, accountId]);
+          return {
+            signature: '3046cc',
+            publicKey: `03${'aa'.repeat(32)}`,
+            keyPublicKey: publicKey,
+          };
+        },
+      });
+      const bridge = await loadBridge();
+      // De-duplicated, in Commons' order.
+      await expect(bridge?.listRetiredKeys()).resolves.toEqual([RETIRED, OTHER]);
+      await expect(bridge?.listRetiredKeys(ORG)).resolves.toEqual([OTHER]);
+      await expect(bridge?.deriveRetiredScopedSeed('peable/faircoin/v1', RETIRED)).resolves.toBe(
+        'aa'.repeat(32),
+      );
+      await expect(bridge?.deriveRetiredScopedSeed('peable/faircoin/v1', OTHER, ORG)).resolves.toBe(
+        'bb'.repeat(32),
+      );
+      await expect(bridge?.signRetiredSocialReceive(7, '11'.repeat(32), RETIRED)).resolves.toEqual({
+        signature: '3046cc',
+        publicKey: `03${'aa'.repeat(32)}`,
+      });
+      expect(calls).toEqual([
+        ['listRetiredKeys', null],
+        ['listRetiredKeys', ORG],
+        ['deriveRetiredScopedSeed', 'peable/faircoin/v1', RETIRED, null],
+        ['deriveRetiredScopedSeed', 'peable/faircoin/v1', OTHER, ORG],
+        ['signRetiredSocialReceive', 7, '11'.repeat(32), RETIRED, null],
+      ]);
+    });
+
+    test('an answer without the key echo, or for another key or scope, is null', async () => {
+      mockNative({
+        ...base,
+        // An older Commons ignored keyPublicKey and answered with the CURRENT key.
+        deriveRetiredScopedSeed: async (
+          _info: string,
+          publicKey: string,
+          accountId: string | null,
+        ) =>
+          accountId === null
+            ? { seed: 'aa'.repeat(32) }
+            : { seed: 'bb'.repeat(32), keyPublicKey: publicKey },
+        signRetiredSocialReceive: async (
+          _index: number,
+          _digest: string,
+          _publicKey: string,
+          accountId: string | null,
+        ) =>
+          accountId === null
+            ? { signature: '3046cc', publicKey: `03${'aa'.repeat(32)}`, keyPublicKey: OTHER }
+            : {
+                signature: '3046cc',
+                publicKey: `03${'aa'.repeat(32)}`,
+                keyPublicKey: RETIRED,
+                accountId: 'fedcba9876543210fedcba98',
+              },
+        // A personal answer for an organization request, and vice versa.
+        listRetiredKeys: async (accountId: string | null) =>
+          accountId === null
+            ? { publicKeys: [RETIRED], accountId: ORG }
+            : { publicKeys: [RETIRED] },
+      });
+      const bridge = await loadBridge();
+      await expect(
+        bridge?.deriveRetiredScopedSeed('peable/faircoin/v1', RETIRED),
+      ).resolves.toBeNull();
+      // The key echo is there but the account echo is missing.
+      await expect(
+        bridge?.deriveRetiredScopedSeed('peable/faircoin/v1', RETIRED, ORG),
+      ).resolves.toBeNull();
+      await expect(
+        bridge?.signRetiredSocialReceive(0, '11'.repeat(32), RETIRED),
+      ).resolves.toBeNull();
+      await expect(
+        bridge?.signRetiredSocialReceive(0, '11'.repeat(32), RETIRED, ORG),
+      ).resolves.toBeNull();
+      await expect(bridge?.listRetiredKeys()).resolves.toBeNull();
+      await expect(bridge?.listRetiredKeys(ORG)).resolves.toBeNull();
+    });
+
+    test('a list with a malformed entry is refused whole; an empty list is an answer', async () => {
+      const answers: unknown[] = [
+        { publicKeys: [RETIRED, `04${'CD'.repeat(64)}`] },
+        { publicKeys: [RETIRED, `02${'aa'.repeat(32)}`] },
+        { publicKeys: [RETIRED, 7] },
+        { publicKeys: RETIRED },
+        { publicKeys: [] },
+      ];
+      mockNative({ ...base, listRetiredKeys: async () => answers.shift() });
+      const bridge = await loadBridge();
+      await expect(bridge?.listRetiredKeys()).resolves.toBeNull();
+      await expect(bridge?.listRetiredKeys()).resolves.toBeNull();
+      await expect(bridge?.listRetiredKeys()).resolves.toBeNull();
+      await expect(bridge?.listRetiredKeys()).resolves.toBeNull();
+      await expect(bridge?.listRetiredKeys()).resolves.toEqual([]);
+    });
+
+    test('a malformed public key is never sent to Commons', async () => {
+      const derive = jest.fn(async () => ({ seed: 'aa'.repeat(32), keyPublicKey: 'x' }));
+      const sign = jest.fn(async () => null);
+      mockNative({ ...base, deriveRetiredScopedSeed: derive, signRetiredSocialReceive: sign });
+      const bridge = await loadBridge();
+      await expect(bridge?.deriveRetiredScopedSeed('peable/faircoin/v1', 'x')).resolves.toBeNull();
+      await expect(
+        bridge?.deriveRetiredScopedSeed('peable/faircoin/v1', RETIRED.toUpperCase()),
+      ).resolves.toBeNull();
+      await expect(
+        bridge?.signRetiredSocialReceive(0, '11'.repeat(32), `02${'aa'.repeat(32)}`),
+      ).resolves.toBeNull();
+      expect(derive).not.toHaveBeenCalled();
+      expect(sign).not.toHaveBeenCalled();
+    });
+
+    test('a native module without the retired functions answers null, never the current key', async () => {
+      const derive = jest.fn(base.deriveScopedSeed);
+      const sign = jest.fn(base.signSocialReceive);
+      mockNative({ ...base, deriveScopedSeed: derive, signSocialReceive: sign });
+      const bridge = await loadBridge();
+      expect(bridge).not.toBeNull();
+      await expect(bridge?.listRetiredKeys()).resolves.toBeNull();
+      await expect(
+        bridge?.deriveRetiredScopedSeed('peable/faircoin/v1', RETIRED),
+      ).resolves.toBeNull();
+      await expect(
+        bridge?.signRetiredSocialReceive(0, '11'.repeat(32), RETIRED, ORG),
+      ).resolves.toBeNull();
+      expect(derive).not.toHaveBeenCalled();
+      expect(sign).not.toHaveBeenCalled();
+    });
+  });
+
   test('the web / Node variant never has a bridge', async () => {
     const mod = await import('../platform/crypto');
     await expect(mod.loadCommonsIdentityBridge()).resolves.toBeNull();

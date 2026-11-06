@@ -15,9 +15,10 @@
  * place" is an UPDATE of exactly one row. Two consequences worth stating:
  *
  * - **The rotation swap is one transaction** covering the `users.public_key`
- *   write, the in-place identity-row replacement, AND the stale
- *   `identity_backups` delete — a committed swap cannot leave a backup
- *   that still holds the OLD key behind.
+ *   write, the in-place identity-row replacement, the replaced root's
+ *   `personal_identity_key_retirements` row, AND the stale `identity_backups`
+ *   delete — a committed swap cannot leave a backup that still holds the OLD
+ *   key behind, nor a replaced root missing from the account's key history.
  * - **A key already linked elsewhere is caught by a unique index**
  *   (`users_lower_public_key_key`, `user_auth_methods_lower_method_public_key_key`)
  *   as well as by the read-then-check, so the read/write race answers 409 rather
@@ -31,6 +32,7 @@ import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAcc
 import { getDb } from '../config/postgres.js';
 import { authChallenges } from '../db/schema/authChallenges.js';
 import { identityBackups } from '../db/schema/identityBackups.js';
+import { personalIdentityKeyRetirements } from '../db/schema/personalIdentityKeyRetirements.js';
 import { sessions } from '../db/schema/sessions.js';
 import { userAuthMethods } from '../db/schema/userAuthMethods.js';
 import { users } from '../db/schema/users.js';
@@ -48,7 +50,7 @@ import userCache from '../utils/userCache.js';
 import { buildUserDid } from '../services/did.service.js';
 import { buildAuthMethodEntries } from '../utils/authMethodEntries.js';
 import { linkRootToAccount } from '../services/identityLink.service.js';
-import { organizationKeyEverUsed } from '../services/organizationKeyHistory.js';
+import { identityKeyEverUsed } from '../services/organizationKeyHistory.js';
 import { ApiError } from '../utils/error.js';
 import {
   IDENTITY_ERROR_CODES,
@@ -386,8 +388,9 @@ router.post(
     if (conflict && conflict.id !== userId) {
       throw new ConflictError('This identity is already linked to another account');
     }
-    // A key that was ever an organization's is never anyone else's (ADR 0061 D2).
-    if (await organizationKeyEverUsed(db, canonicalNewPublicKey)) {
+    // A key that was ever an organization's, or any person's retired root (this
+    // account's included), is never a root again (ADR 0061 D2).
+    if (await identityKeyEverUsed(db, canonicalNewPublicKey)) {
       throw new ConflictError('This identity is already linked to another account');
     }
 
@@ -441,10 +444,26 @@ router.post(
           });
         }
 
-        await tx
+        // Compare-and-swap on the key the proofs were checked against: a
+        // concurrent rotation that committed first replaced it, and overwriting
+        // that rotation's key would leave it out of the retired history below.
+        const swapped = await tx
           .update(users)
           .set({ publicKey: canonicalNewPublicKey })
-          .where(eq(users.id, userId));
+          .where(and(eq(users.id, userId), eq(users.publicKey, oldPublicKey)))
+          .returning({ id: users.id });
+        if (swapped.length === 0) {
+          throw new ConflictError('The identity key changed during rotation — please try again');
+        }
+
+        // The replaced root joins the account's key history, for good: Commons
+        // keeps its private key to spend what it received, and no account may
+        // take it again. Already there (it cannot be, since no writer accepts a
+        // retired key) is not an error.
+        await tx
+          .insert(personalIdentityKeyRetirements)
+          .values({ userId, publicKey: canonicalOldPublicKey })
+          .onConflictDoNothing({ target: personalIdentityKeyRetirements.publicKey });
 
         await tx.delete(identityBackups).where(eq(identityBackups.userId, userId));
       });

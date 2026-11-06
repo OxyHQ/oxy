@@ -49,6 +49,7 @@ import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { emailVerifications } from '../../db/schema/emailVerifications';
 import { identityLinkRequests } from '../../db/schema/identityLinkRequests';
+import { personalIdentityKeyRetirements } from '../../db/schema/personalIdentityKeyRetirements';
 import { applications } from '../../db/schema/applications';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
@@ -271,6 +272,46 @@ describe('linking Commons from two devices', () => {
     );
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('IDENTITY_ROOT_LINKED_ELSEWHERE');
+  });
+
+  it("refuses a person's retired root, at the proof and again at completion, as a key linked elsewhere", async () => {
+    await emailAccount();
+    const link = await open();
+    const retired = commonsKey();
+    await getDb().insert(personalIdentityKeyRetirements).values({ publicKey: retired.publicKey });
+    const atProof = await call(
+      'POST',
+      `/${link.linkId}/proof`,
+      (await commonsProof(link.linkId, link.challenge, retired)).body,
+      null,
+    );
+    expect(atProof.status).toBe(409);
+    expect(atProof.body.error).toBe('IDENTITY_ROOT_LINKED_ELSEWHERE');
+
+    // Signed before its retirement: `linkRootToAccount` refuses it in the
+    // completing transaction, and the account keeps no key.
+    const account = await emailAccount();
+    const later = await open();
+    const key = commonsKey();
+    expect(
+      (
+        await call(
+          'POST',
+          `/${later.linkId}/proof`,
+          (
+            await commonsProof(later.linkId, later.challenge, key)
+          ).body,
+          null,
+        )
+      ).status,
+    ).toBe(200);
+    await getDb().insert(personalIdentityKeyRetirements).values({ publicKey: key.publicKey });
+    const done = await call('POST', `/${later.linkId}/complete`, {
+      reauth: { emailCode: await reauthCode(account.id) },
+    });
+    expect(done.status).toBe(409);
+    expect(done.body.error).toBe('IDENTITY_ROOT_LINKED_ELSEWHERE');
+    expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
   });
 
   it('links nothing without the email code', async () => {

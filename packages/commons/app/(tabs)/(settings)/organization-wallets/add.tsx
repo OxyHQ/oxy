@@ -2,7 +2,12 @@ import { useCallback, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '@oxy.so/bloom/button';
 import { toast } from '@oxy.so/bloom/toast';
-import { organizationKeyFromPhrase, storeOrganizationKey } from '@oxy.so/core/crypto';
+import {
+  organizationKeyFromPhrase,
+  retireIdentityKey,
+  storeOrganizationKey,
+} from '@oxy.so/core/crypto';
+import { isRetiredOrganizationKey } from '@/lib/organization-wallet';
 import { Screen, StackHeader, ImportantBanner, LoadingState } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
@@ -18,7 +23,9 @@ const ORGANIZATION_PHRASE_WORDS = 24;
  * Add an organization's key you were given (ADR 0061 D5): its 24-word phrase,
  * entered here. Nothing is sent anywhere: the phrase must derive the key the
  * organization's DID publishes as `#key-1` right now, and only then is it kept
- * on this phone.
+ * on this phone. A phrase of one of the organization's REPLACED keys (its key
+ * history says so) is kept as a previous key, for spending only (ADR 0061 D7
+ * as amended); any other phrase is refused.
  */
 export default function AddOrganizationKeyScreen() {
   const router = useRouter();
@@ -58,6 +65,15 @@ export default function AddOrganizationKeyScreen() {
         return;
       }
       if (key.publicKey.toLowerCase() !== current) {
+        // One of the organization's previous keys: kept for spending only,
+        // never as the current key (ADR 0061 D7 as amended).
+        if (wallet.data && isRetiredOrganizationKey(wallet.data.state, key.publicKey)) {
+          await retireIdentityKey(key, { accountId });
+          await invalidate();
+          toast.success(t('organizationWallet.add.previousDone'));
+          router.back();
+          return;
+        }
         setProblem(t('organizationWallet.add.mismatch'));
         return;
       }

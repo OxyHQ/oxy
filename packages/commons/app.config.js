@@ -43,7 +43,7 @@ module.exports = {
     // 1.5.0 carries the caller allow-list with every app on its own domain's id;
     // 1.6.0 is the iOS keychain access-group split (new entitlements, the
     // keychain probe in @oxy.so/services' native module, the migration).
-    version: '1.6.0',
+    version: '1.7.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /

@@ -90,6 +90,20 @@ public class OxyIdentityModule: Module {
       }
       return group
     }
+
+    // Retired keys (Commons protocol 4): iOS reads them from the wallet group
+    // directly, like the current key.
+    AsyncFunction("listRetiredKeys") { (_ accountId: String?) -> [String: Any]? in
+      return nil
+    }
+
+    AsyncFunction("deriveRetiredScopedSeed") { (_ info: String, _ publicKey: String, _ accountId: String?) -> [String: String]? in
+      return nil
+    }
+
+    AsyncFunction("signRetiredSocialReceive") { (_ index: Int, _ digest: String, _ publicKey: String, _ accountId: String?) -> [String: String]? in
+      return nil
+    }
   }
 }
 

@@ -57,9 +57,11 @@ const NEW_KEY = {
   publicKey: `04${'aa'.repeat(64)}`,
 };
 const mockStore = jest.fn(async () => undefined);
+const mockRetire = jest.fn(async () => undefined);
 jest.mock('@oxy.so/core/crypto', () => ({
   generateOrganizationKey: jest.fn(async () => NEW_KEY),
   getOrganizationPrivateKey: jest.fn(async () => '22'.repeat(32)),
+  retireIdentityKey: (...args: unknown[]) => mockRetire(...(args as [])),
   storeOrganizationKey: (...args: unknown[]) => mockStore(...(args as [])),
 }));
 
@@ -122,7 +124,7 @@ it('replaces: only after the funds warning, signed by the current key this phone
   fireEvent.click(getByTestId('org-key-reveal'));
   fireEvent.click(getAllByRole('checkbox')[0]);
   fireEvent.click(getByTestId('org-key-continue'));
-  expect(container.textContent).toContain('Move the funds first');
+  expect(container.textContent).toContain('The current key stays with the funds');
   expect((getByTestId('org-key-commit') as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(getAllByRole('checkbox')[0]);
   fireEvent.click(getByTestId('org-key-commit'));
@@ -133,6 +135,30 @@ it('replaces: only after the funds warning, signed by the current key this phone
     key: { privateKey: NEW_KEY.privateKey, publicKey: NEW_KEY.publicKey },
     previousKey: { privateKey: '22'.repeat(32), publicKey: current },
   });
+  // The replaced key is kept as a previous key BEFORE the change (ADR 0061 D7 as amended).
+  expect(mockRetire).toHaveBeenCalledWith(
+    { privateKey: '22'.repeat(32), publicKey: current },
+    { accountId: 'org-1' },
+  );
+  expect(mockRetire.mock.invocationCallOrder[0]).toBeLessThan(link.mock.invocationCallOrder[0]);
+});
+
+it('does not replace when this phone cannot keep the current key', async () => {
+  const current = `04${'bb'.repeat(64)}`;
+  mockWallet.current = { status: 'held', deviceKey: current };
+  mockRetire.mockRejectedValueOnce(new Error('keychain refused'));
+  __setMockSearchParams({ accountId: 'org-1', operation: 'replace' });
+  const { getAllByRole, getByTestId } = renderScreen();
+  await waitFor(() => expect(getByTestId('org-key-reveal')).toBeTruthy());
+  fireEvent.click(getByTestId('org-key-reveal'));
+  fireEvent.click(getAllByRole('checkbox')[0]);
+  fireEvent.click(getByTestId('org-key-continue'));
+  fireEvent.click(getAllByRole('checkbox')[0]);
+  fireEvent.click(getByTestId('org-key-commit'));
+  await waitFor(() => expect(mockRetire).toHaveBeenCalled());
+  await waitFor(() => expect(getByTestId('org-key-commit')).toBeTruthy());
+  expect(link).not.toHaveBeenCalled();
+  expect(mockStore).not.toHaveBeenCalled();
 });
 
 it('keeps nothing on the phone when Oxy refuses', async () => {

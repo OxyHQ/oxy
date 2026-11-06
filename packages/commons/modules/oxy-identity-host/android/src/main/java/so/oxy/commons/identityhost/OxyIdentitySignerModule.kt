@@ -50,5 +50,25 @@ class OxyIdentitySignerModule : Module() {
     AsyncFunction("clearOrganization") { accountId: String ->
       IdentitySignerStore.clearOrganization(context, accountId)
     }
+
+    // The retired key ring: scope is "personal" or an organization's account id,
+    // and each retired key is named by its own public key. Spending only.
+    AsyncFunction("readRetired") { scope: String, publicKey: String ->
+      IdentitySignerStore.readRetired(context, scope, publicKey)?.let { (priv, pub) ->
+        mapOf("privateKey" to priv, "publicKey" to pub)
+      }
+    }
+
+    AsyncFunction("writeRetired") { scope: String, privateKey: String, publicKey: String ->
+      IdentitySignerStore.writeRetired(context, scope, privateKey, publicKey)
+    }
+
+    AsyncFunction("listRetired") { scope: String ->
+      IdentitySignerStore.listRetired(context, scope)
+    }
+
+    AsyncFunction("clearRetired") { scope: String, publicKey: String ->
+      IdentitySignerStore.clearRetired(context, scope, publicKey)
+    }
   }
 }

@@ -79,6 +79,7 @@ jest.mock('../../server', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { authChallenges } from '../../db/schema/authChallenges';
 import { notifications } from '../../db/schema/notifications';
+import { personalIdentityKeyRetirements } from '../../db/schema/personalIdentityKeyRetirements';
 import { sessions } from '../../db/schema/sessions';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { userLinkMetadata } from '../../db/schema/userLinkMetadata';
@@ -430,6 +431,19 @@ describe('register', () => {
     );
     expect(dupIdentity.statusCode).toBe(409);
     expect(dupIdentity.body).toEqual({ message: 'Identity already registered' });
+
+    // A key that can never be a root (here, a person's retired one) gets the
+    // same answer as a key another account holds.
+    const retired = `04${randomUUID().replace(/-/g, '').repeat(4)}`;
+    await getDb().insert(personalIdentityKeyRetirements).values({ publicKey: retired });
+    const retiredIdentity = captureRes();
+    await SessionController.register(
+      request({ body: registerBody({ publicKey: retired }) }),
+      asResponse(retiredIdentity),
+    );
+    expect(retiredIdentity.statusCode).toBe(409);
+    expect(retiredIdentity.body).toEqual({ message: 'Identity already registered' });
+    expect(await accountIdByPublicKey(retired)).toBeFalsy();
 
     const dupUsername = captureRes();
     await SessionController.register(

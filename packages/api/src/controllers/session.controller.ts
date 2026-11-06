@@ -30,9 +30,9 @@ import {
   type CanonicalUsername,
 } from '../services/accountCreation.service';
 import { isUniqueViolation } from '@oxy.so/db';
-import { BadRequestError } from '../utils/error';
+import { ApiError, BadRequestError } from '../utils/error';
 import type { AuthRequest } from '../middleware/auth';
-import { accountActorChainFromSession } from '@oxy.so/contracts';
+import { IDENTITY_ERROR_CODES, accountActorChainFromSession } from '@oxy.so/contracts';
 import {
   meetsRegistrationPowDifficulty,
   REGISTRATION_POW_DIFFICULTY_BITS,
@@ -285,10 +285,13 @@ export class SessionController {
         return res.status(409).json({ message: 'Username already taken' });
       }
       // The key is held by an account already — as its own identity, or (one
-      // identity key authenticates exactly one account) as another's method.
+      // identity key authenticates exactly one account) as another's method —
+      // or it can never be a root: an organization's key or a retired root
+      // (`createPersonalAccount`, ADR 0061 D2), answered the same way.
       if (
         isUniqueViolation(error, 'users_lower_public_key_key') ||
-        isUniqueViolation(error, 'user_auth_methods_lower_method_public_key_key')
+        isUniqueViolation(error, 'user_auth_methods_lower_method_public_key_key') ||
+        (error instanceof ApiError && error.code === IDENTITY_ERROR_CODES.rootLinkedElsewhere)
       ) {
         return res.status(409).json({ message: 'Identity already registered' });
       }

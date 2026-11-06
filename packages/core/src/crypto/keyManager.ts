@@ -32,6 +32,7 @@ import { isDev, logger } from '../logger';
 import { deriveScopedSeedFromKey, signSocialReceiveDigest } from './identityDerivations';
 import { type IdentitySignerStore, registerIdentitySignerStore } from './identitySigner';
 import { getOrganizationPrivateKey, isOrganizationAccountId } from './organizationKeys';
+import { forgetRetiredIdentityKeys, getRetiredPrivateKey, retiredKeyScope } from './retiredKeys';
 import {
   type KeychainItemClass,
   groupedKeychainStore,
@@ -2611,6 +2612,16 @@ export class KeyManager {
     if (force) {
       await KeyManager._bestEffortDeleteBackupsAllGenerations(store);
       await KeyManager._clearSharedSlot(store);
+      // The person's retired keys go with the identity they belonged to.
+      try {
+        await forgetRetiredIdentityKeys();
+      } catch (error) {
+        logger.warn(
+          'Failed to clear retired keys during delete',
+          { component: 'KeyManager' },
+          error,
+        );
+      }
     }
 
     // The device backup goes on EVERY delete, forced or not: it is restored
@@ -3229,17 +3240,36 @@ export class KeyManager {
    * keychain group, or Commons' identity host. It never falls back to the
    * personal key.
    *
+   * With `opts.publicKey` the seed is derived from the key of that account
+   * (personal, or `accountId`'s) whose public key it names: the current key
+   * when it matches, else a RETIRED key Commons kept after a rotation or
+   * replacement (`./retiredKeys`, ADR 0061 D7 as amended). Spending only: a
+   * retired key never signs in. Never falls back to another key.
+   *
    * @param info Context/domain-binding label (distinct labels → independent seeds).
    * @param opts.accountId An organization's account id, for its key.
+   * @param opts.publicKey Selects one key of that account by its public key.
    * @returns 32 bytes of derived keying material, or `null` on web / when no
    *          identity key is available to this app.
    */
   static async deriveScopedSeed(
     info: string,
-    opts?: { accountId?: string },
+    opts?: { accountId?: string; publicKey?: string },
   ): Promise<Uint8Array | null> {
     if (isWebPlatform()) {
       return null;
+    }
+    if (opts?.publicKey !== undefined) {
+      if (isAndroid() && !KeyManager.identitySignerStore) {
+        const selected = KeyManager._selectorKey(opts.publicKey);
+        if (!selected) return null;
+        const bridge = await loadCommonsIdentityBridge();
+        const seed =
+          (await bridge?.deriveRetiredScopedSeed?.(info, selected, opts.accountId)) ?? null;
+        return seed ? hexToBytes(seed) : null;
+      }
+      const selected = await KeyManager._selectedPrivateKey(opts.publicKey, opts.accountId);
+      return selected ? deriveScopedSeedFromKey(selected, info) : null;
     }
     if (opts?.accountId !== undefined) {
       return KeyManager._deriveOrganizationScopedSeed(info, opts.accountId);
@@ -3292,7 +3322,8 @@ export class KeyManager {
    * compressed public key for the scriptSig.
    *
    * Key source: as {@link deriveScopedSeed}, including `opts.accountId` for an
-   * organization's key (ADR 0061 D6). On Android outside Commons the signature
+   * organization's key (ADR 0061 D6) and `opts.publicKey` for one key of the
+   * account, current or retired. On Android outside Commons the signature
    * comes from Commons, which allows it for the wallet app only.
    *
    * @returns the signature, or `null` on web / when no identity key is
@@ -3301,10 +3332,23 @@ export class KeyManager {
   static async signSocialReceive(
     index: number,
     digest: string,
-    opts?: { accountId?: string },
+    opts?: { accountId?: string; publicKey?: string },
   ): Promise<CommonsSocialReceiveSignature | null> {
     if (isWebPlatform()) {
       return null;
+    }
+    if (opts?.publicKey !== undefined) {
+      if (isAndroid() && !KeyManager.identitySignerStore) {
+        const selected = KeyManager._selectorKey(opts.publicKey);
+        if (!selected) return null;
+        const bridge = await loadCommonsIdentityBridge();
+        return (
+          (await bridge?.signRetiredSocialReceive?.(index, digest, selected, opts.accountId)) ??
+          null
+        );
+      }
+      const selected = await KeyManager._selectedPrivateKey(opts.publicKey, opts.accountId);
+      return selected ? signSocialReceiveDigest(selected, index, digest) : null;
     }
     const accountId = opts?.accountId;
     if (accountId !== undefined) {
@@ -3328,6 +3372,40 @@ export class KeyManager {
       ? await KeyManager.getPrivateKey()
       : ((await KeyManager.getSharedPrivateKey()) ?? (await KeyManager.getPrivateKey()));
     return local ? signSocialReceiveDigest(local, index, digest) : null;
+  }
+
+  /**
+   * The private key of the account (personal, or `accountId`'s organization)
+   * whose public key is `publicKey`, from this app's own storage: the current
+   * key when it matches, else the retired ring. iOS and Commons only; `null`
+   * for a key this device does not hold. Never another key in its place. @internal
+   */
+  /**
+   * The selector in the identity host's encoding (lowercase uncompressed), so a
+   * compressed `#key-1` from a DID or a gateway row selects the same key. @internal
+   */
+  private static _selectorKey(publicKey: string): string | null {
+    return KeyManager.isValidPublicKey(publicKey) ? KeyManager.canonicalPublicKey(publicKey) : null;
+  }
+
+  private static async _selectedPrivateKey(
+    publicKey: string,
+    accountId?: string,
+  ): Promise<string | null> {
+    if (retiredKeyScope({ accountId }) === null || !KeyManager.isValidPublicKey(publicKey)) {
+      return null;
+    }
+    const wanted = KeyManager.canonicalPublicKey(publicKey);
+    const current =
+      accountId !== undefined
+        ? await getOrganizationPrivateKey(accountId)
+        : isAndroid()
+          ? await KeyManager.getPrivateKey()
+          : ((await KeyManager.getSharedPrivateKey()) ?? (await KeyManager.getPrivateKey()));
+    if (current && KeyManager.canonicalPublicKey(KeyManager.derivePublicKey(current)) === wanted) {
+      return current;
+    }
+    return getRetiredPrivateKey(wanted, accountId !== undefined ? { accountId } : undefined);
   }
 
   /**

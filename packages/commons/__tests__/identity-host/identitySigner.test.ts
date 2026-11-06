@@ -80,6 +80,74 @@ describe('createIdentitySignerStore', () => {
     expect(store?.writeOrganization).toBeUndefined();
   });
 
+  it('moves retired pairs through the native module, by scope and public key', async () => {
+    const ring = new Map<string, { privateKey: string; publicKey: string }>();
+    const native = {
+      ...fakeNative(),
+      readRetired: jest.fn(
+        async (scope: string, publicKey: string) => ring.get(`${scope}/${publicKey}`) ?? null,
+      ),
+      writeRetired: jest.fn(async (scope: string, privateKey: string, publicKey: string) => {
+        ring.set(`${scope}/${publicKey}`, { privateKey, publicKey });
+        return true;
+      }),
+      // The native list may carry anything; only strings come through.
+      listRetired: jest.fn(async (scope: string) => [
+        ...[...ring.keys()].filter((k) => k.startsWith(`${scope}/`)).map((k) => k.split('/')[1]),
+        42,
+      ]),
+      clearRetired: jest.fn(async (scope: string, publicKey: string) => {
+        ring.delete(`${scope}/${publicKey}`);
+      }),
+    };
+    requireOptional.mockReturnValue(native);
+    const store = createIdentitySignerStore();
+    const org = '0123456789abcdef01234567';
+    await expect(store?.writeRetired?.('personal', 'aa', '04bb')).resolves.toBe(true);
+    await expect(store?.writeRetired?.(org, 'cc', '04dd')).resolves.toBe(true);
+    await expect(store?.readRetired?.('personal', '04bb')).resolves.toEqual({
+      privateKey: 'aa',
+      publicKey: '04bb',
+    });
+    await expect(store?.listRetired?.('personal')).resolves.toEqual(['04bb']);
+    await expect(store?.listRetired?.(org)).resolves.toEqual(['04dd']);
+    // The ring is not the personal pair.
+    await expect(store?.read()).resolves.toBeNull();
+    await store?.clearRetired?.('personal', '04bb');
+    await expect(store?.readRetired?.('personal', '04bb')).resolves.toBeNull();
+    await expect(store?.listRetired?.('personal')).resolves.toEqual([]);
+    expect(native.clearRetired).toHaveBeenCalledWith('personal', '04bb');
+  });
+
+  it('offers no retired ring unless the binary carries all four functions', async () => {
+    requireOptional.mockReturnValue(fakeNative());
+    expect(createIdentitySignerStore()?.writeRetired).toBeUndefined();
+    requireOptional.mockReturnValue({
+      ...fakeNative(),
+      readRetired: jest.fn(async () => null),
+      writeRetired: jest.fn(async () => true),
+      listRetired: jest.fn(async () => []),
+    });
+    const store = createIdentitySignerStore();
+    expect(store?.readRetired).toBeUndefined();
+    expect(store?.writeRetired).toBeUndefined();
+    expect(store?.listRetired).toBeUndefined();
+    expect(store?.clearRetired).toBeUndefined();
+  });
+
+  it('reads a malformed retired list as empty', async () => {
+    requireOptional.mockReturnValue({
+      ...fakeNative(),
+      readRetired: jest.fn(async () => ({ privateKey: 1, publicKey: '04bb' })),
+      writeRetired: jest.fn(async () => true),
+      listRetired: jest.fn(async () => ({ length: 1 })),
+      clearRetired: jest.fn(async () => undefined),
+    });
+    const store = createIdentitySignerStore();
+    await expect(store?.listRetired?.('personal')).resolves.toEqual([]);
+    await expect(store?.readRetired?.('personal', '04bb')).resolves.toBeNull();
+  });
+
   it('reads a malformed native answer as empty', async () => {
     requireOptional.mockReturnValue({
       ...fakeNative(),

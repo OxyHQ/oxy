@@ -1639,6 +1639,13 @@
       "when": 1793937901282,
       "tag": "0234_account_pronouns",
       "breakpoints": true
+    },
+    {
+      "idx": 235,
+      "version": "7",
+      "when": 1793960457222,
+      "tag": "0235_personal_identity_key_retirements",
+      "breakpoints": true
     }
   ]
 }

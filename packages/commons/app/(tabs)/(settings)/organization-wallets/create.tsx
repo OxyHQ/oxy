@@ -7,6 +7,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import {
   generateOrganizationKey,
   getOrganizationPrivateKey,
+  retireIdentityKey,
   storeOrganizationKey,
   type GeneratedOrganizationKey,
 } from '@oxy.so/core/crypto';
@@ -109,6 +110,19 @@ export default function CreateOrganizationKeyScreen() {
     // The current key signs too when this phone holds it (recorded as proven).
     const current = wallet.data.status === 'held' ? wallet.data.deviceKey : null;
     const currentPrivate = current ? await getOrganizationPrivateKey(accountId) : null;
+    // A replaced key stays on this phone as one of the organization's previous
+    // keys, so Peable can still spend what it received and will receive
+    // (ADR 0061 D7 as amended). Kept BEFORE the change: a phone that cannot
+    // keep it does not replace it.
+    if (current && currentPrivate) {
+      try {
+        await retireIdentityKey({ privateKey: currentPrivate, publicKey: current }, { accountId });
+      } catch {
+        toast.error(t('organizationWallet.errors.retainFailed'));
+        setStep('confirm');
+        return;
+      }
+    }
     try {
       await oxyServices.accounts.identityKey.link(accountId, {
         operation,

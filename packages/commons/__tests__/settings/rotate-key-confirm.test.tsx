@@ -76,7 +76,7 @@ describe.each(['device', 'phrase'] as const)('rotating with proof %s', (proof) =
   it('does not rotate until the funds acknowledgement is ticked', async () => {
     const { getByTestId, container } = renderScreen();
 
-    expect(container.textContent).toContain('Move your Peable funds first');
+    expect(container.textContent).toContain('Your current key stays with your Peable funds');
     const commit = getByTestId('rotate-key-commit') as HTMLButtonElement;
     expect(commit.disabled).toBe(true);
     fireEvent.click(commit);
@@ -115,6 +115,18 @@ describe('rotation copy', () => {
       expect(confirm.fundsTitle).toMatch(/Peable/);
       expect(confirm.fundsBody).toMatch(/FairCoin/);
       expect(confirm.fundsConfirm).toBeTruthy();
+    }
+  });
+
+  it('says the current key is kept for spending, and that a compromise means moving at once', () => {
+    const en = load('en.json');
+    expect(en.rotateKey.warning).toMatch(/previous key/i);
+    expect(en.rotateKey.confirm.fundsBody).toMatch(/previous key/i);
+    expect(en.rotateKey.confirm.fundsBody).toMatch(/compromised/i);
+    for (const file of ['en.json', 'es.json']) {
+      const { warning, confirm } = load(file).rotateKey;
+      expect(`${warning} ${confirm.fundsBody}`).not.toMatch(/outside (this wallet|Peable)/i);
+      expect(`${warning} ${confirm.fundsBody}`).not.toMatch(/keeps only the new key/i);
     }
   });
 });

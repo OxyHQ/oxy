@@ -1,7 +1,9 @@
 # ADR 0061 — An organization has its own identity key, created and held in Commons by its owners and admins
 
-- Status: accepted; D7 amended 2026-11-06, before any key existed, to keep Peable ADR 0002's
-  "no second address tree" (Commons holds only the current key); D6's iOS clause changed by
+- Status: accepted; D7 amended 2026-11-06 twice: first, before any key existed, to keep Peable
+  ADR 0002's "no second address tree" (Commons held only the current key); then, the same day,
+  by the owner's decision ("Fix F5, F1 and D9", mainnet gate finding F1), to keep every replaced
+  key in a retired key ring for spending only — this text. D6's iOS clause changed by
   [0062](0062-ios-keychain-access-group-split.md)
 - Date: 2026-11-06
 - Decision: the owner (2026-11-06): organization accounts get a Peable wallet.
@@ -170,16 +172,61 @@ loses the phrase or leaves.
 Replacing the key does not move money, following Peable ADR 0002:
 
 - Every address already reserved derives from the key it was reserved against
-  (Peable records it on the cursor). New reservations use the new `#key-1`.
-- Coins received under the previous key are spendable only with the previous
-  key. Oxy and Peable cannot move them.
-- When a holder leaves the organization the owners must replace the key. A
-  voluntary replacement moves the funds first while the key is held, and keeps
-  the previous phrase; Commons says so before it replaces, and afterwards holds
-  only the new key. There is no second address tree (ADR 0002).
-- The wallet compares the device's key with the DID's `#key-1` and stops
-  offering to receive on a mismatch (ADR 0002); it reads the key history
-  (`GET /accounts/:id/identity-key`) to know which keys were the organization's.
+  (Peable records it on every address). New reservations use the new `#key-1`.
+- Coins keep arriving under a replaced key after the replacement, by design:
+  payments already broadcast to it settle (Peable ADR 0002's amendment), and late
+  payers and `@username` senders hold its addresses. So a sweep before replacing
+  can never be complete, and the key is not dropped.
+
+**Amended 2026-11-06 (F1): the retired key ring.** Commons keeps every replaced
+key it held, for spending only, and the wallet reaches it the way it reaches the
+current key:
+
+1. **Retained, not exported.** Before Commons replaces an organization key it
+   holds (and before a personal rotation, `oxy.identity.rotateKey`), it writes
+   that private key to the account's retired ring (`@oxy.so/core`
+   `crypto/retiredKeys.ts`; one ring per account: `personal`, and one per
+   organization account id), with the same protection as the current key. A
+   phone that cannot keep it does not replace it. A phone holding a key another
+   owner replaced moves it into the ring when it next reads the organization
+   (the history names it as retired). A retired key never signs anyone in,
+   never publishes, never takes a new reservation and never rotates.
+2. **Reached by a selector.** `KeyManager.deriveScopedSeed(info, { accountId?,
+   publicKey })` and `signSocialReceive(index, digest, { accountId?, publicKey })`
+   select the key of that account whose public key is `publicKey`: the current
+   key when it matches, else the retired ring; never another key in its place.
+   `listRetiredIdentityKeys({ accountId? })` lists the ring's public keys. On
+   Android the wallet asks Commons' identity host (protocol 4: a `keyPublicKey`
+   extra on `deriveScopedSeed` / `signSocialReceive`, echoed in the answer, and
+   `listRetiredKeys`), under the same caller policy as the current key (the
+   wallet only); on iOS through the keychain group that holds the current
+   private keys. Commons mirrors the ring into the identity signer store and
+   re-mirrors it on boot (`syncRetiredKeys`).
+3. **A previous phrase can be added.** A phone without the retired key (restored
+   from the new phrase, a second admin) enters the replaced key's phrase in
+   Commons (the organization's "Add the key you were given", or Backup &
+   recovery → Previous keys for a person). Commons accepts it only when it
+   derives a key Oxy recorded as this account's and retired:
+   `organization_identity_keys` (`GET /accounts/:id/identity-key`, `retiredAt`
+   set) for an organization, `personal_identity_key_retirements`
+   (`GET /identity/key-history`) for a person. It goes into the ring, never into
+   the current slot. The phrase itself is not stored.
+4. **Peable spends and moves them.** The wallet groups the account's addresses by
+   the key each was handed out under, derives each reachable retired key's HD
+   wallet and social addresses with the selector, shows those coins as
+   spendable and offers to move them to the current key (Peable ADR 0002 as
+   amended).
+
+What it costs, honestly: a retained key that was compromised is also the
+attacker's. The ring makes those coins spendable from Peable again; it cannot
+make them safe, and the wallet's move races whoever else holds the phrase.
+Commons says so before replacing: a replacement because a holder left or the
+phrase may be exposed must be followed at once by moving the funds. Removing
+someone from the organization still does not take the phrase away.
+
+The wallet compares the device's key with the DID's `#key-1` and stops offering
+to receive on a mismatch (ADR 0002); it reads the key history
+(`GET /accounts/:id/identity-key`) to know which keys were the organization's.
 
 ### D8 — A keyless organization
 
@@ -213,6 +260,8 @@ and the key as `#key-1`.
 
 - An organization can receive FairCoin through Peable once an owner or admin
   creates its key in Commons.
-- Funds received under a replaced key are not recovered by anything here.
+- Funds received under a replaced key stay spendable from Peable wherever its
+  retired key is held or its phrase is added (D7 as amended); without either,
+  only the phrase recovers them.
 - `organization_identity_keys` and the new challenge rows are an additive
   pre-deploy migration.

@@ -50,6 +50,24 @@ export function deviceKeyStatus(
   return held ? 'stale' : 'elsewhere';
 }
 
+/**
+ * Whether `publicKey` was one of the organization's keys and has been replaced
+ * (`organization_identity_keys`, `retiredAt` set). Only such a key may enter
+ * this device's retired ring for the organization (ADR 0061 D7 as amended):
+ * a phrase or a device key that Oxy never recorded as the organization's is
+ * refused.
+ */
+export function isRetiredOrganizationKey(
+  state: { keys: readonly { publicKey: string; retiredAt: string | null }[] },
+  publicKey: string | null,
+): boolean {
+  const wanted = publicKey?.trim().toLowerCase();
+  if (!wanted) return false;
+  return state.keys.some(
+    (key) => key.retiredAt !== null && key.publicKey.trim().toLowerCase() === wanted,
+  );
+}
+
 /** The translation key for a refusal of the organization-key routes; never the server's English. */
 export function organizationKeyErrorKey(error: unknown): string {
   const code =

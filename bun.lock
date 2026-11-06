@@ -135,6 +135,7 @@
         "@aws-sdk/credential-provider-node": "catalog:",
         "@aws-sdk/lib-storage": "3.1161.0",
         "@aws-sdk/s3-request-presigner": "^3.1161.0",
+        "@clarity.surf/sdk": "0.11.0",
         "@kaana.ai/contracts": "8.2.0",
         "@levischuck/tiny-cbor": "^0.3.6",
         "@lottiefiles/dotlottie-web": "0.82.1",
@@ -149,7 +150,6 @@
         "@opentelemetry/sdk-node": "^0.300.0",
         "@oxy.so/bloom": "catalog:",
         "@oxy.so/contracts": "workspace:*",
-        "@clarity.surf/sdk": "0.11.0",
         "@oxy.so/core": "workspace:*",
         "@oxy.so/db": "workspace:*",
         "@oxy.so/federation": "workspace:*",
@@ -478,7 +478,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "6.11.0",
+      "version": "6.12.0",
       "dependencies": {
         "zod": "catalog:",
       },
@@ -491,7 +491,7 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "7.29.0",
+      "version": "7.30.0",
       "dependencies": {
         "@noble/ciphers": "^2.4.0",
         "@noble/hashes": "^2.4.0",
@@ -675,7 +675,7 @@
     },
     "packages/protocol": {
       "name": "@oxy.so/protocol",
-      "version": "1.8.0",
+      "version": "1.9.0",
       "dependencies": {
         "@noble/curves": "catalog:",
         "@oxy.so/contracts": "workspace:^",
@@ -710,7 +710,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "14.8.0",
+      "version": "14.9.0",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "^4.0.0",
@@ -1034,7 +1034,7 @@
     "@lottiefiles/dotlottie-react": "^0.21.1",
     "@noble/curves": "^2.4.0",
     "@oxy.so/bloom": "17.8.1",
-    "@oxy.so/core": "^7.29.0",
+    "@oxy.so/core": "^7.30.0",
     "@rolldown/plugin-babel": "^0.3.0",
     "@shopify/react-native-skia": "2.14.0",
     "@tanstack/query-async-storage-persister": "^5.101",

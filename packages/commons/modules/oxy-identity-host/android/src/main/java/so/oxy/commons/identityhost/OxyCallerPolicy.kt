@@ -109,6 +109,14 @@ internal object OxyCallerPolicy {
   fun maySignSocialReceive(pkg: String): Boolean = pkg in WALLET_PACKAGES
 
   /**
+   * `listRetiredKeys`: the public keys a person (or an organization) rotated
+   * away from. Only the wallet has coins to sweep from them, and to any other
+   * app the list is a link from old identity keys to the current one, so it is
+   * the wallet's alone, like the methods that spend.
+   */
+  fun mayListRetiredKeys(pkg: String): Boolean = pkg in WALLET_PACKAGES
+
+  /**
    * The calling package when it is allow-listed and signed like this app, or
    * null. Several packages can share one UID only if they declare a shared user
    * id, which no Oxy app does; the first qualifying one is used either way.

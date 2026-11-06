@@ -15,7 +15,10 @@
  *  - `newPublicKey` already registered elsewhere is rejected (409);
  *  - `userCache.invalidate` fires, the stale `identity_backups` row is gone, and
  *    the derived DID reflects the new key immediately;
- *  - `signOutEverywhere` revokes other sessions.
+ *  - `signOutEverywhere` revokes other sessions;
+ *  - the replaced root is recorded in `personal_identity_key_retirements`,
+ *    `GET /identity/key-history` answers it, and no writer (rotation, sign-up,
+ *    an organization key) ever accepts it again.
  *
  * Every assertion reads the STORED ROW. The previous suite drove an in-memory
  * `Map` standing in for `AuthChallenge` and asserted on the `findOneAndUpdate`
@@ -36,14 +39,21 @@ import { and, eq } from 'drizzle-orm';
 
 /** The account `authMiddleware` injects for the current test. */
 let currentUserId = '';
+/** The application the bearer is bound to; unset for a shared device session. */
+let currentApplicationId: string | undefined;
 
 const mockInvalidate = jest.fn();
 const mockDeactivateAll = jest.fn();
 const mockEmitSessionUpdate = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: unknown }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: unknown; oxyToken?: { applicationId?: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.user = { _id: currentUserId };
+    if (currentApplicationId) req.oxyToken = { applicationId: currentApplicationId };
     next();
   },
 }));
@@ -71,10 +81,17 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import { authChallenges } from '../../db/schema/authChallenges';
 import { identityBackups } from '../../db/schema/identityBackups';
+import { personalIdentityKeyRetirements } from '../../db/schema/personalIdentityKeyRetirements';
 import { sessions } from '../../db/schema/sessions';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import authLinkingRouter from '../authLinking';
+import identityProofRouter from '../identityProof';
+import {
+  createPersonalAccount,
+  type CanonicalUsername,
+} from '../../services/accountCreation.service';
+import { IDENTITY_ERROR_CODES } from '@oxy.so/contracts';
 import SignatureService from '../../services/signature.service';
 import { buildDidDocument } from '../../services/did.service';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -185,6 +202,7 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json());
   app.use('/auth', authLinkingRouter);
+  app.use('/identity', identityProofRouter);
   // Mirror production: convert thrown ApiErrors (e.g. Zod validation via the
   // `validate` middleware) into JSON responses instead of Express's default HTML.
   app.use(errorHandler);
@@ -202,6 +220,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  currentApplicationId = undefined;
   oldKeyPair = generateSecp256k1KeyPair();
   oldPublicKey = oldKeyPair.publicKey;
   oldPrivateKey = oldKeyPair.privateKey;
@@ -959,5 +978,214 @@ describe('signOutEverywhere', () => {
     expect(res.status).toBe(200);
     expect(mockDeactivateAll).not.toHaveBeenCalled();
     expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('retired roots (personal_identity_key_retirements)', () => {
+  type KeyPair = ReturnType<typeof generateSecp256k1KeyPair>;
+
+  /** Rotate the current account from `from` to `to` through the real routes. */
+  async function rotate(from: KeyPair, to: KeyPair, storedFrom = from.publicKey) {
+    const challenge = await mintRotateChallenge();
+    return request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({
+        oldPrivateKey: from.privateKey,
+        newKeyPair: to,
+        oldPublicKey: storedFrom,
+        challenge,
+        timestamp: Date.now(),
+      }),
+    );
+  }
+
+  async function retiredRows(userId: string) {
+    return getDb()
+      .select({
+        userId: personalIdentityKeyRetirements.userId,
+        publicKey: personalIdentityKeyRetirements.publicKey,
+        retiredAt: personalIdentityKeyRetirements.retiredAt,
+      })
+      .from(personalIdentityKeyRetirements)
+      .where(eq(personalIdentityKeyRetirements.userId, userId));
+  }
+
+  it('rotation records the replaced root, canonical, in the same transaction', async () => {
+    const next = generateSecp256k1KeyPair();
+    expect((await rotate(oldKeyPair, next)).status).toBe(200);
+    const rows = await retiredRows(currentUserId);
+    expect(rows).toEqual([
+      {
+        userId: currentUserId,
+        publicKey: normalizeSecp256k1PublicKey(oldPublicKey),
+        retiredAt: expect.any(Date),
+      },
+    ]);
+  });
+
+  it('a root stored compressed is retired in its canonical spelling', async () => {
+    const compressed = normalizeSecp256k1PublicKey(oldPublicKey, true);
+    await getDb().update(users).set({ publicKey: compressed }).where(eq(users.id, currentUserId));
+    expect((await rotate(oldKeyPair, generateSecp256k1KeyPair(), compressed)).status).toBe(200);
+    expect((await retiredRows(currentUserId)).map((row) => row.publicKey)).toEqual([
+      normalizeSecp256k1PublicKey(oldPublicKey),
+    ]);
+  });
+
+  it('GET /identity/key-history answers the current root and every retired one, oldest first', async () => {
+    const before = await request(server, 'GET', '/identity/key-history');
+    expect(before).toEqual({
+      status: 200,
+      body: { publicKey: normalizeSecp256k1PublicKey(oldPublicKey), retired: [] },
+    });
+
+    const second = generateSecp256k1KeyPair();
+    const third = generateSecp256k1KeyPair();
+    expect((await rotate(oldKeyPair, second)).status).toBe(200);
+    expect((await rotate(second, third)).status).toBe(200);
+
+    const after = await request(server, 'GET', '/identity/key-history');
+    expect(after.status).toBe(200);
+    const body = after.body as {
+      publicKey: string;
+      retired: Array<{ publicKey: string; retiredAt: string }>;
+    };
+    expect(body.publicKey).toBe(normalizeSecp256k1PublicKey(third.publicKey));
+    expect(body.retired.map((entry) => entry.publicKey)).toEqual([
+      normalizeSecp256k1PublicKey(oldPublicKey),
+      normalizeSecp256k1PublicKey(second.publicKey),
+    ]);
+    const [first, last] = body.retired.map((entry) => Date.parse(entry.retiredAt));
+    expect(first).toBeLessThanOrEqual(last);
+  });
+
+  it('a keyless personal account has no root and nothing retired', async () => {
+    await getDb().update(users).set({ publicKey: null }).where(eq(users.id, currentUserId));
+    expect(await request(server, 'GET', '/identity/key-history')).toEqual({
+      status: 200,
+      body: { publicKey: null, retired: [] },
+    });
+  });
+
+  it('refuses a non-personal account, and a third-party application bearer', async () => {
+    const [org] = await insertAccountFixtures(
+      { kind: 'organization', publicKey: generateSecp256k1KeyPair().publicKey },
+      { id: users.id },
+    );
+    currentUserId = org.id;
+    const refused = await request(server, 'GET', '/identity/key-history');
+    expect(refused.status).toBe(403);
+    expect(JSON.stringify(refused.body)).toContain(IDENTITY_ERROR_CODES.notPersonal);
+
+    // An application id the registry does not hold fails closed, like a third party's.
+    currentUserId = await accountWithIdentity(generateSecp256k1KeyPair().publicKey);
+    currentApplicationId = `app-${randomUUID()}`;
+    const thirdParty = await request(server, 'GET', '/identity/key-history');
+    expect(thirdParty).toEqual({
+      status: 403,
+      body: { error: 'third_party_device_access_denied' },
+    });
+  });
+
+  it('a retired root is never rotated in again — by anyone, its old account included — answered as a key linked elsewhere', async () => {
+    const holder = currentUserId;
+    const next = generateSecp256k1KeyPair();
+    expect((await rotate(oldKeyPair, next)).status).toBe(200);
+
+    // The answer every rotation gives for a key another account holds.
+    const strangerKey = generateSecp256k1KeyPair();
+    await accountWithIdentity(strangerKey.publicKey);
+    const linkedElsewhere = await rotate(next, strangerKey);
+    expect(linkedElsewhere.status).toBe(409);
+
+    // Back to the retired root: refused the same way, and nothing moves.
+    const back = await rotate(next, oldKeyPair);
+    expect(back).toEqual(linkedElsewhere);
+    expect((await storedUser(holder)).publicKey).toBe(next.publicKey);
+
+    // Another person, in its compressed encoding too.
+    const otherKey = generateSecp256k1KeyPair();
+    currentUserId = await accountWithIdentity(otherKey.publicKey);
+    expect(await rotate(otherKey, oldKeyPair)).toEqual(linkedElsewhere);
+    const compressed = await (async () => {
+      const challenge = await mintRotateChallenge();
+      const newPublicKey = normalizeSecp256k1PublicKey(oldPublicKey, true);
+      return request(
+        server,
+        'POST',
+        '/auth/rotate/complete',
+        buildCompleteBody({
+          oldPrivateKey: otherKey.privateKey,
+          newKeyPair: oldKeyPair,
+          newPublicKey,
+          oldPublicKey: otherKey.publicKey,
+          challenge,
+          timestamp: Date.now(),
+        }),
+      );
+    })();
+    expect(compressed).toEqual(linkedElsewhere);
+    expect((await storedUser(currentUserId)).publicKey).toBe(otherKey.publicKey);
+  });
+
+  it('a retired root is refused for sign-up, in any encoding', async () => {
+    expect((await rotate(oldKeyPair, generateSecp256k1KeyPair())).status).toBe(200);
+    for (const publicKey of [oldPublicKey, normalizeSecp256k1PublicKey(oldPublicKey, true)]) {
+      await expect(
+        getDb().transaction((tx) =>
+          createPersonalAccount(tx, `retired${Date.now()}` as CanonicalUsername, { publicKey }),
+        ),
+      ).rejects.toMatchObject({ statusCode: 409, code: IDENTITY_ERROR_CODES.rootLinkedElsewhere });
+    }
+  });
+
+  it('a rotation that lost a race to another one changes nothing', async () => {
+    // Two challenges for the same root, both valid when the proofs are checked.
+    const firstChallenge = await mintRotateChallenge();
+    const secondChallenge = await mintRotateChallenge();
+    const first = generateSecp256k1KeyPair();
+    const second = generateSecp256k1KeyPair();
+    const timestamp = Date.now();
+    const [a, b] = await Promise.all([
+      request(
+        server,
+        'POST',
+        '/auth/rotate/complete',
+        buildCompleteBody({
+          oldPrivateKey,
+          newKeyPair: first,
+          oldPublicKey,
+          challenge: firstChallenge,
+          timestamp,
+        }),
+      ),
+      request(
+        server,
+        'POST',
+        '/auth/rotate/complete',
+        buildCompleteBody({
+          oldPrivateKey,
+          newKeyPair: second,
+          oldPublicKey,
+          challenge: secondChallenge,
+          timestamp,
+        }),
+      ),
+    ]);
+    // Exactly one wins; whichever did, its key is the root and the old root is
+    // the only one retired — a winner's key is never silently overwritten. The
+    // loser is refused by the key compare-and-swap (409) when both passed the
+    // proof checks before either wrote, or by its proof (400) when it read the
+    // account after the winner committed; which one depends on scheduling.
+    const statuses = [a.status, b.status].sort((x, y) => x - y);
+    expect(statuses[0]).toBe(200);
+    expect([400, 409]).toContain(statuses[1]);
+    const root = (await storedUser(currentUserId)).publicKey;
+    expect([first.publicKey, second.publicKey]).toContain(root);
+    expect((await retiredRows(currentUserId)).map((row) => row.publicKey)).toEqual([
+      normalizeSecp256k1PublicKey(oldPublicKey),
+    ]);
   });
 });

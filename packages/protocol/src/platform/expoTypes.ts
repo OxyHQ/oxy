@@ -123,6 +123,14 @@ export interface CommonsSocialReceiveSignature {
  *
  * On iOS these methods resolve `null`: the keychain access groups in
  * `@oxy.so/core`'s `KeyManager` own iOS sharing (docs/identity/ios-keychain-access-groups.md).
+ *
+ * The three `*Retired*` methods (Commons protocol 4) reach a key the person,
+ * or the organization with `accountId`, rotated away from, by its public key,
+ * for SPENDING the coins still at its addresses: never for signing in. They are
+ * always present on the bridge and resolve `null` on a native module or a
+ * Commons that predates them; an answer that does not echo the key (and the
+ * account) asked for is refused, because the current key taken for a retired
+ * one is a payment signed by the wrong key.
  */
 export interface CommonsIdentityBridge {
   /**
@@ -147,6 +155,35 @@ export interface CommonsIdentityBridge {
   signSocialReceive(
     index: number,
     digest: string,
+    accountId?: string,
+  ): Promise<CommonsSocialReceiveSignature | null>;
+  /**
+   * The public keys (lowercase uncompressed SEC1 hex, de-duplicated) of the
+   * retired keys Commons holds for the person, or with `accountId` for that
+   * organization, minus the current one. `[]` when it holds none; `null` when
+   * Commons cannot say (absent, refused, or older than retired keys). Allowed
+   * for the wallet app only.
+   */
+  listRetiredKeys(accountId?: string): Promise<string[] | null>;
+  /**
+   * {@link deriveScopedSeed} over the key of that scope whose public key is
+   * `publicKey` (current or retired), never another key: `null` when Commons
+   * does not hold it.
+   */
+  deriveRetiredScopedSeed(
+    info: string,
+    publicKey: string,
+    accountId?: string,
+  ): Promise<string | null>;
+  /**
+   * {@link signSocialReceive} with the social-receive child `index` of the key
+   * of that scope whose public key is `publicKey` (current or retired), never
+   * another key. Allowed for the wallet app only.
+   */
+  signRetiredSocialReceive(
+    index: number,
+    digest: string,
+    publicKey: string,
     accountId?: string,
   ): Promise<CommonsSocialReceiveSignature | null>;
 }

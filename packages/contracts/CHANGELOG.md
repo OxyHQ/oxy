@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.12.0
+
+### Added
+
+- `identityKeyHistorySchema` / `IdentityKeyHistory` (`GET /identity/key-history`): `{ publicKey, retired: [{ publicKey, retiredAt }] }`, the person's current root and every root they rotated away from, oldest first, canonical keys. The `client` entry exports the zod-free `identityKeyHistoryCheck`.
+
 ## 6.11.0
 
 ### Added

@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.9.0
+
+### Added
+
+- `CommonsIdentityBridge.listRetiredKeys(accountId?)`, `deriveRetiredScopedSeed(info, publicKey, accountId?)` and `signRetiredSocialReceive(index, digest, publicKey, accountId?)`: a key the person (or, with `accountId`, the organization) rotated away from, kept by Commons for spending only (Commons identity host protocol 4, the `keyPublicKey` extra). Every answer must echo the key (and the account) asked for, so a Commons that predates them answers `null`, never the current key. A list with one malformed entry is refused whole.
+
 ## 1.8.0
 
 ### Added
