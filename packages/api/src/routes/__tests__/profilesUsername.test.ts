@@ -228,6 +228,7 @@ describe('GET /profiles/username/:username — wire shape', () => {
       description: 'desc',
       color: 'orange',
       linksMetadata: [],
+      pronouns: 'unspecified',
       createdAt: stored.createdAt.toISOString(),
       updatedAt: stored.updatedAt.toISOString(),
       // Public since consuming apps began ranking accounts by standing. It is

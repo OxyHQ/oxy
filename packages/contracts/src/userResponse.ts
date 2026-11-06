@@ -31,7 +31,7 @@ import { isoDateTime } from './stringChecks';
  */
 
 import { z } from 'zod';
-import { PROFILE_LINKS_MAX } from './client/userResponse';
+import { PRONOUNS, PROFILE_LINKS_MAX } from './client/userResponse';
 import { verifiedDomainSchema } from './identity';
 import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
 import { avatarCharacterSchema } from './avatarCharacter';
@@ -317,6 +317,8 @@ export const userResponseSchema = z
 
 export type UserResponse = z.infer<typeof userResponseSchema>;
 
+export const pronounsSchema = z.enum(PRONOUNS);
+
 export const userProfileUpdateSchema = z
   .object({
     name: z
@@ -336,6 +338,7 @@ export const userProfileUpdateSchema = z
     avatar: z.string().optional(),
     color: z.string().nullable().optional(),
     bio: z.string().optional(),
+    pronouns: pronounsSchema.optional(),
     description: z.string().optional(),
     phone: z.string().optional(),
     address: z.string().optional(),

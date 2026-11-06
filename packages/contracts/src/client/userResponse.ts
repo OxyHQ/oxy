@@ -20,6 +20,22 @@ export const userNameCheck = exact<UserNameResponse>()(
  * Most links a profile may show. Enforced by the server on every write that
  * carries `linksMetadata` (see `user.service.ts`), and by the editor.
  */
+/**
+ * How an account names its pronouns: one of a closed list, never free text. A
+ * federated account's source value is mapped onto it; a value that maps to none
+ * of these is `unspecified`.
+ */
+export const PRONOUNS = [
+  'unspecified',
+  'he_him',
+  'she_her',
+  'they_them',
+  'he_they',
+  'she_they',
+  'it_its',
+] as const;
+export type Pronouns = (typeof PRONOUNS)[number];
+
 export const PROFILE_LINKS_MAX = 10;
 
 /**
