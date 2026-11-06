@@ -385,3 +385,75 @@ it('removes organization edit forms when the same viewer loses account access', 
   );
   expect(screen.queryByLabelText('accounts.settings.displayName.label')).toBeNull();
 });
+
+it('reproduces a managed account draft surviving a viewer change', async () => {
+  const view = mount(<CreateAccountScreen onClose={jest.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'accounts.kinds.organization.label' }));
+  await findCompany();
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.newAccount' }));
+  fireEvent.change(screen.getByLabelText('accounts.create.username.label'), { target: { value: 'acme_new' } });
+  await waitFor(() => expect(checkUsername).toHaveBeenCalledWith('acme_new'));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'accounts.create.title' }).hasAttribute('disabled')).toBe(false));
+  user = { id: 'second-person', kind: 'personal' };
+  view.rerender(<QueryClientProvider client={clients[0]}><CreateAccountScreen onClose={jest.fn()} /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole('button', { name: 'accounts.create.title' }));
+  await waitFor(() => expect(createAccount).toHaveBeenCalledWith(expect.objectContaining({ name: { displayName: 'Acme' }, username: 'acme_new' })));
+});
+
+it('reproduces a late account creation switching after the viewer changes', async () => {
+  let release: ((account: { accountId: string }) => void) | undefined;
+  createAccount.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+  const onClose = jest.fn();
+  const view = mount(<CreateAccountScreen onClose={onClose} />);
+  fireEvent.click(screen.getByRole('button', { name: 'accounts.kinds.organization.label' }));
+  await findCompany();
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.newAccount' }));
+  fireEvent.change(screen.getByLabelText('accounts.create.username.label'), { target: { value: 'acme_new' } });
+  await waitFor(() => expect(checkUsername).toHaveBeenCalledWith('acme_new'));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'accounts.create.title' }).hasAttribute('disabled')).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: 'accounts.create.title' }));
+  await waitFor(() => expect(createAccount).toHaveBeenCalledTimes(1));
+  user = { id: 'second-person', kind: 'personal' };
+  view.rerender(<QueryClientProvider client={clients[0]}><CreateAccountScreen onClose={onClose} /></QueryClientProvider>);
+  release?.({ accountId: 'created-org' });
+  await waitFor(() => expect(switchToAccount).toHaveBeenCalledWith('created-org'));
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it('reproduces double managed account submission before pending state commits', async () => {
+  createAccount.mockImplementation(() => new Promise(() => {}));
+  mount(<CreateAccountScreen onClose={jest.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'accounts.kinds.organization.label' }));
+  await findCompany();
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.newAccount' }));
+  fireEvent.change(screen.getByLabelText('accounts.create.username.label'), { target: { value: 'acme_new' } });
+  await waitFor(() => expect(checkUsername).toHaveBeenCalledWith('acme_new'));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'accounts.create.title' }).hasAttribute('disabled')).toBe(false));
+  const button = screen.getByRole('button', { name: 'accounts.create.title' });
+  const { act } = await import('@testing-library/react');
+  act(() => { fireEvent.click(button); fireEvent.click(button); });
+  await waitFor(() => expect(createAccount).toHaveBeenCalledTimes(2));
+});
+
+it('ignores an older availability response after the username becomes invalid', async () => {
+  let release: ((result: { available: boolean }) => void) | undefined;
+  checkUsername.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+  mount(<CreateAccountScreen onClose={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('accounts.create.displayName.label'), { target: { value: 'Acme' } });
+  const username = screen.getByLabelText('accounts.create.username.label');
+  fireEvent.change(username, { target: { value: 'acme_new' } });
+  await waitFor(() => expect(checkUsername).toHaveBeenCalledWith('acme_new'));
+  fireEvent.change(username, { target: { value: 'a' } });
+  const button = screen.getByRole('button', { name: 'accounts.create.title' });
+  expect(button.hasAttribute('disabled')).toBe(true);
+  const { act } = await import('@testing-library/react');
+  await act(async () => { release?.({ available: true }); });
+  expect(button.hasAttribute('disabled')).toBe(true);
+  fireEvent.click(button);
+  expect(createAccount).not.toHaveBeenCalled();
+  fireEvent.change(username, { target: { value: 'acme_newer' } });
+  await waitFor(() => expect(checkUsername).toHaveBeenCalledWith('acme_newer'));
+  await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+  fireEvent.click(button);
+  await waitFor(() => expect(createAccount).toHaveBeenCalledWith(expect.objectContaining({ username: 'acme_newer' })));
+});
