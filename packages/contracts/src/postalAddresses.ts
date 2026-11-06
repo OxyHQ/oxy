@@ -11,6 +11,7 @@ const text = (max: number) =>
     .min(1)
     .max(max)
     .refine((value) => !forbidden.test(value), 'Control characters are not allowed');
+export const postalAddressParamsSchema = z.object({ id: z.uuid() }).strict();
 export const postalAddressInputSchema = z
   .object({
     recipientName: text(200),
