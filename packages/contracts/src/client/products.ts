@@ -5,6 +5,10 @@
  * Part of `@oxy.so/contracts/client`: never import `zod` here (see `./check.ts`).
  */
 
+import type {
+  BillingCustomerLocationRequest,
+  BillingCustomerLocationResult,
+} from '../products/location';
 import type { OxyAccountId } from '../inference/identifiers';
 import type { SubjectProductAccess, SubjectProductAccessQuery } from '../products/access';
 import type {
@@ -43,6 +47,7 @@ import {
   safe,
   startsWith,
   strictObject,
+  trim,
   string,
   union,
   url,
@@ -170,6 +175,7 @@ const checkoutRequestShape = {
   offerId: identifier,
   offerVersion: version,
   idempotencyKey: actionKey,
+  customerLocationEvidenceId: optional(string(pattern(/^taxloc_[A-Za-z0-9_]+$/), maxLength(160))),
 };
 
 export const personalPlanCheckoutRequestCheck = exact<PersonalPlanCheckoutRequest>()(
@@ -286,3 +292,35 @@ export const productSubscriptionCancellationResultCheck =
       strictObject({ sourceId: identifier, reconciliationPending: literal(true) }),
     ),
   );
+
+const billingAddressText = (maximum: number) =>
+  optional(string(trim, minLength(1), maxLength(maximum)));
+export const billingCustomerLocationRequestCheck = exact<BillingCustomerLocationRequest>()(
+  strictObject({
+    expectedSubjectAccountId: oxyAccountId,
+    billingAddress: strictObject({
+      country: string(pattern(/^[A-Z]{2}$/)),
+      state: optional(string(pattern(/^[A-Z0-9]{1,3}$/))),
+      postalCode: billingAddressText(20),
+      city: billingAddressText(200),
+      line1: billingAddressText(200),
+      line2: billingAddressText(200),
+    }),
+  }),
+);
+export const billingCustomerLocationResultCheck = exact<BillingCustomerLocationResult>()(
+  discriminatedUnion('state', {
+    unconfigured: strictObject({
+      state: literal('unconfigured'),
+      reason: literal('provider_unconfigured'),
+    }),
+    recorded: strictObject({
+      state: literal('recorded'),
+      subjectAccountId: oxyAccountId,
+      evidenceId: string(pattern(/^taxloc_[A-Za-z0-9_]+$/), maxLength(160)),
+      status: oneOf(['sufficient', 'insufficient', 'conflicting']),
+      country: nullable(string(pattern(/^[A-Z]{2}$/))),
+      expiresAt: string(datetime),
+    }),
+  }),
+);

@@ -71,7 +71,10 @@ export function createPeablePersonalCheckoutProvider(
   clock: () => Date = () => new Date(),
   dependencies?: {
     purchasesEnabled?: boolean;
-    resolveCustomerLocationEvidence(subjectAccountId: string): Promise<{
+    resolveCustomerLocationEvidence(
+      subjectAccountId: string,
+      evidenceId?: string,
+    ): Promise<{
       customerLocationEvidenceId: string;
     }>;
   },
@@ -148,6 +151,11 @@ export function createPeablePersonalCheckoutProvider(
         snapshot.environment !== configuration.namespace.environment
       )
         throw new Error('Peable checkout credential owner differs');
+      if (dependencies)
+        await dependencies.resolveCustomerLocationEvidence(
+          snapshot.subjectAccountId,
+          snapshot.taxQuote.quote.customerLocationEvidenceId,
+        );
       const session = await client.billing.retrieveCheckout(sessionId).catch(checkoutFailure);
       if (
         session.id !== sessionId ||
@@ -187,7 +195,10 @@ export function createPeablePersonalCheckoutProvider(
         { idempotencyKey: `oxy-one-customer:${customerKey}` },
       );
       if (!customer.providerCustomerId) throw new Error('Peable checkout customer unavailable');
-      const location = await dependencies.resolveCustomerLocationEvidence(input.subjectAccountId);
+      const location = await dependencies.resolveCustomerLocationEvidence(
+        input.subjectAccountId,
+        input.customerLocationEvidenceId,
+      );
       if (!location.customerLocationEvidenceId)
         throw new Error('Peable trusted customer location unavailable');
       const quote = await client.billing.createTaxQuote({
@@ -244,6 +255,11 @@ export function createPeablePersonalCheckoutProvider(
         snapshot.planId,
         offer.amountMinorUnits,
       );
+      if (dependencies)
+        await dependencies.resolveCustomerLocationEvidence(
+          input.subjectAccountId,
+          snapshot.taxQuote.quote.customerLocationEvidenceId,
+        );
       const checkoutInput = {
         providerCustomerId: snapshot.customerId,
         providerPriceId: snapshot.priceId,

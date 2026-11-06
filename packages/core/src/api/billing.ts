@@ -11,6 +11,8 @@
  */
 
 import type {
+  BillingCustomerLocationRequest,
+  BillingCustomerLocationResult,
   PersonalPlanCatalogue,
   PersonalPlanCheckoutRequest,
   PersonalPlanCheckoutResult,
@@ -24,6 +26,8 @@ import type {
   SubscriptionCreditGrant,
 } from '@oxy.so/contracts';
 import {
+  billingCustomerLocationRequestCheck,
+  billingCustomerLocationResultCheck,
   cancelProductSubscriptionCheck,
   parseContract,
   personalPlanCatalogueCheck,
@@ -133,6 +137,21 @@ export interface WalletTransactionsPage {
 
 export class BillingApi {
   constructor(protected readonly ctx: OxyContext) {}
+
+  /** Record the current payer's address as one evidence kind; never infer another. */
+  async recordCustomerLocation(
+    request: BillingCustomerLocationRequest,
+  ): Promise<BillingCustomerLocationResult> {
+    return parseContract(
+      billingCustomerLocationResultCheck,
+      await this.ctx.request<unknown>(
+        'POST',
+        '/billing/customer-location',
+        parseContract(billingCustomerLocationRequestCheck, request),
+        { cache: false },
+      ),
+    );
+  }
 
   async renewProductSubscription(
     request: ProductSubscriptionRenewalRequest,
