@@ -1678,3 +1678,5 @@ export type {
   ApplicationAccountRegistrationResponse,
   ApplicationAccountTotal,
 } from './applicationAccounts';
+
+export * from './postalAddresses';
