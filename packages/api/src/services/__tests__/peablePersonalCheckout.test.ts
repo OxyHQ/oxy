@@ -74,6 +74,7 @@ it('prepares one native customer per account and replays only the frozen binding
   expect(session.checkoutUrl).toMatch(/^https:\/\/checkout\.peable\.to\//);
   expect(sessionCreate.mock.calls[0][0]).toEqual({
     mode: 'subscription',
+    contact_collection: 'merchant_account',
     customer: snapshot.customerId,
     line_items: [{ price: f.price.id, quantity: 1 }],
     automatic_tax: { enabled: true },
