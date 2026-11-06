@@ -215,6 +215,9 @@ export function createPeablePersonalCheckoutProvider(
       const session = await client.checkout.sessions.create(
         {
           mode: 'subscription',
+          // The frozen subject is an authenticated Oxy account; its billing
+          // history and notifications belong to Oxy, without copying an email.
+          contact_collection: 'merchant_account',
           customer: snapshot.customerId,
           line_items: [{ price: snapshot.priceId, quantity: 1 }],
           automatic_tax: { enabled: true },
