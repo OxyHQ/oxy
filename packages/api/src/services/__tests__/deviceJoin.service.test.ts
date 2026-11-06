@@ -25,6 +25,7 @@ import { deviceCredentials } from '../../db/schema/deviceCredentials';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import { users } from '../../db/schema/users';
 import { deviceJoinService, resolveProvenDeviceId } from '../deviceJoin.service';
+import deviceSessionService from '../deviceSession.service';
 
 async function officialApp(): Promise<{
   clientId: string;
@@ -92,6 +93,31 @@ describe('registerDevice', () => {
 });
 
 describe('issueJoinCode / redeemJoinCode', () => {
+  it('research: a code issued before signout-all can mint a new holder afterwards', async () => {
+    const device = await deviceJoinService.registerDevice();
+    const app = await officialApp();
+    const { verifier, challenge } = pkce();
+    const issued = await deviceJoinService.issueJoinCode({
+      ...device,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+      codeChallenge: challenge,
+    });
+    if (!issued.ok) throw new Error(issued.reason);
+    await deviceSessionService.signout(device.deviceId, { all: true });
+    expect(await deviceSessionService.getStateBySecret(device.deviceId, device.deviceSecret)).toBeNull();
+    const redeemed = await deviceJoinService.redeemJoinCode({
+      code: issued.code,
+      codeVerifier: verifier,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+    });
+    expect(redeemed.ok).toBe(true);
+    if (!redeemed.ok) throw new Error(redeemed.reason);
+    const state = await deviceSessionService.getStateBySecret(redeemed.deviceId, redeemed.deviceSecret);
+    expect(state?.deviceId).toBe(device.deviceId);
+    expect(state?.activeAccountId).toBeNull();
+  });
   it('refuses a revoked client credential', async () => {
     const device = await deviceJoinService.registerDevice();
     const app = await officialApp();
