@@ -1,6 +1,6 @@
 # Changelog: `@oxy.so/mcp`
 
-## Unreleased
+## 1.4.2
 
 ### Fixed
 

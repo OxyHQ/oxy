@@ -640,7 +640,7 @@
     },
     "packages/mcp": {
       "name": "@oxy.so/mcp",
-      "version": "1.4.1",
+      "version": "1.4.2",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.32.2",
         "@oxy.so/contracts": "workspace:^",
