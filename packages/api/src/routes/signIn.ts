@@ -6,8 +6,12 @@
  *  - `POST /signin/email/link`     auth.oxy.so: `{ token, device }` → `{ approved: true }`
  *  - `POST /signin/email/collect`  `{ requestId, requestSecret, device? }` → pending | session | second factor | choose account
  *  - `POST /signin/email/choose`   `{ requestId, requestSecret, userId, device? }` → session | second factor
- *  - `POST /signin/password`       `{ identifier, password, device? }` → session | second factor
- *  - `POST /signin/second-factor`  `{ challengeId, code, device? }` → session
+ *  - `POST /signin/password`       `{ identifier, password, device?, platformClient? }` → session | second factor
+ *  - `POST /signin/second-factor`  `{ challengeId, code, device?, platformClient? }` → session
+ *
+ * `platformClient` is a platform's own sign-in (ADR 0058,
+ * `services/platformClient.service.ts`): decided before anything else, and
+ * when honoured the device credential returned is a platform credential.
  *  - `POST /signup`                `{ username, email, emailTicket, device? }` → session
  *
  * Only official Oxy apps and auth.oxy.so may call them (`requireOfficialOrigin`;
@@ -60,6 +64,10 @@ import {
 } from '../services/emailSignIn.service';
 import { clearFailures, reserveAttempt } from '../services/loginLockout.service';
 import { readPasswordHash, verifyPasswordOrDummy } from '../services/password.service';
+import {
+  resolvePlatformClient,
+  type ResolvedPlatformClient,
+} from '../services/platformClient.service';
 import { PASSWORD_LOCKOUT_SCOPE, identifierLockoutKey } from '../services/reauth.service';
 import {
   completeFirstFactor,
@@ -95,15 +103,19 @@ const passwordLimiter = ipLimiter('password', 15 * 60 * 1000, 30);
 const secondFactorLimiter = ipLimiter('second-factor', 15 * 60 * 1000, 30);
 const signupLimiter = ipLimiter('signup', HOUR, 10);
 
-function envelopeOf(body: {
-  deviceName?: string;
-  deviceFingerprint?: string;
-  device?: { deviceId: string; deviceSecret: string };
-}) {
+function envelopeOf(
+  body: {
+    deviceName?: string;
+    deviceFingerprint?: string;
+    device?: { deviceId: string; deviceSecret: string };
+  },
+  platformClient: ResolvedPlatformClient | null = null,
+) {
   return {
     ...(body.deviceName ? { deviceName: body.deviceName } : {}),
     ...(body.deviceFingerprint ? { deviceFingerprint: body.deviceFingerprint } : {}),
     ...(body.device ? { device: body.device } : {}),
+    ...(platformClient ? { platformClient } : {}),
   };
 }
 
@@ -216,6 +228,11 @@ router.post(
   validate({ body: passwordSignInRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body as PasswordSignInRequest;
+    // A platform's own sign-in (ADR 0058) is decided FIRST, from the request
+    // and the registry alone: an unhonoured `platformClient` is the ordinary
+    // invalid-request answer before any account lookup, lockout or hashing,
+    // identical for every identifier.
+    const platformClient = await resolvePlatformClient(req, body.platformClient);
     const userId = await passwordAccount(body.identifier);
     // Keyed by the identifier AS TYPED, whether or not it names an account,
     // so the lockout behaves identically for both and says nothing. The
@@ -243,7 +260,7 @@ router.post(
       );
     }
     await clearFailures({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
-    res.status(200).json(await completeFirstFactor(req, userId, envelopeOf(body)));
+    res.status(200).json(await completeFirstFactor(req, userId, envelopeOf(body, platformClient)));
   }),
 );
 
@@ -254,11 +271,12 @@ router.post(
   validate({ body: secondFactorSignInRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body as SecondFactorSignInRequest;
+    const platformClient = await resolvePlatformClient(req, body.platformClient);
     res.status(200).json(
       await completeSecondFactor(req, {
         challengeId: body.challengeId,
         code: body.code,
-        ...envelopeOf(body),
+        ...envelopeOf(body, platformClient),
       }),
     );
   }),

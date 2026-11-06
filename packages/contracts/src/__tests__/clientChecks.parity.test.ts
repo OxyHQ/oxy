@@ -744,12 +744,19 @@ const PAIRS: Pair[] = [
     samples: [{ keyId: `${'A'.repeat(43)}=` }],
   },
   {
+    name: 'deviceAppTokenResponse',
+    check: client.deviceAppTokenResponseCheck,
+    schema: contracts.deviceAppTokenResponseSchema,
+    samples: [{ accessToken: 'tok', expiresAt: ISO, applicationId: 'app-1', accountId: 'acc-1' }],
+  },
+  {
     name: 'appAssertionResponse',
     check: client.appAssertionResponseCheck,
     schema: contracts.appAssertionResponseSchema,
     samples: [
       { assertion: 'aGVhZA.Ym9keQ.c2ln', applicationId: 'app-1', platform: 'web', expiresAt: ISO },
       { assertion: 'a.b.c', applicationId: 'app-2', platform: 'ios', expiresAt: ISO_LATER },
+      { assertion: 'a.b.c', applicationId: 'app-3', platform: 'oxyos', expiresAt: ISO },
     ],
   },
   {

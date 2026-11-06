@@ -357,13 +357,29 @@ export interface InternalMeteredRelationship {
   readonly capacity: InternalMeteredCapacity;
   readonly pilot?: InternalMeteredPilot;
   /**
-   * `public_client_id`: a SHARED device session (ADR 0029, no application on
-   * its row) is attributed to this application when it is presented with the
-   * application's registered public client id (ADR 0050, option b). Only a `product_session` relationship with a per-person bound
-   * may say so; absent, only an application-bound session row names it.
+   * How a SHARED device session (ADR 0029, no application on its row) may be
+   * attributed to this application ({@link SharedSessionAttribution}). Only a
+   * `product_session` relationship with a per-person bound may say so; absent,
+   * only an application-bound session row names it.
    */
-  readonly sharedSessionAttribution?: 'public_client_id';
+  readonly sharedSessionAttribution?: readonly SharedSessionAttribution[];
 }
+
+/**
+ * How a SHARED device session (no application on its row) may be attributed
+ * to the consumer application, by its reviewed terms (ADR 0050 decision 3, as
+ * ADR 0058 amends it):
+ *
+ * - `public_client_id`: presented beside the application's registered public
+ *   client id (`oxy_session:<client id>:<token>`), ADR 0050 option b. The id
+ *   names the application; it proves nothing, so the per-person bound is the
+ *   bound.
+ * - `platform`: an APPLICATION TOKEN a platform that holds the session minted
+ *   for the application (ADR 0058): its `azp`, checked live against the
+ *   registry and the platform credential. A presentation beside it must name
+ *   that same client id.
+ */
+export type SharedSessionAttribution = 'public_client_id' | 'platform';
 
 /**
  * The configured internal relationships. Alia → Kaana is the one the plan names
@@ -642,7 +658,7 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
     consumerApplicationClass: 'first_party',
     // Astro signs in on the shared device session, which names no
     // application; it presents its public client id beside it (ADR 0050 b).
-    sharedSessionAttribution: 'public_client_id',
+    sharedSessionAttribution: ['public_client_id'],
     // Astro has no measured traffic yet. 200 a person a day is several times
     // a heavy day of tab groups, pins and downloads; 10,000 a day for the
     // application bounds the whole day at USD 40 even if every request quoted

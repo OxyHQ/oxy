@@ -2,18 +2,24 @@
  * How an application is recognised (ADR 0045): the registry half of app
  * assertions.
  *
- * The ONLY writer of `application_recognition` and `application_web_origins`.
- * Its write callers are the staff lane of the application administration
- * router (`PUT /applications/:appId/recognition`), on the same terms as the
- * application's agents (ADR 0044): staff AND `app:update`, and the official-app
- * seed (`declareApplicationWebOrigins`), which only ever adds. The reader is
- * `appAssertion.service.ts`.
+ * The ONLY writer of `application_recognition`, `application_web_origins` and
+ * `application_oxyos_entries`. Its write callers are the staff lane of the
+ * application administration router (`PUT /applications/:appId/recognition`),
+ * on the same terms as the application's agents (ADR 0044): staff AND
+ * `app:update`, and the official-app seed (`declareApplicationWebOrigins`,
+ * `declareApplicationPlatform`), which only ever adds. The readers are
+ * `appAssertion.service.ts`, and (ADR 0058) the platform sign-in and the
+ * application-token mint.
  */
 
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import type { ApplicationRecognition, ApplicationRecognitionWrite } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
-import { applicationRecognition, applicationWebOrigins } from '../db/schema/applicationRecognition';
+import {
+  applicationOxyosEntries,
+  applicationRecognition,
+  applicationWebOrigins,
+} from '../db/schema/applicationRecognition';
 import { isUniqueViolation } from '@oxy.so/db';
 import { ConflictError } from '../utils/error';
 
@@ -27,15 +33,34 @@ export async function readApplicationRecognition(
     .from(applicationRecognition)
     .where(eq(applicationRecognition.applicationId, applicationId))
     .limit(1);
-  if (!row) return { applicationId, webOrigins: [], android: null, ios: null, updatedAt: null };
-  const origins = await db
-    .select({ origin: applicationWebOrigins.origin })
-    .from(applicationWebOrigins)
-    .where(eq(applicationWebOrigins.applicationId, applicationId))
-    .orderBy(asc(applicationWebOrigins.origin));
+  if (!row) {
+    return {
+      applicationId,
+      webOrigins: [],
+      android: null,
+      ios: null,
+      platformHost: null,
+      oxyosDesktopEntryIds: [],
+      updatedAt: null,
+    };
+  }
+  const [origins, entries] = await Promise.all([
+    db
+      .select({ origin: applicationWebOrigins.origin })
+      .from(applicationWebOrigins)
+      .where(eq(applicationWebOrigins.applicationId, applicationId))
+      .orderBy(asc(applicationWebOrigins.origin)),
+    db
+      .select({ desktopEntryId: applicationOxyosEntries.desktopEntryId })
+      .from(applicationOxyosEntries)
+      .where(eq(applicationOxyosEntries.applicationId, applicationId))
+      .orderBy(asc(applicationOxyosEntries.desktopEntryId)),
+  ]);
   return {
     applicationId,
     webOrigins: origins.map(({ origin }) => origin),
+    platformHost: row.platformHost ?? null,
+    oxyosDesktopEntryIds: entries.map(({ desktopEntryId }) => desktopEntryId),
     android: row.androidPackageName
       ? { packageName: row.androidPackageName, signingCertSha256: row.androidSigningCertSha256 }
       : null,
@@ -49,8 +74,10 @@ export async function readApplicationRecognition(
 
 /**
  * Replace the application's whole declaration. Refused (409) when an origin,
- * the Android package or the iOS app is already another application's: one
- * identity names one application.
+ * a desktop entry id, the Android package or the iOS app is already another
+ * application's: one identity names one application. `platformHost` and
+ * `oxyosDesktopEntryIds` (ADR 0058) are replaced only when the write names
+ * them; a write that omits them leaves them as they are.
  */
 export async function writeApplicationRecognition(input: {
   applicationId: string;
@@ -63,6 +90,7 @@ export async function writeApplicationRecognition(input: {
     androidSigningCertSha256: recognition.android?.signingCertSha256 ?? [],
     iosTeamId: recognition.ios?.teamId ?? null,
     iosBundleId: recognition.ios?.bundleId ?? null,
+    ...(recognition.platformHost !== undefined ? { platformHost: recognition.platformHost } : {}),
     updatedByUserId: input.staffUserId,
     updatedAt: new Date(),
   };
@@ -80,11 +108,24 @@ export async function writeApplicationRecognition(input: {
           .insert(applicationWebOrigins)
           .values(recognition.webOrigins.map((origin) => ({ origin, applicationId })));
       }
+      if (recognition.oxyosDesktopEntryIds !== undefined) {
+        await tx
+          .delete(applicationOxyosEntries)
+          .where(eq(applicationOxyosEntries.applicationId, applicationId));
+        if (recognition.oxyosDesktopEntryIds.length > 0) {
+          await tx.insert(applicationOxyosEntries).values(
+            recognition.oxyosDesktopEntryIds.map((desktopEntryId) => ({
+              desktopEntryId,
+              applicationId,
+            })),
+          );
+        }
+      }
     });
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw new ConflictError(
-        'An origin, Android package or iOS app in this declaration is already another application’s',
+        'An origin, desktop entry id, Android package or iOS app in this declaration is already another application’s',
       );
     }
     throw error;
@@ -168,4 +209,100 @@ export async function undeclaredApplicationWebOrigins(
     ).map(({ origin }) => origin),
   );
   return origins.filter((origin) => !declared.has(origin));
+}
+
+/**
+ * The seed's platform declaration (ADR 0058), additive like
+ * {@link declareApplicationWebOrigins}: sets `platformHost` when the spec
+ * declares one (never clears it) and adds the OxyOS desktop entry ids it does
+ * not hold yet (never removes one staff wrote). Throws when an id is already
+ * another application's. `dryRun` reports what a real run would change and
+ * writes nothing.
+ */
+export async function declareApplicationPlatform(
+  applicationId: string,
+  declared: { platformHost?: 'oxyos' | 'astro'; oxyosDesktopEntryIds?: readonly string[] },
+  options: { dryRun?: boolean; db?: DatabaseOrTransaction } = {},
+): Promise<{ platformHostSet: 'oxyos' | 'astro' | null; desktopEntryIdsAdded: string[] }> {
+  const entries = [...(declared.oxyosDesktopEntryIds ?? [])];
+  const run = async (tx: DatabaseOrTransaction) => {
+    if (entries.length > 0) {
+      const taken = await tx
+        .select({ desktopEntryId: applicationOxyosEntries.desktopEntryId })
+        .from(applicationOxyosEntries)
+        .where(
+          and(
+            inArray(applicationOxyosEntries.desktopEntryId, entries),
+            ne(applicationOxyosEntries.applicationId, applicationId),
+          ),
+        );
+      if (taken.length > 0) {
+        throw new ConflictError(
+          `Desktop entry id ${taken.map(({ desktopEntryId }) => desktopEntryId).join(', ')} is already another application’s`,
+        );
+      }
+    }
+    const [current] = await tx
+      .select({ platformHost: applicationRecognition.platformHost })
+      .from(applicationRecognition)
+      .where(eq(applicationRecognition.applicationId, applicationId))
+      .limit(1);
+    const held = new Set(
+      (
+        await tx
+          .select({ desktopEntryId: applicationOxyosEntries.desktopEntryId })
+          .from(applicationOxyosEntries)
+          .where(eq(applicationOxyosEntries.applicationId, applicationId))
+      ).map(({ desktopEntryId }) => desktopEntryId),
+    );
+    const toAdd = entries.filter((entry) => !held.has(entry));
+    const platformHostSet =
+      declared.platformHost !== undefined && current?.platformHost !== declared.platformHost
+        ? declared.platformHost
+        : null;
+    if (options.dryRun) return { platformHostSet, desktopEntryIdsAdded: toAdd };
+
+    if (platformHostSet !== null || toAdd.length > 0 || !current) {
+      await tx
+        .insert(applicationRecognition)
+        .values({ applicationId, ...(platformHostSet ? { platformHost: platformHostSet } : {}) })
+        .onConflictDoUpdate({
+          target: applicationRecognition.applicationId,
+          set: platformHostSet
+            ? { platformHost: platformHostSet, updatedAt: new Date() }
+            : { updatedAt: new Date() },
+        });
+    }
+    const added =
+      toAdd.length > 0
+        ? await tx
+            .insert(applicationOxyosEntries)
+            .values(toAdd.map((desktopEntryId) => ({ desktopEntryId, applicationId })))
+            .onConflictDoNothing()
+            .returning({ desktopEntryId: applicationOxyosEntries.desktopEntryId })
+        : [];
+    // A concurrent writer may have taken one between the check and the INSERT.
+    if (entries.length > 0) {
+      const assigned = await tx
+        .select({ desktopEntryId: applicationOxyosEntries.desktopEntryId })
+        .from(applicationOxyosEntries)
+        .where(
+          and(
+            inArray(applicationOxyosEntries.desktopEntryId, entries),
+            ne(applicationOxyosEntries.applicationId, applicationId),
+          ),
+        );
+      if (assigned.length)
+        throw new ConflictError('Desktop entry id is already another application’s');
+    }
+    return {
+      platformHostSet,
+      desktopEntryIdsAdded: added.map(({ desktopEntryId }) => desktopEntryId),
+    };
+  };
+  if (declared.platformHost === undefined && entries.length === 0) {
+    return { platformHostSet: null, desktopEntryIdsAdded: [] };
+  }
+  const db = options.db ?? getDb();
+  return options.dryRun ? run(db) : db.transaction((tx) => run(tx));
 }

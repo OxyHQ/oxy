@@ -1,6 +1,11 @@
 # ADR 0045 — An Oxy app proves which app it is with an Oxy-signed app assertion
 
 - Status: accepted
+- Amended by [ADR 0058](0058-platform-held-session.md) (accepted 2026-11-06): two
+  more lanes, `platform: 'oxyos'` and `'astro'`, whose proof is the bearer
+  itself, an application token that platform minted for the application; an
+  application token gets an assertion for its own application and platform
+  only. The rejection of per-app sessions below stands.
 - Date: 2026-10-16
 - Amends: ADR 0044 (its "A session says which application it belongs to" section)
 - Companion: Alia ADR 0021

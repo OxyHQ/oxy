@@ -40,6 +40,7 @@ import {
 } from '../utils/sessionUtils';
 import deviceSessionService from './deviceSession.service';
 import { readLiveAgentKey } from './agentKeyAuthority.service';
+import { verifyHostToken } from './hostTokenAuthority.service';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { broadcastDeviceState } from '../utils/socket';
 import {
@@ -624,7 +625,9 @@ class SessionService {
       // device context and scopes, all against the row. A v1 token asserted
       // none of it and resolves to the row's own binding while the migration
       // window is open.
-      const binding = checkAccessTokenBinding(validationResult.payload, bindingRowOf(session));
+      const binding = checkAccessTokenBinding(validationResult.payload, bindingRowOf(session), {
+        acceptHost: true,
+      });
       if (!binding.ok) {
         logger.warn('[SessionService] Access token rejected by binding check', {
           component: 'SessionService',
@@ -633,6 +636,22 @@ class SessionService {
           reason: binding.reason,
         });
         return null;
+      }
+      // An application token (ADR 0058) is believed only once its platform
+      // credential and its application are re-read live.
+      let identity = binding.identity;
+      if (binding.host) {
+        const host = await verifyHostToken(binding.host);
+        if (!host) {
+          logger.warn('[SessionService] Application token rejected by host check', {
+            component: 'SessionService',
+            method: 'validateSession',
+            sessionId: sessionId.substring(0, 8),
+            platform: binding.host.platform,
+          });
+          return null;
+        }
+        identity = { ...identity, host };
       }
 
       if (sessionCache.shouldUpdateLastActive(sessionId)) {
@@ -645,7 +664,7 @@ class SessionService {
         session,
         user,
         payload: validationResult.payload,
-        token: binding.identity,
+        token: identity,
       };
     } catch (error) {
       logger.error(
@@ -794,7 +813,13 @@ class SessionService {
             (supervised && session.createdAt <= supervised.sessionsValidAfter))
         )
           return null;
-        if (!checkAccessTokenBinding(proof.payload, bindingRowOf(session)).ok) return null;
+        const binding = checkAccessTokenBinding(proof.payload, bindingRowOf(session), {
+          acceptHost: true,
+        });
+        if (!binding.ok) return null;
+        // An application token (ADR 0058) stands only while its platform
+        // credential and its application do.
+        if (binding.host && !(await verifyHostToken(binding.host))) return null;
         if (session.operatedByUserId || session.authMethodId) {
           const key = JSON.stringify([
             session.userId,
@@ -1018,9 +1043,16 @@ class SessionService {
         return row;
       };
 
-      let existingSession = await reusableOn(deviceInfo.deviceId);
+      let existingSession = options.freshSession
+        ? undefined
+        : await reusableOn(deviceInfo.deviceId);
 
-      if (!existingSession && originDeviceId && originDeviceId !== deviceInfo.deviceId) {
+      if (
+        !existingSession &&
+        !options.freshSession &&
+        originDeviceId &&
+        originDeviceId !== deviceInfo.deviceId
+      ) {
         existingSession = await reusableOn(originDeviceId);
       }
 

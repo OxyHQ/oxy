@@ -4,6 +4,7 @@
  *
  * Two authenticated lanes:
  *  - Bearer access token → user socket (`user:<id>` + `device:<deviceId>` from JWT).
+ *    An application token (ADR 0058, `host` claim) joins `user:<id>` only.
  *  - Device credential (`deviceId` + `deviceSecret`) → device-only socket
  *    (`device:<deviceId>` only) for signed-out tabs that already hold the
  *    canonical device id from the one-shot join redirect.
@@ -36,6 +37,8 @@ interface AccessTokenClaims extends jwt.JwtPayload {
   userId?: string;
   id?: string;
   deviceId?: string;
+  /** Present only on an application token (ADR 0058). */
+  host?: unknown;
 }
 
 export async function resolveSocketIdentity(
@@ -54,6 +57,13 @@ export async function resolveSocketIdentity(
           const claims = decoded as AccessTokenClaims;
           const userId = claims.userId ?? claims.id;
           if (userId) {
+            if (claims.host !== undefined) {
+              // An application token (ADR 0058) joins `user:<id>` only: device
+              // state is the platform's, so no `device:<id>` room, whatever
+              // the claims say.
+              const { deviceId: _ignored, ...rest } = claims;
+              return { kind: 'user', user: { ...rest, id: userId } };
+            }
             return { kind: 'user', user: { id: userId, ...claims } };
           }
         }

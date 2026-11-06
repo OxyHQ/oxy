@@ -38,6 +38,8 @@ export interface SeedApplicationTarget {
   type: ApplicationType;
   ownerAccountId: string;
   redirectUris: readonly string[];
+  /** Redirect URIs to REMOVE: the one way a registered URI leaves (see the spec field). */
+  retiredRedirectUris?: readonly string[];
   scopes: readonly ApplicationScope[];
   capabilities: readonly ApplicationCapability[];
 }
@@ -131,7 +133,9 @@ export function computeSeedApplicationPlan(
     isOfficial: true,
     isInternal: target.type === 'internal',
     ownerAccountId: target.ownerAccountId,
-    redirectUris: union(current?.redirectUris ?? [], target.redirectUris),
+    redirectUris: union(current?.redirectUris ?? [], target.redirectUris).filter(
+      (uri) => !(target.retiredRedirectUris ?? []).includes(uri),
+    ),
     scopes: union(current?.scopes ?? [], target.scopes),
     capabilities: union(current?.capabilities ?? [], target.capabilities),
   };

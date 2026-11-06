@@ -52,6 +52,7 @@ import { ApiError, InternalServerError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { resolveProvenDeviceId } from './deviceJoin.service';
 import { finalizeDeviceLogin } from './deviceLogin.service';
+import type { ResolvedPlatformClient } from './platformClient.service';
 import securityActivityService from './securityActivityService';
 import sessionService from './session.service';
 import { isTotpEnabled, verifySecondFactor } from './totp.service';
@@ -61,6 +62,11 @@ export interface SignInEnvelope {
   deviceName?: string;
   deviceFingerprint?: string;
   device?: DeviceProof;
+  /**
+   * A platform's own sign-in (ADR 0058), already resolved against the registry
+   * by the route (`resolvePlatformClient`), never read from the body here.
+   */
+  platformClient?: ResolvedPlatformClient | null;
 }
 
 /** The `users` columns a session mint reads. */
@@ -104,9 +110,14 @@ export async function mintSignInSession(
 ): Promise<LoginResult> {
   const deviceId =
     provenDeviceId === undefined ? await resolveProvenDeviceId(envelope.device) : provenDeviceId;
+  const platformClient = envelope.platformClient ?? null;
   const session: MintedSession = await sessionService.createSession(account.id, req, {
     ...sessionCreateOptionsFromBody(envelope),
     ...(deviceId ? { deviceId } : {}),
+    // A platform's sign-in replaces the account's session on the device
+    // rather than re-minting it: one session per account, and nothing the
+    // setup client was handed outlives the promotion.
+    ...(platformClient ? { freshSession: true } : {}),
   });
 
   const baseResponse = buildSessionAuthResponse(session, {
@@ -119,7 +130,25 @@ export async function mintSignInSession(
   }
   const response: LoginResult = baseResponse;
 
-  const deviceExtras = await finalizeDeviceLogin({ session, userId: account.id });
+  const deviceExtras = await finalizeDeviceLogin({
+    session,
+    userId: account.id,
+    ...(platformClient
+      ? {
+          platform: {
+            platform: platformClient.platform,
+            applicationId: platformClient.applicationId,
+            // Promotion retires the proof only when it proved THIS device.
+            ...(deviceId && envelope.device ? { retireSecret: envelope.device.deviceSecret } : {}),
+          },
+        }
+      : {}),
+  });
+  if (platformClient && !deviceExtras.deviceSecret) {
+    // Without its credential the platform holds nothing: fail the sign-in
+    // rather than answer a session nobody can restore.
+    throw new InternalServerError('Failed to issue the platform credential');
+  }
   if (deviceExtras.deviceSecret) {
     response.deviceSecret = deviceExtras.deviceSecret;
   }
@@ -190,7 +219,9 @@ export async function completeFirstFactor(
   }
   const provenDeviceId = await resolveProvenDeviceId(envelope.device);
 
-  if (await isTotpEnabled(userId)) return issueSecondFactorChallenge(userId, provenDeviceId, now);
+  if (await isTotpEnabled(userId)) {
+    return issueSecondFactorChallenge(userId, provenDeviceId, now, envelope.platformClient ?? null);
+  }
   return mintSignInSession(req, account, envelope, provenDeviceId);
 }
 
@@ -203,6 +234,7 @@ export async function issueSecondFactorChallenge(
   userId: string,
   provenDeviceId: string | null,
   now: Date = new Date(),
+  platformClient: ResolvedPlatformClient | null = null,
 ): Promise<SecondFactorRequired> {
   const challengeId = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(now.getTime() + SIGNIN_SECOND_FACTOR_TTL_MS);
@@ -212,6 +244,8 @@ export async function issueSecondFactorChallenge(
       challengeHash: sha256Hex(challengeId),
       userId,
       deviceId: provenDeviceId,
+      platform: platformClient?.platform ?? null,
+      platformClientId: platformClient?.clientId ?? null,
       expiresAt,
     });
   return { secondFactorRequired: true, challengeId, expiresAt: expiresAt.getTime() };
@@ -238,6 +272,8 @@ export async function completeSecondFactor(
       id: signInSecondFactorChallenges.id,
       userId: signInSecondFactorChallenges.userId,
       deviceId: signInSecondFactorChallenges.deviceId,
+      platform: signInSecondFactorChallenges.platform,
+      platformClientId: signInSecondFactorChallenges.platformClientId,
       attempts: signInSecondFactorChallenges.attempts,
     })
     .from(signInSecondFactorChallenges)
@@ -254,6 +290,15 @@ export async function completeSecondFactor(
   // Bound to the device the first factor proved: a challenge id carried to
   // another browser is worthless there.
   if ((challenge.deviceId ?? null) !== (provenDeviceId ?? null)) throw secondFactorInvalid();
+  // And to the platform client it named (ADR 0058), or to none: a platform
+  // credential is issued only to the sign-in that asked for one.
+  const platformClient = input.platformClient ?? null;
+  if (
+    (challenge.platform ?? null) !== (platformClient?.platform ?? null) ||
+    (challenge.platformClientId ?? null) !== (platformClient?.clientId ?? null)
+  ) {
+    throw secondFactorInvalid();
+  }
 
   // Every try is counted BEFORE the code is checked, in one conditional update,
   // so concurrent guesses cannot exceed the cap and a lockout still counts.

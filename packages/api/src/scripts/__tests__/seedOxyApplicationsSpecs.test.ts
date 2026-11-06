@@ -46,6 +46,7 @@ import {
   APPLICATION_PERMISSION_DESCRIPTION_MAX_LENGTH,
   APPLICATION_PERMISSIONS_MAX_DECLARED,
   isApplicationPermissionKey,
+  OXYOS_DESKTOP_ENTRY_ID_PATTERN,
 } from '@oxy.so/contracts';
 import { CLARITY_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenceEconomicPolicy';
 import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
@@ -966,14 +967,82 @@ describe('the canonical official-application registry', () => {
   });
 });
 
-it('registers the OxyOS transport without claiming browser recognition or backend authority', () => {
+it('registers OxyOS as the platform holding the session, with no redirect, origin or backend authority', () => {
   const spec = specNamed('OxyOS');
   expect(requiresPublicSeedCredential(spec)).toBe(true);
-  expect(spec.redirectUris).toEqual(['tauri://localhost']);
+  expect(spec.platformHost).toBe('oxyos');
+  // The retired Tauri shell's transport origin leaves the registry.
+  expect(spec.redirectUris).toEqual([]);
+  expect(spec.retiredRedirectUris).toEqual(['tauri://localhost']);
   expect(spec.webOrigins ?? []).toEqual([]);
+  expect(spec.oxyosDesktopEntryIds ?? []).toEqual([]);
   expect(spec.scopes).toEqual([]);
   expect(spec.capabilities ?? []).toEqual([]);
   expect(spec.type).toBe('first_party');
+  const { desired } = computeSeedApplicationPlan(
+    {
+      description: spec.description,
+      websiteUrl: spec.websiteUrl ?? null,
+      webhookUrl: null,
+      status: 'active',
+      type: 'first_party',
+      isOfficial: true,
+      isInternal: false,
+      ownerAccountId: PLATFORM_OWNER_ID,
+      redirectUris: ['tauri://localhost'],
+      scopes: [],
+      capabilities: [],
+    },
+    {
+      description: spec.description,
+      websiteUrl: spec.websiteUrl,
+      type: spec.type,
+      ownerAccountId: PLATFORM_OWNER_ID,
+      redirectUris: spec.redirectUris,
+      retiredRedirectUris: spec.retiredRedirectUris,
+      scopes: [],
+      capabilities: [],
+    },
+  );
+  expect(desired.redirectUris).toEqual([]);
+});
+
+it('declares the OxyOS desktop entries of the applications OxyOS ships, each once, on trusted applications only (ADR 0058)', () => {
+  const entries = SEED_APPS.flatMap((spec) => spec.oxyosDesktopEntryIds ?? []);
+  expect(new Set(entries).size).toBe(entries.length);
+  for (const entry of entries) expect(entry).toMatch(OXYOS_DESKTOP_ENTRY_ID_PATTERN);
+  expect(
+    Object.fromEntries(
+      SEED_APPS.filter((spec) => spec.oxyosDesktopEntryIds).map((spec) => [
+        spec.name,
+        spec.oxyosDesktopEntryIds,
+      ]),
+    ),
+  ).toEqual({
+    'Oxy Inbox': ['so.oxy.inbox'],
+    Allo: ['so.oxy.allo'],
+    Atlas: ['so.oxy.atlas'],
+    Dropsea: ['so.oxy.dropsea'],
+  });
+  for (const spec of SEED_APPS.filter(
+    (candidate) => candidate.oxyosDesktopEntryIds || candidate.platformHost,
+  )) {
+    expect(isTrustedApplication({ type: spec.type })).toBe(true);
+    expect(requiresPublicSeedCredential(spec)).toBe(true);
+  }
+  expect(SEED_APPS.filter((spec) => spec.platformHost).map((spec) => spec.name)).toEqual(['OxyOS']);
+});
+
+it('never retires a redirect URI it also declares', () => {
+  for (const spec of SEED_APPS) {
+    for (const retired of spec.retiredRedirectUris ?? []) {
+      expect({ app: spec.name, retired, declared: spec.redirectUris.includes(retired) }).toEqual({
+        app: spec.name,
+        retired,
+        declared: false,
+      });
+    }
+  }
 });
 
 it('registers the native Authenticator client without backend or external app permissions', () => {

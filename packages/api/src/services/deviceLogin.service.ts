@@ -36,8 +36,18 @@ export async function finalizeDeviceLogin(opts: {
   userId: string;
   operatedByUserId?: string;
   issueSecret?: boolean;
+  /**
+   * A platform's own sign-in (ADR 0058): the secret issued is a PLATFORM
+   * credential for this application, and the credential `retireSecret`
+   * proved (the sign-in's device proof) is deleted with it.
+   */
+  platform?: {
+    platform: 'oxyos' | 'astro';
+    applicationId: string;
+    retireSecret?: string;
+  };
 }): Promise<{ deviceSecret?: string }> {
-  const { session, userId, operatedByUserId, issueSecret = true } = opts;
+  const { session, userId, operatedByUserId, issueSecret = true, platform } = opts;
 
   const result: { deviceSecret?: string } = {};
 
@@ -54,7 +64,13 @@ export async function finalizeDeviceLogin(opts: {
     );
     if (changed) broadcastDeviceState(state);
     if (issueSecret) {
-      const deviceSecret = await deviceSessionService.issueDeviceSecret(session.deviceId);
+      const deviceSecret = platform
+        ? await deviceSessionService.issuePlatformCredential(
+            session.deviceId,
+            { platform: platform.platform, applicationId: platform.applicationId },
+            platform.retireSecret,
+          )
+        : await deviceSessionService.issueDeviceSecret(session.deviceId);
       if (deviceSecret) result.deviceSecret = deviceSecret;
     }
     // LAST, and that ordering is load-bearing. `addAccount` created (or reused)

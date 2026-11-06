@@ -1643,6 +1643,7 @@ export * from './applicationRoles';
 export * from './contentClaims';
 
 export * from './appAssertions';
+export * from './platformSession';
 
 export * from './products/one';
 

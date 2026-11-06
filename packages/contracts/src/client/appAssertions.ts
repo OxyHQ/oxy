@@ -17,8 +17,12 @@ import type {
 } from '../appAssertions';
 import { datetime, exact, oneOf, optional, pattern, strictObject, string } from './check';
 
-/** How an app proves itself: the browser's origin, Play Integrity, or App Attest. */
-export const APP_ASSERTION_PLATFORMS = ['web', 'android', 'ios'] as const;
+/**
+ * How an app proves itself: the browser's origin, Play Integrity, App Attest,
+ * or (`oxyos`, `astro`) an application token the platform holding the session
+ * minted for it (ADR 0058), whose bearer is the proof.
+ */
+export const APP_ASSERTION_PLATFORMS = ['web', 'android', 'ios', 'oxyos', 'astro'] as const;
 
 /**
  * What a device challenge is spent on: an assertion, or (iOS only) registering
@@ -55,6 +59,9 @@ export const OXY_APP_ASSERTION_TTL_SECONDS = 300;
  * - `attestation_invalid`: the App Attest attestation does not verify.
  * - `assertion_invalid`: the App Attest assertion does not verify, or its counter did not advance.
  * - `signing_unavailable`: Oxy cannot sign (503).
+ * - `app_token_mismatch`: an `oxyos` or `astro` assertion needs an application token that
+ *   platform minted for this application; an application token gets an assertion for its own
+ *   application and platform only.
  */
 export const APP_ASSERTION_ERROR_CODES = [
   'application_unavailable',
@@ -70,6 +77,7 @@ export const APP_ASSERTION_ERROR_CODES = [
   'attestation_invalid',
   'assertion_invalid',
   'signing_unavailable',
+  'app_token_mismatch',
 ] as const;
 
 /** 32 random bytes, base64url: a challenge, or the SHA-256 it is bound into. */

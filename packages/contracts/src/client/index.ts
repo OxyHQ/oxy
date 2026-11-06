@@ -317,6 +317,21 @@ export {
 } from './appAssertions';
 
 export {
+  APP_TOKEN_DEVICE_ACCESS_DENIED,
+  DEVICE_APP_TOKEN_ERROR_CODES,
+  DEVICE_APP_TOKEN_TTL_SECONDS,
+  OXYOS_DESKTOP_ENTRY_ID_PATTERN,
+  PLATFORM_HOSTS,
+  deviceAppTokenResponseCheck,
+} from './platformSession';
+export type {
+  DeviceAppTokenErrorCode,
+  DeviceAppTokenResponse,
+  PlatformClient,
+  PlatformHost,
+} from '../platformSession';
+
+export {
   USER_PROFILE_COLORS,
   USER_PROFILE_COLOR_PRESETS,
   FREE_USER_PROFILE_COLOR_PRESETS,

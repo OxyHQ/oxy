@@ -37,6 +37,7 @@ import { z } from 'zod';
 import { EMAIL_CODE_LENGTH, emailAddressSchema, emailTicketSchema } from './accountEmail';
 import type { LoginResult } from './deviceBoot';
 import { deviceProofSchema } from './deviceSession';
+import { platformClientSchema } from './platformSession';
 // The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
 // it is re-exported here so the root entry is unchanged.
 import {
@@ -238,22 +239,31 @@ export const emailSignInLinkResponseSchema: z.ZodType<EmailSignInLinkResponse> =
   approved: z.literal(true),
 });
 
-/** `POST /auth/signin/password` */
+/**
+ * `POST /auth/signin/password`. `platformClient` is a platform's own sign-in
+ * (ADR 0058): see `platformClientSchema`.
+ */
 export const passwordSignInRequestSchema = z
   .object({
     identifier: signInIdentifierSchema,
     password: passwordInputSchema,
     ...sessionEnvelope,
+    platformClient: platformClientSchema.optional(),
   })
   .strict();
 export type PasswordSignInRequest = z.infer<typeof passwordSignInRequestSchema>;
 
-/** `POST /auth/signin/second-factor` */
+/**
+ * `POST /auth/signin/second-factor`. A challenge a platform's sign-in received
+ * is completed naming the SAME `platformClient`, and one that named none
+ * naming none.
+ */
 export const secondFactorSignInRequestSchema = z
   .object({
     challengeId: opaqueTokenSchema,
     code: secondFactorCodeSchema,
     ...sessionEnvelope,
+    platformClient: platformClientSchema.optional(),
   })
   .strict();
 export type SecondFactorSignInRequest = z.infer<typeof secondFactorSignInRequestSchema>;

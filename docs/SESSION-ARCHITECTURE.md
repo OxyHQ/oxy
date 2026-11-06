@@ -68,6 +68,10 @@ from the request body.
 | POST | `/session/device/add` | — | Registers the caller's account into the device set. Account + session ids come from the bearer (IDOR-safe); `operatedByUserId` is resolved from the session document. Idempotent — an unchanged re-register does not broadcast. |
 | POST | `/session/device/switch` | `{ accountId }` | Sets `activeAccountId`, bumps `revision`, broadcasts. If the target session was revoked, heals the device set (drops the dead account), broadcasts the healed state, and returns 403. |
 | POST | `/session/device/signout` | `{ accountId }`, `{ contextId }`, `{ principalId }` or `{ all: true }` | Removes one account (or context, or person) or clears the device set; picks the next active account; broadcasts to every app on the device. Holder credentials survive while any account remains; they are all deleted when the device ends with none, and always on `{ all: true }`. |
+| POST | `/session/device/app-token` | `{ deviceId, deviceSecret, accountId?, clientId?, attestation }` | ADR 0058 — PUBLIC like the mint, native callers only (a web `Origin` is `browser_not_allowed`). A PLATFORM credential (OxyOS's `oxyos-accountd`, Astro) mints a five-minute token of the device's shared session named for the application it attests (`azp` + `host`). See "A platform that holds the session" below. |
+
+Every bearer-authenticated route above refuses an application token (one carrying
+`host`) with `403 app_token_device_access_denied`: the device is the platform's.
 
 Every response is validated against `deviceSessionSyncSchema` from `@oxy.so/contracts`:
 
@@ -198,6 +202,41 @@ its own account dialog (ADR 0029 D1), and all of them share the browser's ONE
 A credential therefore proves "this browser", not "this account": a browser holding Alice
 and Bob stays signed in to Bob in every app after Alice signs out anywhere, which is the
 point.
+
+### A platform that holds the session (ADR 0058)
+
+OxyOS and Astro hold the person's Oxy session themselves, the way a Mac holds an Apple
+Account, and their applications hold no credential at all. This is the server half; the
+SDK half is "Session host" under "SDK surface" below.
+
+- **The platform credential.** The platform's own service signs in with a password
+  naming its application: `POST /auth/signin/password` (and the second factor completing
+  it) with `platformClient: { platform, clientId }`, honoured only with no browser
+  context and for a client id whose registry entry declares `platformHost`. The holder
+  credential it gets back is a platform credential (`device_credentials.platform`,
+  `platform_application_id`). The device proof it presented (on OxyOS, the credential
+  the login screen's own SDK sign-in got and handed over) is DELETED in the same
+  transaction, and the account's session on the device is REPLACED, so nothing the setup
+  client saw keeps working; signing in again rotates the platform credential and leaves
+  one session. The 32-holder cap never evicts a platform credential.
+- **Application tokens.** `POST /session/device/app-token` with the platform credential
+  and an attestation (`{ platform: 'oxyos', desktopEntryId }`, `{ platform, self: true }`,
+  `{ platform: 'astro', origin, clientId }`) answers
+  `{ data: { accessToken, expiresAt, applicationId, accountId } }`: a fresh access token
+  of the SAME shared session (same `sid`, subject, device context), named for the
+  application (`azp`, its public client id) and carrying `host: { platform, credential }`.
+  Five minutes, never stored, no `deviceId`, no scope. Desktop entry ids are the
+  registry's `oxyosDesktopEntryIds` (`application_oxyos_entries`).
+- **What such a token reaches.** Every own API (`validateSession` re-checks, each
+  request, that `host.credential` is a live platform credential of that device session
+  and `azp` a live public client of an active Oxy application), `POST /apps/assertions`
+  on the `oxyos`/`astro` lanes for its own application only, and the user socket
+  (`user:<id>`, never `device:<id>`). Not `/session/device/*`. `GET
+  /session/validate-header/:id` names its `host: { applicationId, platform }`.
+- **What ends it.** Its session (sign-out anywhere), its platform credential (OxyOS's
+  Remove, sign-out-all, a newer platform sign-in) and its application's trust, all read
+  live. The platform ends a device with the device's own token (`/session/device/token`
+  with the platform credential, then `/session/device/signout { all: true }`).
 
 ## Cold boot
 

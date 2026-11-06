@@ -2,6 +2,11 @@
 
 - Status: accepted (2026-10-27, option b of decision 3; the owner's approval was
   relayed to OxyHQ/oxy#2006 and is confirmed on its review)
+- Amended by [ADR 0058](0058-platform-held-session.md) (accepted 2026-11-06):
+  decision 2, the application may also come from an application token's `azp`,
+  which Oxy re-checks against the registry and the platform credential;
+  decision 3, `sharedSessionAttribution` is a set, `'public_client_id' |
+  'platform'` (implemented; no terms accept `'platform'` yet).
 - Date: 2026-10-27
 - Implements: Kaana ADR 0002 phase 2.2 («sesiones de usuario como `product_session`»)
 - Builds on: ADR 0007 (attribution), ADR 0029 (one Oxy session), ADR 0045 (app assertions)
