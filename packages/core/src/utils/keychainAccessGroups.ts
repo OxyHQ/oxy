@@ -130,8 +130,10 @@ export async function resolveKeychainAccess(): Promise<KeychainAccess> {
     return resolvedAccess;
   }
   if (!isIOS()) {
-    resolvedAccess = { mode: 'ungrouped' };
-    return resolvedAccess;
+    // Not memoized: until `@oxy.so/services` registers the platform, a phone
+    // reads as "not iOS", and caching that would keep the whole process on the
+    // pre-split behaviour.
+    return { mode: 'ungrouped' };
   }
   let probe: KeychainDefaultAccessGroup;
   try {
