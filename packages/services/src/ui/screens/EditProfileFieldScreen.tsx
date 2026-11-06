@@ -9,7 +9,21 @@ import { PhoneInput, COUNTRIES, findCountry } from '@oxy.so/bloom/phone-input';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { DatePicker } from '@oxy.so/bloom/date-picker';
 import { Field } from '@oxy.so/bloom/field';
-import { USERNAME_MAX_LENGTH, stripDisallowedUsernameCharacters } from '@oxy.so/contracts/client';
+import {
+  Select,
+  SelectContent,
+  SelectIcon,
+  SelectItem,
+  SelectItemIndicator,
+  SelectItemText,
+  SelectTrigger,
+  SelectValue,
+} from '@oxy.so/bloom/select';
+import {
+  PRONOUNS,
+  USERNAME_MAX_LENGTH,
+  stripDisallowedUsernameCharacters,
+} from '@oxy.so/contracts/client';
 import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { User } from '@oxy.so/core';
@@ -43,7 +57,8 @@ export type ProfileFieldType =
   | 'birthday'
   | 'location'
   | 'locations'
-  | 'links';
+  | 'links'
+  | 'pronouns';
 
 /**
  * Field configuration for each field type
@@ -157,6 +172,9 @@ function buildInitialProfileState(
     case 'address':
       fieldValues.address = String(userData.address || '');
       break;
+    case 'pronouns':
+      fieldValues.pronouns = userData.pronouns ?? 'unspecified';
+      break;
     case 'username':
     case 'bio':
     case 'phone':
@@ -230,6 +248,16 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
   const invalidNameMessage =
     t(`editProfile.items.displayName.${accountNameInvalidKey(kind)}`) ||
     accountNameInvalidMessage(kind);
+  // The closed pronoun list, labelled for the picker in the active language.
+  const pronounItems = useMemo(
+    () =>
+      PRONOUNS.map((value) => ({
+        value,
+        label: t(`editProfile.items.pronouns.options.${value}`) || value,
+      })),
+    [t],
+  );
+
   // Get field configuration based on fieldType
   const fieldConfig = useMemo((): FieldConfig => {
     switch (fieldType) {
@@ -296,6 +324,18 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                 numberOfLines: 6,
                 textAlignVertical: 'top',
               },
+            },
+          ],
+        };
+      case 'pronouns':
+        return {
+          title: t('editProfile.items.pronouns.title') || 'Pronouns',
+          subtitle: t('editProfile.items.pronouns.subtitle') || 'How people should refer to you',
+          fields: [
+            {
+              key: 'pronouns',
+              label: t('editProfile.items.pronouns.label') || 'Pronouns',
+              placeholder: '',
             },
           ],
         };
@@ -529,6 +569,35 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
               : undefined
         : undefined);
 
+    if (field.key === 'pronouns') {
+      const chosen = fieldValues.pronouns || 'unspecified';
+      return (
+        <Field key={field.key} label={field.label} disabled={isSaving}>
+          <Select
+            value={chosen}
+            disabled={isSaving}
+            onValueChange={(value) => handleFieldChange('pronouns', value)}
+          >
+            <SelectTrigger>
+              <SelectValue>
+                {() => pronounItems.find((item) => item.value === chosen)?.label ?? chosen}
+              </SelectValue>
+              <SelectIcon />
+            </SelectTrigger>
+            <SelectContent
+              label={field.label}
+              items={pronounItems}
+              renderItem={(item) => (
+                <SelectItem value={item.value} label={item.label}>
+                  <SelectItemIndicator />
+                  <SelectItemText>{item.label}</SelectItemText>
+                </SelectItem>
+              )}
+            />
+          </Select>
+        </Field>
+      );
+    }
     if (field.key === 'phone') {
       return (
         <PhoneInput

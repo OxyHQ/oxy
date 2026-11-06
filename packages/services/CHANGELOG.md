@@ -1,5 +1,15 @@
 # Changelog
 
+## 14.7.0
+
+### Added
+
+- **Edit profile → Pronouns**: a person account picks its pronouns from the closed list (a Bloom `Select`). The row is shown only for `personal` accounts. `useProfileEditing` saves them as `pronouns`.
+
+### Consumers
+
+Bump to 14.7.0 together with `@oxy.so/core` 7.28.0 (`User.pronouns`).
+
 ## 14.6.1
 
 ### Changed

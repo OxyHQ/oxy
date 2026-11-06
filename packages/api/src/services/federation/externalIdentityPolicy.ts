@@ -1,4 +1,4 @@
-import type { AccountKind } from '@oxy.so/contracts';
+import type { AccountKind, Pronouns } from '@oxy.so/contracts';
 import {
   type ActorKindSignals,
   accountKindForActor,
@@ -39,8 +39,43 @@ export interface ExternalActorProfile {
   bio: string;
   /** The profile's links (its link fields, or Bluesky's), in the author's order. */
   links: ExternalActorLink[];
+  /** The closed pronoun its "Pronouns" field names; absent when it names none. */
+  pronouns?: Pronouns;
   evidenceLinks: string[];
   stableId?: string;
+}
+
+/** The spellings of a pronoun pair a source writes, mapped onto the closed list. */
+const PRONOUN_SPELLINGS = new Map<string, Pronouns>([
+  ['he/him', 'he_him'],
+  ['she/her', 'she_her'],
+  ['they/them', 'they_them'],
+  ['he/they', 'he_they'],
+  ['she/they', 'she_they'],
+  ['it/its', 'it_its'],
+]);
+
+/**
+ * The closed pronoun a profile's "Pronouns" field declares. A field whose value
+ * is not one of the listed pairs declares `unspecified`: free text is never
+ * stored. `undefined` when the profile has no such field.
+ */
+export function pronounsFromFields(
+  fields: readonly Record<string, unknown>[],
+): Pronouns | undefined {
+  for (const field of fields) {
+    if (typeof field.name !== 'string' || typeof field.value !== 'string') continue;
+    const name = decodeHtmlEntities(field.name)
+      .replace(/[\s:]+$/, '')
+      .trim()
+      .toLowerCase();
+    if (name !== 'pronouns' && name !== 'pronoun') continue;
+    const value = decodeHtmlEntities(field.value.replace(/<[^>]*>/g, ' '))
+      .replace(/\s+/g, '')
+      .toLowerCase();
+    return PRONOUN_SPELLINGS.get(value) ?? 'unspecified';
+  }
+  return undefined;
 }
 
 function attribute(tag: string, name: string): string | undefined {
@@ -206,6 +241,7 @@ export function deriveExternalActorProfile(
     avatarUrl: apImageUrl(actor.icon),
     bio: normalizeExternalBio(normalizedBio, domain, host),
     links: profileLinks,
+    pronouns: pronounsFromFields(fields),
     evidenceLinks: [
       ...new Set([...links, ...aliases.filter((value) => value.startsWith('https://'))]),
     ],

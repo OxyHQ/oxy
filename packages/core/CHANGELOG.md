@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.28.0
+
+### Added
+
+- **`User.pronouns`** (`Pronouns`, from `@oxy.so/contracts`): how a person account names its pronouns, from the closed list (`unspecified`, `he_him`, `she_her`, `they_them`, `he_they`, `she_they`, `it_its`). Every non-person account is `unspecified`. Read it from the account; set it with `updateProfile({ pronouns })`.
+
 ## 7.27.0
 
 ### Added

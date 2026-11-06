@@ -114,6 +114,17 @@ const EditProfileScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
           description={user?.bio || notSet}
           onPress={() => goToField('bio')}
         />
+        {/* Pronouns name a person; an organization, channel, bot or project has none. */}
+        {user?.kind === 'personal' && (
+          <GroupedSectionItem
+            icon={<SettingsIcon name="account-voice" color={bloomTheme.colors.info} />}
+            title={t('editProfile.items.pronouns.title') || 'Pronouns'}
+            description={
+              t(`editProfile.items.pronouns.options.${user.pronouns ?? 'unspecified'}`) || notSet
+            }
+            onPress={() => goToField('pronouns')}
+          />
+        )}
         <GroupedSectionItem
           icon={<SettingsIcon name="map-marker" color={bloomTheme.colors.info} />}
           title={t('editProfile.items.address.title') || 'Address'}

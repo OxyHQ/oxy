@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import { useUpdateProfile } from './mutations/useAccountMutations';
 import { useAuthStore } from '../stores/authStore';
-import type { UserProfileUpdate } from '@oxy.so/contracts';
+import type { Pronouns, UserProfileUpdate } from '@oxy.so/contracts';
+import { PRONOUNS } from '@oxy.so/contracts/client';
 
 interface ProfileLocation {
   id: string;
@@ -32,9 +33,14 @@ export interface ProfileUpdateData {
   address?: string;
   birthday?: string;
   dateOfBirth?: string;
+  pronouns?: Pronouns;
 }
 
 type ProfileFieldValue = string | ProfileLocation[] | ProfileLinkMetadata[];
+
+function isPronouns(value: string): value is Pronouns {
+  return (PRONOUNS as readonly string[]).includes(value);
+}
 
 function isProfileLocationArray(value: ProfileFieldValue): value is ProfileLocation[] {
   return (
@@ -102,6 +108,9 @@ export const useProfileEditing = () => {
         // field.
         updateData.dateOfBirth = updates.dateOfBirth === '' ? null : updates.dateOfBirth;
       }
+      if (updates.pronouns !== undefined) {
+        updateData.pronouns = updates.pronouns;
+      }
 
       // Handle name field
       if (updates.firstName !== undefined || updates.lastName !== undefined) {
@@ -161,6 +170,10 @@ export const useProfileEditing = () => {
         case 'birthday':
           if (typeof value !== 'string') return false;
           updates.birthday = value;
+          break;
+        case 'pronouns':
+          if (typeof value !== 'string' || !isPronouns(value)) return false;
+          updates.pronouns = value;
           break;
         case 'dateOfBirth':
           // '' clears it (the picker's "no complete date selected"

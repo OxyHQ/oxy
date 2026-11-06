@@ -9,6 +9,7 @@ import {
   externalIdentityClaims,
 } from '../db/schema/externalIdentities';
 import { users, type AccountKind } from '../db/schema/users';
+import type { Pronouns } from '@oxy.so/contracts';
 import { cleanAccountName, untrustedNameColumns } from '../utils/displayNameSanitize';
 import { insertAccount } from './accountCreation.service';
 import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
@@ -44,6 +45,11 @@ export interface RegisterExternalIdentityInput {
      * (atproto, Instagram Graph): the stored kind is then kept.
      */
     kind?: AccountKind;
+    /**
+     * The closed pronoun the source's "Pronouns" field names. Only a person
+     * account holds one; any other kind is stored `unspecified`.
+     */
+    pronouns?: Pronouns;
   };
   /** Only source-controlled, verified rel=me / alsoKnownAs links, never biography text. */
   evidenceLinks?: string[];
@@ -479,6 +485,8 @@ function federatedProfileColumns(
     ...untrustedNameColumns(profile.displayName, kind),
     bio: profile.bio || null,
     description: profile.bio || null,
+    // Refreshed like the bio: a source that stops declaring pronouns clears them.
+    pronouns: kind === 'personal' && profile.pronouns ? profile.pronouns : 'unspecified',
     federationLastResolvedAt: new Date(),
     federationUnavailableAt: null,
     federationUnavailableReason: null,
