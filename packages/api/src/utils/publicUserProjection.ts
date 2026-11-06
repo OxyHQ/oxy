@@ -81,6 +81,8 @@ export interface PublicUserView {
   avatar?: string;
   color?: string;
   bio?: string;
+  /** The account's pronouns, from the closed list; a non-person account has `unspecified`. */
+  pronouns?: string;
   description?: string;
   links?: string[];
   linksMetadata?: LinkMetadataDto[];
@@ -174,6 +176,7 @@ export const publicUserColumns = {
   avatar: users.avatar,
   color: users.color,
   bio: users.bio,
+  pronouns: users.pronouns,
   description: users.description,
   linksMetadata: linksMetadataAggregate,
   verified: users.verified,
@@ -201,6 +204,7 @@ export interface PublicUserRow {
   avatar: string | null;
   color: string;
   bio: string | null;
+  pronouns: string;
   description: string | null;
   linksMetadata: ProfileLinkRow[];
   verified: boolean;
@@ -281,6 +285,7 @@ export async function toPublicUserView(row: PublicUserRow): Promise<PublicUserVi
     avatar: optional(row.avatar),
     color: row.color,
     bio: optional(row.bio),
+    pronouns: row.pronouns,
     description: optional(row.description),
     // Emitted only when the profile has links, as the column was before.
     links: linksMetadata.length > 0 ? linksMetadata.map((link) => link.url) : undefined,

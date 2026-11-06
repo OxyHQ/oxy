@@ -87,6 +87,7 @@ import {
   ACCOUNT_CATEGORY_KINDS as CONTRACT_ACCOUNT_CATEGORY_KINDS,
   ACCOUNT_KINDS as CONTRACT_ACCOUNT_KINDS,
   MAX_ACCOUNT_CATEGORIES,
+  PRONOUNS,
   TRUST_TIERS as CONTRACT_TRUST_TIERS,
   USER_PROFILE_COLOR_PRESETS,
   FREE_USER_PROFILE_COLOR_PRESETS,
@@ -540,6 +541,8 @@ export const users = pgTable(
       .notNull()
       .$defaultFn(() => randomUserColor()),
     bio: text(),
+    /** How the account names its pronouns: one of a closed list (see `PRONOUNS`). */
+    pronouns: text().notNull().default('unspecified'),
     description: text(),
     address: text(),
     /** Free-form legacy date string, stored verbatim. Never parsed here. */
@@ -770,6 +773,12 @@ export const users = pgTable(
     // would hard-code a SQL name this file never chose (drizzle derives it from
     // the casing setting), so only the value lists are raw.
     check('users_kind_check', sql`${t.kind} in (${sql.raw(inList(ACCOUNT_KINDS))})`),
+    check('users_pronouns_check', sql`${t.pronouns} in (${sql.raw(inList(PRONOUNS))})`),
+    // Pronouns name a person. An organization, channel, bot, project or community has none.
+    check(
+      'users_pronouns_person_check',
+      sql`${t.pronouns} = 'unspecified' or ${t.kind} = 'personal'`,
+    ),
     // The array analogue of a closed value set. `<@` is containment, so `{}`
     // satisfies it trivially — and a NULL ELEMENT does not, which is how
     // `{news,NULL}` is refused without a clause of its own (measured).

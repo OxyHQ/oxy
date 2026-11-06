@@ -280,6 +280,8 @@ export {
 } from './username';
 
 export { userNameCheck, PROFILE_LINKS_MAX, PROFILE_LINK_TITLE_MAX } from './userResponse';
+export { PRONOUNS } from './userResponse';
+export type { Pronouns } from './userResponse';
 
 export {
   CLAIMANT_RELATIONSHIPS,

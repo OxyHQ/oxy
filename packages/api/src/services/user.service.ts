@@ -100,6 +100,7 @@ import {
   usernameSchemaForAccountKind,
   type UserRelationship,
   PROFILE_LINKS_MAX,
+  PRONOUNS,
 } from '@oxy.so/contracts';
 import type { NameParts } from '../utils/displayName';
 
@@ -149,6 +150,8 @@ export interface SelfUserView extends PublicUserView {
  */
 export interface UserResponseSource {
   languages?: unknown;
+  /** The account's pronouns, from the closed list. */
+  pronouns?: unknown;
   _id?: unknown;
   /** Present on objects whose identifier was already folded into `id`. */
   id?: unknown;
@@ -927,6 +930,7 @@ export class UserService {
       'avatar',
       'color',
       'bio',
+      'pronouns',
       'description',
       'phone',
       'address',
@@ -970,6 +974,18 @@ export class UserService {
           filteredUpdates.avatar = value;
         }
         continue;
+      }
+
+      // Pronouns name a person and come from a closed list. An organization, channel,
+      // bot, project or community has none, so a change for one is refused, and a
+      // value outside the list is refused rather than stored.
+      if (key === 'pronouns' && value !== 'unspecified') {
+        if (existing.kind !== 'personal')
+          throw new BadRequestError('Pronouns apply to person accounts only', {
+            field: 'pronouns',
+          });
+        if (!(PRONOUNS as readonly unknown[]).includes(value))
+          throw new BadRequestError('Unknown pronouns', { field: 'pronouns' });
       }
 
       // Canonicalize the value into EXACTLY the form that will be persisted,
@@ -2213,6 +2229,7 @@ export class UserService {
       ...(identity.character ? { character: identity.character } : {}),
       verified: typeof user.verified === 'boolean' ? user.verified : undefined,
       bio: stringOrUndefined(user.bio),
+      pronouns: stringOrUndefined(user.pronouns),
       description: stringOrUndefined(user.description),
       color: stringOrUndefined(user.color),
       links:
@@ -2348,6 +2365,7 @@ function buildUserColumnUpdates(filtered: Record<string, unknown>): Record<strin
   if (typeof filtered.avatar === 'string') set.avatar = blankToNull(filtered.avatar);
   if (typeof filtered.color === 'string') set.color = filtered.color;
   if (typeof filtered.bio === 'string') set.bio = blankToNull(filtered.bio);
+  if (typeof filtered.pronouns === 'string') set.pronouns = filtered.pronouns;
   if (typeof filtered.description === 'string') set.description = blankToNull(filtered.description);
   if (typeof filtered.phone === 'string') set.phone = blankToNull(filtered.phone);
   if (typeof filtered.address === 'string') set.address = blankToNull(filtered.address);
