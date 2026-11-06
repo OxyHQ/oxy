@@ -160,6 +160,34 @@ export function configureCors(
   return true;
 }
 
+/**
+ * CORS for the public catalogue transport. Origin is never a refusal here: the
+ * transport is Bearer-only, and a cross-origin page holds no ambient credential it
+ * could replay, so an unlisted Origin cannot act for anyone. Refusing it with 403 also
+ * denied real MCP clients (their Origin is not a browser allowlist entry) before the
+ * 401 challenge that starts OAuth. The allowlist only decides which browser origins
+ * may read responses; authentication and the pinned Host are the gates.
+ */
+function applyCorsHeaders(
+  request: IncomingMessage,
+  response: ServerResponse,
+  allowedOrigins: ReadonlySet<string>,
+): void {
+  const origin = singleHeader(request.headers.origin);
+  if (origin) {
+    appendVary(response, 'Origin');
+    if (allowedOrigins.has(origin)) {
+      response.setHeader('Access-Control-Allow-Origin', origin);
+    }
+  }
+  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  response.setHeader(
+    'Access-Control-Allow-Headers',
+    'Authorization, Content-Type, MCP-Protocol-Version',
+  );
+  response.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate');
+}
+
 export function requireResourceHost(
   request: IncomingMessage,
   response: ServerResponse,
@@ -347,10 +375,7 @@ export function createCatalogMcpHttpService(
       request.resume();
       return;
     }
-    if (!configureCors(request, response, allowedOrigins)) {
-      request.resume();
-      return;
-    }
+    applyCorsHeaders(request, response, allowedOrigins);
     if (request.method === 'OPTIONS') {
       response.statusCode = 204;
       response.end();
@@ -420,7 +445,7 @@ export function createCatalogMcpHttpService(
         request.resume();
         return;
       }
-      if (!configureCors(request, response, allowedOrigins)) return;
+      applyCorsHeaders(request, response, allowedOrigins);
       if (request.method === 'OPTIONS') {
         response.statusCode = 204;
         response.end();
