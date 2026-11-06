@@ -60,6 +60,7 @@ import type {
   CommonsSocialReceiveSignature,
   ExpoCryptoLike,
   ExpoSecureStoreLike,
+  KeychainDefaultAccessGroup,
 } from './expoTypes';
 import { missingOptionalPeerError } from './optionalPeer';
 import { requireExpoCrypto } from './random.native';
@@ -73,6 +74,7 @@ export type {
   CommonsSocialReceiveSignature,
   ExpoCryptoLike,
   ExpoSecureStoreLike,
+  KeychainDefaultAccessGroup,
 };
 
 // ---------------------------------------------------------------------------
@@ -217,6 +219,12 @@ interface OxyIdentityNativeModule {
     digest: string,
     accountId: string,
   ): Promise<unknown>;
+  /**
+   * iOS only, added with the keychain access-group split: the access group a
+   * probe item written WITHOUT a group landed in (the app's default group).
+   * Older native modules and Android lack it.
+   */
+  keychainDefaultAccessGroup?(): Promise<unknown>;
 }
 
 const LOWER_HEX = /^[0-9a-f]+$/;
@@ -343,4 +351,49 @@ export function loadCommonsIdentityBridge(): Promise<CommonsIdentityBridge | nul
     });
   }
   return commonsIdentityBridgePromise;
+}
+
+// ---------------------------------------------------------------------------
+// iOS keychain default access group (docs/identity/ios-keychain-access-groups.md).
+//
+// Resolved once the native module answers; an `unavailable` probe (a thrown
+// call: before first unlock, or the keychain refused) is not memoized, so the
+// next caller asks again. The answer is narrowed to a plain string — it crossed
+// the native boundary.
+// ---------------------------------------------------------------------------
+
+/** `<prefix>.<group>`: an App ID prefix (no dots) then a non-empty group. */
+const ACCESS_GROUP = /^[A-Za-z0-9]+\.[A-Za-z0-9.-]+$/;
+
+let keychainDefaultAccessGroup: KeychainDefaultAccessGroup | null = null;
+
+export async function loadKeychainDefaultAccessGroup(): Promise<KeychainDefaultAccessGroup> {
+  if (keychainDefaultAccessGroup) {
+    return keychainDefaultAccessGroup;
+  }
+  const native = requireOptionalNativeModule<Partial<OxyIdentityNativeModule>>('OxyIdentity');
+  const probe = native?.keychainDefaultAccessGroup;
+  if (!native || typeof probe !== 'function') {
+    keychainDefaultAccessGroup = { state: 'unsupported' };
+    return keychainDefaultAccessGroup;
+  }
+  let answer: unknown;
+  try {
+    answer = await probe.call(native);
+  } catch (cause) {
+    return { state: 'unavailable', cause };
+  }
+  if (answer === null || answer === undefined) {
+    // The native side runs only on iOS; anything else answers nothing.
+    keychainDefaultAccessGroup = { state: 'unsupported' };
+    return keychainDefaultAccessGroup;
+  }
+  if (typeof answer !== 'string' || !ACCESS_GROUP.test(answer)) {
+    return {
+      state: 'unavailable',
+      cause: new Error('keychain probe answered something that is not an access group'),
+    };
+  }
+  keychainDefaultAccessGroup = { state: 'resolved', accessGroup: answer };
+  return keychainDefaultAccessGroup;
 }

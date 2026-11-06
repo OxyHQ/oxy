@@ -1,5 +1,19 @@
 # Changelog
 
+## 14.8.0
+
+### Security
+
+- iOS keychain access-group split (ADR 0062 of the oxy repo, docs/identity/ios-keychain-access-groups.md). The device-session credential is written to and read from the shared group with the real, team-prefixed `accessGroup` (`keychainAccessGroup` was never an `expo-secure-store` option); Commons' default group is now the identity group, so without it Commons would write the credential where no sibling reads it. An app's own SecureStore items in Commons and the Peable wallet go to their default group explicitly and are read from it first, so a pre-split copy never shadows a newer one; every other app's calls are unchanged. The ambient `expo-secure-store` shim is gone.
+
+### Added
+
+- The iOS `OxyIdentity` native module answers `keychainDefaultAccessGroup()`: the access group a probe item written without a group lands in (the first `keychain-access-groups` entry, team prefix included), which `@oxy.so/core` reads the app's role and the prefix from. Native: an app needs a new build to get it; until then it behaves as before.
+
+### Changed
+
+- Needs `@oxy.so/core` `^7.29.0`.
+
 ## 14.7.0
 
 ### Added

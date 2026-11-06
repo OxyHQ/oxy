@@ -29,7 +29,7 @@ Now:
   `AccountManager` model ("Sign in with Google").
 - **The device session** lives in the host apps (Commons, Accounts) and every
   other app reads and writes it through their provider.
-- **iOS is unchanged:** the keychain access group `group.so.oxy.shared`.
+- **iOS is unchanged by this phase:** keychain access groups (split by ADR 0062).
 
 ## Permissions and manifests
 

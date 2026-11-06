@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.2.0
+
+### Security
+
+- The iOS keychain access groups are policy (ADR 0062 of the oxy repo): every app keeps `group.so.oxy.shared` as its default; only Commons (`so.oxy.commons`, `.dev`) may list `[so.oxy.identity, so.oxy.wallet, group.so.oxy.shared]` and only the Peable wallet (`to.peable.app`, `.dev`) `[so.oxy.wallet, group.so.oxy.shared]`, in that order (the first entry is the default group, which decides the app's role). Any other app naming either restricted group, or a holder putting another group first, fails prebuild — in `withOxyKeychain` and, for apps that declare `ios.entitlements` themselves, in `withOxyUpdates`, which every Oxy app applies.
+
+### Changed
+
+- `keychainGroup` defaults to the bundle id's groups (`keychainGroupsFor`), still the shared group for every app but the two holders, and accepts an array.
+
+
 ## 6.1.1
 
 ### Fixed

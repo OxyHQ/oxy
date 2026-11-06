@@ -1,5 +1,17 @@
 # Changelog — `@oxy.so/core`
 
+## 7.29.0
+
+### Security
+
+- **iOS: only Commons reads identity secrets** (ADR 0062, docs/identity/ios-keychain-access-groups.md; Peable mainnet-gate F5). The explicit keychain group was never applied: core passed `keychainAccessGroup`, a field `expo-secure-store` does not have, behind an ambient shim that hid it from `tsc`, so every item Commons wrote (root key, phrases, organization keys) landed in `group.so.oxy.shared`, which every Oxy iOS app can read. Items now go to their group with the real `accessGroup` option and the team-prefixed value: identity secrets (root slots, phrases, organization index) to `<TEAM>.so.oxy.identity` (Commons only), spending keys (the shared slot's private key, organization pairs) to `<TEAM>.so.oxy.wallet` (Commons, the Peable wallet), public keys to the shared group. In every other app `getSharedPrivateKey`, `getPrivateKey`, `getRecoveryMnemonic`, `deriveScopedSeed`, `signSocialReceive`, `getOrganizationPrivateKey` and `getOrganizationRecoveryPhrase` answer `null` without a keychain read, `hasSharedIdentity()` is `false`, and in-process proof sign-in falls through to the Commons approval round-trip; writing an identity there throws.
+- The ambient `expo-secure-store` shim is gone; `OxySecureStoreOptions` is checked against the real `SecureStoreOptions` at compile time (`crypto/secureStoreOptions.ts`) without naming expo-secure-store in the published declarations.
+
+### Added
+
+- `resolveKeychainAccess()` and the placement helpers (`keychainGroupFor`, `keychainReadPlan`, `keychainWriteOption`, `keychainDeletePlan`, `groupedKeychainStore`, `ownKeychainItemPlan`, `readThroughPlan`, `deleteThroughPlan`, `KEYCHAIN_ACCESS_GROUPS`) from `@oxy.so/core/crypto` (the device-session subset also from `@oxy.so/core/session`). The role (`holder`, `wallet`, `member`) and the team prefix come from the keychain: the default access group a probe item lands in (`@oxy.so/services` 14.8.0's native module). A build without the probe is `ungrouped` and behaves as before; Android and web are unchanged.
+- `ensureKeychainGroupsMigrated()`: Commons moves every item out of the shared group, verify-before-delete (read from the shared group, write to the new group, read back and check pair health or byte equality, only then delete). A locked keychain defers, a failure leaves the item readable where it was and retries next launch, differing copies are both kept (`conflict`), an unhealthy pair is never moved. Every identity read and write in Commons waits for it. Reads look in an item's group, then the shared group, until a later release drops that fallback.
+
 ## 7.28.0
 
 ### Added

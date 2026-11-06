@@ -99,6 +99,7 @@ export {
   loadAsyncStorage,
   getRandomBytesRN,
   loadCommonsIdentityBridge,
+  loadKeychainDefaultAccessGroup,
 } from './platform/crypto';
 
 // ---------------------------------------------------------------------------
@@ -115,4 +116,5 @@ export type {
   CommonsSocialReceiveSignature,
   ExpoCryptoLike,
   ExpoSecureStoreLike,
+  KeychainDefaultAccessGroup,
 } from './platform/expoTypes';

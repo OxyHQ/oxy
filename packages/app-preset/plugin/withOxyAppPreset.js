@@ -15,7 +15,7 @@
  * Options:
  *
  *   ['@oxy.so/app-preset', {
- *     keychainGroup: 'group.so.oxy.shared', // false → skip iOS keychain entitlement
+ *     keychainGroup: undefined, // default: the app's groups (shared; Commons and the Peable wallet more); false → skip
  *     ios: { deploymentTarget: '17.0' },    // false → skip iOS build properties
  *     android: { targetSdkVersion: 34 },    // false → skip Android build properties
  *     webgpu: true,                         // opt-in: react-native-webgpu's config plugin
@@ -42,7 +42,11 @@
  *
  * @param {import('expo/config').ExpoConfig} config
  * @param {object} [options]
- * @param {string|false} [options.keychainGroup='group.so.oxy.shared']
+ * @param {string|string[]|false} [options.keychainGroup] The iOS keychain
+ *   access group name(s), without `$(AppIdentifierPrefix)`. Default: the
+ *   policy's groups for the bundle id (`./oxyKeychainGroups`): the shared group,
+ *   or a holder's layout. `false` skips the entitlement (the policy still checks
+ *   whatever the app declares itself).
  * @param {object|false}  [options.ios]
  * @param {object|false}  [options.android]
  * @param {boolean}       [options.webgpu=false] Apply `react-native-webgpu`'s
@@ -80,13 +84,7 @@ module.exports = function withOxyAppPreset(config, options = {}) {
     }
   }
 
-  const {
-    keychainGroup = 'group.so.oxy.shared',
-    ios = {},
-    android = {},
-    webgpu = false,
-    noxcturnal = true,
-  } = options;
+  const { keychainGroup, ios = {}, android = {}, webgpu = false, noxcturnal = true } = options;
 
   let next = config;
 
@@ -100,9 +98,10 @@ module.exports = function withOxyAppPreset(config, options = {}) {
     };
   }
 
-  if (keychainGroup !== false) {
-    next = withOxyKeychain(next, keychainGroup);
-  }
+  next =
+    keychainGroup === false
+      ? withOxyKeychain.withOxyKeychainPolicy(next)
+      : withOxyKeychain(next, keychainGroup);
 
   if (ios !== false || android !== false) {
     next = withOxyBuildProperties(next, { ios, android });

@@ -6,7 +6,7 @@
 > engine is in `@oxy.so/api`; the crypto + SDK surface is in `@oxy.so/core`; wire
 > types are in `@oxy.so/contracts`.
 >
-> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Organization identity keys](organization-keys.md) · [Identity device backup](device-backup.md) · [Phase 2: every Android app on its own UID](phase-2-shared-uid-migration.md) · [iOS keychain access groups (proposed split)](ios-keychain-access-groups.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
+> Related: [Root holders, enrollment and recovery](holders-and-recovery.md) · [Organization identity keys](organization-keys.md) · [Identity device backup](device-backup.md) · [Phase 2: every Android app on its own UID](phase-2-shared-uid-migration.md) · [iOS keychain access groups (ADR 0062)](ios-keychain-access-groups.md) · [Reputation / civic engine](../reputation/README.md) · [Nodes](../nodes/README.md) ·
 > [External identities and aliases](external-identities.md) · [Linked accounts](linked-accounts.md) · [Account events (deletion → relying parties)](account-events.md) · [Deleted accounts' stored uploads](account-storage-deletion.md) · [Auth & session](../auth/README.md) · [Changelog](../CHANGELOG.md)
 
 ---
@@ -277,8 +277,9 @@ Commons is the only holder of the identity key. Any sibling native app calls
 `oxy.auth.signInWithCommonsIdentity()`: on Android it asks Commons for its public
 key (`describe`), requests a challenge, has Commons sign it (`proveIdentity`, over
 signature-protected IPC; the key never leaves Commons) and `auth.verifyChallenge`
-plants tokens; on iOS the identity in the keychain access group
-`group.so.oxy.shared` signs it in-process. This runs as the `commons-proof-signin`
+plants tokens; on iOS only Commons and the Peable wallet hold the key (the
+wallet keychain group, ADR 0062) and sign it in-process; every other app finds no
+key and falls through to the Commons approval round-trip. This runs as the `commons-proof-signin`
 cold-boot step on native; returns `null` on web. Each native app declares the iOS
 `keychain-access-groups` (same Team ID) and, on Android,
 `withOxySharedPermissions`; `@oxy.so/app-preset` does both. See

@@ -76,8 +76,8 @@ device backup is built to work with it: the device backup record carries the
 phrase (below), so after a silent restore Settings can still reveal the phrase
 and create or replace that Oxy backup.
 
-**iOS.** No change is needed. The identity is in the keychain, in items shared
-through the `group.so.oxy.shared` access group. iOS has no "clear storage" for an
+**iOS.** No change is needed. The identity is in the keychain, in the identity
+access group only Commons holds (ADR 0062; its signing copy in the wallet group). iOS has no "clear storage" for an
 app, and removing one app from the group does not remove the group's items.
 Commons registers no device backup on iOS.
 

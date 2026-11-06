@@ -45,6 +45,35 @@ export type {
   GeneratedOrganizationKey,
   StoredOrganizationKey,
 } from './organizationKeys';
+// iOS keychain access groups (docs/identity/ios-keychain-access-groups.md, ADR 0062)
+export {
+  KEYCHAIN_ACCESS_GROUPS,
+  KeychainAccessUnavailableError,
+  keychainGroupFor,
+  mayHoldKeychainItem,
+  resolveKeychainAccess,
+  keychainAccessGroupValue,
+  keychainReadPlan,
+  keychainDeletePlan,
+  keychainWriteOption,
+  ownKeychainItemPlan,
+  readThroughPlan,
+  deleteThroughPlan,
+  groupedKeychainStore,
+} from '../utils/keychainAccessGroups';
+export type {
+  KeychainAccess,
+  KeychainAccessGroupName,
+  KeychainGroupOption,
+  KeychainItemClass,
+  KeychainRole,
+  KeychainStoreLike,
+} from '../utils/keychainAccessGroups';
+export { ensureKeychainGroupsMigrated } from './keychainGroupMigration';
+export type {
+  KeychainGroupMigrationReport,
+  KeychainItemMigrationOutcome,
+} from './keychainGroupMigration';
 export { SignatureService } from './signatureService';
 export type { SignedMessage, AuthChallenge } from './signatureService';
 export { RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO } from './recoveryPhrase';

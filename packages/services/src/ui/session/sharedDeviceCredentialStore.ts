@@ -6,15 +6,15 @@
  * module owns only where the bytes live, which is genuinely different per
  * platform:
  *
- *  - **iOS** — one `expo-secure-store` item in the approved Keychain Access Group
- *    `group.so.oxy.shared`, under its OWN `keychainService`
- *    ({@link IOS_DEVICE_SESSION_KEYCHAIN_SERVICE}). Every identity slot uses a
- *    different service (`oxy_identity`, `oxy_identity_backup`,
- *    `oxy_identity_mnemonic`) and the legacy cross-app identity keypair uses the
- *    same group with NO service at all — so this item cannot alias any of them.
- *    That separation is the point of the whole phase: the group-shared identity
- *    key and the group-shared device-session credential are different secrets
- *    with different blast radii and must not be conflated.
+ *  - **iOS** — one `expo-secure-store` item in the keychain access group every
+ *    Oxy app holds, `<TEAM>.group.so.oxy.shared`, under its OWN
+ *    `keychainService` ({@link IOS_DEVICE_SESSION_KEYCHAIN_SERVICE}). The
+ *    `accessGroup` is the full team-prefixed value `@oxy.so/core` resolves
+ *    (`resolveKeychainAccess`, docs/identity/ios-keychain-access-groups.md):
+ *    Commons' DEFAULT group is the identity group, so without it Commons would
+ *    write this item where no sibling can read it. Identity keys never share
+ *    this group (they are in the identity and wallet groups), and this item's
+ *    service aliases none of theirs.
  *  - **Android** — the signature-protected `OxyDeviceSession` broker (its own
  *    EncryptedSharedPreferences file, its own ContentProvider, its own
  *    `signature`-level permission). It carries a session credential; it can NOT
@@ -39,17 +39,20 @@
  */
 import { Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo-modules-core';
+import type { SecureStoreOptions } from 'expo-secure-store';
 import {
+  keychainAccessGroupValue,
   normalizeSharedDeviceSessionRead,
+  resolveKeychainAccess,
   type SharedDeviceCredential,
   type SharedDeviceCredentialRead,
   type SharedDeviceCredentialStore,
 } from '@oxy.so/core/session';
 
 /**
- * The iOS Keychain Access Group every official Oxy app declares in its
- * entitlements. Shared with the identity slots — the group is the app-group
- * boundary, not the secret's identity.
+ * The keychain access group (after the team prefix) every Oxy app declares.
+ * The value passed to the keychain is `<TEAM>.` + this; see
+ * {@link sharedGroupOptions}.
  */
 export const IOS_KEYCHAIN_ACCESS_GROUP = 'group.so.oxy.shared';
 
@@ -150,12 +153,21 @@ function parseStoredCredential(raw: string | null): SharedDeviceCredential | nul
  * two is what would let a locked phone look like a device that never had a
  * session.
  */
-function createKeychainGroupCredentialStore(): SharedDeviceCredentialStore {
-  const readOptions = {
+/**
+ * The options of the credential item: its own service, and the shared group's
+ * full `accessGroup` (none on a native build whose module predates the probe,
+ * whose one shared group is its default anyway). Throws while the keychain
+ * cannot say which groups this app holds, which reads as `unavailable`.
+ */
+async function sharedGroupOptions(): Promise<SecureStoreOptions> {
+  const accessGroup = keychainAccessGroupValue(await resolveKeychainAccess(), 'shared');
+  return {
     keychainService: IOS_DEVICE_SESSION_KEYCHAIN_SERVICE,
-    keychainAccessGroup: IOS_KEYCHAIN_ACCESS_GROUP,
+    ...(accessGroup ? { accessGroup } : {}),
   };
+}
 
+function createKeychainGroupCredentialStore(): SharedDeviceCredentialStore {
   return {
     read: async (): Promise<SharedDeviceCredentialRead> => {
       const store = await loadKeychainGroupStore();
@@ -164,7 +176,10 @@ function createKeychainGroupCredentialStore(): SharedDeviceCredentialStore {
       }
       let raw: string | null;
       try {
-        raw = await store.getItemAsync(SHARED_DEVICE_SESSION_STORAGE_KEY, readOptions);
+        raw = await store.getItemAsync(
+          SHARED_DEVICE_SESSION_STORAGE_KEY,
+          await sharedGroupOptions(),
+        );
       } catch (error) {
         return { state: 'unavailable', cause: error };
       }
@@ -190,6 +205,7 @@ function createKeychainGroupCredentialStore(): SharedDeviceCredentialStore {
       }
       const value = JSON.stringify(credential);
       try {
+        const readOptions = await sharedGroupOptions();
         await store.setItemAsync(SHARED_DEVICE_SESSION_STORAGE_KEY, value, {
           ...readOptions,
           keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
@@ -210,7 +226,7 @@ function createKeychainGroupCredentialStore(): SharedDeviceCredentialStore {
         return;
       }
       try {
-        await store.deleteItemAsync(SHARED_DEVICE_SESSION_STORAGE_KEY, readOptions);
+        await store.deleteItemAsync(SHARED_DEVICE_SESSION_STORAGE_KEY, await sharedGroupOptions());
       } catch {
         // Best-effort: the slot is a join point, not a source of truth.
       }
@@ -313,7 +329,7 @@ function createBrokerCredentialStore(): SharedDeviceCredentialStore {
  *
  * The branch is on the PLATFORM, not on which module happens to load, because
  * `expo-secure-store` loads perfectly well on Android — it would just quietly
- * ignore `keychainAccessGroup` and read a package-private item, which looks
+ * ignore `accessGroup` and read a package-private item, which looks
  * exactly like an empty shared slot. This is the same iOS-vs-Android split
  * `KeyManager` makes for the shared identity, for the same reason.
  *
