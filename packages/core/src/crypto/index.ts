@@ -51,6 +51,8 @@ export {
   KeychainAccessUnavailableError,
   keychainGroupFor,
   mayHoldKeychainItem,
+  mayWriteKeychainItem,
+  DEV_KEYCHAIN_GROUP_SUFFIX,
   resolveKeychainAccess,
   keychainAccessGroupValue,
   keychainReadPlan,
@@ -71,7 +73,10 @@ export type {
   KeychainStoreLike,
   OwnKeychainItemNames,
 } from '../utils/keychainAccessGroups';
-export { ensureKeychainGroupsMigrated } from './keychainGroupMigration';
+export {
+  ensureKeychainGroupsMigrated,
+  getPreSplitExposure,
+} from './keychainGroupMigration';
 export type {
   KeychainGroupMigrationReport,
   KeychainItemMigrationOutcome,
@@ -85,6 +90,8 @@ export {
   forgetRetiredIdentityKeys,
   syncRetiredKeys,
   retiredKeyFromPhrase,
+  retiredKeyFromPrivateKey,
+  exportRetiredIdentityKeys,
 } from './retiredKeys';
 export type { RetiredIdentityKey, RetiredKeyPair, RetiredKeySelector } from './retiredKeys';
 export { SignatureService } from './signatureService';

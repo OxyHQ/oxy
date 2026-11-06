@@ -208,6 +208,37 @@ describe('iOS: the keychain group', () => {
     await expect(keys.listOrganizationKeys()).resolves.toEqual([]);
   });
 
+  it('replacing a held key keeps the old one in the organization ring first (R4-12)', async () => {
+    const replaced = KeyManager.derivePublicKey(PERSONAL_KEY);
+    await keys.storeOrganizationKey(ORG, { privateKey: PERSONAL_KEY, publicKey: replaced });
+    const publicKey = KeyManager.derivePublicKey(ORG_KEY);
+    await keys.storeOrganizationKey(ORG, { privateKey: ORG_KEY, publicKey });
+    await expect(keys.getOrganizationPrivateKey(ORG)).resolves.toBe(ORG_KEY);
+    const ring = await import('../retiredKeys');
+    expect(
+      (await ring.listRetiredIdentityKeys({ accountId: ORG })).map((k) => k.publicKey),
+    ).toEqual([replaced]);
+    // Storing the same key again retires nothing.
+    await keys.storeOrganizationKey(ORG, { privateKey: ORG_KEY, publicKey });
+    expect(await ring.listRetiredIdentityKeys({ accountId: ORG })).toHaveLength(1);
+  });
+
+  it('refuses to replace a held key it cannot keep, and changes nothing (R4-12)', async () => {
+    const replaced = KeyManager.derivePublicKey(PERSONAL_KEY);
+    await keys.storeOrganizationKey(ORG, { privateKey: PERSONAL_KEY, publicKey: replaced });
+    const original = secureStore.setItemAsync.getMockImplementation();
+    secureStore.setItemAsync.mockImplementation(async (key: string, ...rest: unknown[]) => {
+      if (key.startsWith('oxy_retired_identity_private_key')) throw new Error('errSecIO');
+      return original?.(key, ...rest);
+    });
+    const publicKey = KeyManager.derivePublicKey(ORG_KEY);
+    await expect(
+      keys.storeOrganizationKey(ORG, { privateKey: ORG_KEY, publicKey }),
+    ).rejects.toThrow('could not be kept');
+    secureStore.setItemAsync.mockImplementation(original);
+    await expect(keys.getOrganizationPrivateKey(ORG)).resolves.toBe(PERSONAL_KEY);
+  });
+
   it('forgets one organization and keeps the others', async () => {
     const publicKey = KeyManager.derivePublicKey(ORG_KEY);
     await keys.storeOrganizationKey(ORG, { privateKey: ORG_KEY, publicKey });

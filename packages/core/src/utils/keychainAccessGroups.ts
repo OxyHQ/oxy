@@ -56,6 +56,16 @@ export const KEYCHAIN_ACCESS_GROUPS = {
   shared: 'group.so.oxy.shared',
 } as const;
 
+/**
+ * The suffix a DEVELOPMENT build's restricted groups carry (`so.oxy.commons.dev`,
+ * `to.peable.app.dev`: `so.oxy.identity.dev`, `so.oxy.wallet.dev`). A dev build
+ * sits beside the production app on the same phone, is signed by the same team
+ * and runs JavaScript from a dev server, so it never shares a restricted group
+ * with production (`@oxy.so/app-preset` enforces the entitlements). The shared
+ * group has no variant: it holds nothing secret.
+ */
+export const DEV_KEYCHAIN_GROUP_SUFFIX = '.dev' as const;
+
 export type KeychainAccessGroupName = keyof typeof KEYCHAIN_ACCESS_GROUPS;
 
 /**
@@ -85,6 +95,8 @@ export type KeychainAccess =
       defaultGroup: string;
       role: KeychainRole;
       appGroup?: string;
+      /** {@link DEV_KEYCHAIN_GROUP_SUFFIX} for a dev build; absent for production. */
+      variant?: typeof DEV_KEYCHAIN_GROUP_SUFFIX;
     }
   | { mode: 'ungrouped' };
 
@@ -120,6 +132,17 @@ export function keychainGroupFor(item: KeychainItemClass): KeychainGroup {
   }
 }
 
+/**
+ * Whether `role` may WRITE `item`. Only Commons writes a secret: the Peable
+ * wallet reads, derives and signs with spending keys (and the retired ring)
+ * but never adds one — a key the wallet could add is one the wallet could
+ * choose. (The keychain itself lets every app in the wallet group write it;
+ * this is the SDK's half, and readers check what they find, ADR 0062.)
+ */
+export function mayWriteKeychainItem(role: KeychainRole, item: KeychainItemClass): boolean {
+  return role === 'holder' || item === 'shared' || item === 'app';
+}
+
 /** Whether `role` holds the group `item` lives in. */
 export function mayHoldKeychainItem(role: KeychainRole, item: KeychainItemClass): boolean {
   switch (role) {
@@ -147,15 +170,19 @@ export function keychainAccessFromDefaultGroup(
   }
   const prefix = defaultGroup.slice(0, dot + 1);
   const group = defaultGroup.slice(dot + 1);
+  const dev = group.endsWith(DEV_KEYCHAIN_GROUP_SUFFIX);
+  const base = dev ? group.slice(0, -DEV_KEYCHAIN_GROUP_SUFFIX.length) : group;
   const role: KeychainRole =
-    group === KEYCHAIN_ACCESS_GROUPS.identity
+    base === KEYCHAIN_ACCESS_GROUPS.identity
       ? 'holder'
-      : group === KEYCHAIN_ACCESS_GROUPS.wallet
+      : base === KEYCHAIN_ACCESS_GROUPS.wallet
         ? 'wallet'
         : 'member';
+  // A `.dev` suffix on anything but a restricted group is not a variant.
+  const variant = dev && role !== 'member' ? { variant: DEV_KEYCHAIN_GROUP_SUFFIX } : {};
   return appGroup?.startsWith(prefix)
-    ? { mode: 'grouped', prefix, defaultGroup, role, appGroup }
-    : { mode: 'grouped', prefix, defaultGroup, role };
+    ? { mode: 'grouped', prefix, defaultGroup, role, appGroup, ...variant }
+    : { mode: 'grouped', prefix, defaultGroup, role, ...variant };
 }
 
 let resolvedAccess: KeychainAccess | null = null;
@@ -212,9 +239,11 @@ export async function resolveKeychainAccess(): Promise<KeychainAccess> {
   return resolvedAccess;
 }
 
-/** Forget the memoized access. Tests only. @internal */
+/** Forget the memoized access and the fallback state. Tests only. @internal */
 export function resetKeychainAccessForTests(): void {
   resolvedAccess = null;
+  holderSharedFallback = false;
+  walletSharedFallbackClosed = false;
 }
 
 /**
@@ -236,7 +265,46 @@ export function keychainAccessGroupValue(
     // default is the shared group: no group, the calls it always made.
     return access.appGroup ?? (access.role === 'member' ? undefined : access.defaultGroup);
   }
-  return `${access.prefix}${KEYCHAIN_ACCESS_GROUPS[group]}`;
+  const variant = group === 'shared' ? '' : (access.variant ?? '');
+  return `${access.prefix}${KEYCHAIN_ACCESS_GROUPS[group]}${variant}`;
+}
+
+/**
+ * Whether a SECRET read may still fall back to the pre-split shared group
+ * (R4-7). Every Oxy app can write that group, and keychain items survive an
+ * uninstall, so a secret found there is one Commons did not necessarily write.
+ *
+ * - Commons (`holder`): CLOSED, except while its one-shot migration has proved
+ *   the shared copies are its own (they carry the key its sandbox marker
+ *   records) and could not move them all yet; the migration opens it for that
+ *   launch only ({@link setHolderSharedSecretFallback}).
+ * - The Peable wallet: open until Commons' migration has finished (the
+ *   completion record Commons mirrors into the wallet group), because until
+ *   then an upgraded phone's keys are still in the shared group; closed for
+ *   good once it has seen that record ({@link closeWalletSharedSecretFallback}).
+ */
+let holderSharedFallback = false;
+let walletSharedFallbackClosed = false;
+
+/** The migration's switch for Commons' fallback. @internal */
+export function setHolderSharedSecretFallback(open: boolean): void {
+  holderSharedFallback = open;
+}
+
+/** The wallet saw Commons' completion record: no shared fallback again in this process. @internal */
+export function closeWalletSharedSecretFallback(): void {
+  walletSharedFallbackClosed = true;
+}
+
+function sharedFallbackOpen(access: Extract<KeychainAccess, { mode: 'grouped' }>): boolean {
+  switch (access.role) {
+    case 'holder':
+      return holderSharedFallback;
+    case 'wallet':
+      return !walletSharedFallbackClosed;
+    case 'member':
+      return false;
+  }
 }
 
 function option(value: string | undefined): KeychainGroupOption {
@@ -244,11 +312,13 @@ function option(value: string | undefined): KeychainGroupOption {
 }
 
 /**
- * The option bags a READ of `item` tries, in order: its own group, then, for
- * an identity secret or a spending key, the shared group, where those lived
- * before the split (release 4 of the doc drops that fallback). Empty when this
- * app may not hold the item: the caller answers `null` without touching the
- * keychain. An app's own items (`app`) take {@link ownKeychainItemPlan}.
+ * The option bags a READ of `item` tries, in order: its own group, then — for
+ * an identity secret or a spending key, and only while
+ * {@link sharedFallbackOpen} says so — the shared group, where those lived
+ * before the split. Empty when this app may not hold the item: the caller
+ * answers `null` without touching the keychain. Evaluated per read: the
+ * fallback closes during a process's life. An app's own items (`app`) take
+ * {@link ownKeychainItemPlan}.
  */
 export function keychainReadPlan(
   access: KeychainAccess,
@@ -262,22 +332,33 @@ export function keychainReadPlan(
   }
   const own = keychainGroupFor(item);
   const plan = [option(keychainAccessGroupValue(access, own))];
-  if (own === 'identity' || own === 'wallet') {
-    // Where the split moved these items from.
+  if ((own === 'identity' || own === 'wallet') && sharedFallbackOpen(access)) {
     plan.push(option(keychainAccessGroupValue(access, 'shared')));
   }
   return plan;
 }
 
 /**
- * Every place a DELETE of `item` must reach: the read plan, so a delete never
- * leaves a pre-split copy behind in the shared group.
+ * Every place a DELETE of `item` must reach: its own group AND the shared
+ * group, whatever the read fallback says, so a delete never leaves a copy
+ * behind where every Oxy app can read it.
  */
 export function keychainDeletePlan(
   access: KeychainAccess,
   item: KeychainItemClass,
 ): KeychainGroupOption[] {
-  return keychainReadPlan(access, item);
+  if (access.mode === 'ungrouped') {
+    return [{}];
+  }
+  if (!mayHoldKeychainItem(access.role, item)) {
+    return [];
+  }
+  const own = keychainGroupFor(item);
+  const plan = [option(keychainAccessGroupValue(access, own))];
+  if (own === 'identity' || own === 'wallet') {
+    plan.push(option(keychainAccessGroupValue(access, 'shared')));
+  }
+  return plan;
 }
 
 /**
@@ -292,9 +373,9 @@ export function keychainWriteOption(
   if (access.mode === 'ungrouped') {
     return {};
   }
-  if (!mayHoldKeychainItem(access.role, item)) {
+  if (!mayWriteKeychainItem(access.role, item)) {
     throw new Error(
-      `This app (keychain role "${access.role}") may not hold a ${item} keychain item; only Commons writes the identity.`,
+      `This app (keychain role "${access.role}") may not write a ${item} keychain item; only Commons writes the identity and the keys the wallet spends.`,
     );
   }
   return option(keychainAccessGroupValue(access, keychainGroupFor(item)));
@@ -413,23 +494,39 @@ export async function deleteThroughPlan(
 
 /**
  * `store` with every call routed to `item`'s groups for this app: reads walk
- * the read plan, writes carry the write option (throwing for a role that may
- * not hold the item), deletes reach every location. The constants of the
- * wrapped store are kept, so `store.WHEN_UNLOCKED_THIS_DEVICE_ONLY` still reads.
+ * the read plan (evaluated per read), writes carry the write option (throwing
+ * for a role that may not write the item), deletes reach every location. A
+ * secret WRITE also deletes the item's copy in the shared group (R4-6): a value
+ * Commons writes replaces whatever any app could read there, and a copy that
+ * cannot be removed fails the write instead of staying readable. The constants
+ * of the wrapped store are kept, so `store.WHEN_UNLOCKED_THIS_DEVICE_ONLY` still
+ * reads.
  */
 export function groupedKeychainStore<S extends KeychainStoreLike>(
   store: S,
   access: KeychainAccess,
   item: KeychainItemClass,
 ): S {
-  const plan = keychainReadPlan(access, item);
+  const sharedCopy =
+    access.mode === 'grouped' && (item === 'identity-secret' || item === 'spending-key')
+      ? option(keychainAccessGroupValue(access, 'shared'))
+      : null;
   const wrapped: KeychainStoreLike = {
-    getItemAsync: (key, options) => readThroughPlan(store, key, options ?? {}, plan),
+    getItemAsync: (key, options) =>
+      readThroughPlan(store, key, options ?? {}, keychainReadPlan(access, item)),
     setItemAsync: async (key, value, options) => {
       const group = keychainWriteOption(access, item);
       await store.setItemAsync(key, value, { ...(options ?? {}), ...group });
+      if (sharedCopy) {
+        const { keychainAccessible: _accessible, ...rest } = (options ?? {}) as Record<
+          string,
+          unknown
+        >;
+        await store.deleteItemAsync(key, { ...rest, ...sharedCopy });
+      }
     },
-    deleteItemAsync: (key, options) => deleteThroughPlan(store, key, options ?? {}, plan),
+    deleteItemAsync: (key, options) =>
+      deleteThroughPlan(store, key, options ?? {}, keychainDeletePlan(access, item)),
   };
   return Object.assign(Object.create(store) as S, wrapped);
 }

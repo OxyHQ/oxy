@@ -12,6 +12,32 @@ const IS_DEV_VARIANT = process.env.APP_VARIANT === 'development';
 const APP_ID = IS_DEV_VARIANT ? 'so.oxy.commons.dev' : 'so.oxy.commons';
 const APP_NAME = IS_DEV_VARIANT ? 'Commons (Dev)' : 'Commons by Oxy';
 
+// Keychain access groups (docs/identity/ios-keychain-access-groups.md,
+// ADR 0062). The identity group is FIRST: the first entry is the default
+// group, so everything Commons writes without naming a group stays in the
+// group only Commons holds, and @oxy.so/core reads Commons' role from it. The
+// wallet group (Commons and the Peable wallet) holds the private keys the
+// wallet signs with; the shared group (every Oxy app) only public keys and the
+// device-session credential. The DEV variant holds the `.dev` identity and
+// wallet groups instead: it sits next to the production app on the same phone,
+// signed by the same team and running JS from a dev server, so it must never
+// reach the production identity or phrases. `$(AppIdentifierPrefix)` expands to
+// the Team ID prefix at build; @oxy.so/core learns it at runtime from the
+// keychain. @oxy.so/app-preset refuses any other app (or the other variant)
+// naming the restricted groups, and any other spelling of them.
+// Prerequisite: all Oxy iOS apps ship under the SAME Apple Developer Team.
+const KEYCHAIN_ACCESS_GROUPS = IS_DEV_VARIANT
+  ? [
+      '$(AppIdentifierPrefix)so.oxy.identity.dev',
+      '$(AppIdentifierPrefix)so.oxy.wallet.dev',
+      '$(AppIdentifierPrefix)group.so.oxy.shared',
+    ]
+  : [
+      '$(AppIdentifierPrefix)so.oxy.identity',
+      '$(AppIdentifierPrefix)so.oxy.wallet',
+      '$(AppIdentifierPrefix)group.so.oxy.shared',
+    ];
+
 // Registered ApplicationCredential publicKey, used at BUILD time to bake this
 // app's Oxy Updates manifest URL into the binary. It must equal the runtime
 // value in `constants/oxy.ts` (that file cannot be required from here: it is
@@ -42,8 +68,10 @@ module.exports = {
     // update is ever published for a runtime that would run it unverified;
     // 1.5.0 carries the caller allow-list with every app on its own domain's id;
     // 1.6.0 is the iOS keychain access-group split (new entitlements, the
-    // keychain probe in @oxy.so/services' native module, the migration).
-    version: '1.7.0',
+    // keychain probe in @oxy.so/services' native module, the migration);
+    // 1.7.0 keeps retired keys; 1.8.0 is the one-shot, provenance-checked
+    // migration and the .dev-only restricted groups of the dev variant.
+    version: '1.8.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /
@@ -80,22 +108,9 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: APP_ID,
-      // Keychain access groups (docs/identity/ios-keychain-access-groups.md,
-      // ADR 0062). The identity group is FIRST: the first entry is the default
-      // group, so everything Commons writes without naming a group stays in the
-      // group only Commons holds, and @oxy.so/core reads Commons' role from it.
-      // The wallet group (Commons and the Peable wallet) holds the private keys
-      // the wallet signs with; the shared group (every Oxy app) only public keys
-      // and the device-session credential. `$(AppIdentifierPrefix)` expands to
-      // the Team ID prefix at build; @oxy.so/core learns it at runtime from the
-      // keychain. @oxy.so/app-preset refuses any other app naming the first two.
-      // Prerequisite: all Oxy iOS apps ship under the SAME Apple Developer Team.
+      // KEYCHAIN_ACCESS_GROUPS above: per variant, identity first.
       entitlements: {
-        'keychain-access-groups': [
-          '$(AppIdentifierPrefix)so.oxy.identity',
-          '$(AppIdentifierPrefix)so.oxy.wallet',
-          '$(AppIdentifierPrefix)group.so.oxy.shared',
-        ],
+        'keychain-access-groups': KEYCHAIN_ACCESS_GROUPS,
       },
     },
     plugins: [

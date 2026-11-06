@@ -133,6 +133,11 @@ describe('OxyServices.rotateKey', () => {
         .spyOn(protocol, 'signMessage')
         .mockResolvedValue('newkeyproof-hex');
       const importSpy = jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue(NEW_PUBLIC);
+      // The rotation deleted the encrypted backup; it is sealed again under the
+      // NEW phrase, carrying the retired ring (R4-4).
+      const backupSpy = jest
+        .spyOn(oxy.identity.backup, 'create')
+        .mockResolvedValue({ exists: true } as never);
       makeRequestSpy
         .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
         .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
@@ -143,7 +148,9 @@ describe('OxyServices.rotateKey', () => {
         newPublicKey: NEW_PUBLIC,
         newPhrase: pendingFixture.phrase,
         words: pendingFixture.words,
+        backupRefreshed: true,
       });
+      expect(backupSpy).toHaveBeenCalledWith(pendingFixture.phrase);
 
       // The OLD-key signed message MUST match the server's reconstruction byte-for-byte.
       const expectedMessage = JSON.stringify({
@@ -292,6 +299,7 @@ describe('OxyServices.rotateKey', () => {
           newPublicKey: NEW_PUBLIC,
           newPhrase: pendingFixture.phrase,
           words: pendingFixture.words,
+          backupRefreshed: false,
         });
       });
 

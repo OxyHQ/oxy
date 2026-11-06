@@ -8,6 +8,7 @@ import {
   IdentityAlreadyExistsError,
   IdentityPersistError,
   IdentityUnavailableError,
+  listRetiredIdentityKeys,
   readIdentityMarker,
 } from '@oxy.so/core/crypto';
 import { useBiometricSignIn } from './useBiometricSignIn';
@@ -100,6 +101,9 @@ export interface UseIdentityResult {
  * Handles identity creation, import, sync, and network reconnect sync logic.
  * Uses oxy services for server operations (registration, sign-in, sessions).
  */
+/** Whether this process already checked the retired ring against the backup. */
+let retiredRingChecked = false;
+
 export const useIdentity = (): UseIdentityResult => {
   const { oxyServices, isAuthenticated } = useOxy();
   const { signIn } = useBiometricSignIn();
@@ -343,7 +347,15 @@ export const useIdentity = (): UseIdentityResult => {
           return { synced: false, needsUsername: false };
         }
 
-        return signInIfRegistered(publicKey);
+        const result = await signInIfRegistered(publicKey);
+        // The encrypted backup of this phrase carries the identity's retired
+        // keys (R4-4): keep them on this phone so Peable can spend what they
+        // received. Best effort and in the background; 0 without a backup.
+        const restoring = oxyServices?.identity?.backup?.restoreRetiredKeys(phrase);
+        void restoring?.catch((error: unknown) => {
+          console.warn('[useIdentity] Could not restore previous keys from the backup', error);
+        });
+        return result;
       };
 
       inFlightImportIdentity = run();
@@ -539,6 +551,26 @@ export const useIdentity = (): UseIdentityResult => {
 
     checkAndRestoreIdentity();
   }, [queryClient]);
+
+  // Previous keys after a reinstall or a new phone (R4-4): when this account
+  // has retired keys, this phone holds none and it holds the current phrase
+  // (Android's device backup restores it silently), keep the ones the
+  // encrypted backup carries. Once per launch; best effort.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !oxyServices || !isAuthenticated || retiredRingChecked) return;
+    retiredRingChecked = true;
+    void (async () => {
+      try {
+        if ((await listRetiredIdentityKeys()).length > 0) return;
+        const history = await oxyServices.identity.keyHistory();
+        if (history.retired.length === 0) return;
+        const phrase = await KeyManager.getRecoveryMnemonic();
+        if (phrase) await oxyServices.identity.backup.restoreRetiredKeys(phrase);
+      } catch (error) {
+        console.warn('[useIdentity] Could not restore previous keys from the backup', error);
+      }
+    })();
+  }, [oxyServices, isAuthenticated]);
 
   // Network reconnect sync logic
   useNetworkReconnect({

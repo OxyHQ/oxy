@@ -379,7 +379,10 @@
       "modalTitle": "Choose a language",
       "modalSubtitle": "Select your preferred language for this app",
       "changed": "Language updated"
-    }
+    },
+    "preSplitExposureTitle": "Rotate your identity key",
+    "preSplitExposureBody": "Before this update, other Oxy apps on this iPhone could read your identity key. Nothing shows it was misused, but rotating replaces it with a key only Commons holds. Your previous key stays usable for spending.",
+    "preSplitExposureAction": "Rotate key"
   },
   "data": {
     "title": "Data & privacy",
@@ -1127,7 +1130,8 @@
       "localPersistBody": "Your key was rotated, but the new key couldn't be saved on this device. Your new recovery phrase (just shown) is the only copy. To finish, remove this identity from Settings and import your new phrase.",
       "errorGeneric": "We couldn't complete the rotation. Your previous key is unchanged.",
       "biometricReason": "Verify it's you to rotate your identity key",
-      "biometricFailed": "Verify with your device biometrics or passcode to rotate your key."
+      "biometricFailed": "Verify with your device biometrics or passcode to rotate your key.",
+      "backupNotRefreshed": "Your key was rotated, but your encrypted backup couldn't be sealed under the new phrase. Create it in Backup, so your previous key is also kept off this phone."
     },
     "backBlockedTitle": "Save your new phrase first",
     "backBlockedMessage": "Write down your new recovery phrase before continuing. It's the only way to recover your rotated key."
@@ -2055,6 +2059,14 @@
     "isCurrent": "That's your current recovery phrase, not a previous one.",
     "notYours": "That phrase isn't one of this account's previous keys.",
     "added": "Previous key added. Peable can now spend what was sent to it.",
-    "error": "We couldn't add the key. Nothing was changed."
+    "error": "We couldn't add the key. Nothing was changed.",
+    "addPrivateKeyTitle": "Add a previous private key",
+    "privateKeyPlaceholder": "64 hexadecimal characters",
+    "usePrivateKey": "That key was imported as a private key",
+    "usePhrase": "Use a recovery phrase instead",
+    "invalidPrivateKey": "That isn't a valid private key. It is 64 hexadecimal characters.",
+    "isCurrentKey": "That's your current key, not a previous one.",
+    "notYoursKey": "That key isn't one of this account's previous keys.",
+    "backupNotUpdated": "The key was added, but your encrypted backup couldn't be updated. Create it again in Backup so it carries this key too."
   }
 }

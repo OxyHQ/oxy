@@ -186,6 +186,21 @@ export async function readIdentityMarker(): Promise<IdentityMarker | null> {
 }
 
 /**
+ * Read the marker, THROWING when the storage cannot answer (instead of the
+ * fail-open `null` of {@link readIdentityMarker}). For a caller that must not
+ * mistake "unreadable" for "never written": the iOS keychain migration, which
+ * adopts a pre-split secret only when this marker vouches for it, and records
+ * once that there is nothing to adopt.
+ */
+export async function readIdentityMarkerStrict(): Promise<IdentityMarker | null> {
+  const storage = await getStorage();
+  if (!storage) {
+    throw new Error('The identity marker storage is unavailable.');
+  }
+  return deserialize(await storage.getItem(IDENTITY_MARKER_STORAGE_KEY));
+}
+
+/**
  * Write (create/replace) the marker. Returns `true` when it durably landed,
  * `false` when storage was unavailable or the write threw. Callers treat a
  * `false` as non-fatal — the marker is best-effort and a subsequent read

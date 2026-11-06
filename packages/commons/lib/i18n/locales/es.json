@@ -379,7 +379,10 @@
       "modalTitle": "Elige un idioma",
       "modalSubtitle": "Selecciona el idioma preferido para esta app",
       "changed": "Idioma actualizado"
-    }
+    },
+    "preSplitExposureTitle": "Rota tu clave de identidad",
+    "preSplitExposureBody": "Antes de esta actualización, otras apps de Oxy en este iPhone podían leer tu clave de identidad. Nada indica que se haya usado mal, pero rotarla la sustituye por una clave que solo tiene Commons. Tu clave anterior sigue sirviendo para gastar.",
+    "preSplitExposureAction": "Rotar clave"
   },
   "data": {
     "title": "Datos y privacidad",
@@ -1127,7 +1130,8 @@
       "localPersistBody": "Tu clave se rotó, pero la nueva clave no se pudo guardar en este dispositivo. Tu nueva frase de recuperación (que acabas de ver) es la única copia. Para terminar, elimina esta identidad en Ajustes e importa tu nueva frase.",
       "errorGeneric": "No pudimos completar la rotación. Tu clave anterior no ha cambiado.",
       "biometricReason": "Verifica que eres tú para rotar tu clave de identidad",
-      "biometricFailed": "Verifícate con la biometría o el código de tu dispositivo para rotar tu clave."
+      "biometricFailed": "Verifícate con la biometría o el código de tu dispositivo para rotar tu clave.",
+      "backupNotRefreshed": "Tu clave se rotó, pero no se pudo sellar tu copia cifrada con la nueva frase. Créala en Copia de seguridad para que tu clave anterior también se guarde fuera de este teléfono."
     },
     "backBlockedTitle": "Guarda tu nueva frase primero",
     "backBlockedMessage": "Anota tu nueva frase de recuperación antes de continuar. Es la única forma de recuperar tu clave rotada."
@@ -2055,6 +2059,14 @@
     "isCurrent": "Esa es tu frase de recuperación actual, no una anterior.",
     "notYours": "Esa frase no es de ninguna de las claves anteriores de esta cuenta.",
     "added": "Clave anterior añadida. Peable ya puede gastar lo que se le envió.",
-    "error": "No pudimos añadir la clave. No se cambió nada."
+    "error": "No pudimos añadir la clave. No se cambió nada.",
+    "addPrivateKeyTitle": "Añadir una clave privada anterior",
+    "privateKeyPlaceholder": "64 caracteres hexadecimales",
+    "usePrivateKey": "Esa clave se importó como clave privada",
+    "usePhrase": "Usar una frase de recuperación",
+    "invalidPrivateKey": "No es una clave privada válida. Tiene 64 caracteres hexadecimales.",
+    "isCurrentKey": "Esa es tu clave actual, no una anterior.",
+    "notYoursKey": "Esa clave no es una de las claves anteriores de esta cuenta.",
+    "backupNotUpdated": "Se añadió la clave, pero no se pudo actualizar tu copia cifrada. Vuelve a crearla en Copia de seguridad para que también incluya esta clave."
   }
 }

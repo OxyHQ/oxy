@@ -47,6 +47,7 @@ import type { OxyContext } from '../client/context';
 import type { PendingIdentityResult } from '../crypto/recoveryPhrase';
 import { isAndroid, isWeb } from '../utils/platform';
 import { logger } from '../logger';
+import { extractErrorStatus } from '../utils/errorUtils';
 
 /** Short-TTL read cache for public identity reads. */
 const SHORT_TTL = 60 * 1000;
@@ -128,6 +129,14 @@ export interface RotateKeyResult {
    * should surface a recovery prompt. Omitted on full success.
    */
   localPersistFailed?: true;
+  /**
+   * Whether the encrypted identity backup was re-created under the NEW phrase,
+   * carrying the retired ring with the key just replaced (R4-4). The server
+   * deletes the old backup in the rotation's transaction; `false` (native, the
+   * upload failed) means the caller should offer "Create backup" again, or the
+   * replaced key lives only on this phone. Absent on web.
+   */
+  backupRefreshed?: boolean;
 }
 
 /**
@@ -476,11 +485,36 @@ export class IdentityApi {
       }
     }
 
+    // 8. The rotation deleted the encrypted backup (it was sealed under the
+    //    replaced phrase). Seal a new one under the new phrase, carrying the
+    //    retired ring — now with the key just replaced — so the coins under it
+    //    survive a lost phone as long as the NEW phrase does (R4-4). Always,
+    //    not only when one existed: after a rotation it is the only copy of the
+    //    replaced key off this phone. Best-effort: the rotation already succeeded.
+    let backupRefreshed: boolean | undefined;
+    if (!isWeb() && !localPersistFailed) {
+      try {
+        await this.backup.create(pending.phrase);
+        backupRefreshed = true;
+      } catch (backupError) {
+        backupRefreshed = false;
+        logger.warn(
+          'Key rotated, but the encrypted backup could not be re-created under the new phrase.',
+          { component: 'oxy.identity', method: 'rotateKey' },
+          backupError,
+        );
+      }
+    }
+
     this.invalidate(userId);
 
-    return localPersistFailed
-      ? { newPublicKey, newPhrase: pending.phrase, words: pending.words, localPersistFailed: true }
-      : { newPublicKey, newPhrase: pending.phrase, words: pending.words };
+    return {
+      newPublicKey,
+      newPhrase: pending.phrase,
+      words: pending.words,
+      ...(localPersistFailed ? { localPersistFailed: true as const } : {}),
+      ...(backupRefreshed === undefined ? {} : { backupRefreshed }),
+    };
   }
 
   /**
@@ -736,11 +770,29 @@ const BACKUP_ALGORITHM = 'xchacha20poly1305' as const;
  */
 const PUBLIC_KEY_HINT_LENGTH = 16;
 
-/** The decrypted backup payload. */
+/** One retired key carried in the backup (R4-4). */
+interface BackupRetiredKey {
+  privateKey: string;
+  publicKey: string;
+  retiredAt: number;
+}
+
+/**
+ * The decrypted backup payload. `retiredKeys` (since core 2026-11, optional,
+ * ignored by older readers) carries the person's retired ring, so the CURRENT
+ * phrase restores the keys their earlier coins sit under (ADR 0061 D7 as
+ * amended): a lost phone then costs no more than the current phrase does.
+ */
 interface BackupPayload {
   privateKey: string;
   publicKey: string;
   createdAt: string;
+  retiredKeys?: BackupRetiredKey[];
+}
+
+/** Whether a request error is the restore lookup's constant-shape 404. */
+function isNotFound(error: unknown): boolean {
+  return extractErrorStatus(error) === 404;
 }
 
 /** Encode bytes as lowercase hex (cross-platform, no Buffer dependency). */
@@ -806,7 +858,13 @@ export class IdentityBackupApi {
     const createdAt = new Date().toISOString();
     const publicKeyHint = publicKey.slice(0, PUBLIC_KEY_HINT_LENGTH);
 
-    const payload: BackupPayload = { privateKey, publicKey, createdAt };
+    const retiredKeys = await this.retiredKeysToCarry(publicKey);
+    const payload: BackupPayload = {
+      privateKey,
+      publicKey,
+      createdAt,
+      ...(retiredKeys.length > 0 ? { retiredKeys } : {}),
+    };
     const plaintext = new TextEncoder().encode(JSON.stringify(payload));
     const aad = buildBackupAad(BACKUP_ENVELOPE_VERSION, publicKeyHint);
     const { nonce, ciphertext } = encryptAead(backupKey, plaintext, aad);
@@ -825,6 +883,120 @@ export class IdentityBackupApi {
     return this.ctx.request<BackupStatusResponse>('POST', '/identity/backup', body, {
       cache: false,
     });
+  }
+
+  /**
+   * The retired ring this device holds for the person, limited to keys Oxy's
+   * key history names as THIS account's retired keys (the ring's iOS group is
+   * writable by the wallet app too, and a previous person's ring can outlive a
+   * "Start over"). Empty where no ring is held (web, any app but Commons).
+   * Throws when the history cannot be read while a ring exists, so a backup
+   * never silently drops keys it should carry.
+   */
+  private async retiredKeysToCarry(currentPublicKey: string): Promise<BackupRetiredKey[]> {
+    if (isWeb()) return [];
+    const { exportRetiredIdentityKeys } = await import('../crypto/index');
+    let held: BackupRetiredKey[];
+    try {
+      held = await exportRetiredIdentityKeys();
+    } catch {
+      return []; // Not Commons: this app holds no ring to carry.
+    }
+    if (held.length === 0) return [];
+    const history = await this.ctx.request<unknown>('GET', '/identity/key-history', undefined, {
+      cache: false,
+    });
+    const parsed = checkContract(identityKeyHistoryCheck, history);
+    if (!parsed) throw new Error('identity/key-history returned an unexpected response shape');
+    const retired = new Set(parsed.retired.map((entry) => entry.publicKey.toLowerCase()));
+    const current = currentPublicKey.toLowerCase();
+    return held.filter(
+      (key) => key.publicKey.toLowerCase() !== current && retired.has(key.publicKey.toLowerCase()),
+    );
+  }
+
+  /**
+   * Fetch and open the backup the phrase locates, checking it is the phrase's
+   * own identity. With `missingIsNull`, `null` when there is none (404);
+   * otherwise the request's own error propagates.
+   */
+  private async open(phrase: string, missingIsNull = false): Promise<BackupPayload | null> {
+    const { KeyManager, RecoveryPhraseService, decryptAead } = await import('../crypto/index');
+    const { backupKey, lookupId } = await RecoveryPhraseService.deriveBackupMaterial(phrase);
+    let envelope: EncryptedBackupEnvelope;
+    try {
+      envelope = await this.ctx.request<EncryptedBackupEnvelope>(
+        'GET',
+        `/identity/backup/${encodeURIComponent(lookupId)}`,
+        undefined,
+        { cache: false },
+      );
+    } catch (error) {
+      if (missingIsNull && isNotFound(error)) return null;
+      throw error;
+    }
+    if (envelope.algorithm !== BACKUP_ALGORITHM) {
+      throw new Error(`Unsupported backup algorithm: ${envelope.algorithm}`);
+    }
+    const aad = buildBackupAad(envelope.version, envelope.publicKeyHint);
+    const plaintext = decryptAead(
+      backupKey,
+      fromHex(envelope.nonce),
+      fromHex(envelope.ciphertext),
+      aad,
+    );
+    const payload = JSON.parse(new TextDecoder().decode(plaintext)) as BackupPayload;
+    if (!payload.privateKey || !payload.publicKey) {
+      throw new Error('Backup payload is missing key material');
+    }
+    const phrasePk = (await RecoveryPhraseService.derivePublicKeyFromPhrase(phrase)).toLowerCase();
+    const payloadPk = payload.publicKey.toLowerCase();
+    const privatePk = KeyManager.derivePublicKey(payload.privateKey).toLowerCase();
+    if (phrasePk !== payloadPk || privatePk !== payloadPk) {
+      throw new Error('Backup payload does not match the recovery phrase');
+    }
+    return payload;
+  }
+
+  /**
+   * Keep every retired key a backup carries in this device's ring. Each pair
+   * must be healthy and must not be the current key; the envelope itself is
+   * authenticated by the phrase. Commons only (the ring refuses elsewhere).
+   * Resolves how many keys are now held; a key that fails is skipped.
+   */
+  private async keepCarriedRetiredKeys(payload: BackupPayload): Promise<number> {
+    const { KeyManager, retireIdentityKey } = await import('../crypto/index');
+    let kept = 0;
+    for (const key of Array.isArray(payload.retiredKeys) ? payload.retiredKeys : []) {
+      try {
+        if (typeof key?.privateKey !== 'string' || typeof key.publicKey !== 'string') continue;
+        if (key.publicKey.toLowerCase() === payload.publicKey.toLowerCase()) continue;
+        if (
+          KeyManager.derivePublicKey(key.privateKey).toLowerCase() !== key.publicKey.toLowerCase()
+        ) {
+          continue;
+        }
+        await retireIdentityKey({ privateKey: key.privateKey, publicKey: key.publicKey });
+        kept += 1;
+      } catch (error) {
+        logger.warn(
+          'Could not keep a retired key from the encrypted backup',
+          { component: 'oxy.identity', method: 'backup.restoreRetiredKeys' },
+          error,
+        );
+      }
+    }
+    return kept;
+  }
+
+  /**
+   * Restore ONLY the retired keys the phrase's backup carries into this
+   * device's ring (Commons, after a phrase import or a silent device-backup
+   * restore). Resolves how many were kept; 0 when there is no backup.
+   */
+  async restoreRetiredKeys(phrase: string): Promise<number> {
+    const payload = await this.open(phrase, true);
+    return payload ? this.keepCarriedRetiredKeys(payload) : 0;
   }
 
   /**
@@ -859,40 +1031,13 @@ export class IdentityBackupApi {
    *   fails authentication (tamper), or an existing identity blocks the import.
    */
   async restore(phrase: string, options?: { overwrite?: boolean }): Promise<string> {
-    const { KeyManager, RecoveryPhraseService, decryptAead } = await import('../crypto/index');
-    const { backupKey, lookupId } = await RecoveryPhraseService.deriveBackupMaterial(phrase);
-
-    const envelope = await this.ctx.request<EncryptedBackupEnvelope>(
-      'GET',
-      `/identity/backup/${encodeURIComponent(lookupId)}`,
-      undefined,
-      { cache: false },
-    );
-
-    if (envelope.algorithm !== BACKUP_ALGORITHM) {
-      throw new Error(`Unsupported backup algorithm: ${envelope.algorithm}`);
-    }
-
-    const aad = buildBackupAad(envelope.version, envelope.publicKeyHint);
-    const plaintext = decryptAead(
-      backupKey,
-      fromHex(envelope.nonce),
-      fromHex(envelope.ciphertext),
-      aad,
-    );
-    const payload = JSON.parse(new TextDecoder().decode(plaintext)) as BackupPayload;
-
-    if (!payload.privateKey || !payload.publicKey) {
-      throw new Error('Backup payload is missing key material');
-    }
-
-    const phrasePk = (await RecoveryPhraseService.derivePublicKeyFromPhrase(phrase)).toLowerCase();
-    const payloadPk = payload.publicKey.toLowerCase();
-    const privatePk = KeyManager.derivePublicKey(payload.privateKey).toLowerCase();
-    if (phrasePk !== payloadPk || privatePk !== payloadPk) {
-      throw new Error('Backup payload does not match the recovery phrase');
-    }
-
-    return KeyManager.importKeyPair(payload.privateKey, { overwrite: options?.overwrite === true });
+    const { KeyManager } = await import('../crypto/index');
+    const payload = await this.open(phrase);
+    if (!payload) throw new Error('No encrypted backup was found for this recovery phrase.');
+    const publicKey = await KeyManager.importKeyPair(payload.privateKey, {
+      overwrite: options?.overwrite === true,
+    });
+    await this.keepCarriedRetiredKeys(payload);
+    return publicKey;
   }
 }

@@ -16,7 +16,7 @@ import {
 import { useOxy } from '@oxy.so/services';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
-import { KeyManager } from '@oxy.so/core/crypto';
+import { KeyManager, forgetRetiredIdentityKeys } from '@oxy.so/core/crypto';
 import { useTranslation } from '@/lib/i18n';
 import { runAccountDeletion } from '@/lib/account/delete-account-flow';
 import { retireVaultPushToken } from '@/lib/notifications/push-registration';
@@ -104,7 +104,16 @@ export default function DeleteAccountScreen() {
         // force=true (also purges the backup slot, no re-prompt), and
         // userConfirmed=true (the user already confirmed via username match +
         // the cryptographic signature this device produced).
-        purgeIdentity: () => KeyManager.deleteIdentity(true, true, true),
+        // The person's retired keys go with the ACCOUNT (only here: "Start
+        // over" and a forced delete keep them, R4-4), then the identity.
+        purgeIdentity: async () => {
+          try {
+            await forgetRetiredIdentityKeys();
+          } catch {
+            // Best effort, like the other recovery sources; the purge proceeds.
+          }
+          await KeyManager.deleteIdentity(true, true, true);
+        },
         signOutAll: () => logoutAll(),
       });
 

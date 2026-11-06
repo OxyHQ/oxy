@@ -45,8 +45,11 @@ async function keepReplacedOrganizationKey(accountId: string): Promise<void> {
       { privateKey, publicKey: KeyManager.derivePublicKey(privateKey) },
       { accountId },
     );
-  } catch {
-    // Best effort; the key stays in the organization's slot until it works.
+  } catch (error) {
+    // The key stays in the organization's slot, and every slot write keeps a
+    // different held key in the ring first or refuses (`storeOrganizationKey`,
+    // R4-12), so it cannot be lost while this retries on the next visit.
+    console.warn('[organizationWallet] Could not keep a replaced organization key yet', error);
   }
 }
 

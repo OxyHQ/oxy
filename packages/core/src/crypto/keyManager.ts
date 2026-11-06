@@ -32,13 +32,13 @@ import { isDev, logger } from '../logger';
 import { deriveScopedSeedFromKey, signSocialReceiveDigest } from './identityDerivations';
 import { type IdentitySignerStore, registerIdentitySignerStore } from './identitySigner';
 import { getOrganizationPrivateKey, isOrganizationAccountId } from './organizationKeys';
-import { forgetRetiredIdentityKeys, getRetiredPrivateKey, retiredKeyScope } from './retiredKeys';
+import { getRetiredPrivateKey, retiredKeyScope } from './retiredKeys';
 import {
   type KeychainItemClass,
   groupedKeychainStore,
   resolveKeychainAccess,
 } from '../utils/keychainAccessGroups';
-import { ensureKeychainGroupsMigrated } from './keychainGroupMigration';
+import { prepareKeychainAccess } from './keychainGroupMigration';
 import {
   RECOVERY_MNEMONIC_KEYCHAIN_SERVICE,
   RECOVERY_MNEMONIC_STORAGE_KEY,
@@ -300,9 +300,7 @@ async function loadRawSecureStore(): Promise<ExpoSecureStoreLike> {
 async function keychainItemStore(item: KeychainItemClass): Promise<ExpoSecureStoreLike> {
   const raw = await loadRawSecureStore();
   const access = await resolveKeychainAccess();
-  if (access.mode === 'grouped' && access.role === 'holder') {
-    await ensureKeychainGroupsMigrated();
-  }
+  await prepareKeychainAccess(access);
   return groupedKeychainStore(raw, access, item);
 }
 
@@ -2612,16 +2610,12 @@ export class KeyManager {
     if (force) {
       await KeyManager._bestEffortDeleteBackupsAllGenerations(store);
       await KeyManager._clearSharedSlot(store);
-      // The person's retired keys go with the identity they belonged to.
-      try {
-        await forgetRetiredIdentityKeys();
-      } catch (error) {
-        logger.warn(
-          'Failed to clear retired keys during delete',
-          { component: 'KeyManager' },
-          error,
-        );
-      }
+      // The retired ring is NOT cleared (R4-4): it is money under the person's
+      // previous keys, and "Start over" or a forced delete must not cost it.
+      // The same person restoring their identity finds it again; a different
+      // identity on this phone cannot use it (each entry is checked against
+      // that account's key history before use). Only deleting the Oxy ACCOUNT
+      // clears it, explicitly (`forgetRetiredIdentityKeys`, Commons' flow).
     }
 
     // The device backup goes on EVERY delete, forced or not: it is restored

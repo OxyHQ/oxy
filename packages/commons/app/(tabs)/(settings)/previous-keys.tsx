@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
@@ -9,6 +9,7 @@ import {
   listRetiredIdentityKeys,
   retireIdentityKey,
   retiredKeyFromPhrase,
+  retiredKeyFromPrivateKey,
   type RetiredIdentityKey,
 } from '@oxy.so/core/crypto';
 import { useOxy } from '@oxy.so/services';
@@ -36,6 +37,9 @@ import { readPastedPhrase, WRONG_WORD_COUNT_KEY } from '@/lib/recovery-phrase/pa
  * replaced keys (`oxy.identity.keyHistory()`) and, only when it derives one of
  * them, the key is kept as a PREVIOUS key: never as the current one, never for
  * signing in. The phrase itself is not stored, and it never leaves the phone.
+ * A previous identity imported as a raw PRIVATE KEY has no phrase: it is added
+ * from that key the same way (R4-4). Once added, the encrypted backup (when
+ * the person has one) is sealed again so it carries the key too.
  */
 export default function PreviousKeysScreen() {
   const router = useRouter();
@@ -45,6 +49,8 @@ export default function PreviousKeysScreen() {
   const [held, setHeld] = useState<RetiredIdentityKey[] | null>(null);
   const [words, setWords] = useState<string[]>(() => new Array(RECOVERY_PHRASE_LENGTH).fill(''));
   const [problem, setProblem] = useState<string | null>(null);
+  const [mode, setMode] = useState<'phrase' | 'privateKey'>('phrase');
+  const [privateKeyText, setPrivateKeyText] = useState('');
   const [working, setWorking] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -87,33 +93,53 @@ export default function PreviousKeysScreen() {
     try {
       let key: { privateKey: string; publicKey: string };
       try {
-        key = await retiredKeyFromPhrase(words.join(' '));
+        key =
+          mode === 'phrase'
+            ? await retiredKeyFromPhrase(words.join(' '))
+            : retiredKeyFromPrivateKey(privateKeyText);
       } catch {
-        setProblem(t('previousKeys.invalid'));
+        setProblem(
+          t(mode === 'phrase' ? 'previousKeys.invalid' : 'previousKeys.invalidPrivateKey'),
+        );
         return;
       }
       const history = await oxyServices.identity.keyHistory();
       const wanted = key.publicKey.toLowerCase();
       if (history.publicKey?.toLowerCase() === wanted) {
-        setProblem(t('previousKeys.isCurrent'));
+        setProblem(t(mode === 'phrase' ? 'previousKeys.isCurrent' : 'previousKeys.isCurrentKey'));
         return;
       }
       if (!history.retired.some((entry) => entry.publicKey.toLowerCase() === wanted)) {
-        setProblem(t('previousKeys.notYours'));
+        setProblem(t(mode === 'phrase' ? 'previousKeys.notYours' : 'previousKeys.notYoursKey'));
         return;
       }
       await retireIdentityKey(key);
       setWords(new Array(RECOVERY_PHRASE_LENGTH).fill(''));
+      setPrivateKeyText('');
       toast.success(t('previousKeys.added'));
       await refresh();
+      // Re-seal the encrypted backup so it carries this key too (R4-4). Only
+      // when the person has one and this phone holds the current phrase.
+      try {
+        const [status, phrase] = await Promise.all([
+          oxyServices.identity.backup.status(),
+          KeyManager.getRecoveryMnemonic(),
+        ]);
+        if (status.exists && phrase) await oxyServices.identity.backup.create(phrase);
+      } catch {
+        toast.error(t('previousKeys.backupNotUpdated'));
+      }
     } catch {
       setProblem(t('previousKeys.error'));
     } finally {
       setWorking(false);
     }
-  }, [oxyServices, refresh, t, words]);
+  }, [mode, oxyServices, privateKeyText, refresh, t, words]);
 
-  const complete = words.every((word) => word.trim().length > 0);
+  const complete =
+    mode === 'phrase'
+      ? words.every((word) => word.trim().length > 0)
+      : privateKeyText.trim().length > 0;
 
   return (
     <KeyboardAwareScrollViewWrapper
@@ -148,13 +174,43 @@ export default function PreviousKeysScreen() {
       ) : null}
 
       <View style={styles.form}>
-        <Text style={[styles.formTitle, { color: colors.text }]}>{t('previousKeys.addTitle')}</Text>
-        <PhraseInputGrid
-          words={words}
-          onWordChange={onWordChange}
-          onPaste={onPaste}
-          editable={!working}
-        />
+        <Text style={[styles.formTitle, { color: colors.text }]}>
+          {t(mode === 'phrase' ? 'previousKeys.addTitle' : 'previousKeys.addPrivateKeyTitle')}
+        </Text>
+        {mode === 'phrase' ? (
+          <PhraseInputGrid
+            words={words}
+            onWordChange={onWordChange}
+            onPaste={onPaste}
+            editable={!working}
+          />
+        ) : (
+          <TextInput
+            value={privateKeyText}
+            onChangeText={(text) => {
+              setProblem(null);
+              setPrivateKeyText(text);
+            }}
+            editable={!working}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            placeholder={t('previousKeys.privateKeyPlaceholder')}
+            placeholderTextColor={colors.textSecondary}
+            style={[styles.keyInput, { color: colors.text, borderColor: colors.border }]}
+            testID="previous-key-private-key"
+          />
+        )}
+        <Button
+          appearance="plain"
+          onPress={() => {
+            setProblem(null);
+            setMode((m) => (m === 'phrase' ? 'privateKey' : 'phrase'));
+          }}
+          disabled={working}
+        >
+          {t(mode === 'phrase' ? 'previousKeys.usePrivateKey' : 'previousKeys.usePhrase')}
+        </Button>
         {problem ? <ImportantBanner type="error">{problem}</ImportantBanner> : null}
         <Button
           appearance="solid"
@@ -175,5 +231,6 @@ const styles = StyleSheet.create({
   content: { padding: 22, paddingTop: 24, gap: 16 },
   form: { gap: 12 },
   formTitle: { fontSize: 15, fontWeight: '600' },
+  keyInput: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 14 },
   empty: { fontSize: 13 },
 });
