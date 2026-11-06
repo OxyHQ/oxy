@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.38.0
+
+### Added
+
+- `readSharedWithoutInteraction(store, key, options, { accessGroup })` is exported from `@oxy.so/core/session` (with the `KeychainStoreLike` type): read one item of the SHARED iOS keychain group without ever prompting the user (security review R6-16). Any Oxy app can plant an `:auth` copy (an item stored with `requireAuthentication`) in that group, and expo-secure-store's own read would answer it with a Face ID prompt; this reads only the `:no-auth` and legacy copies through `@oxy.so/services`' `OxyIdentity.readKeychainItemWithoutInteraction`, and through expo-secure-store on a native module that predates it. Use it for every read of the shared group.
+
 ## 7.36.0
 
 Round-5 security review of the Peable mainnet identity receive: R5-3, R5-5, R5-6, R5-7, R5-9 and the R4-12 remainder.

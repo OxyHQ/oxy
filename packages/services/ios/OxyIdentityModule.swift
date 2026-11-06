@@ -3,6 +3,9 @@ import ExpoModulesCore
 import LocalAuthentication
 #endif
 import Security
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /**
  * iOS side of the Commons identity bridge.
@@ -146,8 +149,17 @@ public class OxyIdentityModule: Module {
     /// `:no-auth` and legacy copies only, with an `LAContext` that refuses
     /// interaction, so an item that needs the user answers `nil` and no prompt
     /// is ever shown. The query matches expo-secure-store's (service, generic
-    /// and account attributes). "Not found" and "interaction not allowed"
-    /// answer `nil`; any other status throws.
+    /// and account attributes). "Not found" answers `nil`; any other status
+    /// throws.
+    ///
+    /// `errSecInteractionNotAllowed` means one of two things, and they must not
+    /// be confused (security review R6-13): an item that needs the user (Face
+    /// ID: skipped, `nil`), or a LOCKED keychain (the device is locked and the
+    /// item is `WhenUnlocked`). A locked keychain is not "absent": answering
+    /// `nil` there let Commons' access-group migration settle its one-shot
+    /// record while the shared copies it could not see stayed where every Oxy
+    /// app can read them. So while protected data is unavailable the read
+    /// THROWS, and the caller defers.
     AsyncFunction("readKeychainItemWithoutInteraction") {
       (_ key: String, _ service: String?, _ accessGroup: String) throws -> String? in
       let base = service ?? "app"
@@ -173,7 +185,12 @@ public class OxyIdentityModule: Module {
         case errSecSuccess:
           guard let data = item as? Data else { return nil }
           return String(data: data, encoding: .utf8)
-        case errSecItemNotFound, errSecInteractionNotAllowed, errSecAuthFailed:
+        case errSecItemNotFound:
+          continue
+        case errSecInteractionNotAllowed, errSecAuthFailed:
+          if !OxyIdentityModule.protectedDataAvailable() {
+            throw KeychainProbeException(errSecInteractionNotAllowed)
+          }
           continue
         default:
           throw KeychainProbeException(status)
@@ -195,6 +212,24 @@ public class OxyIdentityModule: Module {
     AsyncFunction("signRetiredSocialReceive") { (_ index: Int, _ digest: String, _ publicKey: String, _ accountId: String?) -> [String: String]? in
       return nil
     }
+  }
+}
+
+extension OxyIdentityModule {
+  /// Whether the keychain's data-protection class keys are available, i.e. the
+  /// device is not locked (R6-13). `UIApplication` is main-thread only; module
+  /// functions run on a background queue, so the main queue is asked
+  /// synchronously (it never waits on this queue). Where UIKit is absent the
+  /// answer is `true`: there is no lock state to tell apart.
+  static func protectedDataAvailable() -> Bool {
+    #if canImport(UIKit) && !os(watchOS)
+    if Thread.isMainThread {
+      return UIApplication.shared.isProtectedDataAvailable
+    }
+    return DispatchQueue.main.sync { UIApplication.shared.isProtectedDataAvailable }
+    #else
+    return true
+    #endif
   }
 }
 

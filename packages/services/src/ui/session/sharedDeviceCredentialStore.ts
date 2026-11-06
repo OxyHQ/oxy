@@ -43,6 +43,7 @@ import type { SecureStoreOptions } from 'expo-secure-store';
 import {
   keychainAccessGroupValue,
   normalizeSharedDeviceSessionRead,
+  readSharedWithoutInteraction,
   resolveKeychainAccess,
   type SharedDeviceCredential,
   type SharedDeviceCredentialRead,
@@ -167,6 +168,29 @@ async function sharedGroupOptions(): Promise<SecureStoreOptions> {
   };
 }
 
+/**
+ * Read the credential item WITHOUT user interaction (security review R6-16).
+ * Every Oxy app can write the shared group, so any of them can plant an
+ * `oxy_device_session:auth` copy (an item stored with `requireAuthentication`);
+ * expo-secure-store's own read tries that copy and would show a Face ID prompt
+ * in every Oxy app at cold boot. `readSharedWithoutInteraction` reads only the
+ * `:no-auth` and legacy copies, with interaction refused; a native module that
+ * predates it reads through expo-secure-store as before. A locked keychain
+ * still THROWS (services' native read since 14.14.0), which is `unavailable`.
+ */
+async function readSharedItem(
+  store: KeychainGroupStore,
+  options: SecureStoreOptions,
+): Promise<string | null> {
+  const { accessGroup, ...rest } = options;
+  return readSharedWithoutInteraction(
+    store,
+    SHARED_DEVICE_SESSION_STORAGE_KEY,
+    rest,
+    accessGroup ? { accessGroup } : {},
+  );
+}
+
 function createKeychainGroupCredentialStore(): SharedDeviceCredentialStore {
   return {
     read: async (): Promise<SharedDeviceCredentialRead> => {
@@ -176,10 +200,7 @@ function createKeychainGroupCredentialStore(): SharedDeviceCredentialStore {
       }
       let raw: string | null;
       try {
-        raw = await store.getItemAsync(
-          SHARED_DEVICE_SESSION_STORAGE_KEY,
-          await sharedGroupOptions(),
-        );
+        raw = await readSharedItem(store, await sharedGroupOptions());
       } catch (error) {
         return { state: 'unavailable', cause: error };
       }
@@ -214,7 +235,7 @@ function createKeychainGroupCredentialStore(): SharedDeviceCredentialStore {
         // landed under the access group (a missing entitlement is the usual
         // cause), and a phantom credential would send a fresh install into a mint
         // that can never succeed.
-        return (await store.getItemAsync(SHARED_DEVICE_SESSION_STORAGE_KEY, readOptions)) === value;
+        return (await readSharedItem(store, readOptions)) === value;
       } catch {
         return false;
       }
