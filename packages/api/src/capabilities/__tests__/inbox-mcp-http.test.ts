@@ -24,7 +24,11 @@ jest.mock('../../utils/logger', () => ({
   logger: { error: (...args: unknown[]) => mockLoggerError(...args) },
 }));
 
-import { createInboxMcpHttpService, parseInboxMcpAllowedOrigins } from '../inbox-mcp-http';
+import {
+  createInboxMcpHttpService,
+  isInboxMcpResourceHost,
+  parseInboxMcpAllowedOrigins,
+} from '../inbox-mcp-http';
 
 describe('Inbox MCP HTTP service', () => {
   beforeEach(() => {
@@ -117,5 +121,14 @@ describe('Inbox MCP HTTP service', () => {
     });
     expect(mockResolveMcpResource).toHaveBeenCalledTimes(2);
     expect(mockIntrospectMcpAccessToken).toHaveBeenCalledWith('second-token', 'application-2');
+  });
+});
+
+describe('isInboxMcpResourceHost', () => {
+  it('matches only the Inbox MCP host, case-insensitively', () => {
+    expect(isInboxMcpResourceHost('mcp.inbox.oxy.so')).toBe(true);
+    expect(isInboxMcpResourceHost('MCP.Inbox.Oxy.so')).toBe(true);
+    expect(isInboxMcpResourceHost('api.oxy.so')).toBe(false);
+    expect(isInboxMcpResourceHost(undefined)).toBe(false);
   });
 });

@@ -58,3 +58,16 @@ export function createInboxMcpHttpService() {
     serverName: 'inbox-mcp',
   });
 }
+
+/**
+ * True when a request's Host is the Inbox external MCP resource. That host is served
+ * by this same API app, so the root authorization-server metadata must not be answered
+ * there: it names `api.oxy.so` as issuer, and RFC 8414 requires the issuer to match
+ * the origin it was fetched from. Clients get the issuer from protected-resource
+ * metadata instead, as they do for Mention's MCP host.
+ */
+export function isInboxMcpResourceHost(host: string | undefined): boolean {
+  const resource = INBOX_MCP_CATALOG.externalMcp?.resource;
+  if (!resource || !host) return false;
+  return new URL(resource).host === host.toLowerCase();
+}
