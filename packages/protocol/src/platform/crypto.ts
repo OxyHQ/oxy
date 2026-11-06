@@ -82,6 +82,7 @@ import type {
   ExpoSecureStoreLike,
   KeychainApplicationAccessGroup,
   KeychainDefaultAccessGroup,
+  KeychainReadWithoutInteraction,
 } from './expoTypes';
 
 // Re-export the interfaces so consumers can import them from the same
@@ -95,6 +96,7 @@ export type {
   ExpoSecureStoreLike,
   KeychainApplicationAccessGroup,
   KeychainDefaultAccessGroup,
+  KeychainReadWithoutInteraction,
 };
 
 // ---------------------------------------------------------------------------
@@ -193,4 +195,8 @@ export function loadKeychainApplicationAccessGroup(
   _prefix: string,
 ): Promise<KeychainApplicationAccessGroup> {
   return Promise.resolve({ state: 'unsupported' });
+}
+
+export function loadKeychainReadWithoutInteraction(): Promise<KeychainReadWithoutInteraction | null> {
+  return Promise.resolve(null);
 }

@@ -34,9 +34,9 @@
  */
 
 import express from 'express';
-import http from 'http';
-import crypto from 'crypto';
-import type { AddressInfo } from 'net';
+import type http from 'http';
+import crypto from 'node:crypto';
+import type { AddressInfo } from 'node:net';
 import { eq } from 'drizzle-orm';
 
 /** The account each request authenticates as. Set per test. */
@@ -177,6 +177,34 @@ describe('POST /identity/backup', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].lookupIdHash).toBe(sha256Hex(second));
     expect(rows[0].ciphertext).toBe('feed');
+  });
+
+  it('never downgrades: an older envelope version cannot replace a newer one (R5-9)', async () => {
+    const newer = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, ciphertext: 'c0ffee' }),
+    );
+    expect(newer.status).toBe(200);
+
+    const older = await request('POST', '/identity/backup', uploadBody({ version: 1 }));
+    expect(older.status).toBe(409);
+    const [kept] = await storedRows(OWNER);
+    expect(kept.version).toBe(2);
+    expect(kept.ciphertext).toBe('c0ffee');
+
+    // The same or a newer version still replaces it.
+    const same = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, ciphertext: 'beef' }),
+    );
+    expect(same.status).toBe(200);
+    const upgraded = await request('POST', '/identity/backup', uploadBody({ version: 3 }));
+    expect(upgraded.status).toBe(200);
+    const rows = await storedRows(OWNER);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].version).toBe(3);
   });
 
   it('stores the client ISO timestamp verbatim, in its own column', async () => {

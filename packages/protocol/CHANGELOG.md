@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.11.0
+
+### Added
+
+- `loadKeychainReadWithoutInteraction()` (`KeychainReadWithoutInteraction`): on iOS a reader of one expo-secure-store item that never asks the user — it tries the item's `<service>:no-auth` and legacy `<service>` copies with an `LAContext` that refuses interaction, never the `<service>:auth` copy an app can plant with `requireAuthentication` — as the `OxyIdentity` native module of `@oxy.so/services` 14.13.0 answers it; `null` off iOS or on an older native module. `@oxy.so/core` reads the shared keychain group through it (round-5 review R5-9).
+
 ## 1.10.0
 
 ### Added

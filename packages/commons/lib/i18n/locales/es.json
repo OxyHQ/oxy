@@ -1076,6 +1076,11 @@
     "previousKeysTitle": "Claves anteriores",
     "previousKeysSubtitle": "Claves que rotaste, guardadas para que Peable gaste lo que se les envió"
   },
+  "backupOwed": {
+    "title": "Vuelve a crear tu copia cifrada",
+    "body": "Tu clave se rotó y la copia cifrada que guardaba tus claves anteriores se reemplazó. Todavía no se ha creado una nueva, así que esas claves solo están en este teléfono. Crea la copia con tu nueva frase de recuperación.",
+    "action": "Crear copia cifrada"
+  },
   "deviceBackupWarning": {
     "title": "Esta identidad no tiene copia en este dispositivo",
     "body": "Este dispositivo no puede guardar una copia automática de tu identidad: en Android hacen falta los servicios de Google Play. Si se desinstala Commons o se borra su almacenamiento, tu identidad se borra de este dispositivo y solo tu frase de recuperación puede recuperarla. Apunta tu frase ahora y configura una copia cifrada.",

@@ -32,9 +32,9 @@
 
 import { generateSecp256k1KeyPair, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import express from 'express';
-import http from 'http';
+import http from 'node:http';
 import { randomUUID } from 'node:crypto';
-import type { AddressInfo } from 'net';
+import type { AddressInfo } from 'node:net';
 import { and, eq } from 'drizzle-orm';
 
 /** The account `authMiddleware` injects for the current test. */
@@ -79,6 +79,7 @@ jest.mock('../../server', () => ({
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
+import { applications } from '../../db/schema/applications';
 import { authChallenges } from '../../db/schema/authChallenges';
 import { identityBackups } from '../../db/schema/identityBackups';
 import { personalIdentityKeyRetirements } from '../../db/schema/personalIdentityKeyRetirements';
@@ -1087,6 +1088,41 @@ describe('retired roots (personal_identity_key_retirements)', () => {
       status: 403,
       body: { error: 'third_party_device_access_denied' },
     });
+  });
+
+  it('answers a first-party application session, such as Peable’s, with its own history', async () => {
+    // Any active first-party app's user session reads the signed-in person's
+    // own history (Peable's wallet checks every retired key against it); only
+    // a third party is refused.
+    const [peable] = await getDb()
+      .insert(applications)
+      .values({
+        name: `Peable ${randomUUID()}`,
+        ownerAccountId: currentUserId,
+        status: 'active',
+        type: 'first_party',
+        scopes: ['user:read'],
+      })
+      .returning({ id: applications.id });
+    currentApplicationId = peable.id;
+    const answer = await request(server, 'GET', '/identity/key-history');
+    expect(answer).toEqual({
+      status: 200,
+      body: { publicKey: normalizeSecp256k1PublicKey(oldPublicKey), retired: [] },
+    });
+
+    const [thirdParty] = await getDb()
+      .insert(applications)
+      .values({
+        name: `Third party ${randomUUID()}`,
+        ownerAccountId: currentUserId,
+        status: 'active',
+        type: 'third_party',
+        scopes: ['user:read'],
+      })
+      .returning({ id: applications.id });
+    currentApplicationId = thirdParty.id;
+    expect((await request(server, 'GET', '/identity/key-history')).status).toBe(403);
   });
 
   it('a retired root is never rotated in again — by anyone, its old account included — answered as a key linked elsewhere', async () => {

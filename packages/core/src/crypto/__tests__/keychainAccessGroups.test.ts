@@ -12,6 +12,15 @@ import { APP, ENTITLEMENTS, FakeKeychain, GROUP, sandbox } from './fakeKeychain'
 
 const mockKeychain = new FakeKeychain();
 let mockProbe: 'native' | 'unsupported' = 'unsupported';
+/**
+ * The `OxyIdentity` read without user interaction (R5-9), or `null` for a
+ * native module that predates it. Items in `mockAuthOnly` model a copy stored
+ * with `requireAuthentication`: expo-secure-store's read would prompt for it
+ * (the fake throws), this reader never sees it.
+ */
+let mockNoInteraction = false;
+const mockAuthOnly = new Set<string>();
+const mockNoInteractionReads: string[] = [];
 
 jest.mock('@oxy.so/protocol', () => ({
   __esModule: true,
@@ -23,6 +32,13 @@ jest.mock('@oxy.so/protocol', () => ({
     mockProbe === 'native' ? mockKeychain.applicationProbe(prefix) : { state: 'unsupported' },
   loadNodeCrypto: async () => require('node:crypto'),
   loadCommonsIdentityBridge: async () => null,
+  loadKeychainReadWithoutInteraction: async () =>
+    mockNoInteraction
+      ? async (key: string, service: string | undefined, accessGroup: string) => {
+          mockNoInteractionReads.push(`${accessGroup}|${key}`);
+          return mockKeychain.get(accessGroup, key, service);
+        }
+      : null,
 }));
 
 const PHRASE =
@@ -62,6 +78,7 @@ function proveOwner(publicKey: string): void {
 async function seedPreSplitCommons(): Promise<{
   publicKey: string;
   orgPrivate: string;
+  orgPublic: string;
   orgPhrase: string;
   seed: string | null;
   orgSeed: string | null;
@@ -76,10 +93,34 @@ async function seedPreSplitCommons(): Promise<{
   return {
     publicKey: KeyManager.derivePublicKey(PRIVATE),
     orgPrivate: orgKey.privateKey,
+    orgPublic: orgKey.publicKey,
     orgPhrase: orgKey.mnemonic,
     seed: hex(await KeyManager.deriveScopedSeed(LABEL)),
     orgSeed: hex(await KeyManager.deriveScopedSeed(LABEL, { accountId: ORG })),
   };
+}
+
+/** The organization key kept in its ring, by public key (wallet group). */
+function orgRingHolds(privateKey: string, publicKey: string, accountId = ORG): boolean {
+  return (
+    mockKeychain.get(GROUP.wallet, `oxy_retired_identity_private_key.${accountId}.${publicKey}`) ===
+    privateKey
+  );
+}
+
+/**
+ * What Commons' launch does once it can ask Oxy (R5-7): bind the quarantined
+ * organization entries the organization's key history names and make its
+ * current key the live pair again.
+ */
+async function bindOrganization(l: Launch, orgPublic: string): Promise<void> {
+  const ring = await import('../retiredKeys');
+  expect(await ring.listQuarantinedOrganizationKeys()).toContainEqual({
+    accountId: ORG,
+    publicKey: orgPublic,
+  });
+  await ring.claimRetiredOrganizationKeys(ORG, [orgPublic]);
+  expect(await l.org.adoptOrganizationKeyFromRing(ORG, orgPublic)).toBe(true);
 }
 
 /** What Commons can read, through the SDK's own read paths. */
@@ -121,6 +162,9 @@ beforeEach(() => {
   mockKeychain.failWrites.clear();
   mockKeychain.corruptWrites.clear();
   mockKeychain.calls.length = 0;
+  mockNoInteraction = false;
+  mockAuthOnly.clear();
+  mockNoInteractionReads.length = 0;
 });
 
 describe('keychainAccessFromDefaultGroup', () => {
@@ -286,17 +330,17 @@ describe('the exposure (F5) and its closing', () => {
       mockKeychain.get(GROUP.identity, 'oxy_identity_mnemonic_v1', 'oxy_identity_mnemonic'),
     ).toBe(PHRASE);
     expect(mockKeychain.get(GROUP.wallet, 'oxy_shared_identity_private_key')).toBe(PRIVATE);
-    expect(mockKeychain.get(GROUP.wallet, `oxy_org_identity_private_key.${ORG}`)).toBe(
-      before.orgPrivate,
-    );
-    expect(
-      mockKeychain.get(
-        GROUP.identity,
-        `oxy_org_identity_mnemonic.${ORG}`,
-        'oxy_org_identity_mnemonic',
-      ),
-    ).toBe(before.orgPhrase);
+    // The organization's copy is not adopted on the marker's word (R5-7): it
+    // is kept quarantined in its ring, out of reach, and not indexed.
+    expect(mockKeychain.get(GROUP.wallet, `oxy_org_identity_private_key.${ORG}`)).toBeNull();
+    expect(orgRingHolds(before.orgPrivate, before.orgPublic)).toBe(true);
+    expect(report.items['organization-1']).toBe('retired');
+    const quarantined = await launch(ENTITLEMENTS.commons);
+    expect(await quarantined.org.getOrganizationPrivateKey(ORG)).toBeNull();
+    expect(await quarantined.org.listOrganizationKeys()).toEqual([]);
 
+    // Commons binds it against the organization's key history and restores it.
+    await bindOrganization(quarantined, before.orgPublic);
     const view = await commonsView(await launch(ENTITLEMENTS.commons));
     expect(view).toEqual({
       privateKey: PRIVATE,
@@ -304,7 +348,8 @@ describe('the exposure (F5) and its closing', () => {
       sharedPublic: before.publicKey,
       seed: before.seed,
       orgPrivate: before.orgPrivate,
-      orgPhrase: before.orgPhrase,
+      // A phrase is never kept in the ring: the owner wrote it down.
+      orgPhrase: null,
       orgs: [ORG],
     });
   });
@@ -313,7 +358,9 @@ describe('the exposure (F5) and its closing', () => {
     const before = await seedPreSplitCommons();
     for (const migrated of [false, true]) {
       if (migrated) {
-        await (await launch(ENTITLEMENTS.commons)).migration.ensureKeychainGroupsMigrated();
+        const commons = await launch(ENTITLEMENTS.commons);
+        await commons.migration.ensureKeychainGroupsMigrated();
+        await bindOrganization(commons, before.orgPublic);
       }
       const peable = await launch(ENTITLEMENTS.wallet);
       expect(hex(await peable.KeyManager.deriveScopedSeed(LABEL))).toBe(before.seed);
@@ -547,15 +594,17 @@ describe('the migration never loses a key', () => {
     expect(mockKeychain.get(GROUP.shared, 'oxy_shared_identity_private_key')).toBe(replaced);
   });
 
-  it('organization indexes in both groups are merged, never narrowed', async () => {
+  it('the own index is never narrowed, and the shared one adds only organizations this device holds (R5-7)', async () => {
     const commons = await launch(ENTITLEMENTS.commons);
     proveOwner(commons.KeyManager.derivePublicKey(PRIVATE));
     const a = 'aaaaaaaaaaaaaaaaaaaaaaaa';
     const b = 'bbbbbbbbbbbbbbbbbbbbbbbb';
+    const c = 'cccccccccccccccccccccccc';
+    const cKey = '44'.repeat(32);
     mockKeychain.put(
       GROUP.shared,
       'oxy_org_identity_index_v1',
-      JSON.stringify([a]),
+      JSON.stringify([a, c]),
       'oxy_org_identity_index',
     );
     mockKeychain.put(
@@ -564,10 +613,47 @@ describe('the migration never loses a key', () => {
       JSON.stringify([b]),
       'oxy_org_identity_index',
     );
-    expect((await commons.migration.runKeychainGroupMigration()).items['organization-index']).toBe(
-      'moved',
+    // This device already keeps c's pair in the wallet group; a is named only
+    // by the shared copy, which any app could write.
+    mockKeychain.put(GROUP.wallet, `oxy_org_identity_private_key.${c}`, cKey);
+    mockKeychain.put(
+      GROUP.wallet,
+      `oxy_org_identity_public_key.${c}`,
+      commons.KeyManager.derivePublicKey(cKey),
     );
-    expect(await commons.org.listOrganizationKeys()).toEqual([a, b]);
+    const report = await commons.migration.runKeychainGroupMigration();
+    expect(report.items['organization-index']).toBe('moved');
+    expect(report.state).toBe('complete');
+    expect(await commons.org.listOrganizationKeys()).toEqual([b, c]);
+    expect(
+      mockKeychain.get(GROUP.shared, 'oxy_org_identity_index_v1', 'oxy_org_identity_index'),
+    ).toBeNull();
+  });
+
+  it('an own organization index that cannot be read is never overwritten (R5-9)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    proveOwner(commons.KeyManager.derivePublicKey(PRIVATE));
+    mockKeychain.put(
+      GROUP.identity,
+      'oxy_org_identity_index_v1',
+      '{not json',
+      'oxy_org_identity_index',
+    );
+    const report = await commons.migration.runKeychainGroupMigration();
+    expect(report.items['organization-index']).toBe('failed');
+    expect(report.state).toBe('incomplete');
+    expect(
+      mockKeychain.get(GROUP.identity, 'oxy_org_identity_index_v1', 'oxy_org_identity_index'),
+    ).toBe('{not json');
+    await expect(commons.org.listOrganizationKeys()).rejects.toThrow('organization key index');
+    const key = await commons.org.generateOrganizationKey();
+    await expect(commons.org.storeOrganizationKey(ORG, key)).rejects.toThrow(
+      'organization key index',
+    );
+    expect(mockKeychain.get(GROUP.wallet, `oxy_org_identity_private_key.${ORG}`)).toBeNull();
+    expect(
+      mockKeychain.get(GROUP.identity, 'oxy_org_identity_index_v1', 'oxy_org_identity_index'),
+    ).toBe('{not json');
   });
 
   // Exhaustive (two modes x every mutation, each with phrase derivations), so
@@ -588,7 +674,7 @@ describe('the migration never loses a key', () => {
       sharedPublic: before.publicKey,
       seed: before.seed,
       orgPrivate: before.orgPrivate,
-      orgPhrase: before.orgPhrase,
+      orgPhrase: null,
       orgs: [ORG],
     };
 
@@ -619,26 +705,38 @@ describe('the migration never loses a key', () => {
         expect(mockKeychain.mutations).toBeGreaterThanOrEqual(base);
 
         // The state the fault left, before any later launch repairs it: every
-        // value still has a copy, and no copy anywhere holds anything else.
+        // value still has a copy, and no copy anywhere holds anything else —
+        // except the organization's items, which may already be gone from the
+        // shared group only because its ring holds the key (R5-7), and the
+        // shared index, which is never adopted.
         for (const [id, value] of snapshot) {
           const [, service, key] = id.split('|');
           const copies = Object.values(GROUP)
             .map((g) => mockKeychain.get(g, key, service === 'app' ? undefined : service))
             .filter((v) => v !== null);
-          expect(copies.length).toBeGreaterThan(0);
+          if (copies.length === 0) {
+            expect(key).toMatch(/^oxy_org_identity_/);
+            if (!key.startsWith('oxy_org_identity_index')) {
+              expect(orgRingHolds(before.orgPrivate, before.orgPublic)).toBe(true);
+            }
+            continue;
+          }
           expect(new Set(copies)).toEqual(new Set([value]));
         }
         // The wallet does not migrate: it reads that intermediate state as is.
+        // The organization's key is either still in the shared group or
+        // quarantined until Commons binds it.
         const peable = await launch(ENTITLEMENTS.wallet);
         expect(hex(await peable.KeyManager.deriveScopedSeed(LABEL))).toBe(before.seed);
-        expect(hex(await peable.KeyManager.deriveScopedSeed(LABEL, { accountId: ORG }))).toBe(
-          before.orgSeed,
+        expect([before.orgSeed, null]).toContain(
+          hex(await peable.KeyManager.deriveScopedSeed(LABEL, { accountId: ORG })),
         );
 
         const next = await launch(ENTITLEMENTS.commons);
         expect((await next.migration.ensureKeychainGroupsMigrated()).state).toBe('complete');
         expect(secretsInSharedGroup()).toEqual([]);
-        expect(await commonsView(next)).toEqual(expected);
+        await bindOrganization(next, before.orgPublic);
+        expect(await commonsView(await launch(ENTITLEMENTS.commons))).toEqual(expected);
       }
     }
   }, 120_000);
@@ -663,13 +761,24 @@ describe('the migration adopts only what Commons provably wrote, once (R4-7)', (
     mockKeychain.put(GROUP.shared, 'oxy_shared_identity_private_key', planted);
     mockKeychain.put(GROUP.shared, 'oxy_identity_mnemonic_v1', PHRASE, 'oxy_identity_mnemonic');
     const report = await commons.migration.ensureKeychainGroupsMigrated();
-    expect(report).toMatchObject({ state: 'complete', proven: false, items: {} });
+    expect(report).toMatchObject({
+      state: 'complete',
+      proven: false,
+      items: { primary: 'retired', 'shared-slot': 'retired', phrase: 'retired' },
+    });
     expect(await commons.KeyManager.getPrivateKey()).toBeNull();
     expect(await commons.KeyManager.getRecoveryMnemonic()).toBeNull();
     expect((await commons.KeyManager.getIdentityStatus()).state).toBe('absent');
     expect(mockKeychain.inGroup(GROUP.identity)).toEqual([
       `${GROUP.identity}|oxy_keychain_group_migration|oxy_keychain_group_migration_v1`,
     ]);
+    // Nothing is adopted, and nothing is lost either (R5-3): every key is in
+    // the ring QUARANTINED, out of every reader's reach, and gone from the
+    // shared group.
+    expect(secretsInSharedGroup()).toEqual([]);
+    const ring = await import('../retiredKeys');
+    expect(await ring.countQuarantinedRetiredKeys()).toBe(2);
+    expect(await ring.listRetiredIdentityKeys(OWNER)).toEqual([]);
 
     // A later launch, even with a marker, never looks at the shared group again.
     proveOwner(plantedPublic);
@@ -754,6 +863,186 @@ describe('the migration adopts only what Commons provably wrote, once (R4-7)', (
 async function getPreSplitExposureOf(_l: Launch) {
   return (await import('../keychainGroupMigration')).getPreSplitExposure();
 }
+
+describe('round 5: nothing in the shared group is lost, trusted or prompted for', () => {
+  const ORG_KEY = '88'.repeat(32);
+
+  it('a device without a marker keeps every shared key and phrase quarantined, then deletes it (R5-3)', async () => {
+    const before = await seedPreSplitCommons();
+    sandbox.clear(); // a reinstall: Commons' sandbox marker is gone, the keychain is not
+    const commons = await launch(ENTITLEMENTS.commons);
+    const report = await commons.migration.ensureKeychainGroupsMigrated();
+    expect(report).toMatchObject({ state: 'complete', proven: false });
+    expect(secretsInSharedGroup()).toEqual([]);
+    expect(await commons.KeyManager.getPrivateKey()).toBeNull();
+    // Personal: reachable only once the account's key history names it.
+    const ring = await import('../retiredKeys');
+    expect(await ring.listRetiredIdentityKeys(OWNER)).toEqual([]);
+    await expect(
+      ring.claimRetiredIdentityKeys(OWNER.ownerAccountId, [before.publicKey]),
+    ).resolves.toBe(1);
+    expect((await ring.listRetiredIdentityKeys(OWNER)).map((k) => k.publicKey)).toEqual([
+      before.publicKey,
+    ]);
+    // Organization: quarantined in its own ring until its history names it.
+    expect(orgRingHolds(before.orgPrivate, before.orgPublic)).toBe(true);
+    expect(await ring.listRetiredIdentityKeys({ accountId: ORG })).toEqual([]);
+    await expect(ring.claimRetiredOrganizationKeys(ORG, ['04'.padEnd(130, '1')])).resolves.toBe(0);
+    await bindOrganization(commons, before.orgPublic);
+    expect(await commons.org.getOrganizationPrivateKey(ORG)).toBe(before.orgPrivate);
+  });
+
+  it('a Commons secret write keeps a different shared copy quarantined before deleting it (R5-3)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    await commons.migration.ensureKeychainGroupsMigrated();
+    const other = '55'.repeat(32);
+    const otherPublic = commons.KeyManager.derivePublicKey(other);
+    mockKeychain.put(GROUP.shared, 'oxy_identity_private_key_v2', other, 'oxy_identity');
+    mockKeychain.put(GROUP.shared, `oxy_org_identity_private_key.${ORG}`, ORG_KEY);
+    await commons.KeyManager.importKeyPair(PRIVATE, { overwrite: true });
+    await commons.org.storeOrganizationKey(ORG, {
+      privateKey: '99'.repeat(32),
+      publicKey: commons.KeyManager.derivePublicKey('99'.repeat(32)),
+    });
+    expect(
+      mockKeychain.get(GROUP.shared, 'oxy_identity_private_key_v2', 'oxy_identity'),
+    ).toBeNull();
+    expect(mockKeychain.get(GROUP.shared, `oxy_org_identity_private_key.${ORG}`)).toBeNull();
+    expect(
+      mockKeychain.get(GROUP.wallet, `oxy_retired_identity_private_key.personal.${otherPublic}`),
+    ).toBe(other);
+    expect(orgRingHolds(ORG_KEY, commons.KeyManager.derivePublicKey(ORG_KEY))).toBe(true);
+    const ring = await import('../retiredKeys');
+    expect(await ring.listRetiredIdentityKeys({ accountId: ORG })).toEqual([]);
+  });
+
+  it('a write whose different shared copy cannot be kept fails and changes nothing (R5-3)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    await commons.migration.ensureKeychainGroupsMigrated();
+    const other = '55'.repeat(32);
+    mockKeychain.put(GROUP.shared, 'oxy_identity_private_key_v2', other, 'oxy_identity');
+    mockKeychain.failWrites.add(
+      `${GROUP.wallet}|oxy_retired_identity_private_key.personal.${commons.KeyManager.derivePublicKey(other)}`,
+    );
+    await expect(commons.KeyManager.importKeyPair(PRIVATE, { overwrite: true })).rejects.toThrow();
+    expect(mockKeychain.get(GROUP.shared, 'oxy_identity_private_key_v2', 'oxy_identity')).toBe(
+      other,
+    );
+    expect(
+      mockKeychain.get(GROUP.identity, 'oxy_identity_private_key_v2', 'oxy_identity'),
+    ).toBeNull();
+  });
+
+  it('a shared copy equal to the value written is simply deleted', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    await commons.migration.ensureKeychainGroupsMigrated();
+    mockKeychain.put(GROUP.shared, 'oxy_identity_private_key_v2', PRIVATE, 'oxy_identity');
+    await commons.KeyManager.importKeyPair(PRIVATE, { overwrite: true });
+    expect(
+      mockKeychain.get(GROUP.shared, 'oxy_identity_private_key_v2', 'oxy_identity'),
+    ).toBeNull();
+    expect(mockKeychain.inGroup(GROUP.wallet).some((id) => id.includes('retired'))).toBe(false);
+  });
+
+  it('a development build never reads, moves or deletes anything in the shared group (R5-5)', async () => {
+    await seedPreSplitCommons();
+    const snapshot = new Map(mockKeychain.items);
+    const shared = mockKeychain.inGroup(GROUP.shared);
+    proveOwner(mockKeychain.get(GROUP.shared, 'oxy_shared_identity_public_key') ?? '');
+    const dev = await launch([`${GROUP.identity}.dev`, `${GROUP.wallet}.dev`, GROUP.shared]);
+    mockKeychain.calls.length = 0;
+    const report = await dev.migration.ensureKeychainGroupsMigrated();
+    expect(report.state).toBe('not-applicable');
+    expect(await dev.KeyManager.getPrivateKey()).toBeNull();
+    expect(await dev.KeyManager.getRecoveryMnemonic()).toBeNull();
+    expect(await dev.org.getOrganizationPrivateKey(ORG)).toBeNull();
+    // Writing its own identity leaves production's copies where they are.
+    await dev.KeyManager.importKeyPair('12'.repeat(32), { overwrite: true });
+    await dev.KeyManager.deleteIdentity({ force: true } as never).catch(() => undefined);
+    expect(mockKeychain.inGroup(GROUP.shared)).toEqual(shared);
+    for (const id of shared) expect(mockKeychain.items.get(id)).toBe(snapshot.get(id));
+    expect(
+      mockKeychain.calls.some(
+        (c) => c.options.accessGroup === GROUP.shared && /private_key|mnemonic/.test(c.key),
+      ),
+    ).toBe(false);
+  });
+
+  it('an organization copy equal to the key this device holds is adopted (R5-7)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    proveOwner(commons.KeyManager.derivePublicKey(PRIVATE));
+    const orgPublic = commons.KeyManager.derivePublicKey(ORG_KEY);
+    mockKeychain.put(
+      GROUP.shared,
+      'oxy_org_identity_index_v1',
+      JSON.stringify([ORG]),
+      'oxy_org_identity_index',
+    );
+    mockKeychain.put(GROUP.shared, `oxy_org_identity_private_key.${ORG}`, ORG_KEY);
+    mockKeychain.put(GROUP.wallet, `oxy_org_identity_private_key.${ORG}`, ORG_KEY);
+    const report = await commons.migration.runKeychainGroupMigration();
+    expect(report.items['organization-1']).toBe('moved');
+    expect(mockKeychain.get(GROUP.wallet, `oxy_org_identity_public_key.${ORG}`)).toBe(orgPublic);
+    expect(await commons.org.listOrganizationKeys()).toEqual([ORG]);
+    expect(orgRingHolds(ORG_KEY, orgPublic)).toBe(false);
+  });
+
+  it('reads the shared group without user interaction, never the Face ID copy (R5-9)', async () => {
+    await seedPreSplitCommons();
+    mockNoInteraction = true;
+    const commons = await launch(ENTITLEMENTS.commons);
+    mockKeychain.calls.length = 0;
+    expect((await commons.migration.ensureKeychainGroupsMigrated()).state).toBe('complete');
+    // Every shared read went through the no-interaction reader…
+    expect(mockNoInteractionReads.length).toBeGreaterThan(0);
+    expect(
+      mockKeychain.calls.some((c) => c.op === 'get' && c.options.accessGroup === GROUP.shared),
+    ).toBe(false);
+    // …and so does a write's look at the shared copy.
+    mockKeychain.calls.length = 0;
+    await commons.KeyManager.importKeyPair(PRIVATE, { overwrite: true });
+    expect(
+      mockKeychain.calls.some((c) => c.op === 'get' && c.options.accessGroup === GROUP.shared),
+    ).toBe(false);
+  });
+
+  it('an incomplete run opens the fallback only for the items that failed, and retries later (R5-9)', async () => {
+    await seedPreSplitCommons();
+    mockKeychain.failWrites.add(`${GROUP.identity}|oxy_identity_mnemonic_v1`);
+    const commons = await launch(ENTITLEMENTS.commons);
+    const report = await commons.migration.ensureKeychainGroupsMigrated();
+    expect(report.state).toBe('incomplete');
+    expect(report.items.phrase).toBe('failed');
+    // The proven phrase that could not move is still readable…
+    expect(await commons.KeyManager.getRecoveryMnemonic()).toBe(PHRASE);
+    // …but no other shared copy is: one planted now is not read.
+    mockKeychain.put(
+      GROUP.shared,
+      'oxy_identity_backup_private_key_v2',
+      '13'.repeat(32),
+      'oxy_identity_backup',
+    );
+    mockKeychain.calls.length = 0;
+    await commons.KeyManager.getRecoveryMnemonic();
+    const sharedGets = mockKeychain.calls.filter(
+      (c) => c.op === 'get' && c.options.accessGroup === GROUP.shared,
+    );
+    expect(sharedGets.map((c) => c.key)).toEqual(['oxy_identity_mnemonic_v1']);
+
+    // Before the backoff, the report stands; after it, a later access retries.
+    mockKeychain.failWrites.clear();
+    expect((await commons.migration.ensureKeychainGroupsMigrated()).state).toBe('incomplete');
+    const now = Date.now();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(now + 31_000);
+    try {
+      expect((await commons.migration.ensureKeychainGroupsMigrated()).state).toBe('complete');
+    } finally {
+      clock.mockRestore();
+    }
+    expect(secretsInSharedGroup()).toEqual([]);
+    expect(await commons.KeyManager.getRecoveryMnemonic()).toBe(PHRASE);
+  });
+});
 
 describe('a money holder learns its public key from the private key it spends (R5-1)', () => {
   const ATTACKER = '77'.repeat(32);

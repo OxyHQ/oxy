@@ -11,6 +11,7 @@ import type React from 'react';
 import fs from 'node:fs';
 import path from 'node:path';
 import { render, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(),
@@ -54,9 +55,11 @@ const rotateKey = jest.fn(async () => ({ localPersistFailed: false }));
 
 function renderScreen() {
   return render(
-    <LocaleProvider>
-      <RotateKeyConfirmScreen />
-    </LocaleProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <LocaleProvider>
+        <RotateKeyConfirmScreen />
+      </LocaleProvider>
+    </QueryClientProvider>,
   );
 }
 

@@ -37,9 +37,11 @@ export {
   listOrganizationKeys,
   deleteOrganizationKey,
   syncOrganizationKeys,
+  adoptOrganizationKeyFromRing,
   isOrganizationAccountId,
   isHealthyOrganizationKeyPair,
 } from './organizationKeys';
+export { OrganizationKeyIndexUnreadableError } from './keychainItems';
 export type {
   OrganizationKeyPair,
   GeneratedOrganizationKey,
@@ -94,6 +96,9 @@ export {
   exportRetiredIdentityKeys,
   claimRetiredIdentityKeys,
   countQuarantinedRetiredKeys,
+  claimRetiredOrganizationKeys,
+  listQuarantinedOrganizationKeys,
+  holdsRetiredRing,
   unmirrorPersonalRetiredKeys,
   RetiredKeyRingUnreadableError,
 } from './retiredKeys';

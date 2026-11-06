@@ -20,7 +20,7 @@
  */
 import { Router, type Request, type Response } from 'express';
 import crypto from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, lte } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ConflictError, NotFoundError, UnauthorizedError, BadRequestError } from '../utils/error';
@@ -134,6 +134,13 @@ const backupDeleteLimiter = rateLimit({
  * POST /identity/backup — create or REPLACE the caller's encrypted backup.
  * Upsert by `userId`, so a re-upload never accumulates duplicates. The raw
  * `lookupId` from the body is hashed before storage; only the hash is persisted.
+ *
+ * Never DOWNGRADED (round-5 review R5-9): an upload whose envelope `version`
+ * is LOWER than the stored one is refused with 409 and the stored backup is
+ * kept. A newer payload carries more (version 2 carries the person's retired
+ * keys), and an older Commons would otherwise replace it with one that drops
+ * them. The comparison is part of the same upsert statement, so two racing
+ * writers cannot interleave a downgrade.
  */
 router.post(
   '/',
@@ -162,11 +169,21 @@ router.post(
       const [row] = await getDb()
         .insert(identityBackups)
         .values({ userId, ...stored })
-        .onConflictDoUpdate({ target: identityBackups.userId, set: stored })
+        .onConflictDoUpdate({
+          target: identityBackups.userId,
+          set: stored,
+          setWhere: lte(identityBackups.version, body.version),
+        })
         .returning({
           publicKeyHint: identityBackups.publicKeyHint,
           clientCreatedAt: identityBackups.clientCreatedAt,
         });
+      if (!row) {
+        // The caller's row exists and holds a NEWER envelope version.
+        throw new ConflictError(
+          'A newer version of the app wrote this backup. Update the app to replace it.',
+        );
+      }
 
       const payload: BackupStatusResponse = {
         exists: true,

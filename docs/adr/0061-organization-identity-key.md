@@ -250,6 +250,24 @@ the phone.**
    the device holds for that organization in its ring before overwriting it,
    and refuses (changing nothing) when it cannot.
 
+**Amended 2026-11-06 again (round-5 review, R5-3, R5-6, R5-7, R4-12).**
+
+8. **The backup never drops a key.** Every re-seal opens the backup it
+   replaces (same phrase) and keeps what it carried; a rotation reads the
+   current backup with the current phrase BEFORE the swap and carries its
+   keys into the new one, and does not rotate when that backup exists but
+   cannot be read. The ring is read strictly. The envelope is version 2 and
+   Oxy refuses an older version over a newer one (409). A rotation marks the
+   backup owed until it is sealed (`oxy.identity.backup.isOwed()`).
+9. **A rotation's slot writes drop nothing either.** A key a personal slot
+   holds that is neither the replaced nor the new key is kept in the ring
+   before the slot is overwritten, or nothing is overwritten.
+10. **Kept without provenance means quarantined.** An organization key the iOS
+    migration found in the shared group and could not vouch for is held in the
+    organization's ring but reached by nobody until Commons binds it against
+    the organization's key history; the current key then becomes the live pair
+    again (ADR 0062 D4 as amended).
+
 Organization rings are not in the personal backup: an organization's key has
 its own phrase, and a phone that loses an organization's previous key needs that
 key's phrase (point 3), as before.

@@ -62,6 +62,7 @@ import type {
   ExpoSecureStoreLike,
   KeychainApplicationAccessGroup,
   KeychainDefaultAccessGroup,
+  KeychainReadWithoutInteraction,
 } from './expoTypes';
 import { missingOptionalPeerError } from './optionalPeer';
 import { requireExpoCrypto } from './random.native';
@@ -77,6 +78,7 @@ export type {
   ExpoSecureStoreLike,
   KeychainApplicationAccessGroup,
   KeychainDefaultAccessGroup,
+  KeychainReadWithoutInteraction,
 };
 
 // ---------------------------------------------------------------------------
@@ -234,6 +236,16 @@ interface OxyIdentityNativeModule {
    * modules and Android lack it.
    */
   keychainApplicationAccessGroup?(prefix: string): Promise<unknown>;
+  /**
+   * iOS only, added in round 5 (R5-9): read one expo-secure-store item without
+   * user interaction, never its `:auth` copy. Older native modules and Android
+   * lack it.
+   */
+  readKeychainItemWithoutInteraction?(
+    key: string,
+    service: string | null,
+    accessGroup: string,
+  ): Promise<unknown>;
   /**
    * Retired keys (Commons protocol 4), added after the organization methods and
    * just as absent on an older native module. `accountId` is `null` for the
@@ -544,4 +556,25 @@ export async function loadKeychainApplicationAccessGroup(
   }
   keychainApplicationAccessGroup = { state: 'resolved', accessGroup: answer };
   return keychainApplicationAccessGroup;
+}
+
+// ---------------------------------------------------------------------------
+// iOS keychain read without user interaction (R5-9). `null` when the native
+// module predates it (or off iOS): the caller then reads through
+// expo-secure-store, as before. The answer crossed the native boundary, so only
+// a string or `null` is accepted.
+// ---------------------------------------------------------------------------
+
+export async function loadKeychainReadWithoutInteraction(): Promise<KeychainReadWithoutInteraction | null> {
+  const native = requireOptionalNativeModule<Partial<OxyIdentityNativeModule>>('OxyIdentity');
+  const read = native?.readKeychainItemWithoutInteraction;
+  if (!native || typeof read !== 'function') return null;
+  return async (key, service, accessGroup) => {
+    const answer: unknown = await read.call(native, key, service ?? null, accessGroup);
+    if (answer === null || answer === undefined) return null;
+    if (typeof answer !== 'string') {
+      throw new Error('keychain read answered something that is not a string');
+    }
+    return answer;
+  };
 }
