@@ -62,10 +62,12 @@ import {
 import { OxyServer } from '@oxy.so/core/server';
 import { Server } from 'socket.io';
 import { io as connect, type Socket as ClientSocket } from 'socket.io-client';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 import { sessions } from '../../db/schema/sessions';
+import { accountMembers } from '../../db/schema/accountMembers';
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import { users } from '../../db/schema/users';
 import {
   applications,
@@ -486,6 +488,71 @@ describe('a backend stops trusting a revoked session at once', () => {
       oxy.session.validate(other.sessionId, { accessToken: other.bearer }),
     ).rejects.toBeDefined();
     expect(validations()).toBe(before + 1);
+  });
+
+  it('delivers actor-scoped revocations without invalidating another actor', async () => {
+    const owner = await account();
+    const editor = await account();
+    const [org] = await insertAccountFixtures(
+      {
+        username: `u-${randomUUID().slice(0, 12)}`,
+        kind: 'organization',
+        parentAccountId: owner,
+        rootAccountId: owner,
+      },
+      { id: users.id },
+    );
+    await getDb().execute(
+      sql`insert into user_ancestors (user_id, depth, ancestor_id) values (${org.id}, 0, ${owner})`,
+    );
+    await getDb()
+      .insert(accountMembers)
+      .values([
+        { accountId: org.id, memberUserId: owner, role: 'owner', status: 'active' },
+        { accountId: org.id, memberUserId: editor, role: 'editor', status: 'active' },
+      ]);
+    const mint = (actor: string) =>
+      sessionService.createSession(org.id, { headers: { 'user-agent': 'jest' } } as never, {
+        deviceId: `fixture-${randomUUID()}`,
+        operatedByUserId: actor,
+      });
+    const current = await mint(editor);
+    const other = await mint(editor);
+    const preserved = await mint(owner);
+    const personal = await signIn(owner);
+    const heard = listen(serviceToken());
+    await eventually(() => heard.socket.connected, 'feed connection');
+    const { oxy, validations } = await backend();
+    await cached(oxy, personal.sessionId, personal.bearer);
+    await oxy.session.validate(preserved.sessionId, { accessToken: preserved.accessToken });
+    await oxy.session.validate(other.sessionId, { accessToken: other.accessToken });
+    const applied = jest.spyOn(oxy.session, 'applyRevocation');
+
+    expect(
+      await call('POST', `/session/logout-all/${current.sessionId}`, current.accessToken),
+    ).toBe(200);
+    await eventually(
+      () => heard.revoked.some((event) => event.sessionId === other.sessionId),
+      'actor-scoped announcement',
+    );
+    await eventually(
+      () => applied.mock.calls.some(([event]) => event.sessionId === other.sessionId),
+      'backend revocation',
+    );
+    expect(
+      heard.revoked.some(
+        (event) =>
+          event.userId === org.id && (!event.sessionId || event.sessionId === preserved.sessionId),
+      ),
+    ).toBe(false);
+    const before = validations();
+    await oxy.session.validate(preserved.sessionId, { accessToken: preserved.accessToken });
+    // Delegated validations intentionally ask Oxy every time.
+    expect(validations()).toBe(before + 1);
+    await expect(
+      oxy.session.validate(other.sessionId, { accessToken: other.accessToken }),
+    ).rejects.toBeDefined();
+    expect(validations()).toBe(before + 2);
   });
 
   it('device removal', async () => {
