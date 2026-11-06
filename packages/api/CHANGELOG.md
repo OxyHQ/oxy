@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Added (the platform holds the Oxy session)
+
+ADR 0058, accepted 2026-11-06. A platform's own password sign-in (`platformClient`
+on `POST /auth/signin/password` and `/auth/signin/second-factor`, checked against
+the registry's new `platformHost` before any account lookup or password work) gets
+a PLATFORM credential (`device_credentials.platform`, `platform_application_id`),
+retires the device proof it presented and replaces the account's session.
+`POST /session/device/app-token` mints with it a five-minute token of the shared
+session named for the attested application (`azp` + `host`; OxyOS desktop entry
+ids in `application_oxyos_entries`). Every API re-checks the platform credential
+and the application live; `/session/device/*` refuses such a token
+(`app_token_device_access_denied`), the socket gives it no device room,
+`/session/validate-header` names its application and platform, `/apps/assertions`
+has `oxyos` and `astro` lanes, and Kaana terms may accept it
+(`sharedSessionAttribution` is now a set). The seed declares OxyOS's
+`platformHost`, the desktop entry ids of Dropsea, Atlas, Allo and Inbox, and
+retires OxyOS's `tauri://localhost` (`retiredRedirectUris`). Migrations
+`0236_platform_held_session`, `0237_platform_credential_index`,
+`0238_validate_platform_credentials` (all `pre`).
+
+### Fixed
+
+`POST /session/device/token` (and `/background-token`, and the activation's
+token) answers `expiresAt` as the access token's own `exp`, not the session's
+sliding expiry (ADR 0058 step 0).
+
 ### Added (an organization has its own identity key)
 
 Organization identity keys (ADR 0061). A claimed, active organization can have a

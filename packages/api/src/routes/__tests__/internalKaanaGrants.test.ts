@@ -84,6 +84,10 @@ import {
   type SettlementFeedReader,
 } from '../../services/kaanaSettlement.service';
 import sessionService from '../../services/session.service';
+import deviceSessionService from '../../services/deviceSession.service';
+import { sha256Hex } from '../../services/oauthCode.service';
+import { deviceCredentials } from '../../db/schema/deviceCredentials';
+import { generateHostAccessToken, validateAccessToken } from '../../utils/sessionUtils';
 import { ensureWorkloadAttributionIdentity } from '../../services/workloadAttributionIdentity.service';
 import { workloadAttestationHandle } from '../../services/workloadAttestation.service';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
@@ -2032,7 +2036,11 @@ describe('the product_session lane: a person’s own session (ADR 0050)', () => 
    * application-bound session is.
    */
   async function astroStandIn(
-    options: { readonly terms?: boolean; readonly maxRequestsPerUserPerUtcDay?: number } = {},
+    options: {
+      readonly terms?: boolean;
+      readonly maxRequestsPerUserPerUtcDay?: number;
+      readonly attribution?: readonly economicPolicy.SharedSessionAttribution[];
+    } = {},
   ) {
     const appId = randomUUID();
     const app = await pinnedApplication(appId, 'Astro stand-in', []);
@@ -2064,19 +2072,20 @@ describe('the product_session lane: a person’s own session (ADR 0050)', () => 
               : principal,
             operation,
           );
-          return options.maxRequestsPerUserPerUtcDay === undefined ||
-            decision.treatment !== 'internal_metered'
-            ? decision
-            : {
-                ...decision,
-                relationship: {
-                  ...decision.relationship,
-                  capacity: {
-                    ...decision.relationship.capacity,
-                    maxRequestsPerUserPerUtcDay: options.maxRequestsPerUserPerUtcDay,
-                  },
-                },
-              };
+          if (decision.treatment !== 'internal_metered') return decision;
+          return {
+            ...decision,
+            relationship: {
+              ...decision.relationship,
+              ...(options.attribution ? { sharedSessionAttribution: options.attribution } : {}),
+              capacity: {
+                ...decision.relationship.capacity,
+                ...(options.maxRequestsPerUserPerUtcDay === undefined
+                  ? {}
+                  : { maxRequestsPerUserPerUtcDay: options.maxRequestsPerUserPerUtcDay }),
+              },
+            },
+          };
         });
     }
     const person = await makeAccount();
@@ -2281,6 +2290,99 @@ describe('the product_session lane: a person’s own session (ADR 0050)', () => 
     });
     expect(grant.userId).toBe(person);
     expect(grant.economics).toMatchObject({ relationshipId: 'astro-kaana-session' });
+  });
+
+  /**
+   * An application token a platform minted for the stand-in (ADR 0058): the
+   * person's shared session on a device, a live platform credential of that
+   * device, and `azp` the stand-in's public client id.
+   */
+  async function hostTokenFor(appId: string, clientId: string, person: string) {
+    const deviceId = randomUUID();
+    const session = await sessionService.createSession(person, { headers: {} } as Request, {
+      deviceId,
+    });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: person,
+      sessionId: session.sessionId,
+    });
+    await deviceSessionService.bindSessionToContext(deviceId, session.sessionId);
+    const secret = await deviceSessionService.issuePlatformCredential(deviceId, {
+      platform: 'oxyos',
+      applicationId: appId,
+    });
+    const [credential] = await getDb()
+      .select({ id: deviceCredentials.id })
+      .from(deviceCredentials)
+      .where(eq(deviceCredentials.secretHash, sha256Hex(secret ?? '')));
+    const deviceToken = await sessionService.getAccessToken(session.sessionId);
+    const claims = validateAccessToken(deviceToken?.accessToken ?? '').payload;
+    if (!claims?.device_session_id || !claims.device_context_id) throw new Error('unbound');
+    return generateHostAccessToken(
+      {
+        subjectAccountId: person,
+        principalUserId: person,
+        sessionId: session.sessionId,
+        deviceId,
+        deviceSessionId: claims.device_session_id,
+        deviceContextId: claims.device_context_id,
+        clientId: null,
+        scopes: [],
+      },
+      { clientId },
+      { platform: 'oxyos', credential: credential.id },
+    ).accessToken;
+  }
+
+  it('attributes an application token to its azp only under terms that accept platform tokens', async () => {
+    const accepting = await astroStandIn({ attribution: ['public_client_id', 'platform'] });
+    await instantLine(accepting.app.accountId);
+    const hostToken = await hostTokenFor(
+      accepting.appId,
+      accepting.client.publicKey ?? '',
+      accepting.person,
+    );
+    const grant = verifiedGrant(
+      await authorize(
+        inferenceRequest({
+          credential: hostToken,
+          target: { kind: 'level', level: 'instant' },
+          facts: smallFacts,
+        }),
+      ),
+    );
+    expect(grant.principal).toMatchObject({
+      applicationId: accepting.appId,
+      lane: 'product_session',
+    });
+    expect(grant.userId).toBe(accepting.person);
+    // Presented beside another client id, refused.
+    const other = await astroStandIn({ terms: false });
+    const mismatch = await authorize(
+      inferenceRequest({
+        credential: `oxy_session:${other.client.publicKey}:${hostToken}`,
+        target: { kind: 'level', level: 'instant' },
+        facts: smallFacts,
+      }),
+    );
+    expect([mismatch.status, mismatch.body.code]).toEqual([403, 'permission_denied']);
+  });
+
+  it('refuses an application token under terms that accept the public client id only (Astro’s, as written)', async () => {
+    const publicOnly = await astroStandIn();
+    await instantLine(publicOnly.app.accountId);
+    const refused = await authorize(
+      inferenceRequest({
+        credential: await hostTokenFor(
+          publicOnly.appId,
+          publicOnly.client.publicKey ?? '',
+          publicOnly.person,
+        ),
+        target: { kind: 'level', level: 'instant' },
+        facts: smallFacts,
+      }),
+    );
+    expect([refused.status, refused.body.code]).toEqual([403, 'permission_denied']);
   });
 
   it('refuses a shared session presented with the client id of an application without such terms', async () => {

@@ -87,6 +87,27 @@ export interface SeedAppSpec {
    */
   webOrigins?: string[];
   /**
+   * This application IS a platform that holds the Oxy session (ADR 0058):
+   * OxyOS's `oxyos-accountd`, Astro. A sign-in naming its public client id as
+   * `platformClient` gets a platform credential. The seed SETS it when
+   * declared and never clears it, like `webOrigins`.
+   */
+  platformHost?: 'oxyos' | 'astro';
+  /**
+   * The OxyOS desktop entry ids that launch this application (ADR 0058):
+   * what `oxyos-accountd` attests when it asks for the application's token.
+   * ADDED to `application_oxyos_entries`, never removed; an id that is already
+   * another application's aborts the run.
+   */
+  oxyosDesktopEntryIds?: string[];
+  /**
+   * Redirect URIs this application no longer has. `redirectUris` is only ever
+   * added to (a Console-registered URI survives a re-seed), so a URI the spec
+   * drops stays registered until it is named here, which REMOVES it. A URI may
+   * not be both declared and retired.
+   */
+  retiredRedirectUris?: string[];
+  /**
    * App-level scopes. Defaults to `['user:read']`. A PRIVILEGED scope (e.g.
    * `federation:write`) is staff-only and is never self-grantable via the API —
    * granting it here (in this canonical seed, run by staff) is the supported way
@@ -526,6 +547,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Official Oxy email/inbox app.',
     websiteUrl: 'https://inbox.oxy.so',
     webOrigins: ['https://inbox.oxy.so'],
+    oxyosDesktopEntryIds: ['so.oxy.inbox'],
     type: 'first_party',
     redirectUris: ['https://inbox.oxy.so'],
     scopes: ['user:read', 'inference:invoke', 'catalogs:write', 'capability-events:publish'],
@@ -677,6 +699,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Official Oxy encrypted messaging app.',
     websiteUrl: 'https://allo.you',
     webOrigins: ['https://allo.you'],
+    oxyosDesktopEntryIds: ['so.oxy.allo'],
     type: 'first_party',
     // One redirect URI, because Allo has one hostname. `https://allo.oxy.so`
     // was the second until that alias was retired (Allo #128): its DNS record is
@@ -816,10 +839,16 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Official Oxy desktop shell for Linux.',
     websiteUrl: 'https://oxy.so/os',
     type: 'first_party',
-    // Tauri's Linux WebKit application origin. This registers transport and
-    // the public sign-in client only: it is NOT a web-recognition origin or
-    // proof that a request came from OxyOS. Ordinary Alia uses the session.
-    redirectUris: ['tauri://localhost'],
+    // OxyOS holds the person's Oxy session itself (ADR 0058): `oxyos-accountd`
+    // signs in naming this public client id and gets the platform credential
+    // every OxyOS application's token is minted from. Its own Settings and
+    // shell are this application (`self`). No redirect: the sign-in is the
+    // login screen's own dialog, native, with no web origin.
+    platformHost: 'oxyos',
+    redirectUris: [],
+    // The retired Tauri WebKit shell's transport origin (OxyOS retired the
+    // shell; docs/auth/desktop-public-clients.md).
+    retiredRedirectUris: ['tauri://localhost'],
     scopes: [],
   },
   {
@@ -1108,6 +1137,7 @@ export const SEED_APPS: SeedAppSpec[] = [
       'The Oxy App Store — the storefront people browse before they choose an app, and where they review one afterwards.',
     websiteUrl: 'https://atlas.oxy.so',
     webOrigins: ['https://atlas.oxy.so'],
+    oxyosDesktopEntryIds: ['so.oxy.atlas'],
     type: 'first_party',
     // The storefront is readable signed out, so this client exists for exactly
     // one thing: signing somebody in to write a review. Only the app's own
@@ -1120,6 +1150,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Photos and files by Oxy: albums of what a person keeps in Oxy Files.',
     websiteUrl: 'https://dropsea.net',
     webOrigins: ['https://dropsea.net'],
+    oxyosDesktopEntryIds: ['so.oxy.dropsea'],
     type: 'first_party',
     // The web app is the one surface that ships. Its native builds (iOS and
     // Android `so.oxy.dropsea`) have never been published, so the Expo

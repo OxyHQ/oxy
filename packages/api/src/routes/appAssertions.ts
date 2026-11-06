@@ -52,6 +52,9 @@ function callerOf(req: AuthRequest): AppAssertionCaller | null {
     userId: token.subjectAccountId,
     sessionId: token.sessionId,
     sessionApplicationId: token.applicationId,
+    host: token.host
+      ? { platform: token.host.platform, applicationId: token.host.applicationId }
+      : null,
   };
 }
 
@@ -218,7 +221,9 @@ router.post(
  *       `/capabilities/.well-known/jwks.json`) with `iss`, `aud: oxy-apps`, `sub` (the person),
  *       `sid` (the session), `app` (the application), `platform`, `iat`, `exp` and `jti`. Send it
  *       as `X-Oxy-App-Assertion`. web: the request's `Origin` must be one of the application's
- *       web origins. android: a Play Integrity token over the `requestHash` of an `assertion`
+ *       web origins. oxyos, astro (ADR 0058): the bearer must be an application token that
+ *       platform minted for this application; it is the whole proof. An application token gets
+ *       an assertion for its own application and platform only. android: a Play Integrity token over the `requestHash` of an `assertion`
  *       challenge, whose verdict names the registered package, a registered signing
  *       certificate and `PLAY_RECOGNIZED`. ios: an App Attest assertion over that `requestHash`
  *       with a registered key, its counter moving forward. A challenge is spent before the proof
@@ -235,7 +240,7 @@ router.post(
  *                 additionalProperties: false
  *                 properties:
  *                   applicationId: { type: string }
- *                   platform: { type: string, enum: [web] }
+ *                   platform: { type: string, enum: [web, oxyos, astro] }
  *               - type: object
  *                 required: [applicationId, platform, proof]
  *                 additionalProperties: false
@@ -272,10 +277,10 @@ router.post(
  *               properties:
  *                 assertion: { type: string }
  *                 applicationId: { type: string }
- *                 platform: { type: string, enum: [web, android, ios] }
+ *                 platform: { type: string, enum: [web, android, ios, oxyos, astro] }
  *                 expiresAt: { type: string, format: date-time }
  *       401: { description: No session bearer. }
- *       403: { description: "`application_unavailable`, `session_other_application`, `platform_not_registered`, `origin_not_registered`, `challenge_invalid`, `integrity_refused`, `attest_key_unknown` or `assertion_invalid`." }
+ *       403: { description: "`application_unavailable`, `session_other_application`, `platform_not_registered`, `origin_not_registered`, `challenge_invalid`, `integrity_refused`, `attest_key_unknown`, `assertion_invalid` or `app_token_mismatch`." }
  *       503: { description: "`integrity_unconfigured`, `integrity_unavailable` or `signing_unavailable`." }
  */
 router.post(

@@ -20,8 +20,9 @@ checked there; `session.service.ts` supplies the row it is checked against.
   "sub": "account-being-acted-as",
   "act": { "sub": "the-human-acting" },
   "aud": ["oxy-api"],
-  "azp": "oxy_dk_…",              // present only on an application's own session
-  "scope": "profile:read",         // ditto
+  "azp": "oxy_dk_…",              // an application's own session, or an application token
+  "scope": "profile:read",         // an application's own session only
+  "host": { "platform": "oxyos", "credential": "…" }, // an application token only (ADR 0058)
   "sid": "session-uuid",
   "device_session_id": "…",        // present once the device has registered it
   "device_context_id": "…",
@@ -63,10 +64,35 @@ Collapsing them would make an organization authorise itself.
 
 A shared device session belongs to no single application — every official Oxy
 app on the device uses it — so naming one of them as the authorized party would
-be false for the others. `azp` appears exactly when the session is one
-application's and nothing else can reach it, which today means an untrusted
-OAuth client. Per-application sessions for official apps are the BFF end state,
-not this phase.
+be false for the others. `azp` appears when the session is one application's and
+nothing else can reach it, which means an untrusted OAuth client, and on an
+APPLICATION TOKEN (below), where `host` says who vouched for the name.
+Per-application sessions for official apps are the BFF end state, not this
+phase.
+
+### Application tokens (ADR 0058)
+
+A platform that holds the session (OxyOS, Astro) mints, with its PLATFORM
+credential, a token of the shared session named for the application it runs
+(`POST /session/device/app-token`):
+
+- the same `sub`, `act`, `sid`, `device_session_id` and `device_context_id` as
+  the device's own token, so it lives and dies with that session;
+- `azp`: the application's public client id; `host`: `{ platform, credential }`,
+  the platform and the id of its platform credential;
+- five minutes, a fresh `jti`, never stored on the row; no `scope`, no
+  `deviceId`.
+
+`checkAccessTokenBinding` accepts an `azp` on a row whose `client_id` is NULL
+only together with a well-formed `host` (`host_mismatch` otherwise; an `azp`
+without `host` stays `client_mismatch`), and only for a caller that re-checks
+`host` live (`host_not_accepted` otherwise). `validateSession` and the
+realtime-recipient proofs do (`hostTokenAuthority.service.ts`): the credential
+is a live platform credential of that device session held by that platform, and
+`azp` a usable public client of an active, trusted application. The verified
+answer is `req.oxyToken.host` (`{ platform, credentialId, clientId,
+applicationId }`); `req.oxyToken.applicationId` stays the row's NULL, so
+nothing confuses a named shared session with an application's own.
 
 ### Every mint is unique
 
@@ -200,7 +226,9 @@ of one decision, and they only hold together:
 Everything under `/session/device/*` that requires a bearer then refuses a
 third-party token with `403 third_party_device_access_denied` — the directory,
 `activate`, `add`, `switch`, `signout`, `state`, and the background-credential
-mint.
+mint — and an application token (ADR 0058) with `403
+app_token_device_access_denied`, whatever its application: the device is the
+platform's. An application token joins no `device:<id>` socket room.
 
 The trust decision is the **registry's**, re-read per request rather than frozen
 into the token (`isTrustedApplication`, plus `status === 'active'`). Flipping an
@@ -250,6 +278,8 @@ path.
   exposed on `req.oxyToken.scopes`; no route yet declares a required scope.
   That is per-route policy work, not token work.
 - **Per-application sessions for official apps.** They share the device session,
-  which is why their tokens carry no `azp`. The BFF/session-gateway direction in
-  issue #937 is where that changes.
+  which is why their tokens carry no `azp` — except an application token a
+  platform minted, which is a five-minute view of that same session, not a
+  session of its own (ADR 0058). The BFF/session-gateway direction in issue #937
+  is where that changes for plain browsers.
 - **`aud` as per-session state.** One resource server, one constant.

@@ -2,8 +2,11 @@
  * How an application is recognised (ADR 0045): the registry half of app
  * assertions.
  *
- * `application_recognition` holds one application's Android and iOS identity;
- * `application_web_origins` its exact `https://` web origins, one row each. Both
+ * `application_recognition` holds one application's Android and iOS identity,
+ * and (ADR 0058) whether the application is a platform that holds the Oxy
+ * session (`platform_host`); `application_web_origins` its exact `https://` web
+ * origins, one row each; `application_oxyos_entries` the OxyOS desktop entry
+ * ids that launch it, one row each. All
  * are written ONLY by Oxy staff, through the application administration lane
  * (`PUT /applications/:appId/recognition`, `requireStaff` + `app:update`), which
  * replaces the whole declaration in one transaction
@@ -13,7 +16,7 @@
  * ## One identity, one application
  *
  * Recognition is how Oxy tells apps apart, so no identity may name two: an
- * origin is a PRIMARY KEY, an Android package and an iOS team + bundle are
+ * origin and a desktop entry id are PRIMARY KEYs, an Android package and an iOS team + bundle are
  * UNIQUE. Postgres treats NULLs as distinct, so applications that declare no
  * Android or iOS identity do not collide.
  *
@@ -45,6 +48,12 @@ export const applicationRecognition = pgTable(
     /** The Apple Developer team id, or NULL when the app declares no iOS build. */
     iosTeamId: text(),
     iosBundleId: text(),
+    /**
+     * `oxyos` or `astro` when this application IS a platform that holds the Oxy
+     * session (ADR 0058): its public client id is the one the platform's own
+     * sign-in names. NULL for every other application.
+     */
+    platformHost: text({ enum: ['oxyos', 'astro'] }),
     /** The staff member who last wrote the declaration. */
     updatedByUserId: text().references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
@@ -63,6 +72,10 @@ export const applicationRecognition = pgTable(
       'application_recognition_ios_check',
       sql`(${t.iosTeamId} is null) = (${t.iosBundleId} is null)`,
     ),
+    check(
+      'application_recognition_platform_host_check',
+      sql`${t.platformHost} is null or ${t.platformHost} in ('oxyos', 'astro')`,
+    ),
   ],
 );
 
@@ -79,6 +92,30 @@ export const applicationWebOrigins = pgTable(
   (t) => [
     index('application_web_origins_application_id_idx').on(t.applicationId),
     check('application_web_origins_origin_check', sql`${t.origin} ~ '^https://[^/?#@]+$'`),
+  ],
+);
+
+/**
+ * The OxyOS desktop entry ids that launch an application (ADR 0058): what
+ * `oxyos-accountd` attests when it asks for that application's token. One id
+ * names one application, as an origin does.
+ */
+export const applicationOxyosEntries = pgTable(
+  'application_oxyos_entries',
+  {
+    /** The reverse-DNS id OxyOS launches the application by (`so.oxy.dropsea`). */
+    desktopEntryId: text().primaryKey(),
+    applicationId: text()
+      .notNull()
+      .references(() => applicationRecognition.applicationId, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('application_oxyos_entries_application_id_idx').on(t.applicationId),
+    check(
+      'application_oxyos_entries_desktop_entry_id_check',
+      sql`${t.desktopEntryId} ~ '^[a-z0-9]+([.][a-z0-9-]+)+$' and length(${t.desktopEntryId}) <= 255`,
+    ),
   ],
 );
 

@@ -352,7 +352,9 @@ describe('astro-kaana-session: Astro’s one-shot features on a person’s sessi
   });
 
   it('accepts a shared session by public client id for Astro only, and only with a per-person bound', () => {
-    expect(relationship?.sharedSessionAttribution).toBe('public_client_id');
+    // Astro presents its public client id; platform tokens (ADR 0058) are
+    // accepted by no relationship until its terms are reviewed for them.
+    expect(relationship?.sharedSessionAttribution).toEqual(['public_client_id']);
     const accepting = INTERNAL_METERED_RELATIONSHIPS.filter(
       (candidate) => candidate.sharedSessionAttribution !== undefined,
     );

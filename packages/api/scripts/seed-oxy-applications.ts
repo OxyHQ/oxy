@@ -38,6 +38,11 @@
  *                      `application_web_origins`, additive only: an origin staff
  *                      added is never removed, one that is another application's
  *                      aborts the run.
+ *   - ADR 0058: `spec.platformHost` (set, never cleared) and
+ *                      `spec.oxyosDesktopEntryIds` in `application_oxyos_entries`
+ *                      (added, never removed; another application's aborts).
+ *   - Redirect URIs are added; one leaves only when the spec names it in
+ *                      `retiredRedirectUris`.
  *   - Re-running performs 0 inserts once seeded (verified by the summary).
  *   - DRY_RUN=true reports the plan without writing.
  *
@@ -94,6 +99,7 @@ import {
 import { operatorKeysHeldByAccountRole } from '../src/utils/accountRoles';
 import { declareFirstPartyTrustedPublishers } from '../src/services/githubTrustedPublishing.service';
 import {
+  declareApplicationPlatform,
   declareApplicationWebOrigins,
   undeclaredApplicationWebOrigins,
 } from '../src/services/applicationRecognition.service';
@@ -144,6 +150,11 @@ interface MappingRow {
   createdApplication: boolean;
   createdCredential: boolean;
   webOriginsAdded: string[];
+  /** ADR 0058: what the spec declares, and what this run set or added. */
+  platformHost: 'oxyos' | 'astro' | null;
+  oxyosDesktopEntryIds: string[];
+  platformHostSet: 'oxyos' | 'astro' | null;
+  oxyosDesktopEntryIdsAdded: string[];
 }
 
 const DRY_RUN_PLACEHOLDER_ID = '000000000000000000000000';
@@ -367,6 +378,8 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
   let legacyCredentialsRevoked = 0;
   let credentialsReused = 0;
   let webOriginsDeclared = 0;
+  let platformHostsSet = 0;
+  let desktopEntryIdsDeclared = 0;
   let operatorKeysAdded = 0;
   let operatorKeysRetired = 0;
   let operatorGrantsRevoked = 0;
@@ -459,6 +472,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
         type: spec.type,
         ownerAccountId,
         redirectUris: spec.redirectUris,
+        retiredRedirectUris: spec.retiredRedirectUris,
         scopes: desiredScopes,
         capabilities: desiredCapabilities,
       },
@@ -577,6 +591,22 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
         : webOrigins;
     webOriginsDeclared += webOriginsAdded.length;
 
+    // ADR 0058: the platform host and the OxyOS desktop entry ids, additive
+    // like the web origins; a dry run reports what a real run would change.
+    const platformDeclaration = {
+      ...(spec.platformHost ? { platformHost: spec.platformHost } : {}),
+      ...(spec.oxyosDesktopEntryIds ? { oxyosDesktopEntryIds: spec.oxyosDesktopEntryIds } : {}),
+    };
+    const platformDeclared =
+      application && application.id !== DRY_RUN_PLACEHOLDER_ID
+        ? await declareApplicationPlatform(application.id, platformDeclaration, { dryRun })
+        : {
+            platformHostSet: spec.platformHost ?? null,
+            desktopEntryIdsAdded: spec.oxyosDesktopEntryIds ?? [],
+          };
+    platformHostsSet += platformDeclared.platformHostSet ? 1 : 0;
+    desktopEntryIdsDeclared += platformDeclared.desktopEntryIdsAdded.length;
+
     // ADR 0056: the operator vocabulary is exactly the registry entry, held by
     // role; a dry run plans it under the same lock and writes nothing.
     const declarations = operatorDeclarations(spec.operatorPermissions ?? []);
@@ -656,6 +686,10 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
 
     mapping.push({
       webOriginsAdded,
+      platformHost: spec.platformHost ?? null,
+      oxyosDesktopEntryIds: spec.oxyosDesktopEntryIds ?? [],
+      platformHostSet: platformDeclared.platformHostSet,
+      oxyosDesktopEntryIdsAdded: platformDeclared.desktopEntryIdsAdded,
       app: spec.name,
       type: spec.type,
       applicationId,
@@ -684,6 +718,8 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
     legacyCredentialsRevoked,
     credentialsReused,
     webOriginsDeclared,
+    platformHostsSet,
+    desktopEntryIdsDeclared,
     operatorKeysAdded,
     operatorKeysRetired,
     operatorGrantsRevoked,

@@ -26,7 +26,9 @@ import {
   ACCESS_TOKEN_VERSION,
   OXY_RESOURCE_SERVER,
   OXY_TOKEN_ISSUER,
+  accessTokenExpiresAt,
   checkAccessTokenBinding,
+  generateHostAccessToken,
   generateSessionTokens,
   validateAccessToken,
   type AccessTokenBinding,
@@ -355,5 +357,88 @@ describe('the v1 compatibility window', () => {
     expect(
       checkAccessTokenBinding(claimsOf(generateSessionTokens(binding()).accessToken), row()).ok,
     ).toBe(true);
+  });
+});
+
+describe('an application token (ADR 0058 2.3, 2.4)', () => {
+  /** A SHARED session: no application, no scopes, bound to its device context. */
+  const sharedBinding = () => binding({ principalUserId: SUBJECT, clientId: null, scopes: [] });
+  const sharedRow = () =>
+    row({ operatedByUserId: null, applicationId: null, clientId: null, scopes: [] });
+  const APP_CLIENT = 'oxy_dk_dropsea';
+  const host = { platform: 'oxyos' as const, credential: 'credential-1' };
+
+  it('names the application on the shared session for five minutes, with no device id or scope', () => {
+    const minted = generateHostAccessToken(sharedBinding(), { clientId: APP_CLIENT }, host);
+    const claims = claimsOf(minted.accessToken);
+    expect(claims).toMatchObject({
+      ver: ACCESS_TOKEN_VERSION,
+      sub: SUBJECT,
+      sid: SESSION_ID,
+      azp: APP_CLIENT,
+      host,
+      device_session_id: DEVICE_SESSION_ID,
+      device_context_id: DEVICE_CONTEXT_ID,
+      userId: SUBJECT,
+      sessionId: SESSION_ID,
+      type: 'access',
+    });
+    expect(claims.deviceId).toBeUndefined();
+    expect(claims.scope).toBeUndefined();
+    expect((claims.exp ?? 0) - (claims.iat ?? 0)).toBe(300);
+    expect(minted.expiresAt.getTime()).toBe((claims.exp ?? 0) * 1000);
+    expect(accessTokenExpiresAt(minted.accessToken)?.getTime()).toBe((claims.exp ?? 0) * 1000);
+  });
+
+  it('is never minted on an application-bound session', () => {
+    expect(() => generateHostAccessToken(binding(), { clientId: APP_CLIENT }, host)).toThrow();
+  });
+
+  it('is refused unless the caller verifies host, and then handed back for that', () => {
+    const claims = claimsOf(
+      generateHostAccessToken(sharedBinding(), { clientId: APP_CLIENT }, host).accessToken,
+    );
+    expect(checkAccessTokenBinding(claims, sharedRow())).toEqual({
+      ok: false,
+      reason: 'host_not_accepted',
+    });
+    const accepted = checkAccessTokenBinding(claims, sharedRow(), { acceptHost: true });
+    expect(accepted).toMatchObject({
+      ok: true,
+      identity: { applicationId: null, clientId: null },
+      host: {
+        platform: 'oxyos',
+        credentialId: 'credential-1',
+        clientId: APP_CLIENT,
+        deviceSessionId: DEVICE_SESSION_ID,
+      },
+    });
+  });
+
+  it('is refused against an application-bound row, or with a malformed host', () => {
+    const claims = claimsOf(
+      generateHostAccessToken(sharedBinding(), { clientId: APP_CLIENT }, host).accessToken,
+    );
+    expect(
+      checkAccessTokenBinding(claims, row({ operatedByUserId: null, scopes: [] }), {
+        acceptHost: true,
+      }),
+    ).toEqual({ ok: false, reason: 'host_mismatch' });
+    for (const malformed of [
+      { platform: 'web', credential: 'c' },
+      { platform: 'oxyos' },
+      'oxyos',
+    ]) {
+      expect(
+        checkAccessTokenBinding({ ...claims, host: malformed }, sharedRow(), { acceptHost: true }),
+      ).toEqual({ ok: false, reason: 'host_mismatch' });
+    }
+  });
+
+  it('keeps an azp without host on a shared session a client_mismatch', () => {
+    const claims = claimsOf(generateSessionTokens(sharedBinding()).accessToken);
+    expect(
+      checkAccessTokenBinding({ ...claims, azp: APP_CLIENT }, sharedRow(), { acceptHost: true }),
+    ).toEqual({ ok: false, reason: 'client_mismatch' });
   });
 });

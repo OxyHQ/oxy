@@ -1,5 +1,20 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.13.0
+
+### Added
+
+A platform that holds the Oxy session (ADR 0058): OxyOS's `oxyos-accountd` and Astro hold a PLATFORM credential and mint five-minute tokens named for the applications they run.
+
+- `platformSession`: `PLATFORM_HOSTS` (`oxyos`, `astro`), `PlatformHost`; `platformClientSchema` / `PlatformClient` (`{ platform, clientId }`); `deviceAppTokenAttestationSchema` (`{ platform: 'oxyos', desktopEntryId }`, `{ platform, self: true }`, `{ platform: 'astro', origin, clientId }`); `deviceAppTokenRequestSchema` / `deviceAppTokenResponseSchema` for `POST /session/device/app-token` (`{ accessToken, expiresAt, applicationId, accountId }` inside the usual `data` envelope); `DEVICE_APP_TOKEN_TTL_SECONDS` (300), `DEVICE_APP_TOKEN_ERROR_CODES`, `APP_TOKEN_DEVICE_ACCESS_DENIED` (`app_token_device_access_denied`); `hostTokenClaimSchema` (the token's `host` claim, `{ platform, credential }`) and `hostTokenValidationSchema` (what `GET /session/validate-header/:id` adds for one, `host: { applicationId, platform }`); `OXYOS_DESKTOP_ENTRY_ID_PATTERN`. The `client` entry exports the vocabularies and the Zod-free `deviceAppTokenResponseCheck`.
+- `passwordSignInRequestSchema` and `secondFactorSignInRequestSchema` take an optional `platformClient`.
+- App assertions: `APP_ASSERTION_PLATFORMS` gains `oxyos` and `astro`; `appAssertionRequestSchema` takes `{ applicationId, platform: 'oxyos' | 'astro' }` with no proof (the application token is it); `APP_ASSERTION_ERROR_CODES` gains `app_token_mismatch`.
+- Registry: `platformHostSchema`, `oxyosDesktopEntryIdSchema`; `applicationRecognitionWriteSchema` takes optional `platformHost` and `oxyosDesktopEntryIds` (an omitted one is left as stored), and `applicationRecognitionSchema` always carries both.
+
+### Consumers
+
+Additive. A consumer switching exhaustively over `AppAssertionPlatform` gains two cases.
+
 ## 6.12.0
 
 ### Added

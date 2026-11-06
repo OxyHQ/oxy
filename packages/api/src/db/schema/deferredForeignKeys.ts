@@ -611,6 +611,16 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'CASCADE.',
   },
   {
+    table: signInSecondFactorChallenges,
+    column: signInSecondFactorChallenges.platformClientId,
+    reason:
+      '(c) The public client id a platform sign-in named (ADR 0058), an ' +
+      "`application_credentials.public_key`: that table's natural key, not its " +
+      'primary key. The completing request must name the same string, and the ' +
+      'route re-resolves it against the registry before the second factor; the ' +
+      'challenge lives minutes.',
+  },
+  {
     table: emailSignInRequests,
     column: emailSignInRequests.requesterDeviceId,
     reason:

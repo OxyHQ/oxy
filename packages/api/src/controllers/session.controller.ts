@@ -32,6 +32,7 @@ import {
 import { isUniqueViolation } from '@oxy.so/db';
 import { ApiError, BadRequestError } from '../utils/error';
 import type { AuthRequest } from '../middleware/auth';
+import type { AccessTokenIdentity } from '../utils/sessionUtils';
 import { IDENTITY_ERROR_CODES, accountActorChainFromSession } from '@oxy.so/contracts';
 import {
   meetsRegistrationPowDifficulty,
@@ -53,6 +54,19 @@ import { accountNameColumns } from '../utils/publicUserProjection';
  * account-switch route threading the operator's own central device id); they
  * call `createSession` directly.
  */
+/**
+ * What `GET /session/validate-header` says of an application token (ADR 0058):
+ * the application it is named for and the platform that vouched for it, as the
+ * validation just re-checked them. Absent for every other bearer.
+ */
+function hostOf(
+  result: { token?: AccessTokenIdentity } | object,
+): { applicationId: string; platform: 'oxyos' | 'astro' } | null {
+  const host =
+    'token' in result ? (result.token as AccessTokenIdentity | undefined)?.host : undefined;
+  return host ? { applicationId: host.applicationId, platform: host.platform } : null;
+}
+
 export function sessionCreateOptionsFromBody(body: {
   deviceName?: string;
   deviceFingerprint?: string;
@@ -844,6 +858,9 @@ export class SessionController {
         user: userData,
         sessionId: result.session.sessionId,
         actor: sessionActorChain(result.session),
+        // An application token (ADR 0058): the application it is named for and
+        // the platform that vouched for it, both re-checked live just now.
+        ...(hostOf(result) ? { host: hostOf(result) } : {}),
         ...(liveSession ? { liveSessionAuthority: 'session-row-v1' } : {}),
       });
     } catch (error) {

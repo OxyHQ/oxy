@@ -34,6 +34,7 @@ import {
   OXY_APP_ASSERTION_TTL_SECONDS,
   OXY_APP_ASSERTION_TYPE,
 } from './client/appAssertions';
+import { OXYOS_DESKTOP_ENTRY_ID_PATTERN, PLATFORM_HOSTS } from './client/platformSession';
 
 export {
   APP_ASSERTION_CHALLENGE_PURPOSES,
@@ -55,6 +56,9 @@ const base64Schema = (max: number) =>
     .regex(/^[A-Za-z0-9+/]+={0,2}$/);
 
 export const appAssertionPlatformSchema = z.enum(APP_ASSERTION_PLATFORMS);
+
+/** A platform that holds the Oxy session for the applications it runs (ADR 0058). */
+export const platformHostSchema = z.enum(PLATFORM_HOSTS);
 export const appAssertionErrorCodeSchema = z.enum(APP_ASSERTION_ERROR_CODES);
 
 // ---------------------------------------------------------------------------
@@ -97,6 +101,12 @@ export const appleBundleIdSchema = z
   .check(utf16MaxLength(255))
   .regex(/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/, 'Must be an Apple bundle id');
 
+/** An OxyOS desktop entry id (`so.oxy.dropsea`), the id OxyOS launches the application by. */
+export const oxyosDesktopEntryIdSchema = z
+  .string()
+  .check(utf16MaxLength(255))
+  .regex(OXYOS_DESKTOP_ENTRY_ID_PATTERN, 'Must be an OxyOS desktop entry id');
+
 const unique = (values: readonly string[]) => new Set(values).size === values.length;
 
 export const applicationAndroidRecognitionSchema = z
@@ -114,9 +124,23 @@ export const applicationIosRecognitionSchema = z
   .object({ teamId: appleTeamIdSchema, bundleId: appleBundleIdSchema })
   .strict();
 
+const oxyosDesktopEntryIdsSchema = z
+  .array(oxyosDesktopEntryIdSchema)
+  .max(20)
+  .refine(unique, 'Desktop entry ids must be unique');
+
 /**
  * What Oxy staff write for an application: the whole declaration, replaced at
  * once. `null` and `[]` declare nothing for that platform.
+ *
+ * ADR 0058 adds two fields a writer may omit, and an omitted one is left as
+ * the registry holds it (a writer that predates them cannot erase them):
+ *
+ * - `platformHost`: this application IS a platform that holds the Oxy session
+ *   (OxyOS, Astro). Its public client id is the one a platform's own sign-in
+ *   names (`platformClient`), and only an Oxy application may declare it.
+ * - `oxyosDesktopEntryIds`: the OxyOS desktop entry ids that launch this
+ *   application, each naming one application only, as a web origin does.
  */
 export const applicationRecognitionWriteSchema = z
   .object({
@@ -126,6 +150,8 @@ export const applicationRecognitionWriteSchema = z
       .refine(unique, 'Origins must be unique'),
     android: applicationAndroidRecognitionSchema.nullable(),
     ios: applicationIosRecognitionSchema.nullable(),
+    platformHost: platformHostSchema.nullable().optional(),
+    oxyosDesktopEntryIds: oxyosDesktopEntryIdsSchema.optional(),
   })
   .strict();
 
@@ -133,6 +159,8 @@ export const applicationRecognitionWriteSchema = z
 export const applicationRecognitionSchema = applicationRecognitionWriteSchema
   .extend({
     applicationId: applicationIdSchema,
+    platformHost: platformHostSchema.nullable(),
+    oxyosDesktopEntryIds: oxyosDesktopEntryIdsSchema,
     updatedAt: z.string().check(isoDateTime()).nullable(),
   })
   .strict();
@@ -190,10 +218,14 @@ export const appAttestKeyResponseSchema = z.object({ keyId: appAttestKeyIdSchema
  * `POST /apps/assertions`. The body names the application and the platform;
  * the proof is the platform's: none on the web (the browser's `Origin` is), a
  * Play Integrity token on Android, an App Attest assertion on iOS, each over a
- * challenge minted for `assertion`.
+ * challenge minted for `assertion`. On `oxyos` and `astro` the bearer is the
+ * proof: an application token that platform minted for this application
+ * (ADR 0058).
  */
 export const appAssertionRequestSchema = z.discriminatedUnion('platform', [
   z.object({ applicationId: applicationIdSchema, platform: z.literal('web') }).strict(),
+  z.object({ applicationId: applicationIdSchema, platform: z.literal('oxyos') }).strict(),
+  z.object({ applicationId: applicationIdSchema, platform: z.literal('astro') }).strict(),
   z
     .object({
       applicationId: applicationIdSchema,

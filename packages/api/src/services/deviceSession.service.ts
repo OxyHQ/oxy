@@ -50,6 +50,7 @@ import {
 } from './holderContextEvidence';
 import {
   ACCESS_TOKEN_VERSION,
+  accessTokenExpiresAt,
   checkAccessTokenBinding,
   validateAccessToken,
 } from '../utils/sessionUtils';
@@ -1059,7 +1060,12 @@ class DeviceSessionService {
   ): Promise<{ accessToken: string; expiresAt: string } | null> {
     const token = await sessionService.getAccessToken(sessionId);
     if (!token) return null;
-    return { accessToken: token.accessToken, expiresAt: token.expiresAt.toISOString() };
+    // The ACCESS TOKEN's own `exp` (ADR 0058 step 0), never the session row's
+    // sliding expiry `getAccessToken` reports: a client plants this beside the
+    // token and believes it until then. Every token this server signs carries
+    // one; the row's expiry answers only for something that is not a JWT.
+    const expiresAt = accessTokenExpiresAt(token.accessToken) ?? token.expiresAt;
+    return { accessToken: token.accessToken, expiresAt: expiresAt.toISOString() };
   }
 
   async resolveActiveToken(
@@ -2244,11 +2250,27 @@ class DeviceSessionService {
     if (!device) return null;
 
     await tx.insert(deviceCredentials).values({ deviceSessionId: device.id, secretHash });
+    await this.evictHolderCredentialsPastCap(tx, device.id);
+    return rawSecret;
+  }
 
+  /**
+   * Keep the device's ordinary holder credentials within
+   * {@link MAX_DEVICE_CREDENTIALS}, dropping the least recently used. A
+   * PLATFORM credential (ADR 0058) is neither counted nor evicted: the platform
+   * holding the session has exactly one per account, and losing it would sign
+   * the person out of every application on the machine.
+   */
+  private async evictHolderCredentialsPastCap(tx: Queryable, deviceSessionId: string) {
     const kept = tx
       .select({ id: deviceCredentials.id })
       .from(deviceCredentials)
-      .where(eq(deviceCredentials.deviceSessionId, device.id))
+      .where(
+        and(
+          eq(deviceCredentials.deviceSessionId, deviceSessionId),
+          isNull(deviceCredentials.platform),
+        ),
+      )
       .orderBy(
         desc(deviceCredentials.lastUsedAt),
         desc(deviceCredentials.createdAt),
@@ -2259,11 +2281,91 @@ class DeviceSessionService {
       .delete(deviceCredentials)
       .where(
         and(
-          eq(deviceCredentials.deviceSessionId, device.id),
+          eq(deviceCredentials.deviceSessionId, deviceSessionId),
+          isNull(deviceCredentials.platform),
           notInArray(deviceCredentials.id, kept),
         ),
       );
-    return rawSecret;
+  }
+
+  /**
+   * Issue a PLATFORM credential (ADR 0058 2.1) to the platform's own sign-in:
+   * a holder credential of the device, marked with the platform and its
+   * application, which alone mints application tokens. Under the same
+   * device-row lock as every other issuance.
+   *
+   * `retireSecret` is the secret the sign-in's device proof presented. Its
+   * credential is DELETED in the same transaction (promotion retires the
+   * proof): the setup client that handed it over, whose JavaScript saw it, holds
+   * nothing that works afterwards, and a platform signing in again with its
+   * previous platform credential replaces it. The only live secret is the one
+   * this returns, to the platform service alone.
+   */
+  async issuePlatformCredential(
+    deviceId: string,
+    platform: { platform: 'oxyos' | 'astro'; applicationId: string },
+    retireSecret?: string,
+  ): Promise<string | null> {
+    return getDb().transaction(async (tx) => {
+      const [device] = await tx
+        .select({ id: deviceSessions.id })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.deviceId, deviceId))
+        .for('update');
+      if (!device) return null;
+      if (retireSecret) {
+        await tx
+          .delete(deviceCredentials)
+          .where(
+            and(
+              eq(deviceCredentials.deviceSessionId, device.id),
+              eq(deviceCredentials.secretHash, sha256Hex(retireSecret)),
+            ),
+          );
+      }
+      const rawSecret = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
+      await tx.insert(deviceCredentials).values({
+        deviceSessionId: device.id,
+        secretHash: sha256Hex(rawSecret),
+        platform: platform.platform,
+        platformApplicationId: platform.applicationId,
+      });
+      return rawSecret;
+    });
+  }
+
+  /**
+   * The PLATFORM credential a raw secret proves on `deviceId` (ADR 0058), or
+   * null when the secret proves no credential of that device. An ordinary
+   * holder credential is returned with `platform: null`: the caller refuses it.
+   */
+  async readCredentialBySecret(
+    deviceId: string,
+    rawSecret: string,
+  ): Promise<{
+    id: string;
+    deviceSessionId: string;
+    platform: 'oxyos' | 'astro' | null;
+    platformApplicationId: string | null;
+  } | null> {
+    if (!deviceId || !rawSecret) return null;
+    const [credential] = await getDb()
+      .select({
+        id: deviceCredentials.id,
+        deviceSessionId: deviceCredentials.deviceSessionId,
+        platform: deviceCredentials.platform,
+        platformApplicationId: deviceCredentials.platformApplicationId,
+      })
+      .from(deviceCredentials)
+      .innerJoin(deviceSessions, eq(deviceCredentials.deviceSessionId, deviceSessions.id))
+      .where(
+        and(
+          eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
+          eq(deviceSessions.deviceId, deviceId),
+        ),
+      )
+      .limit(1);
+    return credential ?? null;
   }
 
   /**

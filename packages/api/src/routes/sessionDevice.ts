@@ -3,6 +3,8 @@ import type { DeviceActivateResponse, DeviceSessionState } from '@oxy.so/contrac
 import {
   deviceActivateRequestSchema,
   deviceActivateResponseSchema,
+  deviceAppTokenRequestSchema,
+  deviceAppTokenResponseSchema,
   deviceBackgroundTokenRequestSchema,
   deviceContextTokenV1RequestSchema,
   deviceContextTokenV1ResponseSchema,
@@ -23,6 +25,11 @@ import { sendRateLimited } from '../middleware/errorHandler';
 import { rateLimit } from '../middleware/rateLimiter';
 import { holderContextEvidenceBudget } from '../middleware/security';
 import { clearFailures, type LockoutCheck, reserveAttempt } from '../services/loginLockout.service';
+import {
+  mintApplicationToken,
+  provePlatformCredential,
+  resolveAttestedApplication,
+} from '../services/platformAppToken.service';
 import deviceSessionService from '../services/deviceSession.service';
 import deviceJoinService from '../services/deviceJoin.service';
 import sessionService from '../services/session.service';
@@ -37,6 +44,11 @@ import {
   deviceContextTokenV1EnvelopeSchema,
   deviceContextTokenV1ErrorSchema,
 } from '../schemas/deviceContextToken.schemas';
+// biome-ignore lint/correctness/noUnusedImports: schemas consumed by OpenAPI generator annotations
+import {
+  deviceAppTokenEnvelopeSchema,
+  deviceAppTokenErrorSchema,
+} from '../schemas/deviceAppToken.schemas';
 // biome-ignore lint/correctness/noUnusedImports: schemas consumed by OpenAPI generator annotations
 import {
   holderContextEvidenceV1EnvelopeSchema,
@@ -520,6 +532,134 @@ router.post(
         expiresAt: outcome.expiresAt,
         accountId: outcome.accountId,
       },
+    });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// An application's token, for the platform that holds the session (ADR 0058)
+// ---------------------------------------------------------------------------
+
+const appTokenLimiter = rateLimit({
+  prefix: 'rl:session:device-app-token:',
+  windowMs: 60_000,
+  max: 120,
+});
+
+/** Mints one platform credential may make in 15 minutes, across its applications. */
+const APP_TOKEN_CREDENTIAL_BUDGET = 120;
+/** Mints per platform credential and application in 15 minutes: a 5-minute token needs three. */
+const APP_TOKEN_APPLICATION_BUDGET = 12;
+const APP_TOKEN_BUDGET_WINDOW_SECONDS = 15 * 60;
+
+/**
+ * An application's token, minted with a platform credential (ADR 0058 2.2).
+ *
+ * Public like `/token`: no bearer, possession of a PLATFORM credential is the
+ * proof, and it answers only a request with no browser context, a platform's
+ * own native service (`oxyos-accountd`, Astro's browser process), never a page.
+ * The checks and their order are `services/platformAppToken.service.ts`'s; a
+ * wrong secret counts toward the same per-device lockout as `/token`. Each
+ * mint is logged with the platform, the platform credential, the application
+ * and the device — never the account, the secret or an IP.
+ *
+ * @requestBody deviceAppTokenRequestSchema
+ * @response 200 deviceAppTokenEnvelopeSchema The application's token.
+ * @response 400 deviceAppTokenErrorSchema `invalid_request`.
+ * @response 401 deviceAppTokenErrorSchema `invalid_device_secret`, `no_active_session` or `account_not_on_device`.
+ * @response 403 deviceAppTokenErrorSchema `browser_not_allowed` or `application_not_recognised`.
+ * @response 429 Error Rate limited; Retry-After may be present.
+ */
+router.post(
+  '/app-token',
+  appTokenLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    if (isBrowserClient(req.headers)) {
+      res.status(403).json({ error: 'browser_not_allowed' });
+      return;
+    }
+    const parsed = deviceAppTokenRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_request' });
+      return;
+    }
+    const { deviceId, deviceSecret, accountId } = parsed.data;
+
+    const lockout = await reserveMintAttempt(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
+    if (lockout.locked) {
+      refuseLockedOut(res, lockout);
+      return;
+    }
+    const proven = await provePlatformCredential(deviceId, deviceSecret);
+    if (proven.status === 'missing') {
+      res.status(401).json({ error: 'invalid_device_secret' });
+      return;
+    }
+    // The secret is a real credential of the device: not a guess.
+    await clearMintAttempts(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
+    if (proven.status === 'not_platform') {
+      res.status(401).json({ error: 'invalid_device_secret' });
+      return;
+    }
+    const { credential } = proven;
+
+    const perCredential = await reserveAttempt({
+      scope: 'device-app-token:credential',
+      identifier: credential.id,
+      maxAttempts: APP_TOKEN_CREDENTIAL_BUDGET,
+      windowSeconds: APP_TOKEN_BUDGET_WINDOW_SECONDS,
+    });
+    if (perCredential.locked) {
+      refuseLockedOut(res, perCredential);
+      return;
+    }
+    const application = await resolveAttestedApplication(credential, parsed.data);
+    if (!application) {
+      logger.info('device.app_token.refused', {
+        platform: credential.platform,
+        credentialId: credential.id,
+        deviceId,
+        reason: 'application_not_recognised',
+      });
+      res.status(403).json({ error: 'application_not_recognised' });
+      return;
+    }
+    const perApplication = await reserveAttempt({
+      scope: 'device-app-token:application',
+      identifier: `${credential.id}|${application.applicationId}`,
+      maxAttempts: APP_TOKEN_APPLICATION_BUDGET,
+      windowSeconds: APP_TOKEN_BUDGET_WINDOW_SECONDS,
+    });
+    if (perApplication.locked) {
+      refuseLockedOut(res, perApplication);
+      return;
+    }
+
+    const outcome = await mintApplicationToken({
+      deviceId,
+      deviceSecret,
+      ...(accountId ? { accountId } : {}),
+      credential,
+      application,
+    });
+    if (!outcome.ok) {
+      res.status(401).json({ error: outcome.reason });
+      return;
+    }
+    logger.info('device.app_token.mint', {
+      platform: credential.platform,
+      credentialId: credential.id,
+      applicationId: application.applicationId,
+      deviceId,
+    });
+    res.json({
+      data: deviceAppTokenResponseSchema.parse({
+        accessToken: outcome.accessToken,
+        expiresAt: outcome.expiresAt,
+        applicationId: outcome.applicationId,
+        accountId: outcome.accountId,
+      }),
     });
   }),
 );

@@ -25,6 +25,13 @@ export const signInSecondFactorChallenges = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     /** The device the first factor proved; the second must prove the same one. */
     deviceId: text(),
+    /**
+     * The platform client the first factor named (ADR 0058), or NULL. The
+     * second factor must name the same one, so a platform credential is issued
+     * only to the sign-in that asked for it.
+     */
+    platform: text({ enum: ['oxyos', 'astro'] }),
+    platformClientId: text(),
     attempts: integer().notNull().default(0),
     expiresAt: timestamptz().notNull(),
     usedAt: timestamptz(),
@@ -36,5 +43,9 @@ export const signInSecondFactorChallenges = pgTable(
     index('signin_second_factor_challenges_expires_at_idx').on(t.expiresAt),
     check('signin_second_factor_challenges_hash_check', sql`${t.challengeHash} ~ '^[0-9a-f]{64}$'`),
     check('signin_second_factor_challenges_attempts_check', sql`${t.attempts} >= 0`),
+    check(
+      'signin_second_factor_challenges_platform_check',
+      sql`(${t.platform} is null) = (${t.platformClientId} is null) and (${t.platform} is null or ${t.platform} in ('oxyos', 'astro'))`,
+    ),
   ],
 );

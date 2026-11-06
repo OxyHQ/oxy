@@ -1,0 +1,17 @@
+-- oxy:deploy-phase=pre
+-- The index behind `device_credentials.platform_application_id`'s foreign key
+-- (0236), so erasing an application's owning account does not scan the table.
+--
+-- ## LOCKS
+--
+-- `device_credentials` is hot (every mint reads it), and a plain CREATE INDEX
+-- holds SHARE on it for the build: reads continue, holder issuance waits. The
+-- table holds a few rows per device (the per-device cap is 32) and the column
+-- is NULL on every one of them, so the build takes milliseconds. `IF NOT
+-- EXISTS` keeps the out-of-band route open all the same: should it ever need
+-- to be built first, run
+--
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS device_credentials_platform_application_id_idx ON device_credentials USING btree (platform_application_id);
+--
+-- after 0236, and this migration is then a catalogue lookup.
+CREATE INDEX IF NOT EXISTS "device_credentials_platform_application_id_idx" ON "device_credentials" USING btree ("platform_application_id");

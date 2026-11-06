@@ -1,9 +1,17 @@
 # ADR 0058 — The platform holds the Oxy session; applications get tokens for themselves from it
 
-- Status: proposed (the owner's direction of 2026-10-30, recorded here for the
-  owner's review); nothing is implemented
-- Date: 2026-10-30
-- Decided by: the owner (product direction); the mechanism below is proposed
+- Status: accepted (2026-11-06). The server half is implemented: step 0, step 1
+  (`@oxy.so/contracts` 6.13.0) and step 2 (oxy-api: migrations 0236–0238, the
+  platform credential, `POST /session/device/app-token`, verification, the
+  `oxyos` and `astro` assertion lanes, ADR 0050's attribution set), with the
+  registry rows of step 4 in the canonical seed. Step 3's host (decision 1) is
+  in `@oxy.so/core` 7.34.0 and `@oxy.so/services` 14.11.0 (#2199). Step 4
+  (OxyOS) is being built against the contracts below; step 5 (Astro) has not
+  started.
+- Date: 2026-10-30; accepted 2026-11-06
+- Decided by: the owner (product direction, 2026-10-30). The open questions
+  were resolved, and the mechanism refined, under the owner's delegation on
+  2026-11-06 (see "Resolved questions" and "Refinements made in accepting it")
 - Changes: ADR 0029 D1 and D2 (on a platform that holds the session, the
   platform's account UI and the platform's one credential replace each app's
   dialog and each app's credential); ADR 0045's decision (two new proof lanes,
@@ -135,46 +143,56 @@ writes are the platform's Settings, not an application's.
 **2.1 The platform credential.** A holder credential becomes a platform
 credential when it is issued to a sign-in that names an application whose
 registry entry declares `platformHost: 'oxyos' | 'astro'` — written only
-through the staff application-administration lane, on a `first_party`
-application. `device_credentials` gains `platform` and
+through the staff application-administration lane (or the canonical seed), on
+an Oxy (trusted) application. `device_credentials` gains `platform` and
 `platform_application_id` (nullable; `pre` migration). A platform credential is
 not evicted by the 32-holder cap. It is never issued to a browser page: the
-bridge's join and every request carrying a registered web `Origin` are refused
-it. On OxyOS it is the device credential `oxyos-accountd` already holds (OxyOS
-ADR 0020 decision 4's setup asks for it); Astro obtains one for its own
-session (decision 5).
+bridge's join and every request carrying a web `Origin` are refused it. On
+OxyOS it is the device credential `oxyos-accountd` holds (OxyOS ADR 0020
+decision 4's setup obtains it, R1 below); Astro obtains one for its own session
+(decision 5). How the sign-in names the platform, what promotion retires, and
+the one-session rule are R1.
 
 **2.2 The mint.** `POST /session/device/app-token`, public like
 `/session/device/token` (no bearer, possession is the proof), answering only
 requests with no web `Origin`:
 
-- in: `{ deviceId, deviceSecret, clientId, attestation, accountId? }`, where
+- in: `{ deviceId, deviceSecret, accountId?, clientId?, attestation }`, where
   `attestation` is `{ platform: 'oxyos', desktopEntryId }`,
-  `{ platform: 'astro', origin }`, or `{ platform, self: true }` for the
-  platform's own application (`platform_application_id`, which needs no
-  recognition in step 4);
-- out: `{ accessToken, expiresAt, applicationId, accountId }`, `expiresAt`
-  being the token's own `exp`.
+  `{ platform: 'astro', origin, clientId }`, or `{ platform, self: true }` for
+  the platform's own application (`platform_application_id`, which needs no
+  recognition in step 4 beyond still declaring that platform). `clientId` is
+  optional (R2);
+- out: `{ data: { accessToken, expiresAt, applicationId, accountId } }`, the
+  `data` envelope of every `/session/device/*` answer, `expiresAt` being the
+  token's own `exp`.
 
 It mints only when, in this order, each check reading live rows:
 
 1. the secret proves a platform credential of that device (the same lockout
    scope as `/session/device/token`: a wrong secret counts toward it);
 2. the credential's `platform` equals the attestation's;
-3. `clientId` names a live `public` credential of an active application that
-   is `isTrustedApplication` (ADR 0049's first-party); a third-party
-   application gets nothing here and keeps OAuth's isolated session;
-4. that application is recognised for the platform by its registry entry:
-   `oxyos.desktopEntryIds` (new, staff-written, beside ADR 0045's fields)
-   contains the `desktopEntryId`, or `webOrigins` contains the `origin`
-   exactly. auth.oxy.so's application is never minted for: it is the identity
-   carrier and keeps its own device;
+3. the attestation names an application: the registry's
+   `oxyosDesktopEntryIds` (new, staff-written, beside ADR 0045's fields; the
+   `application_oxyos_entries` table, one id naming one application) holds the
+   `desktopEntryId`, or the `webOrigins` of the application whose `clientId`
+   the Astro attestation names contain the `origin` exactly, or `self`;
+4. that application is active and `isTrustedApplication` (ADR 0049's
+   first-party) with a live `public` credential — the one `clientId` names,
+   when given, or its production client; a third-party application gets
+   nothing here and keeps OAuth's isolated session. auth.oxy.so's application
+   (the one declaring auth.oxy.so's origin) is never minted for: it is the
+   identity carrier and keeps its own device;
 5. the device has a live session for the active account (or for `accountId`,
    which pins as `/session/device/token` does and refuses as
    `account_not_on_device`).
 
-A miss is one generic refusal per step's existing code; nothing names an
-account, and no step takes an identifier a person typed.
+A miss is one refusal per step, reusing the existing codes: step 1
+`invalid_device_secret` (an ordinary holder's secret too); steps 2 to 4 the one
+generic `application_not_recognised`; step 5 `no_active_session` or
+`account_not_on_device`; a web `Origin` `browser_not_allowed`; a malformed body
+`invalid_request` (`@oxy.so/contracts` `DEVICE_APP_TOKEN_ERROR_CODES`). Nothing
+names an account, and no step takes an identifier a person typed.
 
 **2.3 The token.** A fresh v2 access token of the **shared session** — the same
 `sub`, `act`, `sid`, `device_session_id` and `device_context_id` as the
@@ -244,7 +262,9 @@ no per-application revocation a person manages: ADR 0049 has no app grants.
 - **ADR 0050 decision 3**: `sharedSessionAttribution` becomes a set,
   `'public_client_id' | 'platform'`, so terms accept host tokens by review. A
   `oxy_session:<client id>:` presentation with a host token must equal its
-  `azp`. Plain-browser sessions keep the public client id.
+  `azp`. Plain-browser sessions keep the public client id. Implemented; no
+  relationship's terms accept `'platform'` yet (Astro's are
+  `['public_client_id']` until step 5 reviews them).
 
 ADR 0045 rejected **per-app sessions**: one session row per app, each signed
 in, switched and signed out alone. An application token is not one: it is a
@@ -446,9 +466,101 @@ is published by hand (Release packages publishes a merged bump).
 - An application bundle on OxyOS built with an older SDK still contains its own
   sign-in; only review keeps it off the image until sandboxing.
 
-## Enforcement (when implemented)
+## Refinements made in accepting it (2026-11-06)
 
-- **API tests.** A mint:
+Each is binding; the platforms' implementations code against them.
+
+**R1. How the platform credential is issued (2.1).** The sign-in that names the
+platform is the platform service's own password sign-in, never the setup
+client's. `POST /auth/signin/password`, and `POST /auth/signin/second-factor`
+completing it, accept an optional `platformClient: { platform, clientId }`.
+
+- It is honoured only when the request carries no browser context (`Origin` or
+  `Sec-Fetch-Site`) and `clientId` is a usable public client id of an active
+  trusted application whose registry entry declares `platformHost` equal to
+  `platform`. Anything else is refused with the ordinary invalid-request answer
+  (the 400 `validate` gives a body that is not the contract's) BEFORE any
+  account lookup, lockout reservation or password work. It depends on nothing
+  the person typed, so a known and an unknown identifier get the same answer
+  and the same work, and neither counts toward a lockout
+  (`services/platformClient.service.ts`).
+- When honoured, the holder credential issued is a platform credential
+  (`platform`, `platform_application_id`).
+- **Promotion retires the proof.** When the sign-in carries a valid device
+  proof, the proving credential's row is deleted in the same transaction that
+  creates the platform credential (`issuePlatformCredential`). The secret the
+  setup client's JavaScript saw dies; the only live secret is the one the
+  platform service alone received. A platform signing in again with its
+  platform credential rotates it the same way.
+- **One session per account.** A platform sign-in never reuses a session
+  (`freshSession`): the new session replaces the account's session on the
+  device (`addAccount` deactivates the one it displaces, through the one
+  revocation choke point, announced), so whatever the setup client was handed
+  dies with it, and repeated online password checks never accumulate sessions
+  or holders.
+- The second-factor challenge stores the platform client
+  (`signin_second_factor_challenges.platform`, `platform_client_id`); the
+  completing request must name the same one, or none for a challenge that named
+  none, checked before the code is counted.
+- A platform credential is never evicted by the 32-holder cap and never issued
+  through the bridge.
+
+**R2. The mint's application comes from the attestation (2.2).** On OxyOS the
+server resolves the application from the desktop entry id (unique across
+applications, like a web origin), so the mint's `clientId` is optional; when
+given it must name the same application. `self: true` mints for the
+credential's `platform_application_id` (OxyOS itself: Settings, the shell; the
+contract accepts it for Astro's chrome too). No web `Origin` is accepted at all.
+Rate limits as 2.6: the hashed-IP limiter, 120 mints per 15 minutes per platform
+credential and 12 per credential and application; a wrong secret counts toward
+`/session/device/token`'s lockout.
+
+**R3. The registry.** `application_recognition.platform_host`
+(`'oxyos' | 'astro'`, NULL otherwise) and the table
+`application_oxyos_entries (desktop_entry_id primary key, application_id)`,
+with `desktop_entry_id ~ '^[a-z0-9]+([.][a-z0-9-]+)+$'`. Written by the staff
+lane (`PUT /applications/:appId/recognition`: `platformHost` and
+`oxyosDesktopEntryIds`, each left unchanged when a write omits it; a platform
+host only on an Oxy application) and by the canonical seed
+(`seedOxyApplicationsSpecs.ts` `platformHost`, `oxyosDesktopEntryIds`, added
+never removed, as `webOrigins`). The seed rows: OxyOS `platformHost: 'oxyos'`,
+its retired Tauri redirect `tauri://localhost` removed (the seed's new
+`retiredRedirectUris`); Dropsea `so.oxy.dropsea`, Atlas `so.oxy.atlas`, Allo
+`so.oxy.allo`, Oxy Inbox `so.oxy.inbox`. Production rows change only through the
+seed workflow or the staff lane, after the migration deploys. ADR 0059
+(proposed) asks for ONE OxyOS identity per application; this table allows
+several but every seeded application declares one, and ADR 0059 decision 1 may
+narrow it.
+
+**R4. Revocation and removal use existing routes.** The platform service ends a
+device by minting the device's own token with the platform credential
+(`POST /session/device/token`, `accountId` pinned: a platform credential still
+mints it) and calling `POST /session/device/signout` `{ all: true }` with it.
+It detects a revocation by that mint answering `no_active_session` or
+`invalid_device_secret`.
+
+Every path that deletes a platform credential (promotion, sign-out-all, a device
+ended with nobody signed in) also ends the sessions its tokens were minted for,
+or the session is replaced by the sign-in that retired it (R1), so the
+announcement 2.5 asks for rides the existing per-session revocation feed; the
+credential itself is re-read on every request (2.4).
+
+**Other facts of the implementation.** Step 0's fix is in the device mint lane
+(`resolveTokenForSession`: `/session/device/token`, `/background-token` and the
+activation's token answer the JWT's `exp`); the sign-in responses keep their
+`expiresAt`. `GET /session/validate-header/:id` answers an application token
+with `host: { applicationId, platform }`. The holder evidence route
+(`/session/device/context-evidence-v1`) answers an application token
+`unsupported_bearer`, its own contract's refusal. `checkAccessTokenBinding`
+refuses `host` (`host_not_accepted`) unless its caller re-checks it live
+(`validateSession` and the realtime-recipient proofs do,
+`hostTokenAuthority.service.ts`), so a lane written before this ADR cannot
+believe an application token by accident.
+
+## Enforcement
+
+- **API tests** (`routes/__tests__/platformAppTokens.db.test.ts`,
+  `utils/__tests__/accessTokenV2.test.ts`). A mint:
   - is issued only to a platform credential of the attested kind;
   - only for a trusted, active application recognised by its desktop entry
     id or exact origin;
@@ -460,10 +572,15 @@ is published by hand (Release packages publishes a merged bump).
   device room. It dies with its session, its platform credential and its
   application's trust. A token with `azp` and no `host` on a shared session is
   `client_mismatch`.
+  A platform sign-in issues a platform credential, deletes the proof's row and
+  leaves one session for the account however often it repeats; an unhonoured
+  `platformClient` is refused identically for known and unknown identifiers
+  with no lockout reservation or password work; the second factor completes
+  only with the same platform client.
 - **Assertion tests.** A host token gets an assertion for its own application
-  and platform only.
+  and platform only (the same file).
 - **Kaana grant tests.** A host token is attributed to its `azp` only under
-  terms that accept `'platform'`.
+  terms that accept `'platform'` (`routes/__tests__/internalKaanaGrants.test.ts`).
 - **SDK tests.** With a host registered:
   - no store write, no cold boot, no bridge, no `/session/device/*` call;
   - a revision change drops the token before the new account is published;
@@ -475,23 +592,16 @@ is published by hand (Release packages publishes a merged bump).
     nothing.
   - Offline, the snapshot is signed in and the token null.
 
-## Open questions for the owner
+## Resolved questions (2026-11-06, under the owner's delegation)
 
-1. The token's life: 5 minutes (proposed) or the access token's 15.
-2. Whether a platform credential may be bound to hardware later: a TPM key on
-   OxyOS, or App Attest where macOS allows it. Astro on Linux and Windows has
-   nothing to bind it to.
-3. Whether helper processes of a launched OxyOS application (children), and
-   service workers in Astro, should get their application's token. Proposed:
-   no.
-4. Whether auth.oxy.so and third-party "Sign in with Oxy" inside Astro should
-   use Astro's session, so a person signs in once in Astro for OAuth too.
-   Proposed: no, for now.
-5. Phones: whether Android's `OxyDeviceSession` host becomes a token broker.
-   It would identify callers by their Binder uid's package and certificate, and
-   siblings would stop receiving the secret. iOS has no such broker.
-6. Plain browsers: whether a web app's own mint should name it by its `Origin`
-   (attribution only, since it still holds the secret).
-7. The 7-day idle window against a machine that stays offline longer: whether
-   a re-established session at the next online sign-in (decision 4) is enough,
-   or a platform credential's session should idle longer.
+1. The token's life: **5 minutes**.
+2. Binding a platform credential to hardware (a TPM key on OxyOS, App Attest
+   where macOS allows it): not now; a later ADR.
+3. Helper processes of a launched OxyOS application (children), and service
+   workers in Astro: **no token**.
+4. auth.oxy.so and third-party "Sign in with Oxy" inside Astro: not Astro's
+   session, for now.
+5. Android's `OxyDeviceSession` as a token broker: out of scope here.
+6. Plain browsers naming a web app by its `Origin` at its own mint: no.
+7. The 7-day idle window against a machine that stays offline longer: the
+   session re-established at the next online sign-in (decision 4) is enough.
