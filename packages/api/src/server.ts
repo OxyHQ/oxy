@@ -114,6 +114,7 @@ import topicsRoutes from './routes/topics.routes';
 import followsV2Routes, { meFollowsRouter } from './routes/follows.v2.routes';
 import followRegistryV2Routes from './routes/followRegistry.v2.routes';
 import contactsRouter from './routes/contacts';
+import postalAddressesRouter from './routes/postalAddresses';
 import consoleOnboardingRouter from './routes/consoleOnboarding';
 import userDataRouter from './routes/userData';
 import appSignalsRouter from './routes/appSignals';
@@ -1068,6 +1069,7 @@ app.use('/v2/me', userRateLimiter, meFollowsRouter);
 // a namespace rather than on the user's own graph.
 app.use('/v2/follow-targets', userRateLimiter, followRegistryV2Routes);
 app.use('/contacts', userRateLimiter, contactsRouter);
+app.use('/addresses', userRateLimiter, postalAddressesRouter);
 app.use('/console/onboarding', userRateLimiter, consoleOnboardingRouter);
 // Service-token-only cross-app signal ingest (endorsements + interests).
 app.use('/app-signals', appSignalsRouter);
