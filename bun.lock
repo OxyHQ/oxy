@@ -156,7 +156,7 @@
         "@oxy.so/protocol": "workspace:*",
         "@oxy.so/telemetry": "workspace:*",
         "@oxy.so/utils": "workspace:*",
-        "@peable.to/sdk": "3.0.0",
+        "@peable.to/sdk": "4.0.0",
         "@peculiar/asn1-schema": "^3.0.0",
         "@peculiar/asn1-x509": "^3.0.0",
         "@socket.io/redis-adapter": "^8.3.0",
@@ -709,10 +709,10 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "14.6.0",
+      "version": "14.6.1",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
-        "@peable.to/sdk": "^3.0.0",
+        "@peable.to/sdk": "^4.0.0",
         "color": "^5.0.3",
       },
       "devDependencies": {
@@ -2046,11 +2046,11 @@
 
     "@parcel/watcher-win32-x64": ["@parcel/watcher-win32-x64@2.6.0", "", { "os": "win32", "cpu": "x64" }, "sha512-cA+/pXV2YkfxlIcXOQ5fSWqAzzPyD78/x5qbK/I0vUkrlYHA8TIz+MXjAbGouguKVSI4bOmkTSJ1/poVSsgt+A=="],
 
-    "@peable.to/contracts": ["@peable.to/contracts@3.0.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-Sg0zCav+6xpr1paBBRGrkt8FkxwxKg7UH3TniP0tJcumnI3NVY2waeJasjCCDd/dZP8BRrO2ncHAUKlyuUM7nw=="],
+    "@peable.to/contracts": ["@peable.to/contracts@4.0.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-Chyr5pExrfGo0Y29Rb236iNxV6WEgQpptgrZKuG1LK4DepKt21+pRpTEwU25rpj7CTjmeUrea5hVyOKYKLPkQw=="],
 
-    "@peable.to/sdk": ["@peable.to/sdk@3.0.0", "", { "dependencies": { "@peable.to/contracts": "3.0.0", "@peable.to/shared-types": "3.0.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" }, "peerDependencies": { "@oxy.so/bloom": ">=16.10.0", "react": ">=19.0.0 <20.0.0", "react-native": ">=0.86.0 <1.0.0" }, "optionalPeers": ["@oxy.so/bloom", "react", "react-native"] }, "sha512-jArnYqXN+5yyZ6l0lJVmq3Lh3Pqr/vUPtoJBrsqPWp6qpv7ruowhxWGMfkutqKucs1Z2wJDbS+G6fktpjsJjbw=="],
+    "@peable.to/sdk": ["@peable.to/sdk@4.0.0", "", { "dependencies": { "@peable.to/contracts": "4.0.0", "@peable.to/shared-types": "4.0.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" }, "peerDependencies": { "@oxy.so/bloom": ">=16.10.0", "react": ">=19.0.0 <20.0.0", "react-native": ">=0.86.0 <1.0.0" }, "optionalPeers": ["@oxy.so/bloom", "react", "react-native"] }, "sha512-3g5Cyex4c75MsXjmDDx4uA4Y0ki8Cqyw2HzFbWNhBueZxBlpCRQhR1KKKgRjPv4Ubvyrh6JNMjSsKFVij5vlmA=="],
 
-    "@peable.to/shared-types": ["@peable.to/shared-types@3.0.0", "", { "dependencies": { "@peable.to/contracts": "3.0.0" } }, "sha512-V6Ig0itCXFdGiuP6pbWpCqV59NCY8sVtUSETYMXLpLrsWGLH0zEzG9k+PwMno1ZjjqyDEGPyn9dBO2773kLvfQ=="],
+    "@peable.to/shared-types": ["@peable.to/shared-types@4.0.0", "", { "dependencies": { "@peable.to/contracts": "4.0.0" } }, "sha512-Cm/ylaX7XAN0fcMaMk3fQdEogAlnDmy1Qx3U3So4kwZWExgrDbwOUo9K9b+N1k/DB/m0mhCmEatAtmfLIm2TSw=="],
 
     "@peculiar/asn1-csr": ["@peculiar/asn1-csr@2.10.0", "", { "dependencies": { "@peculiar/asn1-schema": "^2.10.0", "@peculiar/asn1-x509": "^2.10.0", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-jTPTr/9rxKM+niQLMF3jiAMb0lWHUhUHIuSOhdGCIfpB4FAQYf9SoiXOgxP8bS/68IB+bj+1OHvVnDVCQfVUZw=="],
 

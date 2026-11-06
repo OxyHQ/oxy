@@ -209,6 +209,9 @@ export function createPeablePersonalCheckoutProvider(
         input.idempotencyKey !== `personal-checkout:${input.intentId}`
       )
         throw new Error('Peable persisted checkout snapshot differs');
+      // No `payment_method_types`: Peable offers the merchant's fiat methods
+      // AND FairCoin on every order (Peable ADR 0021), and a list without
+      // `faircoin` is refused (`payment_method_locked`). The payer chooses.
       const session = await client.checkout.sessions.create(
         {
           mode: 'subscription',

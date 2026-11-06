@@ -76,7 +76,7 @@
     "@oxy.so/protocol": "workspace:*",
     "@oxy.so/telemetry": "workspace:*",
     "@oxy.so/utils": "workspace:*",
-    "@peable.to/sdk": "3.0.0",
+    "@peable.to/sdk": "4.0.0",
     "@peculiar/asn1-schema": "^3.0.0",
     "@peculiar/asn1-x509": "^3.0.0",
     "@socket.io/redis-adapter": "^8.3.0",

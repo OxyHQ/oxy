@@ -159,13 +159,22 @@ export function nativePeable(options: NativePeableOptions) {
     prices: { retrieve: async (key: string) => get(prices, key, 'price') },
     checkout: {
       sessions: {
-        create: async (params: Json, request?: { idempotencyKey?: string }) =>
-          structuredClone(
+        create: async (params: Json, request?: { idempotencyKey?: string }) => {
+          // Peable 4 (ADR 0021): FairCoin is offered on every order and a
+          // session that would remove it is refused, as the gateway does.
+          const types = params.payment_method_types as string[] | undefined;
+          if (types && !types.includes('faircoin'))
+            throw Object.assign(new Error('FairCoin cannot be removed from an order'), {
+              statusCode: 400,
+              code: 'payment_method_locked',
+            });
+          return structuredClone(
             once(request?.idempotencyKey, () => {
               const line = (params.line_items as Json[])[0];
               const priceRow = get(prices, line.price as string, 'price');
+              const sessionId = id('cs');
               const row = {
-                id: id('cs'),
+                id: sessionId,
                 object: 'checkout_session',
                 livemode,
                 mode: params.mode,
@@ -175,7 +184,10 @@ export function nativePeable(options: NativePeableOptions) {
                 client_reference_id: params.client_reference_id ?? null,
                 amount_total: priceRow.unit_amount,
                 currency: priceRow.currency,
-                url: `https://checkout.peable.to/c/${counter}`,
+                rail: 'card',
+                network: livemode ? 'mainnet' : 'testnet',
+                payment_method_types: types ?? ['card', 'faircoin'],
+                url: `https://checkout.peable.to/c/${sessionId}#cs=${sessionId}_secret_fixture`,
                 expires_at: now() + 86_400,
                 metadata: { ...(params.metadata as object) },
                 price: priceRow.id,
@@ -183,7 +195,8 @@ export function nativePeable(options: NativePeableOptions) {
               sessions.set(row.id, row);
               return row;
             }),
-          ),
+          );
+        },
         retrieve: async (key: string) => get(sessions, key, 'checkout session'),
         list: async ({ customer }: { customer?: string }) =>
           list([...sessions.values()].filter((row) => !customer || row.customer === customer)),

@@ -86,6 +86,21 @@ it('prepares one native customer per account and replays only the frozen binding
   expect(await f.provider.create({ ...f.input, snapshot })).toEqual(session);
 });
 
+it('leaves the payment methods to Peable, so every Plus order also offers FairCoin', async () => {
+  const f = fixture();
+  const snapshot = await f.provider.prepare?.(f.input);
+  if (!snapshot) throw new Error('prepare missing');
+  const sessionCreate = jest.spyOn(f.peable.client.checkout.sessions, 'create');
+  const session = await f.provider.create({ ...f.input, snapshot });
+  // Never narrowed: a list without `faircoin` is `payment_method_locked` (Peable ADR 0021).
+  expect(sessionCreate.mock.calls[0][0]).not.toHaveProperty('payment_method_types');
+  const created = await sessionCreate.mock.results[0].value;
+  expect(created.payment_method_types).toEqual(['card', 'faircoin']);
+  // The hosted URL carries the payer's capability in its fragment, never a query.
+  expect(new URL(session.checkoutUrl).search).toBe('');
+  expect(new URL(session.checkoutUrl).hash).toMatch(/^#cs=cs_/);
+});
+
 it.each([
   ['amount', { unitAmount: 699, interval: 'month' as const }],
   ['cadence', { unitAmount: 599, interval: 'year' as const }],
