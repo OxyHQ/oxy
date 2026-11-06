@@ -68,7 +68,8 @@ function toNamespaced(flat: MockOxyServices | null): NamespacedOxyServices | nul
   for (const [name, fn] of Object.entries(flat)) {
     if (name === 'getCurrentUserId') {
       // A getter in 3.0: `oxyServices.session.userId`.
-      const session = (out.session ??= {}) as Record<string, unknown>;
+      out.session ??= {};
+      const session = out.session as Record<string, unknown>;
       Object.defineProperty(session, 'userId', {
         get: () => fn(),
         enumerable: true,
@@ -78,7 +79,10 @@ function toNamespaced(flat: MockOxyServices | null): NamespacedOxyServices | nul
     }
     const path = (NAMESPACED[name] ?? name).split('.');
     let node = out;
-    for (const key of path.slice(0, -1)) node = (node[key] ??= {}) as Record<string, unknown>;
+    for (const key of path.slice(0, -1)) {
+      node[key] ??= {};
+      node = node[key] as Record<string, unknown>;
+    }
     node[path[path.length - 1]] = fn;
   }
   return out;
@@ -206,14 +210,17 @@ export function useUpdateProfile(): { mutateAsync: jest.Mock; isPending: boolean
   return { mutateAsync: updateProfileMutateAsync, isPending: false };
 }
 
-/**
- * Auth store stub — only the members consumer code touches in tests
- * (`setState` for surfacing an auth error, `getState` for auth-state polling).
- */
-export const useAuthStore = {
-  setState: jest.fn(),
-  getState: jest.fn(() => ({ isAuthenticated: false })),
-};
+/** Reactive selector plus the imperative methods used by auth consumers. */
+export const useAuthStore = Object.assign(
+  <T>(selector: (snapshot: MockOxyState) => T): T => {
+    const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+    return selector(snapshot);
+  },
+  {
+    setState: jest.fn(),
+    getState: jest.fn(() => ({ isAuthenticated: false })),
+  },
+);
 
 /**
  * Error funnel stub — mirrors the real signature: it invokes the caller's
