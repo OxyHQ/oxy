@@ -8,7 +8,11 @@
  *   entitlement; a write or read naming a group the app is not entitled to
  *   throws (`errSecMissingEntitlement`);
  * - a read without `accessGroup` searches every entitled group, in order;
- * - a delete without `accessGroup` reaches every entitled group.
+ * - a delete without `accessGroup` reaches every entitled group;
+ * - `application` is the app's own group, its application identifier
+ *   (`<TEAM>.<bundle id>`): Apple makes every app a member of it after its
+ *   `keychain-access-groups`, so it is entitled and searched last, and no
+ *   other app's launch can name it.
  *
  * `entitlements` can change between "launches" (a new build), `locked` makes
  * every call throw, and `faults` injects a failure into the n-th mutation.
@@ -34,9 +38,19 @@ export const ENTITLEMENTS = {
   member: [GROUP.shared],
 };
 
+/** Application identifiers: each app's own group (ADR 0062 D6). */
+export const APP = {
+  commons: `${TEAM}so.oxy.commons`,
+  wallet: `${TEAM}to.peable.app`,
+  mention: `${TEAM}so.oxy.mention`,
+  alia: `${TEAM}so.oxy.alia`,
+} as const;
+
 export class FakeKeychain {
   readonly items = new Map<string, string>();
   entitlements: string[] = [...ENTITLEMENTS.preSplit];
+  /** The launched app's own group, or `null` to model a keychain that refuses it. */
+  application: string | null = null;
   locked = false;
   /** Mutations so far (writes and deletes). */
   mutations = 0;
@@ -46,6 +60,8 @@ export class FakeKeychain {
   corruptWrites = new Map<string, string>();
   /** Writes to these `group|key` throw. */
   failWrites = new Set<string>();
+  /** Reads naming one of these groups throw (that group alone is unreadable). */
+  failReadGroups = new Set<string>();
   readonly calls: Array<{
     op: 'get' | 'set' | 'delete';
     key: string;
@@ -59,8 +75,13 @@ export class FakeKeychain {
     return `${group}|${service ?? 'app'}|${key}`;
   }
 
+  /** Every group this app is a member of, in Apple's order. */
+  private groups(): string[] {
+    return this.application ? [...this.entitlements, this.application] : this.entitlements;
+  }
+
   private entitled(group: string): void {
-    if (!this.entitlements.includes(group)) {
+    if (!this.groups().includes(group)) {
       throw new Error(`errSecMissingEntitlement: ${group}`);
     }
   }
@@ -93,8 +114,11 @@ export class FakeKeychain {
   getItemAsync = async (key: string, options: FakeKeychainOptions = {}): Promise<string | null> => {
     this.calls.push({ op: 'get', key, options });
     this.guard();
-    const groups = options.accessGroup ? [options.accessGroup] : this.entitlements;
+    const groups = options.accessGroup ? [options.accessGroup] : this.groups();
     if (options.accessGroup) this.entitled(options.accessGroup);
+    if (options.accessGroup && this.failReadGroups.has(options.accessGroup)) {
+      throw new Error('errSecInteractionNotAllowed');
+    }
     for (const group of groups) {
       const value = this.items.get(this.id(group, options.keychainService, key));
       if (value !== undefined) return value;
@@ -122,7 +146,7 @@ export class FakeKeychain {
     this.guard();
     if (options.accessGroup) this.entitled(options.accessGroup);
     this.mutate();
-    const groups = options.accessGroup ? [options.accessGroup] : this.entitlements;
+    const groups = options.accessGroup ? [options.accessGroup] : this.groups();
     for (const group of groups) {
       this.items.delete(this.id(group, options.keychainService, key));
     }
@@ -133,4 +157,12 @@ export class FakeKeychain {
     this.locked
       ? { state: 'unavailable' as const, cause: new Error('errSecInteractionNotAllowed') }
       : { state: 'resolved' as const, accessGroup: this.entitlements[0] };
+
+  /** What the application-group probe answers (protocol `loadKeychainApplicationAccessGroup`). */
+  applicationProbe = async (prefix: string) =>
+    this.locked
+      ? { state: 'unavailable' as const, cause: new Error('errSecInteractionNotAllowed') }
+      : this.application?.startsWith(prefix)
+        ? { state: 'resolved' as const, accessGroup: this.application }
+        : { state: 'unsupported' as const };
 }

@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.10.0
+
+### Added
+
+- `loadKeychainApplicationAccessGroup(prefix)` (`KeychainApplicationAccessGroup`): on iOS this app's own keychain group, `<prefix><bundle id>`, as the `OxyIdentity` native module proved it by writing a probe item there (`resolved`); `unsupported` off iOS, on a native module that predates the probe, when the keychain refuses the group, or for an answer that is not this team's group; `unavailable` while the keychain refuses (never memoized). `@oxy.so/core` keeps each app's own items there (ADR 0062 D6).
+
 ## 1.9.0
 
 ### Added

@@ -7,7 +7,7 @@
  * native module that predates the probe), Commons `[identity, wallet, shared]`,
  * the Peable wallet `[wallet, shared]`, any other app `[shared]`.
  */
-import { ENTITLEMENTS, FakeKeychain, GROUP } from './fakeKeychain';
+import { APP, ENTITLEMENTS, FakeKeychain, GROUP } from './fakeKeychain';
 
 const mockKeychain = new FakeKeychain();
 let mockProbe: 'native' | 'unsupported' = 'unsupported';
@@ -18,6 +18,8 @@ jest.mock('@oxy.so/protocol', () => ({
   loadSecureStore: async () => mockKeychain,
   loadKeychainDefaultAccessGroup: async () =>
     mockProbe === 'native' ? mockKeychain.probe() : { state: 'unsupported' },
+  loadKeychainApplicationAccessGroup: async (prefix: string) =>
+    mockProbe === 'native' ? mockKeychain.applicationProbe(prefix) : { state: 'unsupported' },
   loadNodeCrypto: async () => require('node:crypto'),
   loadCommonsIdentityBridge: async () => null,
 }));
@@ -100,6 +102,8 @@ function secretsInSharedGroup(): string[] {
 
 beforeEach(() => {
   mockKeychain.items.clear();
+  mockKeychain.application = null;
+  mockKeychain.failReadGroups.clear();
   mockKeychain.locked = false;
   mockKeychain.failMutationAt = null;
   mockKeychain.failWrites.clear();
@@ -148,6 +152,92 @@ describe('keychainAccessFromDefaultGroup', () => {
     });
     // Every other app keeps exactly the calls it made before the split.
     expect(groups.ownKeychainItemPlan(access)).toEqual({ read: [{}], write: {}, delete: [{}] });
+  });
+
+  it('puts an app’s own items in its own group (ADR 0062 D6)', async () => {
+    const { groups } = await launch(ENTITLEMENTS.commons);
+    expect(groups.keychainGroupFor('app')).toBe('app');
+    const member = groups.keychainAccessFromDefaultGroup(GROUP.shared, APP.mention);
+    const commons = groups.keychainAccessFromDefaultGroup(GROUP.identity, APP.commons);
+    const wallet = groups.keychainAccessFromDefaultGroup(GROUP.wallet, APP.wallet);
+    expect(member).toMatchObject({ role: 'member', appGroup: APP.mention });
+    // A group of another team is not this app's.
+    expect(
+      groups.keychainAccessFromDefaultGroup(GROUP.shared, 'XYZ.so.oxy.mention'),
+    ).not.toHaveProperty('appGroup');
+    expect(groups.mayHoldKeychainItem('member', 'app')).toBe(true);
+    expect(groups.keychainReadPlan(member, 'app')).toEqual([{ accessGroup: APP.mention }]);
+    expect(groups.keychainWriteOption(member, 'app')).toEqual({ accessGroup: APP.mention });
+
+    const app = { accessGroup: APP.mention };
+    // A name no other app writes: every copy this app can read is its own.
+    expect(groups.ownKeychainItemPlan(member)).toEqual({
+      read: [app, {}],
+      write: app,
+      delete: [{}],
+    });
+    // A name every Oxy app writes: never the shared copy.
+    expect(groups.ownKeychainItemPlan(member, 'every-oxy-app')).toEqual({
+      read: [app],
+      write: app,
+      delete: [app],
+    });
+    expect(groups.ownKeychainItemPlan(member, 'every-oxy-app-withholding')).toEqual({
+      read: [app, { accessGroup: GROUP.shared }],
+      write: app,
+      delete: [{ accessGroup: GROUP.shared }, app],
+    });
+    // Commons and the wallet also read the copy D3 put in their default group,
+    // and delete it first.
+    const own = { accessGroup: APP.commons };
+    const identity = { accessGroup: GROUP.identity };
+    expect(groups.ownKeychainItemPlan(commons, 'every-oxy-app')).toEqual({
+      read: [own, identity],
+      write: own,
+      delete: [identity, own],
+    });
+    expect(groups.ownKeychainItemPlan(wallet)).toEqual({
+      read: [{ accessGroup: APP.wallet }, { accessGroup: GROUP.wallet }, {}],
+      write: { accessGroup: APP.wallet },
+      delete: [{}],
+    });
+    // Without the application-group probe: Commons and the wallet keep their
+    // default group; every other app the one item it always had.
+    const commonsSplit = groups.keychainAccessFromDefaultGroup(GROUP.identity);
+    expect(groups.ownKeychainItemPlan(commonsSplit, 'every-oxy-app')).toEqual({
+      read: [identity],
+      write: identity,
+      delete: [identity],
+    });
+    const memberSplit = groups.keychainAccessFromDefaultGroup(GROUP.shared);
+    expect(groups.ownKeychainItemPlan(memberSplit, 'every-oxy-app')).toEqual({
+      read: [{}],
+      write: {},
+      delete: [{}],
+    });
+    expect(groups.ownKeychainItemPlan({ mode: 'ungrouped' }, 'every-oxy-app')).toEqual({
+      read: [{}],
+      write: {},
+      delete: [{}],
+    });
+  });
+
+  it('resolves the application group from its probe, and never remembers a locked one', async () => {
+    mockKeychain.application = APP.mention;
+    const { groups } = await launch(ENTITLEMENTS.member);
+    mockKeychain.application = APP.mention;
+    mockKeychain.locked = true;
+    await expect(groups.resolveKeychainAccess()).rejects.toThrow(
+      groups.KeychainAccessUnavailableError,
+    );
+    mockKeychain.locked = false;
+    expect(await groups.resolveKeychainAccess()).toEqual({
+      mode: 'grouped',
+      prefix: 'ABCDE12345.',
+      defaultGroup: GROUP.shared,
+      role: 'member',
+      appGroup: APP.mention,
+    });
   });
 });
 

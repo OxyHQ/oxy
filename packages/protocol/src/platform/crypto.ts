@@ -80,6 +80,7 @@ import type {
   CommonsSocialReceiveSignature,
   ExpoCryptoLike,
   ExpoSecureStoreLike,
+  KeychainApplicationAccessGroup,
   KeychainDefaultAccessGroup,
 } from './expoTypes';
 
@@ -92,6 +93,7 @@ export type {
   CommonsSocialReceiveSignature,
   ExpoCryptoLike,
   ExpoSecureStoreLike,
+  KeychainApplicationAccessGroup,
   KeychainDefaultAccessGroup,
 };
 
@@ -184,5 +186,11 @@ export function loadCommonsIdentityBridge(): Promise<CommonsIdentityBridge | nul
 // ---------------------------------------------------------------------------
 
 export function loadKeychainDefaultAccessGroup(): Promise<KeychainDefaultAccessGroup> {
+  return Promise.resolve({ state: 'unsupported' });
+}
+
+export function loadKeychainApplicationAccessGroup(
+  _prefix: string,
+): Promise<KeychainApplicationAccessGroup> {
   return Promise.resolve({ state: 'unsupported' });
 }

@@ -134,7 +134,10 @@ export {
   createWebAuthStateStore,
   createNativeAuthStateStore,
   createMemoryAuthStateStore,
+  nativeSessionItemNames,
   AUTH_STATE_STORAGE_KEY,
+  AUTH_STATE_TOKEN_STORAGE_KEY,
+  AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY,
 } from './authStateStore';
 export type {
   PersistedAuthState,
@@ -176,7 +179,11 @@ export {
   deleteThroughPlan,
   resolveKeychainAccess,
 } from '../utils/keychainAccessGroups';
-export type { KeychainAccess, KeychainGroupOption } from '../utils/keychainAccessGroups';
+export type {
+  KeychainAccess,
+  KeychainGroupOption,
+  OwnKeychainItemNames,
+} from '../utils/keychainAccessGroups';
 
 // Identity-bound sessions (the identity vault). The pin is the durable
 // `{publicKey, accountId}` binding between this device's PRIMARY identity key

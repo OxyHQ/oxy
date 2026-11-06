@@ -110,7 +110,12 @@ type Unit =
       merge?: (shared: string, target: string) => string | null;
     };
 
-const slot = (key: string, item: KeychainItemClass, service?: string, deviceOnly = true): Slot => ({
+const slot = (
+  key: string,
+  item: Exclude<KeychainItemClass, 'app'>,
+  service?: string,
+  deviceOnly = true,
+): Slot => ({
   key,
   service,
   group: keychainGroupFor(item),

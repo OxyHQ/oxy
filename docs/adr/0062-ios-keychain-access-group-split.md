@@ -2,7 +2,9 @@
 
 - Status: accepted, implemented (`@oxy.so/core` 7.29.0, `@oxy.so/services` 14.8.0,
   `@oxy.so/protocol` 1.8.0, `@oxy.so/app-preset` 6.2.0, Commons 1.6.0); the native
-  releases are in the order of "Consequences"
+  releases are in the order of "Consequences". Amended 2026-11-06 (D6, each app's
+  own items in its own group: `@oxy.so/core` 7.31.0, `@oxy.so/services` 14.10.0,
+  `@oxy.so/protocol` 1.10.0)
 - Date: 2026-11-06
 - Decision: the owner (2026-11-06, "Fix F5, F1 and D9"): take the split, not the
   risk, before Peable opens FairCoin mainnet (Peable mainnet-gate finding F5).
@@ -72,7 +74,9 @@ group) do anyway.
 - An app's OWN items (session credential, settings, the wallet's imported
   phrases) in Commons and the Peable wallet are written to their default group
   explicitly and read from it first, so the copy written before the split never
-  shadows a newer one; every other app's calls are unchanged.
+  shadows a newer one; every other app's calls are unchanged. *Superseded by D6:
+  own items go to the app's own group in every app, and the SDK's session items
+  are never read from where another app writes them.*
 
 ### D4 — Commons moves the existing items, verify before delete
 
@@ -112,3 +116,92 @@ and `withOxyKeychainPolicy` through `withOxyUpdates`, which every app applies).
   4. a later SDK release that drops the shared-group read fallback.
 - ADR 0061 D6 now reads: on iOS through the wallet keychain group, which only
   Commons and the Peable wallet hold.
+
+## Amendment 2026-11-06 — D6: an app's session is its own; the shared session item was a defect
+
+### What was left open
+
+Every Oxy app's SDK keeps its session store under the SAME names —
+`oxy.auth.v1` (session id, user id, the holder's `deviceId` + `deviceSecret`),
+`oxy.auth.token.v1` (the warm access token),
+`oxy.auth.automatic-identity-signin-suppressed.v1` (the explicit sign-out
+marker) and, in identity mode, `oxy.identity.pin.v1` — written with no access
+group (`@oxy.so/services` `nativeSecureStorage.ts`). On iOS such a write lands
+in the app's default group: before this ADR `group.so.oxy.shared` in every app,
+and after D3 still in every app but Commons and the Peable wallet. So those apps
+read and overwrote ONE session item. An app booted into whichever session
+another app (or, before the split, Commons' identity-mode vault) wrote last;
+one app's local sign-out cleared the others'; and D3's read fallback (`{}`, every
+group) let Commons and the wallet adopt another app's copy.
+
+### Decided: a defect, not single sign-on
+
+The session store is per app everywhere else, and cross-app sign-on has its own,
+narrower mechanism:
+
+- Android keeps it in each app's own `expo-secure-store`; the one thing apps
+  share is the device-session credential, through the signature-protected
+  `OxyDeviceSession` broker. Web keeps it per origin.
+- The server gives each app or origin its own holder credential
+  (`device_credentials`, [0029](0029-one-oxy-session.md) D2); the code and docs
+  call this store per app (`authStore.ts`, `identityPin.ts`,
+  `docs/auth/sdk-isolated-oauth-lifecycle.md`).
+- The deliberate cross-app join point on iOS is the dedicated device-session
+  slot (service `oxy_device_session`, `oxy_shared_device_session_v1`, the shared
+  group): only `{deviceId, deviceSecret}`, mirrored only from account mode (the
+  vault never publishes, `authStore.ts`), and adopted only after an ordinary mint
+  proves it (cold-boot lane 3, `docs/SESSION-ARCHITECTURE.md`).
+- The shared `oxy.auth.v1` came from the same default-group mechanism this ADR's
+  context describes, not from a design; it carried what the slot deliberately
+  does not (the vault's session, the session and user ids, the warm token, the
+  pin).
+
+### D6 — Each app's own items live in its own group
+
+- **One more item class, in the one table.** `keychainGroupFor('app')` is
+  `app`: `<TEAM>.<bundle id>`, the application identifier. Apple makes every app
+  a member of that group whatever `keychain-access-groups` lists, and no other
+  app can name it, so no entitlement changes. `@oxy.so/services`' iOS
+  `OxyIdentity` module proves it (`keychainApplicationAccessGroup(prefix)`
+  writes a probe item there explicitly; `nil` when the keychain refuses it as
+  not entitled), `@oxy.so/protocol`'s `loadKeychainApplicationAccessGroup`
+  narrows it, and `resolveKeychainAccess` adds it as `appGroup`. A thrown probe
+  (before first unlock) is "storage unavailable, retry", never "no app group": a
+  process that wrote to the old place while the next read the new one first
+  would see a stale value.
+- **Placement** (`ownKeychainItemPlan(access, names)`): writes go to the app
+  group; reads try it first, then Commons' or the wallet's default group (where
+  D3 put their own items; no other app writes its own items there). What else a
+  read may reach depends on who writes the NAME (`OwnKeychainItemNames`):
+  - `every-oxy-app` (the SDK's session store, `nativeSessionItemNames`): nothing
+    else. A copy in the shared group may be another app's session or the vault's,
+    and apps still on an older build use it, so it is never read, written or
+    deleted. Deletes reach the read locations, earlier ones first.
+  - `every-oxy-app-withholding` (the sign-out marker): also the shared group,
+    last on read and first on delete. A marker can only keep an app from signing
+    in automatically, so honouring another app's is safe, and releasing it
+    there is what a release always did.
+  - `this-app` (names only one app uses: the Peable wallet's own items): every
+    group, as before.
+- **Migration: nothing is copied or deleted.** Commons and the wallet read their
+  D3 copy until their next write lands in the app group, which the read order
+  then prefers. Every other app finds no session of its own at the first launch
+  of a fixed build and its cold boot joins the device through the dedicated slot
+  (adopt, then a mint the server must accept): silent on any phone where an
+  account-mode app has saved a session since the slot shipped (#965,
+  2026-08-11), because every such save mirrors into the slot. With an empty slot
+  the old shared item can only be the vault's or a pre-#965 build's; that app
+  shows signed out and the person signs in once through Commons (the one app
+  switch D3 already gives every app but Commons and the wallet). No app adopts
+  another app's session item, and a crash or failure at any step leaves the
+  value the app had (`ownSessionItems.test.ts`).
+- **Builds.** The probe is native, so D6 reaches each app with its next native
+  build. Until then a binary without the probe keeps its items where that build
+  put them: every app but Commons and the wallet the one shared item (the
+  defect, unchanged), Commons and the wallet their default group (no longer the
+  `{}` fallback). Android and web are unchanged.
+- **Left in the shared group** while older builds exist: their `oxy.auth.v1`,
+  warm token and pin. They hold a device credential every Oxy app can read, the
+  same exposure as the dedicated slot. A later release deletes them, with D3's
+  release 4.
+
