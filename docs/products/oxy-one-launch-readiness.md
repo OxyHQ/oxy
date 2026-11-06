@@ -60,10 +60,16 @@ operator identity reference, and commercial activation disabled. The runtime
 configuration requires the new legal name; deploying it requires a separately
 verified issuer record and seller/processor bindings for the new entity.
 
-Earlier sections naming The Oxy Collective, Inc. record prior decisions. They
-do not approve the new entity, transfer software or trademark ownership, or
-replace historical invoice identities. Existing licences and ownership notices
-remain unchanged. Incorporation completion, issuer identity, tax registrations,
+**Owner confirmation (2026-11-05):** Oxy Platforms, Inc. is Oxy's legal entity
+and the seller and invoice issuer for Oxy's own products. It owns Peable's live
+Stripe account. This supersedes the 2026-10-07 statement that The Oxy
+Collective, Inc. was the approved issuer. The confirmation names the entity
+only. It does not establish a tax identifier, registrations or sale-country
+coverage.
+
+Existing licences and ownership notices remain unchanged: The Oxy Collective,
+Inc. stays the licensor named in them. This change does not transfer software
+or trademark ownership and does not replace historical invoice identities. Incorporation completion, issuer identity, tax registrations,
 explicit sale-country coverage and the existing checkout acceptance gates must
 be verified before enabling sales.
 
@@ -80,7 +86,7 @@ The remaining sections retain dated preparation history; their earlier package v
 
 ## 2026-10-07 continuation
 
-The earlier six repository deliveries and the published Oxy/Peable candidate SDK versions are already deployed; their historical preparation sections below are not outstanding release tasks. Commercial activation remains disabled. The approved invoice issuer is **The Oxy Collective, Inc.** This does not establish the seller's processor identifier, tax remitter, registrations or sale countries. The customer may choose manual monthly Faircoin renewal or automatic renewal with express consent, amount and periodicity limits, and verifiable revocation. No mandate is created. The detached `packages/api/config/drafts/oxy-one-commercial-decisions.json` records these decisions and the remaining policy dependencies; no runtime reads it.
+The earlier six repository deliveries and the published Oxy/Peable candidate SDK versions are already deployed; their historical preparation sections below are not outstanding release tasks. Commercial activation remains disabled. The invoice issuer is **Oxy Platforms, Inc.**, which the owner confirmed on 2026-11-05 (see the operating company transition above). This section originally named The Oxy Collective, Inc., and that is superseded. This does not establish the seller's processor identifier, tax remitter, registrations or sale countries. The customer may choose manual monthly Faircoin renewal or automatic renewal with express consent, amount and periodicity limits, and verifiable revocation. No mandate is created. The detached `packages/api/config/drafts/oxy-one-commercial-decisions.json` records these decisions and the remaining policy dependencies; no runtime reads it.
 
 `peablePersonalCheckout.service.ts` now exercises the published SDK's owned customer and recurring checkout operations, with exact merchant/application/namespace/offer/price binding, stable replay keys, monthly no-trial selection and bounded HTTPS session results. It deliberately refuses execution outside the test process. The default HTTP composition remains unconfigured because this SDK recurring processor has no complete authoritative inclusive-tax/seller/FAIR invoice contract. Removing the guard before that contract exists could create a charge that Oxy cannot validate. No fiscal or FX evidence is manufactured by the adapter.
 
