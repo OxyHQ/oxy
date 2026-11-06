@@ -717,6 +717,7 @@ describe('GET /profiles/search — wire shape', () => {
         description: 'row description',
         color: 'purple',
         linksMetadata: [],
+        pronouns: 'unspecified',
         createdAt: stored.createdAt.toISOString(),
         updatedAt: stored.updatedAt.toISOString(),
         // Standing is public; the other two gate columns are not. See
