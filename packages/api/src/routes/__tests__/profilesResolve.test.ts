@@ -371,6 +371,7 @@ describe('GET /profiles/resolve — wire shape', () => {
       description: 'remote description',
       color: 'blue',
       linksMetadata: [],
+      pronouns: 'unspecified',
       externalIdentities: [],
       redirectedUserIds: [],
       createdAt: stored.createdAt.toISOString(),
