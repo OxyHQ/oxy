@@ -411,6 +411,13 @@ export interface VerifiedHostToken {
   clientId: string;
   /** The application `clientId` belongs to. */
   applicationId: string;
+  /**
+   * The token names the platform's OWN application (its credential's
+   * `platform_application_id`): OxyOS's Settings and shell. Only such a token
+   * may make the account's own security writes (ADR 0058, the platform's
+   * Settings is the account UI on a host).
+   */
+  self: boolean;
 }
 
 /** Why a bearer was refused. Each value names one failed check. */

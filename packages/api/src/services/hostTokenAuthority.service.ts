@@ -45,6 +45,7 @@ export async function verifyHostTokens(
         id: deviceCredentials.id,
         deviceSessionId: deviceCredentials.deviceSessionId,
         platform: deviceCredentials.platform,
+        platformApplicationId: deviceCredentials.platformApplicationId,
       })
       .from(deviceCredentials)
       .where(inArray(deviceCredentials.id, credentialIds)),
@@ -97,6 +98,7 @@ export async function verifyHostTokens(
       credentialId: token.credentialId,
       clientId: token.clientId,
       applicationId: client.applicationId,
+      self: credential.platformApplicationId === client.applicationId,
     };
   });
 }

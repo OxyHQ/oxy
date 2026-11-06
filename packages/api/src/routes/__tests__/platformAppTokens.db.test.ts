@@ -96,7 +96,13 @@ import { resolveSocketIdentity } from '../../utils/socketAuth';
 import { socketRoomsFor } from '../../utils/socket';
 import { awayFromTotpStepEdge } from '../../../test-support/totpStep';
 import appAssertionsRouter from '../appAssertions';
+import accountSecurityRouter from '../accountSecurity';
 import accountsRouter from '../accounts';
+import agentKeysRouter from '../agentKeys';
+import familiesRouter from '../families';
+import identityLinkRouter from '../identityLink';
+import organizationIdentityKeyRouter from '../organizationIdentityKey';
+import usersRouter from '../users';
 import authRouter from '../auth';
 import devicesRouter from '../devices';
 import mcpOAuthRouter from '../mcpOAuth';
@@ -113,6 +119,12 @@ app.use('/session/device', sessionDeviceRouter);
 app.use('/session', sessionRouter);
 app.use('/apps', appAssertionsRouter);
 app.use('/devices', devicesRouter);
+app.use('/users/me', accountSecurityRouter);
+app.use('/users', usersRouter);
+app.use('/families', familiesRouter);
+app.use('/identity/link', identityLinkRouter);
+app.use('/accounts', agentKeysRouter);
+app.use('/accounts', organizationIdentityKeyRouter);
 app.use('/accounts', accountsRouter);
 app.use('/auth/mcp/oauth', mcpOAuthRouter);
 app.use('/auth', authRouter);
@@ -843,5 +855,120 @@ describe('the device mint (ADR 0058 step 0)', () => {
     expect(new Date(minted.expiresAt as string).getTime() - Date.now()).toBeLessThanOrEqual(
       15 * 60 * 1000,
     );
+  });
+});
+
+describe('the platform’s own Settings and the account’s security (ADR 0058)', () => {
+  async function tokens() {
+    const enrolment = await enrolled();
+    const mintFor = async (attestation: Body) =>
+      dataOf(
+        (
+          await mint({
+            deviceId: enrolment.deviceId,
+            deviceSecret: enrolment.platformSecret,
+            attestation,
+          })
+        ).body,
+      ).accessToken as string;
+    return {
+      ...enrolment,
+      selfToken: await mintFor({ platform: 'oxyos', self: true }),
+      appToken: await mintFor({ platform: 'oxyos', desktopEntryId: dropseaEntry }),
+    };
+  }
+
+  it('lets a self token change the password with a fresh reauth, keeping the platform’s session and ending the others', async () => {
+    const { who, selfToken, appToken, sessionId, deviceId, platformSecret } = await tokens();
+    // Another session of the same account, on another device.
+    const elsewhere = await setupSignIn(who.username);
+    expect((await validateHeader(elsewhere.accessToken, elsewhere.sessionId)).status).toBe(200);
+
+    const wrongReauth = await request(app)
+      .put('/users/me/password')
+      .set('authorization', `Bearer ${selfToken}`)
+      .send({ newPassword: 'a whole new passphrase 42!', reauth: { password: 'not it' } });
+    expect(wrongReauth.status).toBe(401);
+
+    const changed = await request(app)
+      .put('/users/me/password')
+      .set('authorization', `Bearer ${selfToken}`)
+      .send({
+        newPassword: 'a whole new passphrase 42!',
+        reauth: { password: PASSWORD },
+        revokeOtherSessions: true,
+      });
+    expect(changed.status).toBe(200);
+
+    // The other session is gone; the platform's session, and every application
+    // token minted from it, is not.
+    expect((await validateHeader(elsewhere.accessToken, elsewhere.sessionId)).status).toBe(401);
+    expect((await validateHeader(selfToken, sessionId)).status).toBe(200);
+    expect((await validateHeader(appToken, sessionId)).status).toBe(200);
+    expect(
+      (await post('/session/device/token', { deviceId, deviceSecret: platformSecret })).status,
+    ).toBe(200);
+    const withNew = await post('/auth/signin/password', {
+      identifier: who.username,
+      password: 'a whole new passphrase 42!',
+    });
+    expect(withNew.status).toBe(200);
+
+    // Its reads behind the same guard pass too.
+    const methods = await request(app)
+      .get('/users/me/sign-in-methods')
+      .set('authorization', `Bearer ${selfToken}`);
+    expect(methods.status).toBe(200);
+  });
+
+  it('refuses another application’s token on the account’s security, and every app token, self included, on the rest', async () => {
+    const { who, selfToken, appToken } = await tokens();
+    const security: Array<['get' | 'post' | 'put' | 'delete', string, Body?]> = [
+      ['get', '/users/me/sign-in-methods'],
+      [
+        'put',
+        '/users/me/password',
+        { newPassword: 'x'.repeat(12), reauth: { password: PASSWORD } },
+      ],
+      ['post', '/users/me/totp/enroll', {}],
+      ['post', '/users/me/email/verify/start', { email: 'new@example.test' }],
+    ];
+    for (const [method, path, body] of security) {
+      const refused = await request(app)
+        [method](path)
+        .set('authorization', `Bearer ${appToken}`)
+        .send(body ?? {});
+      expect({ path, status: refused.status, error: refused.body.error }).toEqual({
+        path,
+        status: 403,
+        error: 'app_token_device_access_denied',
+      });
+    }
+    const rest: Array<['get' | 'post' | 'put' | 'delete', string, Body?]> = [
+      ['delete', '/users/me', {}],
+      ['get', '/families/me'],
+      ['post', '/identity/link', {}],
+      ['get', `/accounts/${who.id}/agent-keys`],
+      ['get', `/accounts/${who.id}/identity-key`],
+    ];
+    for (const token of [selfToken, appToken]) {
+      for (const [method, path, body] of rest) {
+        const refused = await request(app)
+          [method](path)
+          .set('authorization', `Bearer ${token}`)
+          .send(body ?? {});
+        expect({ path, status: refused.status, error: refused.body.error }).toEqual({
+          path,
+          status: 403,
+          error: 'app_token_device_access_denied',
+        });
+      }
+    }
+    // Session and device management stays refused for a self token too.
+    const logout = await request(app)
+      .post('/session/device/signout')
+      .set('authorization', `Bearer ${selfToken}`)
+      .send({ all: true });
+    expect([logout.status, logout.body.error]).toEqual([403, 'app_token_device_access_denied']);
   });
 });
