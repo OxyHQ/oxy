@@ -68,6 +68,16 @@ export interface RemoveDomainResult {
   success: boolean;
 }
 
+/** Options for {@link IdentityApi.resolveDid}. */
+export interface ResolveDidOptions {
+  /**
+   * Read the document from the origin now, never from a cache. Required when
+   * `#key-1` decides where money goes (deriving a Peable receive address): the
+   * key changes on a rotation or an organization key replacement.
+   */
+  fresh?: boolean;
+}
+
 /** How the caller proves control of the CURRENT key during a key rotation. */
 export type RotateKeyProof = 'device' | 'phrase';
 
@@ -191,17 +201,29 @@ export class IdentityApi {
    * Resolve the W3C DID document for any user. The API derives it on demand
    * from the account's `authMethods` + `publicKey` — there is no stored
    * document. Public (no auth required); short-TTL cached.
+   *
+   * `{ fresh: true }` reads the document as it is NOW: it skips (and drops)
+   * this client's cached copy, is not joined to an in-flight read, and sends
+   * `Cache-Control: no-cache` so no HTTP cache on the way answers for the
+   * origin. Use it whenever the answer decides where money goes: `#key-1` is
+   * the account's Peable receive key and changes on a rotation or an
+   * organization key replacement, and a cached copy would derive an address
+   * from the previous key for up to the cache TTL.
    */
-  async resolveDid(userId: string): Promise<DidDocument> {
-    return this.ctx.request<DidDocument>(
-      'GET',
-      `/u/${encodeURIComponent(userId)}/did.json`,
-      undefined,
-      {
-        cache: true,
-        cacheTTL: SHORT_TTL,
-      },
-    );
+  async resolveDid(userId: string, options: ResolveDidOptions = {}): Promise<DidDocument> {
+    const path = `/u/${encodeURIComponent(userId)}/did.json`;
+    if (options.fresh) {
+      this.ctx.http.invalidateCache({ keys: [`GET:${path}`] });
+      return this.ctx.request<DidDocument>('GET', path, undefined, {
+        cache: false,
+        deduplicate: false,
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+    }
+    return this.ctx.request<DidDocument>('GET', path, undefined, {
+      cache: true,
+      cacheTTL: SHORT_TTL,
+    });
   }
 
   /**

@@ -73,6 +73,12 @@ export function deriveScopedSeedFromKey(privateKeyHex: string, info: string): Ui
  * `HMAC-SHA256(SOCIAL_RECEIVE_CHAIN_CODE_KEY, compressed identity public key)`.
  * Identical to `@fairco.in/core`'s `deriveSocialReceiveSpendingKey`.
  *
+ * INTERNAL to `@oxy.so/core` (not exported from `@oxy.so/core/crypto`): the
+ * derivation is non-hardened and the chain code is a public function of the
+ * identity public key, so `identity = child - I_L mod n` — whoever holds one
+ * child private key and the public key holds the identity key. Callers get
+ * signatures ({@link signSocialReceiveDigest}), never the child key.
+ *
  * @returns the child private key and its compressed public key, lowercase hex.
  */
 export function deriveSocialReceiveKey(

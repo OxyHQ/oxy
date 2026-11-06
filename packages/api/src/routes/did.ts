@@ -6,8 +6,10 @@
  *  - `GET /.well-known/did.json` — the Oxy organisation DID (`did:web:<domain>`)
  *  - `GET /u/:userId/did.json`   — a user DID (`did:web:<domain>:u:<userId>`)
  *
- * Public, cacheable, CORS-open (`Access-Control-Allow-Origin: *`), no auth — a
- * DID document is public infrastructure. Mounted at the API root in
+ * Public, CORS-open (`Access-Control-Allow-Origin: *`), no auth — a DID
+ * document is public infrastructure. A user document is revalidated on every
+ * use, because its `#key-1` is a money key that rotates (see
+ * `USER_DID_CACHE_CONTROL`). Mounted at the API root in
  * `server.ts` beside the WebFinger/ActivityPub handlers, OUTSIDE the `/users`
  * rate-limit group.
  *
@@ -56,16 +58,34 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
+/**
+ * How long a cache may answer for this route without asking it again.
+ *
+ * The Oxy organisation DID is fixed per deployment, so five minutes is safe.
+ * A USER document is not: its `#key-1` is the account's Peable receive key
+ * (Peable `resolveIdentityPublicKey`, ADR 0061), and it changes when a person
+ * rotates their root or an organization's owners replace its key. A cache
+ * that kept serving the previous key would have payers derive addresses from
+ * a key the account no longer holds. So a user document may be stored but is
+ * revalidated on every use (`no-cache`): Express's ETag answers an unchanged
+ * document with a bodiless 304, so a revalidation costs the same queries and
+ * none of the bytes. Cloudflare does not cache api.oxy.so at all
+ * (`~/Oxy/docs/cloudflare-proxied-apis.md`, `cache: false`); this header is
+ * what binds browsers, remote resolvers and any future CDN or apex proxy.
+ */
+const ORGANISATION_DID_CACHE_CONTROL = 'public, max-age=300';
+const USER_DID_CACHE_CONTROL = 'public, no-cache';
+
 /** Headers shared by every DID document response. */
-function setDidHeaders(res: Response): void {
+function setDidHeaders(res: Response, cacheControl: string): void {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.setHeader('Cache-Control', cacheControl);
 }
 
 // Oxy organisation DID document.
 router.get('/.well-known/did.json', (_req: Request, res: Response) => {
-  setDidHeaders(res);
+  setDidHeaders(res, ORGANISATION_DID_CACHE_CONTROL);
   return res.json(buildOxyDidDocument());
 });
 
@@ -124,7 +144,7 @@ router.get('/u/:userId/did.json', async (req, res) => {
       node: activeNode,
     });
 
-    setDidHeaders(res);
+    setDidHeaders(res, USER_DID_CACHE_CONTROL);
     return res.json(document);
   } catch (err) {
     logger.error('DID document build failed', err instanceof Error ? err : new Error(String(err)), {

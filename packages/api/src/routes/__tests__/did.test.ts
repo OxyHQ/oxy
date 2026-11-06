@@ -75,11 +75,15 @@ interface RawResponse {
   body: Record<string, unknown>;
 }
 
-async function get(target: http.Server, path: string): Promise<RawResponse> {
+async function get(
+  target: http.Server,
+  path: string,
+  headers: http.OutgoingHttpHeaders = {},
+): Promise<RawResponse> {
   const address = target.address() as AddressInfo;
   return new Promise((resolve, reject) => {
     http
-      .get({ host: '127.0.0.1', port: address.port, path }, (res) => {
+      .get({ host: '127.0.0.1', port: address.port, path, headers }, (res) => {
         let raw = '';
         res.on('data', (chunk) => {
           raw += chunk;
@@ -194,7 +198,28 @@ describe('GET /u/:userId/did.json', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/json');
     expect(res.headers['access-control-allow-origin']).toBe('*');
-    expect(res.headers['cache-control']).toBe('public, max-age=300');
+    // `#key-1` is the account's Peable receive key and rotates: a cache may
+    // keep the document but must ask again before every use.
+    expect(res.headers['cache-control']).toBe('public, no-cache');
+    expect(res.headers.etag).toBeTruthy();
+  });
+
+  it('revalidates: an unchanged document is a 304, a rotated #key-1 is a new 200', async () => {
+    const userId = await account();
+    await linkIdentity(userId, generateSecp256k1KeyPair().publicKey);
+
+    const first = await get(server, `/u/${userId}/did.json`);
+    const etag = String(first.headers.etag);
+    const unchanged = await get(server, `/u/${userId}/did.json`, { 'if-none-match': etag });
+    expect(unchanged.status).toBe(304);
+
+    const rotatedKey = generateSecp256k1KeyPair().publicKey;
+    await getDb().update(users).set({ publicKey: rotatedKey }).where(eq(users.id, userId));
+    const rotated = await get(server, `/u/${userId}/did.json`, { 'if-none-match': etag });
+    expect(rotated.status).toBe(200);
+    expect(rotated.headers.etag).not.toBe(etag);
+    const methods = rotated.body.verificationMethod as Array<{ id: string; publicKeyHex: string }>;
+    expect(methods.find((method) => method.id.endsWith('#key-1'))?.publicKeyHex).toBe(rotatedKey);
   });
 
   it('serves a CUSTODIAL document controlled solely by Oxy when no key is linked', async () => {
