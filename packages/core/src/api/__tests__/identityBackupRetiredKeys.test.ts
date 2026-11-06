@@ -13,6 +13,7 @@ const mockRing = {
   unreadable: false,
   held: [] as Array<{ privateKey: string; publicKey: string; retiredAt: number }>,
   kept: [] as Array<{ privateKey: string; publicKey: string }>,
+  quarantined: [] as Array<{ privateKey: string; publicKey: string }>,
 };
 
 jest.mock('../../crypto/retiredKeys', () => ({
@@ -24,6 +25,9 @@ jest.mock('../../crypto/retiredKeys', () => ({
   },
   retireIdentityKey: async (key: { privateKey: string; publicKey: string }) => {
     mockRing.kept.push(key);
+  },
+  quarantineRetiredIdentityKey: async (key: { privateKey: string; publicKey: string }) => {
+    mockRing.quarantined.push(key);
   },
 }));
 
@@ -43,6 +47,8 @@ const json = (body: unknown, status = 200) =>
 
 describe('oxy.identity.backup carries retired keys', () => {
   let fetchMock: jest.Mock<Promise<Response>, [RequestInfo | URL, RequestInit?]>;
+  /** `GET /identity/key-history`, answered apart from the backup's own calls. */
+  let historyMock: jest.Mock<Promise<Response>, []>;
   let oxy: OxyServices;
   const originalFetch = globalThis.fetch;
 
@@ -52,8 +58,13 @@ describe('oxy.identity.backup carries retired keys', () => {
     mockRing.unreadable = false;
     mockRing.held = [];
     mockRing.kept = [];
+    mockRing.quarantined = [];
     fetchMock = jest.fn();
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    historyMock = jest.fn(async () => history());
+    globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) =>
+      String(url).endsWith('/identity/key-history')
+        ? historyMock()
+        : fetchMock(url, init)) as unknown as typeof globalThis.fetch;
     oxy = new OxyServices({ baseURL: 'http://test.invalid' });
     oxy.session.setAccessToken(makeJwt({ userId: 'me' }));
   });
@@ -76,10 +87,9 @@ describe('oxy.identity.backup carries retired keys', () => {
     ];
     fetchMock
       .mockResolvedValueOnce(json({ error: 'not found' }, 404))
-      .mockResolvedValueOnce(history())
       .mockResolvedValueOnce(json({ exists: true }));
     await oxy.identity.backup.create(PHRASE);
-    expect(String(fetchMock.mock.calls[1][0])).toBe('http://test.invalid/identity/key-history');
+    expect(historyMock).toHaveBeenCalled();
     return lastUpload();
   }
 
@@ -173,9 +183,8 @@ describe('oxy.identity.backup carries retired keys', () => {
     mockRing.held = [
       { privateKey: RETIRED, publicKey: KeyManager.derivePublicKey(RETIRED), retiredAt: 1 },
     ];
-    fetchMock
-      .mockResolvedValueOnce(json({ error: 'not found' }, 404))
-      .mockResolvedValue(json({ error: 'down' }, 503));
+    historyMock.mockResolvedValue(json({ error: 'down' }, 503));
+    fetchMock.mockResolvedValueOnce(json({ error: 'not found' }, 404));
     await expect(oxy.identity.backup.create(PHRASE)).rejects.toBeDefined();
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
   });
@@ -210,10 +219,7 @@ describe('oxy.identity.backup carries retired keys', () => {
     // Another phone (or a wiped ring): nothing held locally.
     mockRing.held = [];
     mockRing.kept = [];
-    fetchMock
-      .mockResolvedValueOnce(json(previous))
-      .mockResolvedValueOnce(history())
-      .mockResolvedValueOnce(json({ exists: true }));
+    fetchMock.mockResolvedValueOnce(json(previous)).mockResolvedValueOnce(json({ exists: true }));
     await oxy.identity.backup.create(PHRASE);
     expect(mockRing.kept.map((key) => key.publicKey)).toEqual([
       KeyManager.derivePublicKey(RETIRED),
@@ -228,10 +234,8 @@ describe('oxy.identity.backup carries retired keys', () => {
     const previous = await createAndCapture();
     mockRing.held = [];
     const before = fetchMock.mock.calls.length;
-    fetchMock
-      .mockResolvedValueOnce(json(previous))
-      .mockResolvedValueOnce(history([])) // the history no longer names it
-      .mockResolvedValueOnce(json({ exists: true }));
+    historyMock.mockResolvedValueOnce(history([])); // the history no longer names it
+    fetchMock.mockResolvedValueOnce(json(previous)).mockResolvedValueOnce(json({ exists: true }));
     await expect(oxy.identity.backup.create(PHRASE)).rejects.toThrow('not replaced');
     expect(fetchMock.mock.calls.slice(before).some(([, init]) => init?.method === 'POST')).toBe(
       false,
@@ -273,6 +277,72 @@ describe('oxy.identity.backup carries retired keys', () => {
       fetchMock.mockResolvedValueOnce(json({ error: 'forbidden' }, 403));
       await expect(oxy.identity.backup.readBeforeRotation(async () => PHRASE)).rejects.toThrow(
         'Nothing changed',
+      );
+    });
+  });
+
+  it('a carried key the account’s history does not name is kept QUARANTINED, never bound (R6-10)', async () => {
+    const envelope = await createAndCapture();
+    historyMock.mockResolvedValue(history([]));
+    fetchMock.mockResolvedValueOnce(json(envelope));
+    await expect(oxy.identity.backup.restoreRetiredKeys(PHRASE)).resolves.toBe(1);
+    expect(mockRing.kept).toEqual([]);
+    expect(mockRing.quarantined).toEqual([
+      { privateKey: RETIRED, publicKey: KeyManager.derivePublicKey(RETIRED) },
+    ]);
+  });
+
+  it('a history that cannot be read keeps every carried key quarantined (R6-10)', async () => {
+    const envelope = await createAndCapture();
+    historyMock.mockResolvedValue(json({ error: 'down' }, 503));
+    fetchMock.mockResolvedValueOnce(json(envelope));
+    await expect(oxy.identity.backup.restoreRetiredKeys(PHRASE)).resolves.toBe(1);
+    expect(mockRing.kept).toEqual([]);
+    expect(mockRing.quarantined).toHaveLength(1);
+  });
+
+  it('seals only under the account’s CURRENT key: a stale phrase uploads nothing (R6-9)', async () => {
+    historyMock.mockResolvedValue(
+      json({ publicKey: KeyManager.derivePublicKey(RETIRED), retired: [] }),
+    );
+    await expect(oxy.identity.backup.create(PHRASE)).rejects.toThrow('not the current key');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('the owed flag stays when the upload is not confirmed (R6-9)', async () => {
+    jest.spyOn(KeyManager, 'backupOwedFor').mockResolvedValue('me');
+    const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
+    fetchMock
+      .mockResolvedValueOnce(json({ error: 'not found' }, 404))
+      .mockRejectedValueOnce(new Error('network request failed'));
+    await expect(oxy.identity.backup.create(PHRASE)).rejects.toBeDefined();
+    expect(clear).not.toHaveBeenCalled();
+  });
+
+  describe('a backup a rotation kept as superseded (R6-8)', () => {
+    it('is never restored as THE identity', async () => {
+      const envelope = await createAndCapture();
+      const importKeyPair = jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue('restored');
+      fetchMock.mockResolvedValueOnce(json({ ...envelope, superseded: true }));
+      await expect(oxy.identity.backup.restore(PHRASE)).rejects.toThrow('was replaced');
+      expect(importKeyPair).not.toHaveBeenCalled();
+    });
+
+    it('gives back its own key with the keys it carried, bound when the history names them', async () => {
+      const envelope = await createAndCapture();
+      historyMock.mockResolvedValue(
+        json({
+          publicKey: KeyManager.derivePublicKey(PLANTED),
+          retired: [RETIRED, CURRENT_PRIVATE].map((key) => ({
+            publicKey: KeyManager.derivePublicKey(key),
+            retiredAt: '2026-11-01T00:00:00.000Z',
+          })),
+        }),
+      );
+      fetchMock.mockResolvedValueOnce(json({ ...envelope, superseded: true }));
+      await expect(oxy.identity.backup.restoreRetiredKeys(PHRASE)).resolves.toBe(2);
+      expect(mockRing.kept.map((key) => key.publicKey).sort()).toEqual(
+        [KeyManager.derivePublicKey(RETIRED), KeyManager.derivePublicKey(CURRENT_PRIVATE)].sort(),
       );
     });
   });

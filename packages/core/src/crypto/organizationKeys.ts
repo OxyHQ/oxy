@@ -47,8 +47,16 @@ import {
 } from '../utils/keychainAccessGroups';
 import { isAndroid, isIOS, isWeb } from '../utils/platform';
 import { registeredIdentitySignerStore } from './identitySigner';
-import { prepareKeychainAccess } from './keychainGroupMigration';
-import { getRetiredPrivateKey, retireIdentityKey } from './retiredKeys';
+import {
+  pendingOrganizationRevalidation,
+  prepareKeychainAccess,
+  settleOrganizationRevalidation,
+} from './keychainGroupMigration';
+import {
+  getRetiredPrivateKey,
+  quarantineRetiredIdentityKey,
+  retireIdentityKey,
+} from './retiredKeys';
 import {
   ORGANIZATION_ANDROID_KEYCHAIN_SERVICE as ANDROID_KEYCHAIN_SERVICE,
   ORGANIZATION_INDEX_KEYCHAIN_SERVICE as INDEX_KEYCHAIN_SERVICE,
@@ -419,6 +427,78 @@ export async function adoptOrganizationKeyFromRing(
   if (!privateKey) return false;
   await storeOrganizationKey(accountId, { privateKey, publicKey });
   return true;
+}
+
+/**
+ * What Commons reads to re-validate a held organization pair: the
+ * organization's published key (`oxy.accounts.identityKey.get(accountId)`).
+ */
+export type OrganizationPublishedKeyReader = (
+  accountId: string,
+) => Promise<{ publicKey: string | null }>;
+
+/**
+ * Commons, iOS (security review R6-3): check every organization pair a `v: 1`
+ * access-group migration may have adopted without provenance against the key
+ * the organization PUBLISHES. Core 7.32 adopted organization pairs from the
+ * shared keychain group, which every Oxy app can write. A pair equal to the
+ * published key stays. Any other pair (the organization publishes a different
+ * key, or none) is kept QUARANTINED in that organization's ring, read back,
+ * and only then removed as the live pair (its index entry and Android mirror
+ * too; a phrase stays where only Commons reads it), so the wallet never
+ * derives from it; `claimRetiredOrganizationKeys` binds it later if the
+ * organization's history names it. An organization whose key cannot be read
+ * now (offline, not an owner or admin) stays pending for a later launch. Call
+ * at launch, before `bindQuarantinedOrganizationKeys`. Resolves how many pairs
+ * it quarantined. No-op elsewhere.
+ */
+export async function revalidateHeldOrganizationKeys(
+  readPublished: OrganizationPublishedKeyReader,
+): Promise<number> {
+  if (!isIOS()) return 0;
+  let quarantined = 0;
+  for (const accountId of await pendingOrganizationRevalidation()) {
+    if (!isOrganizationAccountId(accountId)) {
+      await settleOrganizationRevalidation(accountId);
+      continue;
+    }
+    let published: string | null;
+    try {
+      const answer = (await readPublished(accountId)).publicKey;
+      published = answer ? normalizeSecp256k1PublicKey(answer.trim()) : null;
+    } catch {
+      continue;
+    }
+    const store = await pairStore();
+    const held = await heldPrivateKey(store, accountId);
+    const heldPublic = held ? deriveSecp256k1PublicKey(held) : null;
+    if (held && heldPublic && heldPublic !== published) {
+      await quarantineRetiredIdentityKey(
+        { privateKey: held, publicKey: heldPublic },
+        { accountId },
+      );
+      await removeLivePair(accountId);
+      quarantined += 1;
+    }
+    await settleOrganizationRevalidation(accountId);
+  }
+  return quarantined;
+}
+
+/** Remove an organization's live pair, its Android mirror and its index entry; its phrase stays. */
+async function removeLivePair(accountId: string): Promise<void> {
+  const index = await indexStore();
+  const ids = await readIndex(index);
+  const store = await pairStore();
+  const options = pairOptions(store, false);
+  await store.deleteItemAsync(privateKeyName(accountId), options);
+  await store.deleteItemAsync(publicKeyName(accountId), options);
+  const signer = isAndroid() ? registeredIdentitySignerStore() : null;
+  await signer?.clearOrganization?.(accountId);
+  await writeIndex(
+    index,
+    ids.filter((id) => id !== accountId),
+  );
 }
 
 /** Forget an organization key on this device: its pair, its phrase, its signer copy and its index entry. */

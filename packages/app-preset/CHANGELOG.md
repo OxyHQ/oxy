@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.5.0
+
+### Security
+
+- **Signed builds are checked, not only prebuild output (security review R6-15).** `oxy-check-keychain-entitlements <bundle id> <path>` accepts a signed `.app`, `.xcarchive` or `.ipa`: it runs `codesign -d --entitlements - --xml` (macOS) on the app and on every extension it embeds (`PlugIns/*.appex`, `Extensions/*.appex`) and judges each under the bundle id and team its OWN signature names (`application-identifier`, `com.apple.developer.team-identifier`); the app must be signed as the bundle id asked about, and `--team-id` is refused there (the signature says it). Run it on every iOS archive before upload (oxy `docs/engineering/build-and-deploy.md`).
+- **Bundle ids are compared without case, as Apple does.** A holder id in another case (`So.Oxy.Commons`, `TO.PEABLE.APP`) is refused as a misspelled holder instead of being judged as "every other app".
+
 ## 6.4.0
 
 ### Security

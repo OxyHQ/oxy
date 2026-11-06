@@ -522,10 +522,13 @@ export async function deleteThroughPlan(
  * What a Commons secret write does with a DIFFERENT copy of the same item it
  * finds in the shared group (R5-3): keep it (the access-group migration
  * registers this; it retires a valid key or phrase QUARANTINED into the ring
- * and reads it back) and resolve, or throw. Never consulted for a copy equal
- * to the value written. @internal
+ * and reads it back) and resolve `true`, then the shared copy is deleted; or
+ * resolve `false` when it may not keep it now (the ring's quarantine is full,
+ * R6-14), and the shared copy is LEFT where it is, never lost; or throw, which
+ * fails the write. Never consulted for a copy equal to the value written.
+ * @internal
  */
-export type SharedCopyKeeper = (name: KeychainItemName, value: string) => Promise<void>;
+export type SharedCopyKeeper = (name: KeychainItemName, value: string) => Promise<boolean>;
 
 let sharedCopyKeeper: SharedCopyKeeper | null = null;
 
@@ -534,14 +537,17 @@ export function setSharedCopyKeeper(keeper: SharedCopyKeeper | null): void {
   sharedCopyKeeper = keeper;
 }
 
-/** Hand a shared copy to the keeper; with none registered, refuse (the caller's write or delete fails). */
-async function keepSharedCopy(name: KeychainItemName, value: string): Promise<void> {
+/**
+ * Hand a shared copy to the keeper; with none registered, refuse (the caller's
+ * write or delete fails). Resolves whether the shared copy may be deleted.
+ */
+async function keepSharedCopy(name: KeychainItemName, value: string): Promise<boolean> {
   if (!sharedCopyKeeper) {
     throw new Error(
       'A copy of this item is in the shared keychain group and nothing can keep it; not changing it.',
     );
   }
-  await sharedCopyKeeper(name, value);
+  return sharedCopyKeeper(name, value);
 }
 
 let noInteractionReader: Promise<KeychainReadWithoutInteraction | null> | null = null;
@@ -571,6 +577,18 @@ export async function readSharedWithoutInteraction(
   return (await store.getItemAsync(key, { ...options, ...shared })) ?? null;
 }
 
+/** How {@link groupedKeychainStore} treats the shared group. */
+export interface GroupedKeychainStoreOptions {
+  /**
+   * Items that never lived in the shared group (the retired ring, R6-12):
+   * read, written and deleted in the item's own group ONLY. No read falls back
+   * to the shared group (whatever the wallet's pre-migration fallback says),
+   * and no write or delete looks at a copy there. Every Oxy app can write the
+   * shared group, so a "ring item" found there is never one Commons wrote.
+   */
+  ownGroupOnly?: boolean;
+}
+
 /**
  * `store` with every call routed to `item`'s groups for this app: reads walk
  * the read plan (evaluated per read; the shared group only through
@@ -591,15 +609,32 @@ export function groupedKeychainStore<S extends KeychainStoreLike>(
   store: S,
   access: KeychainAccess,
   item: KeychainItemClass,
+  options: GroupedKeychainStoreOptions = {},
 ): S {
+  if (
+    access.mode === 'grouped' &&
+    access.variant &&
+    access.role !== 'member' &&
+    item === 'shared'
+  ) {
+    return devHolderSharedStore(store);
+  }
+  const ownOnly = options.ownGroupOnly === true && access.mode === 'grouped';
   const sharedGroup =
     access.mode === 'grouped' ? option(keychainAccessGroupValue(access, 'shared')) : null;
   const sharedCopy =
     access.mode === 'grouped' &&
     !access.variant &&
+    !ownOnly &&
     (item === 'identity-secret' || item === 'spending-key')
       ? sharedGroup
       : null;
+  const readPlan = (name: KeychainItemName): KeychainGroupOption[] =>
+    ownOnly
+      ? keychainReadPlan(access, item, name).slice(0, 1)
+      : keychainReadPlan(access, item, name);
+  const deletePlan = (): KeychainGroupOption[] =>
+    ownOnly ? keychainDeletePlan(access, item).slice(0, 1) : keychainDeletePlan(access, item);
   const isShared = (group: KeychainGroupOption) =>
     sharedGroup?.accessGroup !== undefined && group.accessGroup === sharedGroup.accessGroup;
   const nameOf = (key: string, options: object | undefined): KeychainItemName => {
@@ -608,7 +643,7 @@ export function groupedKeychainStore<S extends KeychainStoreLike>(
   };
   const wrapped: KeychainStoreLike = {
     getItemAsync: async (key, options) => {
-      for (const group of keychainReadPlan(access, item, nameOf(key, options))) {
+      for (const group of readPlan(nameOf(key, options))) {
         const value = isShared(group)
           ? await readSharedWithoutInteraction(store, key, options ?? {}, group)
           : await store.getItemAsync(key, { ...(options ?? {}), ...group });
@@ -626,8 +661,8 @@ export function groupedKeychainStore<S extends KeychainStoreLike>(
       if (sharedCopy) {
         const existing = await readSharedWithoutInteraction(store, key, rest, sharedCopy);
         if (existing !== null) {
-          if (existing !== value) await keepSharedCopy(nameOf(key, options), existing);
-          clearShared = true;
+          clearShared =
+            existing === value || (await keepSharedCopy(nameOf(key, options), existing));
         }
       }
       await store.setItemAsync(key, value, { ...(options ?? {}), ...group });
@@ -643,10 +678,32 @@ export function groupedKeychainStore<S extends KeychainStoreLike>(
           unknown
         >;
         const existing = await readSharedWithoutInteraction(store, key, rest, sharedCopy);
-        if (existing !== null) await keepSharedCopy(nameOf(key, options), existing);
+        if (existing !== null && !(await keepSharedCopy(nameOf(key, options), existing))) {
+          // Not kept (the quarantine is full): the shared copy stays, never lost.
+          await deleteThroughPlan(store, key, options ?? {}, deletePlan().slice(0, 1));
+          return;
+        }
       }
-      await deleteThroughPlan(store, key, options ?? {}, keychainDeletePlan(access, item));
+      await deleteThroughPlan(store, key, options ?? {}, deletePlan());
     },
+  };
+  return Object.assign(Object.create(store) as S, wrapped);
+}
+
+/**
+ * The `shared` item store of a DEVELOPMENT Commons or Peable wallet (security
+ * review round 6). The shared group has no dev variant: it is production's,
+ * and every Oxy app on the phone reads its public key there. A dev build signs
+ * in against a dev server with a dev identity, so its public key must never
+ * land where production apps read the person's. Writes and deletes do
+ * nothing; reads answer `null` (a money holder derives its public key from its
+ * own private key, R5-1). The device-session slot does not go through here.
+ */
+function devHolderSharedStore<S extends KeychainStoreLike>(store: S): S {
+  const wrapped: KeychainStoreLike = {
+    getItemAsync: async () => null,
+    setItemAsync: async () => undefined,
+    deleteItemAsync: async () => undefined,
   };
   return Object.assign(Object.create(store) as S, wrapped);
 }

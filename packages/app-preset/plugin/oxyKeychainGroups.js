@@ -133,11 +133,27 @@ function keychainEntries(groups) {
 }
 
 /**
+ * The holder id `bundleId` names, compared as Apple compares bundle ids:
+ * WITHOUT case (security review R6-15). App Store Connect and the developer
+ * portal treat `So.Oxy.Commons` and `so.oxy.commons` as the same identifier,
+ * so a case variant is never "every other app"; it is a holder spelled
+ * differently, which `assertOxyKeychainGroups` refuses.
+ * @param {string|undefined} bundleId
+ * @returns {string|undefined}
+ */
+function holderIdOf(bundleId) {
+  if (typeof bundleId !== 'string') return undefined;
+  const lower = bundleId.toLowerCase();
+  return Object.keys(HOLDER_LAYOUTS).find((id) => id === lower);
+}
+
+/**
  * The groups this app should list: its holder layout, or the shared group.
  * @param {string|undefined} bundleId
  */
 function keychainGroupsFor(bundleId) {
-  return Object.hasOwn(HOLDER_LAYOUTS, bundleId ?? '') ? [...HOLDER_LAYOUTS[bundleId]] : [G.shared];
+  const holder = holderIdOf(bundleId);
+  return holder === undefined ? [G.shared] : [...HOLDER_LAYOUTS[holder]];
 }
 
 function refuse(message) {
@@ -159,7 +175,8 @@ function pinnedEntry(name, teamId) {
  */
 function allowedKeychainLayouts(bundleId) {
   const layouts = [[], [G.shared]];
-  if (Object.hasOwn(HOLDER_LAYOUTS, bundleId ?? '')) layouts.push(HOLDER_LAYOUTS[bundleId]);
+  const holder = holderIdOf(bundleId);
+  if (holder !== undefined) layouts.push(HOLDER_LAYOUTS[holder]);
   return layouts;
 }
 
@@ -181,6 +198,14 @@ function assertOxyKeychainGroups(bundleId, entries, options = {}) {
   // even when its entitlements omit keychain-access-groups altogether.
   if (typeof bundleId === 'string' && restrictedGroup(bundleId) !== undefined) {
     refuse(`${bundleId} is reserved for an Oxy restricted keychain group, not an app bundle id`);
+  }
+  // Apple compares bundle ids without case (R6-15): a holder's id in another
+  // case is the holder misspelled, never a different app.
+  const holder = holderIdOf(bundleId);
+  if (holder !== undefined && holder !== bundleId) {
+    refuse(
+      `${bundleId} must be spelled exactly "${holder}" (bundle ids are compared without case)`,
+    );
   }
   if (entries === undefined || entries === null) return;
   const app = bundleId ?? 'This app';

@@ -8,16 +8,49 @@ import { reconcileRetiredRing } from '@/hooks/identity/retiredRing';
 
 jest.mock('@oxy.so/core/crypto', () => ({
   claimRetiredIdentityKeys: jest.fn().mockResolvedValue(0),
+  listRetiredIdentityKeys: jest.fn().mockResolvedValue([{ publicKey: 'A-old', retiredAt: 0 }]),
+  KeyManager: { canonicalPublicKey: (key: string) => key },
   syncRetiredKeys: jest.fn().mockResolvedValue(0),
   unmirrorPersonalRetiredKeys: jest.fn().mockResolvedValue(undefined),
 }));
 
-function client(keyHistory: jest.Mock): OxyServices {
-  return { identity: { keyHistory } } as unknown as OxyServices;
+function client(
+  keyHistory: jest.Mock,
+  claimQuarantinedKeys: jest.Mock = jest.fn(async (history: unknown) => history),
+): OxyServices {
+  return { identity: { keyHistory, claimQuarantinedKeys } } as unknown as OxyServices;
 }
 
 describe('retired ring session ownership', () => {
   beforeEach(() => jest.clearAllMocks());
+
+  it('binds the keys Oxy proved for this account from its own records (R6-5)', async () => {
+    const claim = jest.fn(async () => ({
+      publicKey: 'A-key',
+      retired: [{ publicKey: 'A-old', retiredAt: '2026-01-01T00:00:00.000Z' }],
+    }));
+    await reconcileRetiredRing(
+      client(jest.fn().mockResolvedValue({ publicKey: 'A-key', retired: [] }), claim),
+      'A',
+      () => true,
+    );
+    expect(claim).toHaveBeenCalledWith({ publicKey: 'A-key', retired: [] });
+    expect(claimRetiredIdentityKeys).toHaveBeenCalledWith('A', ['A-key', 'A-old']);
+  });
+
+  it('still binds what the history names when asking Oxy fails', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await reconcileRetiredRing(
+      client(
+        jest.fn().mockResolvedValue({ publicKey: 'A-key', retired: [] }),
+        jest.fn().mockRejectedValue(new Error('offline')),
+      ),
+      'A',
+      () => true,
+    );
+    expect(claimRetiredIdentityKeys).toHaveBeenCalledWith('A', ['A-key']);
+    warn.mockRestore();
+  });
 
   it('ignores delayed history from the previous account and reconciles the new account', async () => {
     let release = () => {};

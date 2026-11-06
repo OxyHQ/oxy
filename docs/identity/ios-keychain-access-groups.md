@@ -62,7 +62,13 @@ Where it is checked:
   `create-oxy-app` app.
 - **Codesigned output**: `oxy-check-keychain-entitlements <bundle id>
   <entitlements file> --team-id <TEAMID>` over `codesign -d --entitlements -
-  --xml <app>`.
+  --xml <app>`, or (app-preset 6.5.0, security review R6-15) straight over a
+  signed `.app`, `.xcarchive` or `.ipa`: the checker runs `codesign` itself on
+  the app and every embedded extension and judges each under the id and team
+  its own signature names. iOS archives are built by hand, so this is a
+  release step on the Mac that archived the build, before upload
+  (`docs/engineering/build-and-deploy.md`). Bundle ids are compared without
+  case, as Apple does: a holder id in another case is refused.
 
 ## The finding, checked against the code
 
@@ -248,6 +254,32 @@ groups. That residual risk is the same on Android (Commons' certificate).
     later access (30 s, doubling, five per process) and on the next launch.
     Commons' own flags (`hooks/identity/identityStore.ts`) name its own groups
     (`ownKeychainItemPlan(access, 'every-oxy-app')`), never the shared one.
+- **Round 6 (core 7.38.0 and 7.39.0, services 14.14.0, app-preset 6.5.0,
+  Commons 1.11.0).**
+  - *A v1 record is swept again (R6-3).* The completion record carries its
+    sweep version. Core 7.32 (Commons 1.8, 1.9) wrote `v: 1` after adopting
+    nothing on a device without the marker (leaving the shared copies) or
+    after adopting organization pairs without provenance. A run that meets
+    `v: 1` sweeps the shared group as an unproven device does and lists every
+    organization this device holds a pair for; Commons re-validates each at
+    launch against the key the organization publishes
+    (`revalidateHeldOrganizationKeys`): an equal pair stays, any other is
+    quarantined in the organization's ring and removed as the live pair. Only
+    then is `v: 2` written.
+  - *Locked is not absent (R6-13).* The native no-interaction read throws on
+    `errSecInteractionNotAllowed` while protected data is unavailable, so a
+    run on a locked phone defers instead of settling without seeing the
+    shared copies.
+  - *The ring is never read from the shared group (R6-12)*, not even by the
+    Peable wallet before Commons' migration finished.
+  - *Bounds (R6-14).* A run looks at no more than 100 organizations (its own
+    index first); the ring keeps no more than 64 quarantined entries, past
+    which a shared copy is left where it is (never lost, never trusted) and
+    the run still settles.
+  - *No prompts in any app (R6-16).* The device-session slot is read through
+    `readSharedWithoutInteraction` (exported from `@oxy.so/core/session`, for
+    every reader of the shared group).
+  - *Dev builds* write no public key into the production shared group.
 - **App items.** `@oxy.so/services`' native SecureStore adapter and Peable's
   `kv-store` write an app's own items to its default group explicitly and read
   it first in Commons and the Peable wallet, because the split changed their

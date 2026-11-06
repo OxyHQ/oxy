@@ -594,3 +594,17 @@ test('restricted group names cannot be used as app bundle ids', () => {
     );
   }
 });
+
+test('a holder bundle id in another case is refused, never treated as another app (R6-15)', () => {
+  for (const id of ['So.Oxy.Commons', 'TO.PEABLE.APP', 'to.Peable.app.dev']) {
+    assert.throws(
+      () => assertOxyKeychainGroups(id, [`$(AppIdentifierPrefix)group.so.oxy.shared`]),
+      /must be spelled exactly/,
+    );
+  }
+  assert.deepEqual(keychainGroupsFor('so.oxy.commons'), [
+    'so.oxy.identity',
+    'so.oxy.wallet',
+    'group.so.oxy.shared',
+  ]);
+});

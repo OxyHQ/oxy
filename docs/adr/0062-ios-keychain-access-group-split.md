@@ -235,3 +235,24 @@ narrower mechanism:
 `@oxy.so/core` 7.34.0, `@oxy.so/protocol` 1.11.0, `@oxy.so/services` 14.11.0
 (native), Commons 1.10.0. Details: docs/identity/ios-keychain-access-groups.md
 "As implemented", round 5.
+
+## Amendment 2026-11-07 (round-6 review) — D4: a completion record says which sweep it ran
+
+- **R6-3.** The completion record carries its sweep version. A `v: 1` record
+  (core 7.32 wrote one after adopting nothing without a marker, or after
+  adopting organization pairs without provenance) makes the next run sweep
+  the shared group as an unproven device does and re-validate every held
+  organization pair against the key the organization publishes; only then is
+  the record `v: 2`.
+- **R6-13.** A locked keychain is never read as an absent item: the native
+  no-interaction read throws while protected data is unavailable, and the
+  run defers.
+- **R6-12, R6-14.** The retired ring is never read from the shared group; a
+  run's organizations and the ring's quarantine are bounded, and a key past
+  the bound stays where it is.
+- **R6-16.** Every read of the shared group, the device-session slot
+  included, goes through the read that never prompts.
+
+`@oxy.so/core` 7.38.0 and 7.39.0, `@oxy.so/services` 14.14.0 (native),
+`@oxy.so/app-preset` 6.5.0, Commons 1.11.0. Details:
+docs/identity/ios-keychain-access-groups.md "As implemented", round 6.

@@ -73,8 +73,12 @@ module.exports = {
     // migration and the .dev-only restricted groups of the dev variant;
     // 1.9.0 binds the retired ring to its owner; 1.10.0 reads the shared group
     // without prompts (@oxy.so/services' native no-interaction read) and keeps
-    // what it finds there quarantined.
-    version: '1.10.0',
+    // what it finds there quarantined; 1.11.0 sweeps the shared group again
+    // after a v1 migration record, re-validates organization pairs against the
+    // published key, asks Oxy to prove kept pre-history keys, never falls back
+    // to the shared group for the ring, defers on a locked keychain and writes
+    // no public key into the production shared group from a dev build.
+    version: '1.11.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /

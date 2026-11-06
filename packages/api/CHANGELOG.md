@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Security (round-6 review of the FairCoin identity receive)
+
+- **R6-5: a root replaced before the key history can be claimed.** `POST /identity/key-history/claim` (first-party device access, personal accounts) adds a key to `personal_identity_key_retirements` only when the caller signs with it AND Oxy's own records prove it was this account's identity key: verified, self-issued `signed_records` the account wrote with it (`services/personalKeyEvidence.ts`). Never a key that is any account's live root or identity key, an organization's, in another account's history, or shown by another account's records too. `scripts/backfill-personal-key-retirements.ts` (dry run by default, `--apply`; counts only) applies the same rules to every personal account: an owner step.
+- **R6-8: a rotation keeps a backup that carries retired keys.** `POST /auth/rotate/complete` marks a version-2 backup `superseded_at` (migration 0240, pre-deploy) instead of deleting it; version 1 is deleted as before. `GET /identity/backup/status` reads a superseded backup as none, `GET /identity/backup/:lookupId` serves it with `superseded: true`, an upload replaces it (a lower version is refused as before) and clears the mark.
+- **R6-9: a backup is sealed only under the current root.** `POST /identity/backup` answers 409 when `publicKeyHint` (16+ characters) is not the prefix of the account's current root, canonical spelling; an account without a root is not checked.
+
 ### Changed (the platform's own Settings changes the account's security)
 
 ADR 0058: an application token naming the platform's own application

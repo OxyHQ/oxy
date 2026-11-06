@@ -31088,6 +31088,140 @@
         "operationId": "getIdentityKeyHistory"
       }
     },
+    "/identity/key-history/claim": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "Add a root replaced before migration 0235 to the signed-in person's key history.",
+        "description": "The history (`personal_identity_key_retirements`) starts at migration 0235;\nthis adds an earlier one so Commons can bind the key it kept quarantined\n(security review R6-5). Two proofs, both required:\n\n- **possession**: `signature` is the key's signature over\n  `JSON.stringify({ action: 'claim_retired_identity_key', userId, publicKey,\n  timestamp })`, the rotation proofs' signing format, with `timestamp` within\n  five minutes;\n- **provenance from Oxy's own records**: `personalKeyEvidence` (verified,\n  self-issued signed records the account wrote with that key while it was\n  one of its current verification methods). A client's word is never one.\n\nAnswers the key history (200) once the key is in it, idempotently. The\naccount's live root: 409. Another account's retired root: 409. Anything the\nrecords do not prove, or that may never be a retired root of this account\n(another account's live key, an organization's): 404\n`IDENTITY_KEY_NOT_PROVEN`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The key history, now naming the key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "publicKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^04[0-9a-f]{128}$"
+                    },
+                    "retired": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "publicKey": {
+                            "type": "string",
+                            "pattern": "^04[0-9a-f]{128}$"
+                          },
+                          "retiredAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "publicKey",
+                          "retiredAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "publicKey",
+                    "retired"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicKey": {
+                    "type": "string",
+                    "pattern": "^04[0-9a-f]{128}$"
+                  },
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "publicKey",
+                  "signature",
+                  "timestamp"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "operationId": "postIdentityKeyHistoryClaim"
+      }
+    },
     "/identity/link": {
       "post": {
         "tags": [

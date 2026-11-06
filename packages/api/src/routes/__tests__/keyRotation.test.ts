@@ -403,6 +403,45 @@ describe('POST /auth/rotate/complete — happy path', () => {
     expect(vms.some((vm) => vm.publicKeyHex === oldPublicKey)).toBe(false);
   });
 
+  it('KEEPS a version-2 backup, marked superseded, instead of deleting it (R6-8)', async () => {
+    // A v2 backup carries the person's retired keys. An older client that
+    // rotates can only seal v1, which the upload refuses over a v2 row; deleting
+    // the v2 one here left the account with no off-device copy of those keys.
+    const lookupIdHash = `hash-${randomUUID()}`;
+    await getDb()
+      .insert(identityBackups)
+      .values({
+        userId: currentUserId,
+        lookupIdHash,
+        publicKeyHint: oldPublicKey.slice(0, 16),
+        ciphertext: 'deadbeef',
+        nonce: 'cafe',
+        algorithm: 'xchacha20poly1305',
+        kdfInfo: 'oxy-identity-backup',
+        version: 2,
+        clientCreatedAt: '2026-01-01T00:00:00.000Z',
+      });
+    const newKeyPair = generateSecp256k1KeyPair();
+    const challenge = await mintRotateChallenge();
+    const timestamp = Date.now();
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp }),
+    );
+    expect(res.status).toBe(200);
+    const [kept] = await getDb()
+      .select({
+        lookupIdHash: identityBackups.lookupIdHash,
+        supersededAt: identityBackups.supersededAt,
+      })
+      .from(identityBackups)
+      .where(eq(identityBackups.userId, currentUserId));
+    expect(kept?.lookupIdHash).toBe(lookupIdHash);
+    expect(kept?.supersededAt).toBeInstanceOf(Date);
+  });
+
   it('adds the identity row when the account had a key but no method row (legacy account)', async () => {
     await getDb()
       .delete(userAuthMethods)

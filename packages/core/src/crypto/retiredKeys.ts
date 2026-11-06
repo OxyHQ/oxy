@@ -56,6 +56,7 @@ import {
   normalizeSecp256k1PrivateKey,
   normalizeSecp256k1PublicKey,
 } from '@oxy.so/protocol/secp256k1';
+import { signMessage } from '@oxy.so/protocol/sign';
 import { logger } from '../logger';
 import { groupedKeychainStore, resolveKeychainAccess } from '../utils/keychainAccessGroups';
 import { isAndroid, isIOS, isWeb } from '../utils/platform';
@@ -131,7 +132,31 @@ async function ringStore(gate = true): Promise<ExpoSecureStoreLike> {
   const raw = await loadSecureStore();
   const access = await resolveKeychainAccess();
   if (gate) await prepareKeychainAccess(access);
-  return groupedKeychainStore(raw, access, 'spending-key');
+  // The ring never lived in the shared group (R6-12): no read falls back to
+  // it, not even the Peable wallet's before Commons' migration finished. Any
+  // Oxy app can write that group, so a ring index or key found there is never
+  // one Commons wrote.
+  return groupedKeychainStore(raw, access, 'spending-key', { ownGroupOnly: true });
+}
+
+/**
+ * How many QUARANTINED entries the ring keeps at most, personal and
+ * organization ones together (R6-14). Every Oxy app can write the shared
+ * group, and every valid key found there is kept quarantined (R5-3), so
+ * without a bound a planted shared group grows the ring (and the work of
+ * every reader and of Commons' launch-time claims) without end. A real phone
+ * holds a handful. Past the bound a new quarantined key is refused
+ * ({@link RetiredKeyQuarantineFullError}) and its shared copy is LEFT where it
+ * is: never lost, never trusted.
+ */
+export const MAX_QUARANTINED_RING_ENTRIES = 64;
+
+/** Thrown when the ring already holds {@link MAX_QUARANTINED_RING_ENTRIES} quarantined entries. */
+export class RetiredKeyQuarantineFullError extends Error {
+  constructor() {
+    super('retired key ring: the quarantine is full');
+    this.name = 'RetiredKeyQuarantineFullError';
+  }
 }
 
 /** The ring a selector names: `personal`, or the organization's account id. */
@@ -372,6 +397,29 @@ export async function retireIdentityKeyDuringMigration(
   await keepRetired(key, selector, false, options?.quarantine === true);
 }
 
+/**
+ * Keep `key` in `selector`'s ring QUARANTINED (security review R6-10): held,
+ * because it may be money, but reached by nobody until the account's own key
+ * history names it ({@link claimRetiredIdentityKeys} for the person,
+ * {@link claimRetiredOrganizationKeys} for an organization). Commons only. For
+ * a key whose owner nothing has proven yet: one an older identity left in a
+ * slot, one a backup carried that the history does not name, or an
+ * organization pair the organization does not publish. A key the ring already
+ * holds keeps its binding. Throws {@link RetiredKeyQuarantineFullError} past
+ * the bound.
+ */
+export async function quarantineRetiredIdentityKey(
+  key: RetiredKeyPair,
+  selector?: Pick<RetiredKeySelector, 'accountId'>,
+): Promise<void> {
+  await keepRetired(
+    key,
+    selector?.accountId === undefined ? {} : { accountId: selector.accountId },
+    true,
+    true,
+  );
+}
+
 async function keepRetired(
   key: RetiredKeyPair,
   selector: RetiredKeySelector | undefined,
@@ -396,6 +444,16 @@ async function keepRetired(
   const existing = before.find((entry) => entry.scope === scope && entry.publicKey === publicKey);
   if (existing?.owner !== undefined && owner !== null && existing.owner !== owner) {
     throw new Error('retired key: this key is kept for a different account');
+  }
+  // A NEW quarantined entry counts against the bound (R6-14); binding or
+  // re-keeping an entry the ring already has never does.
+  const entersQuarantine = scope === PERSONAL_SCOPE ? owner === null : orgQuarantine;
+  if (
+    !existing &&
+    entersQuarantine &&
+    before.filter(isQuarantined).length >= MAX_QUARANTINED_RING_ENTRIES
+  ) {
+    throw new RetiredKeyQuarantineFullError();
   }
   await store.setItemAsync(
     privateKeyName(scope, publicKey),
@@ -531,6 +589,45 @@ export async function listQuarantinedOrganizationKeys(): Promise<
   return (await readIndex(store))
     .filter((entry) => entry.scope !== PERSONAL_SCOPE && entry.quarantined === true)
     .map((entry) => ({ accountId: entry.scope, publicKey: entry.publicKey }));
+}
+
+/**
+ * The personal entries that are quarantined (no known owner), as public keys,
+ * oldest first. Commons asks Oxy to prove them for the signed-in account
+ * (`oxy.identity.claimQuarantinedKeys`, R6-5) and binds the ones the history
+ * then names. Empty where this app holds no ring. Strict: an unreadable ring
+ * throws.
+ */
+export async function listQuarantinedIdentityKeys(): Promise<string[]> {
+  if (!(await holdsRetiredRing())) return [];
+  const store = await ringStore();
+  return (await readIndex(store))
+    .filter((entry) => entry.scope === PERSONAL_SCOPE && entry.owner === undefined)
+    .map((entry) => entry.publicKey);
+}
+
+/**
+ * Sign `message` with a QUARANTINED personal key (R6-5): the possession half
+ * of `POST /identity/key-history/claim`, where Oxy binds the key to the
+ * signed-in account only when its own records prove the key was that
+ * account's root. Commons only. The private key never leaves this function;
+ * `null` when the ring holds no such quarantined key. @internal
+ */
+export async function signWithQuarantinedIdentityKey(
+  publicKey: string,
+  message: string,
+): Promise<string | null> {
+  const canonical = canonicalPublicKey(publicKey);
+  if (!canonical || isWeb()) return null;
+  await assertMayWrite();
+  const store = await ringStore();
+  const quarantined = (await readIndex(store)).some(
+    (entry) =>
+      entry.scope === PERSONAL_SCOPE && entry.owner === undefined && entry.publicKey === canonical,
+  );
+  if (!quarantined) return null;
+  const privateKey = await readRetiredStrict(canonical, PERSONAL_SCOPE);
+  return signMessage(message, privateKey);
 }
 
 /**
