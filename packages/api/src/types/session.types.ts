@@ -99,6 +99,15 @@ export interface SessionCreateOptions {
     deviceSessionId: string;
     deviceContextId: string;
   };
+  /**
+   * Never reuse an existing session: always mint a new one. A platform's own
+   * sign-in (ADR 0058) passes it, so a sign-in for an account already on the
+   * device REPLACES that account's session (the device's `addAccount` ends the
+   * one it displaces) instead of re-minting it: whatever the earlier sign-in
+   * handed out — the setup client's token — dies with it, and repeated online
+   * password checks never leave two sessions for one account.
+   */
+  freshSession?: boolean;
 }
 
 export interface SessionRefreshResult {

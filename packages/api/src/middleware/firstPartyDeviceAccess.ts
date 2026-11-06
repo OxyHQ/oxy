@@ -14,9 +14,15 @@
  * immediately, and an application row that has gone away must fail closed rather
  * than read as "unbound, therefore first-party". `application_id` is NULL for
  * every shared device session, so the ordinary path does no query at all.
+ *
+ * An application token a platform minted (ADR 0058, `req.oxyToken.host`) is
+ * refused too, with `app_token_device_access_denied`: it is a five-minute view
+ * of the shared session for ONE application, and the device's controls are the
+ * platform's.
  */
 
 import type { Response } from 'express';
+import { APP_TOKEN_DEVICE_ACCESS_DENIED } from '@oxy.so/contracts';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
@@ -27,6 +33,18 @@ import { logger } from '../utils/logger';
 
 export const requireFirstPartyDeviceAccess = asyncHandler(
   async (req: AuthRequest, res: Response, next: () => void) => {
+    // An APPLICATION token (ADR 0058) names one application on the shared
+    // session; the device is the platform's. No directory, switch, sign-out,
+    // add, state or background credential for it, whatever its application.
+    if (req.oxyToken?.host) {
+      logger.warn('device.lane.app_token_refused', {
+        platform: req.oxyToken.host.platform,
+        applicationId: req.oxyToken.host.applicationId,
+        path: req.path,
+      });
+      res.status(403).json({ error: APP_TOKEN_DEVICE_ACCESS_DENIED });
+      return;
+    }
     const applicationId = req.oxyToken?.applicationId;
     if (!applicationId) {
       next();

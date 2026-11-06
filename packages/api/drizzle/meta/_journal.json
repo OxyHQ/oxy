@@ -1646,6 +1646,27 @@
       "when": 1793960457222,
       "tag": "0235_personal_identity_key_retirements",
       "breakpoints": true
+    },
+    {
+      "idx": 236,
+      "version": "7",
+      "when": 1793991288974,
+      "tag": "0236_platform_held_session",
+      "breakpoints": true
+    },
+    {
+      "idx": 237,
+      "version": "7",
+      "when": 1793991330204,
+      "tag": "0237_platform_credential_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 238,
+      "version": "7",
+      "when": 1793991335461,
+      "tag": "0238_validate_platform_credentials",
+      "breakpoints": true
     }
   ]
 }

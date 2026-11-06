@@ -28,11 +28,30 @@
  * address two devices, and it is also the lookup index. A credential is not
  * account-scoped: it proves "this browser", and the browser is signed in to
  * whichever accounts its DeviceSession holds.
+ *
+ * ## Platform credentials (ADR 0058)
+ *
+ * `platform` and `platform_application_id` are set together, on the credential
+ * a platform that holds the Oxy session (OxyOS's `oxyos-accountd`, Astro) got
+ * from its own sign-in naming its application (`platformClient`). Only such a
+ * credential mints an application's token (`POST /session/device/app-token`),
+ * and an application token names it in its `host` claim, so deleting it ends
+ * every application token minted under it. The per-device cap never evicts it,
+ * and the browser bridge never issues one.
+ *
+ * `platform_application_id` CASCADE: the platform's own application. It is
+ * soft-deleted, so this fires only when its owning account is erased, and a
+ * platform credential of an application that no longer exists proves nothing.
  */
 
-import { index, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
+import { applications } from './applications';
 import { deviceSessions } from './deviceSessions';
+
+/** The platforms that hold the Oxy session (`@oxy.so/contracts` `PLATFORM_HOSTS`). */
+export const DEVICE_CREDENTIAL_PLATFORMS = ['oxyos', 'astro'] as const;
 
 export const deviceCredentials = pgTable(
   'device_credentials',
@@ -50,9 +69,22 @@ export const deviceCredentials = pgTable(
      * holders that stopped showing up.
      */
     lastUsedAt: timestamptz().notNull().defaultNow(),
+    /** The platform holding this credential, or NULL for an ordinary holder. */
+    platform: text({ enum: DEVICE_CREDENTIAL_PLATFORMS }),
+    /** The platform's own application (its `platformHost` registry entry). */
+    platformApplicationId: text().references(() => applications.id, { onDelete: 'cascade' }),
   },
   (t) => [
     unique('device_credentials_secret_hash_key').on(t.secretHash),
     index('device_credentials_device_session_id_idx').on(t.deviceSessionId),
+    index('device_credentials_platform_application_id_idx').on(t.platformApplicationId),
+    check(
+      'device_credentials_platform_check',
+      sql`${t.platform} is null or ${t.platform} in ('oxyos', 'astro')`,
+    ),
+    check(
+      'device_credentials_platform_application_check',
+      sql`(${t.platform} is null) = (${t.platformApplicationId} is null)`,
+    ),
   ],
 );

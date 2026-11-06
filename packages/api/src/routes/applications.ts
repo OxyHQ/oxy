@@ -1901,7 +1901,8 @@ router.delete(
 //
 // How Oxy recognises this application when it asks for an app assertion: its
 // exact web origins, its Android package and signing certificates, its iOS team
-// and bundle. Recognition is what an app assertion — and so an agent confined to
+// and bundle; and (ADR 0058) whether it is a platform that holds the Oxy
+// session, and the OxyOS desktop entry ids that launch it. Recognition is what an app assertion — and so an agent confined to
 // its application (ADR 0044) — rests on, so it is written only by Oxy staff, on
 // the same terms as the application's agents: staff AND `app:update`, refused
 // outright to anyone else. There is no other write path.
@@ -1925,9 +1926,15 @@ router.put(
   requireAppPermission('app:update'),
   asyncHandler(async (req: AppContextRequest, res) => {
     const application = requireApplication(req);
+    const write = req.body as ApplicationRecognitionWrite;
+    // A platform that holds the Oxy session (ADR 0058) is one of Oxy's own:
+    // its client id is what a platform credential is issued to.
+    if (write.platformHost && !isTrustedApplication(application)) {
+      throw new BadRequestError('Only an Oxy application may declare a platform host');
+    }
     const recognition = await writeApplicationRecognition({
       applicationId: application.id,
-      recognition: req.body as ApplicationRecognitionWrite,
+      recognition: write,
       staffUserId: requireUserId(req),
     });
     logger.info('Application recognition written', {
@@ -1936,6 +1943,8 @@ router.put(
       webOrigins: recognition.webOrigins.length,
       android: recognition.android !== null,
       ios: recognition.ios !== null,
+      platformHost: recognition.platformHost,
+      oxyosDesktopEntryIds: recognition.oxyosDesktopEntryIds.length,
     });
     res.json({ recognition });
   }),

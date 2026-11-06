@@ -36,6 +36,8 @@ export function classifyHolderBearer(
   const { token, payload } = verified;
   if (
     token.version !== 2 ||
+    // An application token (ADR 0058) is no holder's bearer.
+    token.host !== undefined ||
     token.applicationId !== null ||
     token.clientId !== null ||
     token.deviceSessionId === null ||

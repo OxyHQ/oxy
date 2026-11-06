@@ -143,6 +143,95 @@ export const generateSessionTokens = (binding: AccessTokenBinding) => {
   return { accessToken, refreshToken };
 };
 
+/** An application token lives five minutes (ADR 0058 2.3), `@oxy.so/contracts` `DEVICE_APP_TOKEN_TTL_SECONDS`. */
+export const HOST_ACCESS_TOKEN_TTL_SECONDS = 300;
+
+/** The platforms whose application tokens Oxy verifies (`@oxy.so/contracts` `PLATFORM_HOSTS`). */
+export type HostPlatform = 'oxyos' | 'astro';
+
+const HOST_PLATFORMS: readonly HostPlatform[] = ['oxyos', 'astro'];
+
+/**
+ * The `host` claim of an application token: the platform that vouched for the
+ * application, and the id of the platform credential it minted with.
+ */
+export interface HostTokenClaim {
+  platform: HostPlatform;
+  credential: string;
+}
+
+/**
+ * Mint an application's token (ADR 0058 2.3): a fresh access token of the
+ * SHARED session `binding` describes — the same `sub`, `act`, `sid`,
+ * `device_session_id` and `device_context_id` as the device's own token, so it
+ * lives and dies with that session — plus `azp` (the application's public
+ * client id) and `host`. Five minutes, a fresh `jti`, never stored on the row,
+ * no `scope` and no `deviceId` claim: the device is the platform's.
+ *
+ * `binding` must be a shared session's (no `clientId`, no scopes): an
+ * application-bound session is one application's already, and naming another
+ * on it would be the third-party isolation turned inside out.
+ */
+export function generateHostAccessToken(
+  binding: AccessTokenBinding,
+  application: { clientId: string },
+  host: HostTokenClaim,
+): { accessToken: string; expiresAt: Date } {
+  const accessSecret = process.env.ACCESS_TOKEN_SECRET;
+  if (!accessSecret) throw new Error('Token secrets are not configured (ACCESS_TOKEN_SECRET)');
+  if (binding.clientId || (binding.scopes && binding.scopes.length > 0)) {
+    throw new Error('An application token names an application on a SHARED session only');
+  }
+  if (!binding.deviceSessionId || !binding.deviceContextId) {
+    throw new Error('An application token needs a session bound to its device context');
+  }
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const expiresAt = issuedAt + HOST_ACCESS_TOKEN_TTL_SECONDS;
+  const accessToken = jwt.sign(
+    {
+      ver: ACCESS_TOKEN_VERSION,
+      iss: OXY_TOKEN_ISSUER,
+      sub: binding.subjectAccountId,
+      act: { sub: binding.principalUserId },
+      aud: [OXY_RESOURCE_SERVER],
+      azp: application.clientId,
+      host: { platform: host.platform, credential: host.credential },
+      sid: binding.sessionId,
+      device_session_id: binding.deviceSessionId,
+      device_context_id: binding.deviceContextId,
+      jti: crypto.randomUUID(),
+      // The two v1 claims `@oxy.so/core/server`'s decode-only middleware reads
+      // (see generateSessionTokens). No `deviceId`: an application token joins
+      // no device room and reaches no device route.
+      userId: binding.subjectAccountId,
+      sessionId: binding.sessionId,
+      type: 'access',
+      iat: issuedAt,
+      exp: expiresAt,
+    },
+    accessSecret,
+  );
+  return { accessToken, expiresAt: new Date(expiresAt * 1000) };
+}
+
+/**
+ * When an access token this server signed expires, read from its own `exp`
+ * (the token is ours; this does not verify it). `null` when it is not a JWT
+ * or carries no `exp`, which no token this server signs is.
+ */
+export function accessTokenExpiresAt(token: string): Date | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const payload: unknown = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    if (!payload || typeof payload !== 'object') return null;
+    const exp = (payload as { exp?: unknown }).exp;
+    return typeof exp === 'number' && Number.isFinite(exp) ? new Date(exp * 1000) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Decoded claims carried by the session access/refresh JWTs minted here.
  * Extends `JwtPayload` so the standard registered claims (`iat`, `exp`, …) and
@@ -164,6 +253,8 @@ export interface SessionTokenPayload extends jwt.JwtPayload {
   scope?: string;
   device_session_id?: string;
   device_context_id?: string;
+  /** Present only on an application token (ADR 0058). */
+  host?: unknown;
 }
 
 /**
@@ -300,6 +391,26 @@ export interface AccessTokenIdentity {
   deviceSessionId: string | null;
   deviceContextId: string | null;
   scopes: readonly string[];
+  /**
+   * Present only on an APPLICATION TOKEN a platform minted (ADR 0058), once
+   * Oxy has re-checked it live (`hostTokenAuthority.service.ts`): which
+   * application it is named for (`azp`) and which platform vouched for it.
+   * `applicationId`/`clientId` above stay the ROW's (NULL: the shared
+   * session), so nothing that reads them confuses a named shared session with
+   * an application's own.
+   */
+  host?: VerifiedHostToken;
+}
+
+/** An application token's `host`, verified against the registry and the platform credential. */
+export interface VerifiedHostToken {
+  platform: HostPlatform;
+  /** The platform credential (`device_credentials.id`) it was minted with. */
+  credentialId: string;
+  /** `azp`: the application's public client id. */
+  clientId: string;
+  /** The application `clientId` belongs to. */
+  applicationId: string;
 }
 
 /** Why a bearer was refused. Each value names one failed check. */
@@ -314,11 +425,43 @@ export type AccessTokenBindingFailure =
   | 'client_mismatch'
   | 'device_session_mismatch'
   | 'device_context_mismatch'
-  | 'scope_not_granted';
+  | 'scope_not_granted'
+  | 'host_mismatch'
+  | 'host_not_accepted';
+
+/** An application token's claims, checked against the row but not yet against the registry. */
+export interface PendingHostToken {
+  platform: HostPlatform;
+  credentialId: string;
+  clientId: string;
+  deviceSessionId: string;
+}
 
 export type AccessTokenBindingResult =
-  | { ok: true; identity: AccessTokenIdentity }
+  | {
+      ok: true;
+      identity: AccessTokenIdentity;
+      /**
+       * Set for an application token. The caller MUST verify it live
+       * (`verifyHostTokens`) before believing the bearer; only callers that
+       * pass `acceptHost` ever receive one.
+       */
+      host?: PendingHostToken;
+    }
   | { ok: false; reason: AccessTokenBindingFailure };
+
+function hostClaimOf(value: unknown): HostTokenClaim | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const { platform, credential, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length > 0) return null;
+  if (typeof platform !== 'string' || !HOST_PLATFORMS.includes(platform as HostPlatform)) {
+    return null;
+  }
+  if (typeof credential !== 'string' || credential.length === 0 || credential.length > 128) {
+    return null;
+  }
+  return { platform: platform as HostPlatform, credential };
+}
 
 /**
  * Whether a v1 access token is still accepted.
@@ -397,6 +540,7 @@ export function tokenBindingFromRow(
 export function checkAccessTokenBinding(
   payload: SessionTokenPayload,
   row: SessionTokenBindingRow,
+  options: { acceptHost?: boolean } = {},
 ): AccessTokenBindingResult {
   const rowIdentity: AccessTokenIdentity = {
     version: 1,
@@ -435,7 +579,33 @@ export function checkAccessTokenBinding(
     return { ok: false, reason: 'actor_mismatch' };
   }
 
-  if (claimString(payload.azp) !== row.clientId) return { ok: false, reason: 'client_mismatch' };
+  // An APPLICATION TOKEN (ADR 0058 2.4): `azp` on a SHARED session, accepted
+  // only together with `host`, and only by a caller that verifies `host` live.
+  // An `azp` without `host` on a shared session is still `client_mismatch`.
+  let host: PendingHostToken | undefined;
+  if (payload.host !== undefined) {
+    const claim = hostClaimOf(payload.host);
+    const azp = claimString(payload.azp);
+    if (
+      !claim ||
+      !azp ||
+      row.clientId !== null ||
+      row.applicationId !== null ||
+      row.deviceSessionId === null ||
+      payload.scope !== undefined
+    ) {
+      return { ok: false, reason: 'host_mismatch' };
+    }
+    if (!options.acceptHost) return { ok: false, reason: 'host_not_accepted' };
+    host = {
+      platform: claim.platform,
+      credentialId: claim.credential,
+      clientId: azp,
+      deviceSessionId: row.deviceSessionId,
+    };
+  } else if (claimString(payload.azp) !== row.clientId) {
+    return { ok: false, reason: 'client_mismatch' };
+  }
   if (claimString(payload.device_session_id) !== row.deviceSessionId) {
     return { ok: false, reason: 'device_session_mismatch' };
   }
@@ -464,5 +634,6 @@ export function checkAccessTokenBinding(
       deviceContextId: row.deviceContextId,
       scopes: claimed.length > 0 ? claimed : row.scopes,
     },
+    ...(host ? { host } : {}),
   };
 }

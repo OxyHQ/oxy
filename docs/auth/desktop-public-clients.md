@@ -1,39 +1,61 @@
 # Desktop public clients
 
-OxyOS uses the ordinary shared Oxy session through `OxyProvider`, and Alia's
-product SDK through `/v1`. Its Linux Tauri WebKit shell serves the bundled app
-at `tauri://localhost`. The public application seed registers this exact
-transport origin in `redirectUris`; it declares no scopes, workload identity,
-or `webOrigins`.
+OxyOS holds the person's Oxy session itself (ADR 0058). Its root service
+`oxyos-accountd` is the one holder of each enrolled account's credential, and
+the applications OxyOS launches hold none: they get five-minute tokens named for
+themselves from it, through the session host the OxyOS Bloom host registers for
+`OxyProvider`.
 
-CORS permits the browser to read a response. It does not prove that the caller
-is OxyOS, create a session, authorize another account, or convert an external
-application's isolated session into a shared one. The origin is not loopback
-under `isLoopbackOrigin`, and other custom schemes are not implicitly allowed.
-The registry's existing exact-origin normalization preserves the scheme and
-host instead of collapsing custom schemes to the URL object's opaque `null`.
+## The OxyOS registration
 
-App recognition remains separate. `POST /apps/assertions` refuses a web
-assertion for this registration because no web-recognition origin exists.
-There is no invented HTTPS origin, Android/iOS attestation, or desktop
-assertion protocol. Ordinary Alia accepts the person's verified session
-without an app assertion; an agent confined to a recognized application still
-requires its valid assertion.
+The canonical seed (`seedOxyApplicationsSpecs.ts`) registers `OxyOS` as a
+`first_party` application with a public client and:
 
-Alia's SDK uses `/v1` for chat and conversation operations. That public bearer
-API already admits browser origins without cookies. Its restricted internal
-`/alia/chat` route and shared `createOxyCors` helper are not expanded to accept
-opaque custom schemes. The retired shell-specific stream parser must not be
-used to bypass the SDK's route and session contract.
+- `platformHost: 'oxyos'`: a password sign-in naming this public client id as
+  `platformClient` (`POST /auth/signin/password`, completed by
+  `POST /auth/signin/second-factor`), with no web `Origin`, gets a PLATFORM
+  credential, and retires the device proof it presented;
+- no redirect URI, no `webOrigins`, no scopes, no workload identity. The login
+  screen signs in with the SDK's own dialog over native HTTP, with no web
+  origin, so there is nothing to redirect to. The `tauri://localhost` transport
+  origin of the retired Tauri WebKit shell is removed by the seed
+  (`retiredRedirectUris`).
 
-Deploy the seed before activating the shell. Run the existing seed dry-run
-and apply with `ONLY_APPS=OxyOS`, read back the public credential, and configure
-that real public client ID in the shell. Do not invent a client ID, create a
-server credential, or treat the public identifier as a secret. Windows and
-other Tauri targets require their actual origins to be reviewed separately;
-this registration covers the Linux distribution only.
+OxyOS's own Settings and shell mint as the platform's application
+(`attestation: { platform: 'oxyos', self: true }`). Every other application it
+ships is named by its desktop entry id, declared on that application's registry
+entry (`oxyosDesktopEntryIds`): `so.oxy.dropsea` (Dropsea), `so.oxy.atlas`
+(Atlas), `so.oxy.allo` (Allo), `so.oxy.inbox` (Oxy Inbox). An application
+OxyOS ships needs its entry id there before its token can be minted; an id names
+one application only, and only an Oxy (trusted) application is minted for.
 
-Tests cover the seed's public-client shape, the real registry's exact
-`tauri://localhost` decision, rejection of unrelated custom schemes, and the
-assertion endpoint's refusal of both a shared session's desktop recognition
-claim and an isolated session's attempt to claim another application.
+## What OxyOS configures
+
+`oxyos-accountd` takes OxyOS's public client id as `OXYOS_OXY_CLIENT_ID` (and the
+API as `OXYOS_OXY_API`). The id is public, not a secret: read it back from the
+seed workflow's `OXY_APP_MAPPING_JSON` (a dry run of `ONLY_APPS=OxyOS` prints it
+once it exists). Do not invent a client id, create a server credential, or treat
+the public identifier as a secret.
+
+## What the registration does not do
+
+CORS permits a browser to read a response; it proves nothing here, and OxyOS
+needs none. A platform credential is never issued to a request carrying a web
+`Origin` or `Sec-Fetch-Site`, and `POST /session/device/app-token` answers such a
+request `browser_not_allowed`. The platform cannot prove to Oxy which process
+asks; Oxy believes its attestation because the platform already holds the
+device credential, and the application's token is strictly less (ADR 0058 2.8).
+
+App recognition: an application token proves its own application on the
+`oxyos` lane of `POST /apps/assertions` (the bearer is the proof), so an agent
+confined to that application accepts it. The device's own token proves no
+application there.
+
+Windows, macOS and other desktop targets are not covered: Astro registers
+`platformHost: 'astro'` when its step of ADR 0058 lands, and any other desktop
+client is reviewed on its own.
+
+Tests: `routes/__tests__/platformAppTokens.db.test.ts` (the platform sign-in,
+the mint, its refusals, verification and revocation, the `oxyos` assertion lane),
+`scripts/__tests__/seedOxyApplicationsSpecs.test.ts` (the OxyOS registration
+and the desktop entry ids).

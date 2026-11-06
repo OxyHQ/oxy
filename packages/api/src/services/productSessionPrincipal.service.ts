@@ -23,7 +23,11 @@
  *    with a per-person bound that accepts it (`sharedSessionAttribution`,
  *    ADR 0050 option b). The public id names an application; it proves
  *    nothing, so the terms' caps are the bound, as they would be for any
- *    desktop client.
+ *    desktop client;
+ *  - for an APPLICATION TOKEN a platform minted (ADR 0058), its `azp`, which
+ *    validation re-checked against the registry and the platform credential —
+ *    only when the terms accept `'platform'`. A presented client id must be
+ *    that same one.
  *
  * The payer is that application's owner, read live. The person is the
  * session's subject account and is attribution only (ADR 0007).
@@ -40,7 +44,10 @@
 
 import type { GrantOperation } from '@kaana.ai/contracts/internal';
 import { and, eq } from 'drizzle-orm';
-import { resolveEconomicTreatment } from '../config/inferenceEconomicPolicy';
+import {
+  resolveEconomicTreatment,
+  type SharedSessionAttribution,
+} from '../config/inferenceEconomicPolicy';
 import { getDb } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import { applications } from '../db/schema/applications';
@@ -114,12 +121,19 @@ export async function authenticateProductSession(
   const identity = validation.token;
 
   const shared = identity.applicationId === null;
-  if (shared && presented.clientId === undefined) return unattributable('session_unbound');
+  // An application token (ADR 0058) names its application by `azp`, which
+  // validation re-checked against the registry and the platform credential.
+  // A client id presented beside it must be that same one.
+  const host = shared ? (identity.host ?? null) : null;
+  if (host && presented.clientId !== undefined && presented.clientId !== host.clientId) {
+    return unattributable('session_client_mismatch');
+  }
+  if (shared && !host && presented.clientId === undefined) return unattributable('session_unbound');
   if (!shared && identity.clientId === null) return unattributable('session_unbound');
   if (!shared && presented.clientId !== undefined && presented.clientId !== identity.clientId) {
     return unattributable('session_client_mismatch');
   }
-  const clientId = shared ? presented.clientId : identity.clientId;
+  const clientId = host ? host.clientId : shared ? presented.clientId : identity.clientId;
   if (clientId === undefined || clientId === null) return unattributable('session_unbound');
 
   const [row] = await getDb()
@@ -165,7 +179,7 @@ export async function authenticateProductSession(
     applicationType: row.type,
     applicationIsInternal: row.isInternal,
   };
-  if (shared && !acceptsSharedSession(facts, operation)) {
+  if (shared && !acceptsSharedSession(facts, operation, host ? 'platform' : 'public_client_id')) {
     return unattributable('shared_session_not_accepted');
   }
   if (await isSupervised(row.ownerAccountId)) {
@@ -200,13 +214,14 @@ export async function authenticateProductSession(
 function acceptsSharedSession(
   facts: Parameters<typeof resolveEconomicTreatment>[0],
   operation: GrantOperation | undefined,
+  via: SharedSessionAttribution,
 ): boolean {
   if (operation === undefined) return false;
   const economics = resolveEconomicTreatment(facts, operation);
   return (
     economics.treatment === 'internal_metered' &&
     economics.relationship.lane === 'product_session' &&
-    economics.relationship.sharedSessionAttribution === 'public_client_id' &&
+    (economics.relationship.sharedSessionAttribution ?? []).includes(via) &&
     economics.relationship.capacity.maxRequestsPerUserPerUtcDay !== undefined
   );
 }

@@ -101,6 +101,7 @@ const REFUSAL_STATUS: Record<AppAssertionErrorCode, 400 | 403 | 409 | 503> = {
   attestation_invalid: 403,
   assertion_invalid: 403,
   signing_unavailable: 503,
+  app_token_mismatch: 403,
 };
 
 const REFUSAL_MESSAGE: Record<AppAssertionErrorCode, string> = {
@@ -117,6 +118,8 @@ const REFUSAL_MESSAGE: Record<AppAssertionErrorCode, string> = {
   attestation_invalid: 'The App Attest attestation does not verify',
   assertion_invalid: 'The App Attest assertion does not verify',
   signing_unavailable: 'Oxy cannot sign app assertions right now',
+  app_token_mismatch:
+    'Only an application token this platform minted for this application proves it, and an application token proves only its own application and platform',
 };
 
 export class AppAssertionRefusal extends Error {
@@ -136,6 +139,13 @@ export interface AppAssertionCaller {
   readonly sessionId: string;
   /** The application the session belongs to; NULL is the shared session every official app uses. */
   readonly sessionApplicationId: string | null;
+  /**
+   * Set when the bearer is an application token a platform minted (ADR 0058),
+   * already verified live: the application it names and that platform. It is
+   * the whole proof of the `oxyos` and `astro` lanes, and it limits the bearer
+   * to assertions for that application and platform.
+   */
+  readonly host?: { readonly platform: 'oxyos' | 'astro'; readonly applicationId: string } | null;
 }
 
 export interface AppAssertionDependencies {
@@ -202,11 +212,17 @@ export function appAssertionRequestHash(input: {
     .digest('base64url');
 }
 
-/** Step 1: the application is active, the session may speak for it, and it declares the platform. */
+/**
+ * Step 1: the application is active, the session may speak for it, and it
+ * declares the platform. An application token (ADR 0058) speaks only for its
+ * own application on its own platform, and on `oxyos`/`astro` it is required:
+ * the platform recognised the application when it minted the token, and Oxy
+ * re-checked that token's application and platform credential on this request.
+ */
 async function recognitionFor(
   caller: AppAssertionCaller,
   applicationId: string,
-  platform: 'web' | 'android' | 'ios',
+  platform: AppAssertionRequest['platform'],
 ): Promise<ApplicationRecognition> {
   const [application] = await getDb()
     .select({ status: applications.status })
@@ -217,13 +233,23 @@ async function recognitionFor(
   if (caller.sessionApplicationId !== null && caller.sessionApplicationId !== applicationId) {
     throw new AppAssertionRefusal('session_other_application');
   }
+  const host = caller.host ?? null;
+  const hostLane = platform === 'oxyos' || platform === 'astro';
+  if (
+    (hostLane || host !== null) &&
+    (host === null || host.platform !== platform || host.applicationId !== applicationId)
+  ) {
+    throw new AppAssertionRefusal('app_token_mismatch');
+  }
   const recognition = await readApplicationRecognition(applicationId);
   const declared =
     platform === 'web'
       ? recognition.webOrigins.length > 0
       : platform === 'android'
         ? recognition.android !== null
-        : recognition.ios !== null;
+        : platform === 'ios'
+          ? recognition.ios !== null
+          : true;
   if (!declared) throw new AppAssertionRefusal('platform_not_registered');
   return recognition;
 }
@@ -510,9 +536,10 @@ export async function issueAppAssertion(
     if (!registered) throw new AppAssertionRefusal('origin_not_registered');
   } else if (request.platform === 'android') {
     await proveAndroid(caller, request, recognition, deps);
-  } else {
+  } else if (request.platform === 'ios') {
     await proveIos(caller, request, recognition, deps);
   }
+  // `oxyos` / `astro`: the application token checked in step 1 is the proof.
 
   let signing: ReturnType<AppAssertionDependencies['signing']>;
   try {

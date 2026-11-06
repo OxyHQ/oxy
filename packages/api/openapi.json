@@ -6723,6 +6723,26 @@
                       "bundleId"
                     ],
                     "additionalProperties": false
+                  },
+                  "platformHost": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "oxyos",
+                      "astro",
+                      null
+                    ]
+                  },
+                  "oxyosDesktopEntryIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$",
+                      "maxLength": 255
+                    },
+                    "maxItems": 20
                   }
                 },
                 "required": [
@@ -8303,7 +8323,7 @@
           "Developer"
         ],
         "summary": "An Oxy-signed assertion of which app this is",
-        "description": "ADR 0045. Returns a five-minute `OXY-APP+JWT` (EdDSA, published at `/capabilities/.well-known/jwks.json`) with `iss`, `aud: oxy-apps`, `sub` (the person), `sid` (the session), `app` (the application), `platform`, `iat`, `exp` and `jti`. Send it as `X-Oxy-App-Assertion`. web: the request's `Origin` must be one of the application's web origins. android: a Play Integrity token over the `requestHash` of an `assertion` challenge, whose verdict names the registered package, a registered signing certificate and `PLAY_RECOGNIZED`. ios: an App Attest assertion over that `requestHash` with a registered key, its counter moving forward. A challenge is spent before the proof is verified, so a proof cannot be replayed.",
+        "description": "ADR 0045. Returns a five-minute `OXY-APP+JWT` (EdDSA, published at `/capabilities/.well-known/jwks.json`) with `iss`, `aud: oxy-apps`, `sub` (the person), `sid` (the session), `app` (the application), `platform`, `iat`, `exp` and `jti`. Send it as `X-Oxy-App-Assertion`. web: the request's `Origin` must be one of the application's web origins. oxyos, astro (ADR 0058): the bearer must be an application token that platform minted for this application; it is the whole proof. An application token gets an assertion for its own application and platform only. android: a Play Integrity token over the `requestHash` of an `assertion` challenge, whose verdict names the registered package, a registered signing certificate and `PLAY_RECOGNIZED`. ios: an App Attest assertion over that `requestHash` with a registered key, its counter moving forward. A challenge is spent before the proof is verified, so a proof cannot be replayed.",
         "security": [
           {
             "bearerAuth": []
@@ -8329,7 +8349,9 @@
                       "platform": {
                         "type": "string",
                         "enum": [
-                          "web"
+                          "web",
+                          "oxyos",
+                          "astro"
                         ]
                       }
                     }
@@ -8440,7 +8462,9 @@
                       "enum": [
                         "web",
                         "android",
-                        "ios"
+                        "ios",
+                        "oxyos",
+                        "astro"
                       ]
                     },
                     "expiresAt": {
@@ -8456,7 +8480,7 @@
             "description": "No session bearer."
           },
           "403": {
-            "description": "`application_unavailable`, `session_other_application`, `platform_not_registered`, `origin_not_registered`, `challenge_invalid`, `integrity_refused`, `attest_key_unknown` or `assertion_invalid`."
+            "description": "`application_unavailable`, `session_other_application`, `platform_not_registered`, `origin_not_registered`, `challenge_invalid`, `integrity_refused`, `attest_key_unknown`, `assertion_invalid` or `app_token_mismatch`."
           },
           "503": {
             "description": "`integrity_unconfigured`, `integrity_unavailable` or `signing_unavailable`."
@@ -72676,6 +72700,274 @@
           }
         ],
         "operationId": "postSessionDeviceAdd"
+      }
+    },
+    "/session/device/app-token": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "An application's token, minted with a platform credential (ADR 0058 2.2).",
+        "description": "Public like `/token`: no bearer, possession of a PLATFORM credential is the\nproof, and it answers only a request with no browser context, a platform's\nown native service (`oxyos-accountd`, Astro's browser process), never a page.\nThe checks and their order are `services/platformAppToken.service.ts`'s; a\nwrong secret counts toward the same per-device lockout as `/token`. Each\nmint is logged with the platform, the platform credential, the application\nand the device — never the account, the secret or an IP.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The application's token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "accessToken": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "applicationId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "accountId": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "accessToken",
+                        "expiresAt",
+                        "applicationId",
+                        "accountId"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_request`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_request",
+                        "browser_not_allowed",
+                        "invalid_device_secret",
+                        "application_not_recognised",
+                        "no_active_session",
+                        "account_not_on_device"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_device_secret`, `no_active_session` or `account_not_on_device`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_request",
+                        "browser_not_allowed",
+                        "invalid_device_secret",
+                        "application_not_recognised",
+                        "no_active_session",
+                        "account_not_on_device"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`browser_not_allowed` or `application_not_recognised`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_request",
+                        "browser_not_allowed",
+                        "invalid_device_secret",
+                        "application_not_recognised",
+                        "no_active_session",
+                        "account_not_on_device"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; Retry-After may be present.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "deviceSecret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "attestation": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "oxyos"
+                            ]
+                          },
+                          "desktopEntryId": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$",
+                            "maxLength": 255
+                          }
+                        },
+                        "required": [
+                          "platform",
+                          "desktopEntryId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "oxyos",
+                              "astro"
+                            ]
+                          },
+                          "self": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          }
+                        },
+                        "required": [
+                          "platform",
+                          "self"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "astro"
+                            ]
+                          },
+                          "origin": {
+                            "type": "string",
+                            "maxLength": 255
+                          },
+                          "clientId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          }
+                        },
+                        "required": [
+                          "platform",
+                          "origin",
+                          "clientId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "deviceId",
+                  "deviceSecret",
+                  "attestation"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "operationId": "postSessionDeviceAppToken"
       }
     },
     "/session/device/background-credential": {
