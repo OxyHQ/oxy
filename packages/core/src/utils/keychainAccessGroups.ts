@@ -7,6 +7,7 @@
  * | `<TEAM>.so.oxy.identity`      | Commons only (listed FIRST)  | `identity-secret` |
  * | `<TEAM>.so.oxy.wallet`        | Commons, the Peable wallet   | `spending-key`    |
  * | `<TEAM>.group.so.oxy.shared`  | every Oxy app                | `shared`          |
+ * | `<TEAM>.<bundle id>`          | that app alone               | `app`             |
  *
  * - `identity-secret`: the personal root (primary and backup slots), the
  *   personal and organization recovery phrases, the organization index. Only
@@ -16,14 +17,21 @@
  *   (`deriveScopedSeed`, `signSocialReceive`). Commons writes them; the Peable
  *   wallet reads them.
  * - `shared`: what every Oxy app may read: the shared public key and the
- *   device-session credential.
+ *   device-session credential (the one cross-app session join point).
+ * - `app`: an app's OWN items, readable by no other app: its session
+ *   credential (`oxy.auth.v1` and the rest of the SDK's session store), its
+ *   identity pin, its settings, the Peable wallet's imported phrases. The group
+ *   is the app's application identifier, which Apple makes every app a member
+ *   of; no app lists it and no other app can name it. Android's counterpart is
+ *   the app's own storage (ADR 0062 D6).
  *
  * The ROLE of this binary comes from the keychain itself: an item written
  * without a group lands in the app's default group, the first entry of its
  * `keychain-access-groups` entitlement, and `@oxy.so/app-preset` lets only
  * Commons put the identity group first and only the Peable wallet the wallet
  * group. The same probe gives the team prefix, which `kSecAttrAccessGroup`
- * needs and JavaScript cannot otherwise see.
+ * needs and JavaScript cannot otherwise see; a second probe proves the app's
+ * own group (`<prefix><bundle id>`) is writable.
  *
  * Android and web have no access groups: there every helper here answers the
  * single-store behaviour (`ungrouped`), and Android's narrowing is Commons'
@@ -33,7 +41,12 @@
  * This module never imports the identity stack: services' device-session store
  * and Peable's wallet storage use it too.
  */
-import { type KeychainDefaultAccessGroup, loadKeychainDefaultAccessGroup } from '@oxy.so/protocol';
+import {
+  type KeychainApplicationAccessGroup,
+  type KeychainDefaultAccessGroup,
+  loadKeychainApplicationAccessGroup,
+  loadKeychainDefaultAccessGroup,
+} from '@oxy.so/protocol';
 import { isIOS } from './platform';
 
 /** The group names after the team prefix, exactly as the entitlements list them. */
@@ -45,19 +58,34 @@ export const KEYCHAIN_ACCESS_GROUPS = {
 
 export type KeychainAccessGroupName = keyof typeof KEYCHAIN_ACCESS_GROUPS;
 
+/**
+ * Every group an item class can be assigned: the three Oxy groups, or `app`,
+ * this app's own group, whose name is the app's and so is not a constant.
+ */
+export type KeychainGroup = KeychainAccessGroupName | 'app';
+
 /** What a keychain item IS, which decides its group. See the table above. */
-export type KeychainItemClass = 'identity-secret' | 'spending-key' | 'shared';
+export type KeychainItemClass = 'identity-secret' | 'spending-key' | 'shared' | 'app';
 
 /** Which holder this binary is, from its default access group. */
 export type KeychainRole = 'holder' | 'wallet' | 'member';
 
 /**
  * - `grouped`: iOS with the probe answered. `prefix` ends with its dot
- *   (`ABCDE12345.`); `defaultGroup` is the full default group string.
+ *   (`ABCDE12345.`); `defaultGroup` is the full default group string;
+ *   `appGroup`, when the native module proved it, this app's own group
+ *   (`ABCDE12345.so.oxy.mention`). Absent on a native build that predates that
+ *   probe: see {@link ownKeychainItemPlan} for what such a build does.
  * - `ungrouped`: Android, web, or an iOS native build without the probe.
  */
 export type KeychainAccess =
-  | { mode: 'grouped'; prefix: string; defaultGroup: string; role: KeychainRole }
+  | {
+      mode: 'grouped';
+      prefix: string;
+      defaultGroup: string;
+      role: KeychainRole;
+      appGroup?: string;
+    }
   | { mode: 'ungrouped' };
 
 /** The `expo-secure-store` option this module sets (its real name since 58). */
@@ -77,7 +105,9 @@ export class KeychainAccessUnavailableError extends Error {
  * The single place each item class is assigned a group. A new kind of item
  * (F1's retained keys, for one) picks its class and reuses everything below.
  */
-export function keychainGroupFor(item: KeychainItemClass): KeychainAccessGroupName {
+export function keychainGroupFor(item: Exclude<KeychainItemClass, 'app'>): KeychainAccessGroupName;
+export function keychainGroupFor(item: KeychainItemClass): KeychainGroup;
+export function keychainGroupFor(item: KeychainItemClass): KeychainGroup {
   switch (item) {
     case 'identity-secret':
       return 'identity';
@@ -85,6 +115,8 @@ export function keychainGroupFor(item: KeychainItemClass): KeychainAccessGroupNa
       return 'wallet';
     case 'shared':
       return 'shared';
+    case 'app':
+      return 'app';
   }
 }
 
@@ -96,12 +128,18 @@ export function mayHoldKeychainItem(role: KeychainRole, item: KeychainItemClass)
     case 'wallet':
       return item !== 'identity-secret';
     case 'member':
-      return item === 'shared';
+      return item === 'shared' || item === 'app';
   }
 }
 
-/** Parse the default access group the probe reported. Exported for tests. */
-export function keychainAccessFromDefaultGroup(defaultGroup: string): KeychainAccess {
+/**
+ * Parse the default access group the probe reported, and the app's own group
+ * when the second probe proved it. Exported for tests.
+ */
+export function keychainAccessFromDefaultGroup(
+  defaultGroup: string,
+  appGroup?: string,
+): KeychainAccess {
   const dot = defaultGroup.indexOf('.');
   if (dot <= 0 || dot === defaultGroup.length - 1) {
     // Not `<prefix>.<group>`: an unsigned simulator build. Nothing to split.
@@ -115,7 +153,9 @@ export function keychainAccessFromDefaultGroup(defaultGroup: string): KeychainAc
       : group === KEYCHAIN_ACCESS_GROUPS.wallet
         ? 'wallet'
         : 'member';
-  return { mode: 'grouped', prefix, defaultGroup, role };
+  return appGroup?.startsWith(prefix)
+    ? { mode: 'grouped', prefix, defaultGroup, role, appGroup }
+    : { mode: 'grouped', prefix, defaultGroup, role };
 }
 
 let resolvedAccess: KeychainAccess | null = null;
@@ -144,10 +184,31 @@ export async function resolveKeychainAccess(): Promise<KeychainAccess> {
   if (probe.state === 'unavailable') {
     throw new KeychainAccessUnavailableError(probe.cause);
   }
-  resolvedAccess =
-    probe.state === 'resolved'
-      ? keychainAccessFromDefaultGroup(probe.accessGroup)
-      : { mode: 'ungrouped' };
+  if (probe.state !== 'resolved') {
+    resolvedAccess = { mode: 'ungrouped' };
+    return resolvedAccess;
+  }
+  const access = keychainAccessFromDefaultGroup(probe.accessGroup);
+  if (access.mode === 'ungrouped') {
+    resolvedAccess = access;
+    return resolvedAccess;
+  }
+  // The app's own group. A thrown probe is NOT degraded to "no app group": this
+  // process would then write the app's items to the old place while the next
+  // one reads the new place first, and see a stale value.
+  let own: KeychainApplicationAccessGroup;
+  try {
+    own = await loadKeychainApplicationAccessGroup(access.prefix);
+  } catch (cause) {
+    throw new KeychainAccessUnavailableError(cause);
+  }
+  if (own.state === 'unavailable') {
+    throw new KeychainAccessUnavailableError(own.cause);
+  }
+  resolvedAccess = keychainAccessFromDefaultGroup(
+    probe.accessGroup,
+    own.state === 'resolved' ? own.accessGroup : undefined,
+  );
   return resolvedAccess;
 }
 
@@ -156,12 +217,26 @@ export function resetKeychainAccessForTests(): void {
   resolvedAccess = null;
 }
 
-/** The full `kSecAttrAccessGroup` value of `group`, or `undefined` when ungrouped. */
+/**
+ * The full `kSecAttrAccessGroup` value of `group`, or `undefined` for "no
+ * group" (the app's default): always when ungrouped, and for `app` on a build
+ * that cannot place items there (see {@link ownKeychainItemPlan}).
+ */
 export function keychainAccessGroupValue(
   access: KeychainAccess,
-  group: KeychainAccessGroupName,
+  group: KeychainGroup,
 ): string | undefined {
-  return access.mode === 'grouped' ? `${access.prefix}${KEYCHAIN_ACCESS_GROUPS[group]}` : undefined;
+  if (access.mode === 'ungrouped') {
+    return undefined;
+  }
+  if (group === 'app') {
+    // Commons' and the Peable wallet's default groups are theirs (no other app
+    // writes its own items there), so a build without the app-group probe
+    // keeps its own items there, as ADR 0062 D3 put them. Every other app's
+    // default is the shared group: no group, the calls it always made.
+    return access.appGroup ?? (access.role === 'member' ? undefined : access.defaultGroup);
+  }
+  return `${access.prefix}${KEYCHAIN_ACCESS_GROUPS[group]}`;
 }
 
 function option(value: string | undefined): KeychainGroupOption {
@@ -169,10 +244,11 @@ function option(value: string | undefined): KeychainGroupOption {
 }
 
 /**
- * The option bags a READ of `item` tries, in order: its own group, then the
- * shared group, where every item lived before the split (release 4 of the doc
- * drops that fallback). Empty when this app may not hold the item: the caller
- * answers `null` without touching the keychain.
+ * The option bags a READ of `item` tries, in order: its own group, then, for
+ * an identity secret or a spending key, the shared group, where those lived
+ * before the split (release 4 of the doc drops that fallback). Empty when this
+ * app may not hold the item: the caller answers `null` without touching the
+ * keychain. An app's own items (`app`) take {@link ownKeychainItemPlan}.
  */
 export function keychainReadPlan(
   access: KeychainAccess,
@@ -186,7 +262,8 @@ export function keychainReadPlan(
   }
   const own = keychainGroupFor(item);
   const plan = [option(keychainAccessGroupValue(access, own))];
-  if (own !== 'shared') {
+  if (own === 'identity' || own === 'wallet') {
+    // Where the split moved these items from.
     plan.push(option(keychainAccessGroupValue(access, 'shared')));
   }
   return plan;
@@ -224,29 +301,79 @@ export function keychainWriteOption(
 }
 
 /**
- * The plan for an app's OWN items (its session credential, its settings, an
- * imported wallet's phrase) in Commons and the Peable wallet, whose default
- * group the split changed: written to the default group explicitly — where a
- * write without a group goes anyway — and read from it FIRST, then from every
- * group (`{}`), where all of them were written before. Without the explicit
- * order a read could return whichever of two copies the keychain met first.
- * Deletes reach every group, as they always did.
+ * Who else writes an own item's NAME, which decides whose an earlier copy of
+ * it can be.
  *
- * Every other app (`member`) and Android/web keep the calls they always made.
+ * - `this-app`: no other app uses the name (the Peable wallet's own items). A
+ *   copy anywhere this app can read is its own.
+ * - `every-oxy-app`: every Oxy app writes the same name (the SDK's session
+ *   store: `oxy.auth.v1`, the warm token, the identity pin). Before the
+ *   app group, every iOS app but Commons and the Peable wallet wrote it to the
+ *   ONE copy in the shared group, so a copy there may be another app's
+ *   session, or Commons' vault session. Only this app's own locations are
+ *   read, written or deleted; the shared copy is left to the apps still
+ *   running a build that uses it.
+ * - `every-oxy-app-withholding`: as `every-oxy-app`, for a value whose only
+ *   effect is to WITHHOLD (the explicit sign-out marker). A shared copy still
+ *   counts — honouring another app's marker can keep this app from signing in
+ *   automatically, never sign it in — and its delete reaches that copy, as a
+ *   release always did before.
  */
-export function ownKeychainItemPlan(access: KeychainAccess): {
+export type OwnKeychainItemNames = 'this-app' | 'every-oxy-app' | 'every-oxy-app-withholding';
+
+/**
+ * The plan for an app's OWN items (class `app`, ADR 0062 D6): written to the
+ * app's own group (`<prefix><bundle id>`), which no other app can read, and
+ * read from it FIRST. Then:
+ *
+ * - from where this app kept them before: Commons' and the Peable wallet's
+ *   default group (D3), which no other app writes its own items to;
+ * - for `this-app` names, from every group (`{}`), where they were before the
+ *   split; deletes reach every group;
+ * - for `every-oxy-app` names, nowhere else (see {@link OwnKeychainItemNames}),
+ *   and deletes reach exactly the read locations, earlier ones first, so a
+ *   failed delete never leaves an older copy as the only one;
+ * - for `every-oxy-app-withholding` names, the shared group last on read and
+ *   first on delete.
+ *
+ * Nothing is copied or deleted to migrate: the next write lands in the app
+ * group and the read order makes it win, so a crash or a failure at any step
+ * leaves the value the app had.
+ *
+ * A native build whose module predates the app-group probe (`appGroup`
+ * absent) keeps its items where that build put them: Commons and the wallet in
+ * their default group, every other app the calls it always made (the one
+ * shared item, until that app's next native build). Android and web: no
+ * options.
+ */
+export function ownKeychainItemPlan(
+  access: KeychainAccess,
+  names: OwnKeychainItemNames = 'this-app',
+): {
   read: KeychainGroupOption[];
   write: KeychainGroupOption;
   delete: KeychainGroupOption[];
 } {
-  if (access.mode === 'ungrouped' || access.role === 'member') {
+  if (access.mode === 'ungrouped') {
     return { read: [{}], write: {}, delete: [{}] };
   }
-  return {
-    read: [option(access.defaultGroup), {}],
-    write: option(access.defaultGroup),
-    delete: [{}],
-  };
+  const own = keychainAccessGroupValue(access, keychainGroupFor('app'));
+  if (own === undefined) {
+    return { read: [{}], write: {}, delete: [{}] };
+  }
+  const earlier =
+    access.role !== 'member' && own !== access.defaultGroup ? [option(access.defaultGroup)] : [];
+  const mine = [option(own), ...earlier];
+  switch (names) {
+    case 'this-app':
+      return { read: [...mine, {}], write: option(own), delete: [{}] };
+    case 'every-oxy-app':
+      return { read: mine, write: option(own), delete: [...mine].reverse() };
+    case 'every-oxy-app-withholding': {
+      const read = [...mine, option(keychainAccessGroupValue(access, 'shared'))];
+      return { read, write: option(own), delete: [...read].reverse() };
+    }
+  }
 }
 
 /** The subset of `expo-secure-store` a grouped store wraps. */

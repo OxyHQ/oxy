@@ -64,10 +64,12 @@ export {
 export type {
   KeychainAccess,
   KeychainAccessGroupName,
+  KeychainGroup,
   KeychainGroupOption,
   KeychainItemClass,
   KeychainRole,
   KeychainStoreLike,
+  OwnKeychainItemNames,
 } from '../utils/keychainAccessGroups';
 export { ensureKeychainGroupsMigrated } from './keychainGroupMigration';
 export type {

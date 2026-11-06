@@ -18,6 +18,7 @@
  */
 
 import { logger } from '../logger';
+import type { OwnKeychainItemNames } from '../utils/keychainAccessGroups';
 
 /**
  * The persisted session credential set for a single origin.
@@ -149,6 +150,19 @@ export interface NativeKeyValueStorage {
 export const AUTH_STATE_STORAGE_KEY = 'oxy.auth.v1';
 export const AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY =
   'oxy.auth.automatic-identity-signin-suppressed.v1';
+
+/**
+ * What `ownKeychainItemPlan` (ADR 0062 D6) must know about a key a native
+ * session store keeps — this module's three and the identity pin: every Oxy app
+ * writes it under the same name, so on iOS a copy in the shared group may be
+ * another app's session and is never read as this app's. The sign-out marker
+ * can only withhold, so a shared copy of it still counts.
+ */
+export function nativeSessionItemNames(key: string): OwnKeychainItemNames {
+  return key === AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY
+    ? 'every-oxy-app-withholding'
+    : 'every-oxy-app';
+}
 
 /**
  * Versioned BEST-EFFORT warm-token storage key. Holds the short-lived

@@ -139,10 +139,21 @@ groups. That residual risk is the same on Android (Commons' certificate).
   per unit: `absent`, `moved`, `conflict` (two different values: both kept),
   `unhealthy` (never moved), `failed` (retried next launch), `deferred` (locked;
   retried on the next access).
-- **App items.** `@oxy.so/services`' native SecureStore adapter and Peable's
-  `kv-store` write an app's own items to its default group explicitly and read
-  it first in Commons and the Peable wallet, because the split changed their
-  default group; Peable also moves its wallet items out of the shared group.
+- **App items** (ADR 0062 D6, amended the same day). Every app's own items go
+  to its own group, `<TEAM>.<bundle id>` (item class `app`): the application
+  identifier, which Apple makes every app a member of and no other app can
+  name, proven by a second probe (`keychainApplicationAccessGroup`, probe
+  account `<bundle id>.application-group`). The SDK's session store
+  (`oxy.auth.v1`, `oxy.auth.token.v1`, the sign-out marker, the identity pin)
+  is the SAME name in every app, and before D6 every app but Commons and the
+  wallet shared ONE copy of it in the shared group (and before the split, with
+  Commons' vault): `@oxy.so/services`' adapter now reads it from the app group,
+  then Commons' or the wallet's default group, and never from the shared group,
+  except the sign-out marker, which can only withhold. Cross-app sign-on stays
+  where it was designed: the dedicated device-session slot, adopted only after a
+  mint. Peable's `kv-store` (names only Peable uses) writes to the app group
+  and still finds earlier copies in any group. A build without the second probe
+  keeps the placement it had.
 - **Entitlements.** `@oxy.so/app-preset` (`plugin/oxyKeychainGroups.js`) holds
   the policy; `withOxyKeychain` writes it, and `withOxyKeychainPolicy` (applied
   by `withOxyUpdates`) checks apps that declare `ios.entitlements` themselves.
@@ -158,7 +169,14 @@ migration from a keychain written by the pre-split code, the locked keychain,
 a failed copy, a copy that reads back wrong, an unhealthy pair, two differing
 keys, merged indexes, and a crash or a single failure at EVERY mutation of a run
 (each value keeps a copy, no copy changes, the next launch completes); the
-entitlement policy and order (app-preset `withOxyKeychain.test.js`).
+entitlement policy and order (app-preset `withOxyKeychain.test.js`). D6: core
+`ownSessionItems.test.ts` (several apps on one keychain: each keeps, overwrites
+and clears only its own session; none adopts the shared copy, which an older
+build keeps using; Commons and the wallet keep their D3 copy; the marker only
+withholds; a crash or failure at every mutation of save-then-sign-out never
+yields another app's session, never drops a session on a failed save and never
+brings back an older one on a failed sign-out), services
+`nativeSecureStorage.test.ts`, protocol `keychainDefaultAccessGroup.test.ts`.
 
 Not verifiable off a device (owner steps):
 
@@ -174,6 +192,16 @@ Not verifiable off a device (owner steps):
 4. A key rotation in Commons while the migration is mid-way (kill the app during
    first launch, rotate on the next).
 5. A sibling app signs in through the Commons round-trip (one app switch).
+6. (D6) The application-group probe answers `<TEAM>.<bundle id>` in Commons, the
+   Peable wallet and a member app (a `nil` answer means the keychain refused the
+   implicit group: the app keeps its earlier placement, and D6 needs the group
+   listed in `keychain-access-groups`).
+7. (D6) Two member apps signed in to different accounts on one phone, after
+   their fixed builds: each cold-starts into its own account, and signing out of
+   one leaves the other signed in. An app upgraded from a build that shared the
+   item restarts signed in (through the device-session slot), and a debug read
+   of `oxy.auth.v1` with the shared group's `accessGroup` still returns the
+   older build's copy, untouched.
 
 ## What the split would take
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 14.10.0
+
+### Security
+
+- iOS: the session store is this app's own (ADR 0062 D6 of the oxy repo). `oxy.auth.v1`, the warm token, the sign-out marker and the identity pin go to the app's own keychain group (`<TEAM>.<bundle id>`) and are never read from or deleted in the shared group, where every app but Commons and the Peable wallet used to share one copy; the sign-out marker is still honoured there, since it can only withhold. Cross-app sign-on stays the device-session slot.
+
+### Added
+
+- The iOS `OxyIdentity` native module answers `keychainApplicationAccessGroup(prefix)`: writes a probe item into `<prefix><bundle id>` explicitly and returns that group, or `nil` when the keychain refuses it. Native: an app needs a new build to get it; until then it keeps the placement it had.
+
+### Changed
+
+- Needs `@oxy.so/core` `^7.31.0`.
+
 ## 14.9.0
 
 ### Added

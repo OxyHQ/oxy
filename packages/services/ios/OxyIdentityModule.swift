@@ -91,6 +91,49 @@ public class OxyIdentityModule: Module {
       return group
     }
 
+    /// This app's OWN access group, `<prefix><bundle id>` (its application
+    /// identifier), or `nil` when the keychain refuses it. Apple makes every
+    /// app a member of that group whatever `keychain-access-groups` lists, and
+    /// no other app can name it, so the SDK keeps the items that are this app's
+    /// alone there (its session credential: ADR 0062 D6), as Android keeps them
+    /// in the app's own storage.
+    ///
+    /// The answer is proven, not assumed: a probe item is written into the group
+    /// explicitly and the group is returned only when the keychain took it.
+    /// `errSecMissingEntitlement` answers `nil` (the SDK keeps the placement this
+    /// build had before); any other failure throws and is asked again.
+    AsyncFunction("keychainApplicationAccessGroup") { (_ prefix: String) throws -> String? in
+      guard let bundleId = Bundle.main.bundleIdentifier, prefix.hasSuffix(".") else {
+        return nil
+      }
+      let group = prefix + bundleId
+      let match: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: OxyIdentityModule.probeService,
+        kSecAttrAccount as String: "\(bundleId).application-group",
+        kSecAttrAccessGroup as String: group,
+      ]
+      let deleted = SecItemDelete(match as CFDictionary)
+      if deleted == errSecMissingEntitlement {
+        return nil
+      }
+      if deleted != errSecSuccess && deleted != errSecItemNotFound {
+        throw KeychainProbeException(deleted)
+      }
+
+      var add = match
+      add[kSecValueData as String] = Data("probe".utf8)
+      add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+      let added = SecItemAdd(add as CFDictionary, nil)
+      if added == errSecMissingEntitlement {
+        return nil
+      }
+      guard added == errSecSuccess else {
+        throw KeychainProbeException(added)
+      }
+      return group
+    }
+
     // Retired keys (Commons protocol 4): iOS reads them from the wallet group
     // directly, like the current key.
     AsyncFunction("listRetiredKeys") { (_ accountId: String?) -> [String: Any]? in

@@ -60,6 +60,7 @@ import type {
   CommonsSocialReceiveSignature,
   ExpoCryptoLike,
   ExpoSecureStoreLike,
+  KeychainApplicationAccessGroup,
   KeychainDefaultAccessGroup,
 } from './expoTypes';
 import { missingOptionalPeerError } from './optionalPeer';
@@ -74,6 +75,7 @@ export type {
   CommonsSocialReceiveSignature,
   ExpoCryptoLike,
   ExpoSecureStoreLike,
+  KeychainApplicationAccessGroup,
   KeychainDefaultAccessGroup,
 };
 
@@ -225,6 +227,13 @@ interface OxyIdentityNativeModule {
    * Older native modules and Android lack it.
    */
   keychainDefaultAccessGroup?(): Promise<unknown>;
+  /**
+   * iOS only, added after the default-group probe (ADR 0062 D6): writes a
+   * probe item into `<prefix><bundle id>` explicitly and answers that group,
+   * or `null` when the keychain refused it as not entitled. Older native
+   * modules and Android lack it.
+   */
+  keychainApplicationAccessGroup?(prefix: string): Promise<unknown>;
   /**
    * Retired keys (Commons protocol 4), added after the organization methods and
    * just as absent on an older native module. `accountId` is `null` for the
@@ -483,4 +492,56 @@ export async function loadKeychainDefaultAccessGroup(): Promise<KeychainDefaultA
   }
   keychainDefaultAccessGroup = { state: 'resolved', accessGroup: answer };
   return keychainDefaultAccessGroup;
+}
+
+// ---------------------------------------------------------------------------
+// iOS keychain application access group (ADR 0062 D6): `<prefix><bundle id>`,
+// the group every app is a member of and no other app can name — where an app
+// keeps the items that are its alone. Same caching as the default group: a
+// resolved or unsupported answer is constant for the binary; a thrown probe is
+// asked again.
+// ---------------------------------------------------------------------------
+
+/** A team prefix as the default group carries it: no dots, then one dot. */
+const KEYCHAIN_PREFIX = /^[A-Za-z0-9]+\.$/;
+
+let keychainApplicationAccessGroup: KeychainApplicationAccessGroup | null = null;
+
+export async function loadKeychainApplicationAccessGroup(
+  prefix: string,
+): Promise<KeychainApplicationAccessGroup> {
+  if (keychainApplicationAccessGroup) {
+    return keychainApplicationAccessGroup;
+  }
+  if (!KEYCHAIN_PREFIX.test(prefix)) {
+    return {
+      state: 'unavailable',
+      cause: new Error('keychain application group probe needs a team prefix'),
+    };
+  }
+  const native = requireOptionalNativeModule<Partial<OxyIdentityNativeModule>>('OxyIdentity');
+  const probe = native?.keychainApplicationAccessGroup;
+  if (!native || typeof probe !== 'function') {
+    keychainApplicationAccessGroup = { state: 'unsupported' };
+    return keychainApplicationAccessGroup;
+  }
+  let answer: unknown;
+  try {
+    answer = await probe.call(native, prefix);
+  } catch (cause) {
+    return { state: 'unavailable', cause };
+  }
+  if (answer === null || answer === undefined) {
+    // Not entitled (or not iOS): this binary keeps the placement it was built for.
+    keychainApplicationAccessGroup = { state: 'unsupported' };
+    return keychainApplicationAccessGroup;
+  }
+  if (typeof answer !== 'string' || !answer.startsWith(prefix) || !ACCESS_GROUP.test(answer)) {
+    // A native bug, not a locked keychain: asking again would answer the same,
+    // and `unavailable` would leave the app without storage. Keep the
+    // placement this build had before the probe existed.
+    return { state: 'unsupported' };
+  }
+  keychainApplicationAccessGroup = { state: 'resolved', accessGroup: answer };
+  return keychainApplicationAccessGroup;
 }

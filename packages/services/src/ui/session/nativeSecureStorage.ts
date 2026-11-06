@@ -18,10 +18,25 @@
  * `const m = 'expo-secure-store'; import(m)` never hid it from Metro (Babel
  * evaluates the constant, so Metro resolved it anyway) and only hid it from the
  * gates that read this source.
+ *
+ * ## Whose item this is (iOS)
+ *
+ * Every key stored here is the SAME name in every Oxy app (`oxy.auth.v1`, the
+ * warm token, the sign-out marker, the identity pin). On Android each app's
+ * expo-secure-store is its own; on iOS an item written without an access group
+ * lands in the app's default group, which for every app but Commons and the
+ * Peable wallet is the shared one, so they all read and overwrote ONE session.
+ * The items now live in the app's own group (`<prefix><bundle id>`,
+ * `ownKeychainItemPlan`, ADR 0062 D6); the copy in the shared group is never
+ * read as this app's (it may be another app's, or Commons' vault session) and
+ * never deleted (apps still on an older build use it). The cross-app join point
+ * is the dedicated device-session slot (`sharedDeviceCredentialStore.ts`), whose
+ * credential every adopting app proves with a mint.
  */
 import {
   type NativeKeyValueStorage,
   deleteThroughPlan,
+  nativeSessionItemNames,
   ownKeychainItemPlan,
   readThroughPlan,
   resolveKeychainAccess,
@@ -35,14 +50,13 @@ interface SecureStoreLike {
 }
 
 /**
- * Where this app's own items go on iOS (`ownKeychainItemPlan`,
- * docs/identity/ios-keychain-access-groups.md): in Commons and the Peable
- * wallet, whose default keychain group the access-group split changed, the
- * default group explicitly and first; in every other app the calls it always
- * made. Android and web: no options.
+ * Where this app's own copy of `key` is on iOS (`ownKeychainItemPlan`,
+ * docs/identity/ios-keychain-access-groups.md): the app's own group, then
+ * Commons' or the wallet's default group where D3 put it. Android and web: no
+ * options.
  */
-async function ownItemPlan() {
-  return ownKeychainItemPlan(await resolveKeychainAccess());
+async function ownItemPlan(key: string) {
+  return ownKeychainItemPlan(await resolveKeychainAccess(), nativeSessionItemNames(key));
 }
 
 let secureStorePromise: Promise<SecureStoreLike | null> | null = null;
@@ -97,14 +111,14 @@ export function createNativeSecureKeyValueStorage(): NativeKeyValueStorage {
     getItem: async (key) => {
       const secure = await loadSecureStore();
       if (secure) {
-        return readThroughPlan(secure, key, {}, (await ownItemPlan()).read);
+        return readThroughPlan(secure, key, {}, (await ownItemPlan(key)).read);
       }
       return (await getAsyncStorage()).getItem(key);
     },
     setItem: async (key, value) => {
       const secure = await loadSecureStore();
       if (secure) {
-        await secure.setItemAsync(key, value, (await ownItemPlan()).write);
+        await secure.setItemAsync(key, value, (await ownItemPlan(key)).write);
         return;
       }
       await (await getAsyncStorage()).setItem(key, value);
@@ -112,7 +126,7 @@ export function createNativeSecureKeyValueStorage(): NativeKeyValueStorage {
     removeItem: async (key) => {
       const secure = await loadSecureStore();
       if (secure) {
-        await deleteThroughPlan(secure, key, {}, (await ownItemPlan()).delete);
+        await deleteThroughPlan(secure, key, {}, (await ownItemPlan(key)).delete);
         return;
       }
       await (await getAsyncStorage()).removeItem(key);

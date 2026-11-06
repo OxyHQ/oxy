@@ -207,3 +207,27 @@ export type KeychainDefaultAccessGroup =
   | { state: 'resolved'; accessGroup: string }
   | { state: 'unsupported' }
   | { state: 'unavailable'; cause: unknown };
+
+/**
+ * What the iOS keychain says about this app's OWN access group: its
+ * application identifier, `<prefix><bundle id>` (`ABCDE12345.so.oxy.mention`).
+ * Apple makes every app a member of that group whatever its
+ * `keychain-access-groups` lists, and no other app can name it, so it is where
+ * an app keeps the items that are its alone (its session credential): the
+ * keychain's counterpart of Android's per-app storage (ADR 0062 D6).
+ *
+ * The native module writes a probe item into that group EXPLICITLY and answers
+ * the group only when the keychain took it.
+ *
+ * - `resolved`: the group string.
+ * - `unsupported`: not iOS, a native build whose `OxyIdentity` module predates
+ *   this probe, a keychain that refused the group as not entitled, or an answer
+ *   that is not this team's group. Constant for the binary: callers keep the
+ *   placement that build was made for.
+ * - `unavailable`: the probe threw (before first unlock). Transient; never
+ *   cached.
+ */
+export type KeychainApplicationAccessGroup =
+  | { state: 'resolved'; accessGroup: string }
+  | { state: 'unsupported' }
+  | { state: 'unavailable'; cause: unknown };

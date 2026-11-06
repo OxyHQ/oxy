@@ -1,5 +1,24 @@
 # Changelog — `@oxy.so/core`
 
+## 7.31.0
+
+### Security
+
+- **iOS: each app's session store is its own** (ADR 0062 D6, amended 2026-11-06). The SDK keeps an app's session under names every Oxy app shares (`oxy.auth.v1`, `oxy.auth.token.v1`, the sign-out marker, `oxy.identity.pin.v1`), written with no access group, so on iOS every app but Commons and the Peable wallet read and overwrote ONE copy in `group.so.oxy.shared` (and, before the split, Commons' vault session): an app booted into another app's session and one app's sign-out cleared the others'. An app's own items now live in its own keychain group, `<TEAM>.<bundle id>` (the application identifier, held by that app alone; no entitlement change). Cross-app sign-on is unchanged: the dedicated device-session slot, adopted only after a mint.
+
+### Added
+
+- Item class `app` in `keychainGroupFor` (group `app`; `KeychainGroup` widens `KeychainAccessGroupName` with it). `KeychainAccess` carries `appGroup` when `@oxy.so/services` 14.10.0's native probe proved it; `resolveKeychainAccess` throws `KeychainAccessUnavailableError` while that probe cannot answer, never degrading to "no app group".
+- `ownKeychainItemPlan(access, names?)` with `OwnKeychainItemNames`: `'this-app'` (default; a name only this app uses: every group is read), `'every-oxy-app'` (the SDK's session store: the app group, then Commons' or the wallet's default group, never the shared copy, which may be another app's and which older builds still use), `'every-oxy-app-withholding'` (the sign-out marker: also honoured and released in the shared group). Writes go to the app group. `nativeSessionItemNames(key)` names which applies to each session-store key; `AUTH_STATE_TOKEN_STORAGE_KEY` and `AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY` are exported from `@oxy.so/core/session`.
+
+### Changed
+
+- Commons and the Peable wallet no longer read or delete the SDK's session items in every group (`{}`): only their app group and the default group D3 put them in. Nothing is copied or deleted to migrate; the next write lands in the app group and the read order prefers it. A member app finds no own session at the first launch of a fixed build and joins the device through the device-session slot (lane 3). A native build without the probe keeps its earlier placement. Android and web are unchanged.
+
+### Consumers
+
+Bump with `@oxy.so/protocol` 1.10.0 and `@oxy.so/services` 14.10.0; the fix reaches an iOS app with its next native build (the probe is Swift). The Peable wallet's `kv-store` moves its own items into the app group through its existing adapter.
+
 ## 7.30.0
 
 ### Added
