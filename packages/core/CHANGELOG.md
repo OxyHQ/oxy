@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.35.0
+
+### Changed
+
+- Profile link editor strings: `editProfile.items.links.editLink`, `editProfile.items.links.form.*`. The unused move-up/move-down/title/limit strings are removed.
+
 ## 7.34.0
 
 ### Added

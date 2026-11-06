@@ -84,14 +84,33 @@ export function clampLinkTitle(title: string): string {
   return Array.from(title).slice(0, PROFILE_LINK_TITLE_MAX).join('');
 }
 
-/** A copy of the list with the entry at the index moved one place: -1 up, +1 down. */
-export function moveLinkItem<T>(items: readonly T[], index: number, delta: -1 | 1): T[] {
-  const target = index + delta;
-  if (index < 0 || index >= items.length || target < 0 || target >= items.length) {
-    return [...items];
+/** What the link form hands back when it is dismissed. */
+export type LinkFormResult = { kind: 'save'; url: string; title: string } | { kind: 'remove' };
+
+/**
+ * The list after a link form result. A save appends a new link (if the profile
+ * has room) or replaces the link at `index`; a remove drops it. `newId` makes
+ * the id of an appended link, so the caller decides how ids are minted.
+ */
+export function applyLinkFormResult(
+  items: readonly LinkListItem[],
+  index: number | null,
+  result: LinkFormResult,
+  maxLinks: number,
+  newId: () => string,
+): LinkListItem[] {
+  if (result.kind === 'remove') {
+    return index === null ? [...items] : items.filter((_, i) => i !== index);
   }
-  const next = [...items];
-  const [moved] = next.splice(index, 1);
-  next.splice(target, 0, moved as T);
-  return next;
+  const title = clampLinkTitle(result.title.trim());
+  const saved: LinkListItem = {
+    id: index === null ? newId() : (items[index]?.id ?? newId()),
+    url: result.url,
+    title,
+    description: getLinkDescription(result.url),
+  };
+  if (index === null) {
+    return items.length >= maxLinks ? [...items] : [...items, saved];
+  }
+  return items.map((item, i) => (i === index ? saved : item));
 }
