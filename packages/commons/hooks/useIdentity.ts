@@ -577,7 +577,6 @@ export const useIdentity = (): UseIdentityResult => {
     };
   }, [oxyServices, isAuthenticated, accountId]);
 
-
   // Network reconnect sync logic
   useNetworkReconnect({
     oxyServices,
