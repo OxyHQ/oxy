@@ -33,6 +33,7 @@ import { LocaleProvider, useTranslation } from '@/lib/i18n';
 import { MinimalErrorFallback } from '@/components/error-fallback';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/constants/oxy';
 import { preventNativeSplashAutoHide, useHideNativeSplashWhenReady } from '@oxy.so/expo-splash';
+import { configureLottieWeb } from '@/lib/lottieWeb';
 
 // Reanimated 4 ships with a strict logger that surfaces `.value` reads during
 // render as runtime warnings. Several deeply nested third-party components in
@@ -52,6 +53,8 @@ configureReanimatedLogger({
 // overlay is gated to web only. No-op on web (the shared helper guards
 // `Platform.OS === 'web'`).
 preventNativeSplashAutoHide();
+// Animated stickers on web fetch their WASM renderer from this origin (lib/lottieWeb.web.ts).
+if (Platform.OS === 'web') configureLottieWeb();
 
 // Get API URL from environment variable with fallback
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';

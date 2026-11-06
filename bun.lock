@@ -45,6 +45,7 @@
         "@alia.onl/sdk": "catalog:",
         "@expo/vector-icons": "^15.1.1",
         "@lottiefiles/dotlottie-react": "catalog:",
+        "@lottiefiles/dotlottie-web": "0.82.1",
         "@oxy.so/app-preset": "workspace:*",
         "@oxy.so/bloom": "catalog:",
         "@oxy.so/contracts": "workspace:*",
@@ -58,6 +59,7 @@
         "@tanstack/react-query-persist-client": "catalog:",
         "babel-preset-expo": "catalog:",
         "expo": "catalog:",
+        "expo-asset": "~58.0.20",
         "expo-audio": "~58.0.11",
         "expo-blur": "catalog:",
         "expo-build-properties": "catalog:",
@@ -233,6 +235,9 @@
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
       "version": "6.4.0",
+      "bin": {
+        "oxy-check-keychain-entitlements": "./bin/oxy-check-keychain-entitlements.js",
+      },
       "dependencies": {
         "parse5": "catalog:",
       },
