@@ -165,6 +165,89 @@ describe('SessionClient socket', () => {
     c.stop();
   });
 
+  it('audits a socket switch between two operators of the same account', async () => {
+    const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    const nateToken = `h.${encode({ userId: 'org', sessionId: 'session-nate', act: { sub: 'nate' }, exp: 4102444800 })}.s`;
+    let bearer = nateToken;
+    let revision = 1;
+    const state = (rev: number): DeviceSessionState => ({
+      deviceId: 'd1', revision: rev, updatedAt: 1720000000000,
+      activeAccountId: 'org',
+      accounts: [
+        { accountId: 'org', sessionId: 'session-nate', authuser: 0, operatedByUserId: 'nate' },
+        { accountId: 'org', sessionId: 'session-alice', authuser: 1, operatedByUserId: 'alice' },
+      ],
+    });
+    const directory = () => ({
+      deviceId: 'd1', revision, updatedAt: 1720000000000,
+      activeContextId: revision === 1 ? 'ctx-nate-org' : 'ctx-alice-org',
+      principals: ['nate', 'alice'].map((name, index) => ({
+        id: `p-${name}`, userId: name, authuser: index, user: { id: name, username: name },
+        contexts: [{ id: `ctx-${name}-org`, accountId: 'org', kind: 'organization', relationship: 'member',
+          account: { id: 'org', username: 'org' }, onDevice: true, available: true,
+          active: name === (revision === 1 ? 'nate' : 'alice'), lastUsedAt: null }],
+      })),
+    });
+    const makeRequest = jest.fn(async (_method: string, path: string) => {
+      if (path === '/session/device/state') return { state: state(1), activeToken: { accessToken: nateToken, expiresAt: 'x' } };
+      if (path === '/session/device/directory') return directory();
+      throw new Error(`Unexpected path ${path}`);
+    });
+    const host = makeHost({
+      makeRequest: makeRequest as SessionClientHost['makeRequest'],
+      getAccessToken: () => bearer,
+      setTokens: (token) => { bearer = token; },
+      getCurrentAccountId: () => 'org',
+    });
+    const ensureActiveToken = jest.fn(async () => undefined);
+    const client = new SessionClient(host, { transport: { ensureActiveToken } });
+    await client.start();
+    await client.refreshDirectory();
+    expect(client.getActiveContext()?.actor.userId).toBe('nate');
+    makeRequest.mockClear();
+    revision = 2;
+    fakeSocket.trigger('session_state', state(2));
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(client.getActiveContext()?.actor.userId).toBe('alice');
+    expect(host.getAccessToken()).toBe(nateToken);
+    expect(ensureActiveToken).toHaveBeenCalledWith(state(2));
+    expect(makeRequest.mock.calls.map((args) => args[1])).toEqual(['/session/device/directory']);
+    client.stop();
+  });
+
+  it('audits a stale bootstrap token after a newer same-account operator switch', async () => {
+    const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    const jwt = (actor: string) => `h.${encode({ userId: 'org', sessionId: `session-${actor}`, exp: 4102444800 })}.s`;
+    const nate = jwt('nate');
+    const alice = jwt('alice');
+    const state = (revision: number): DeviceSessionState => ({
+      deviceId: 'd1', revision, updatedAt: 1720000000000, activeAccountId: 'org',
+      accounts: [
+        { accountId: 'org', sessionId: 'session-nate', authuser: 0, operatedByUserId: 'nate' },
+        { accountId: 'org', sessionId: 'session-alice', authuser: 1, operatedByUserId: 'alice' },
+      ],
+    });
+    const sync = (revision: number, accessToken: string) => ({ state: state(revision), activeToken: { accessToken, expiresAt: 'x' } });
+    let releaseOld!: (value: unknown) => void;
+    const old = new Promise((resolve) => { releaseOld = resolve; });
+    const makeRequest = jest.fn().mockResolvedValueOnce(sync(1, nate)).mockReturnValueOnce(old).mockResolvedValue(sync(2, alice));
+    let token = nate;
+    const host = makeHost({ makeRequest, getAccessToken: () => token, setTokens: (value) => { token = value; }, getCurrentAccountId: () => 'org' });
+    const client = new SessionClient(host);
+    try {
+      await client.start();
+      const pendingOld = client.bootstrap();
+      fakeSocket.trigger('session_state', state(2));
+      await client.bootstrap();
+      expect(token).toBe(alice);
+      expect(client.getState()?.revision).toBe(2);
+      releaseOld(sync(1, nate));
+      await pendingOld;
+      expect(client.getState()?.revision).toBe(2);
+      expect(token).toBe(nate);
+    } finally { client.stop(); }
+  });
+
   it('does not open a socket at all when signed out (bearer-only)', async () => {
     const c = new SessionClient(makeHost({ getAccessToken: () => null }));
     await c.start();

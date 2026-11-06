@@ -58,6 +58,10 @@ import { validateAccessToken } from '../../utils/sessionUtils';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import deviceSessionService from '../deviceSession.service';
 import sessionService, { MINT_ROTATES_WITHIN_SECONDS } from '../session.service';
+import { HttpService } from '../../../../core/src/HttpService';
+import { OxyServices } from '../../../../core/src/OxyServices';
+import { SessionClient } from '../../../../core/src/session/SessionClient';
+import { createSessionClientHost } from '../../../../core/src/session/sessionClientHost';
 
 const SESSION_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000;
 
@@ -933,6 +937,97 @@ describe('access token v2 binding', () => {
     const claims = validateAccessToken(minted?.accessToken ?? '').payload;
     expect(typeof claims?.device_context_id).toBe('string');
     expect(typeof claims?.device_session_id).toBe('string');
+  });
+
+  it('audits a delayed consumer response while the real login binding remints its bearer', async () => {
+    const user = await account();
+    const device = deviceId();
+    const created = await sessionService.createSession(user, request(), { deviceId: device });
+    const initial = validateAccessToken(created.accessToken).payload;
+    expect(initial?.device_context_id).toBeUndefined();
+    const http = new HttpService({ baseURL: 'https://oxy.example', enableRetry: false });
+    http.setTokens(created.accessToken);
+    const epoch = http.getSessionEpoch();
+    const originalFetch = globalThis.fetch;
+    let release!: (response: Response) => void;
+    let started!: () => void;
+    const requestStarted = new Promise<void>((resolve) => { started = resolve; });
+    globalThis.fetch = jest.fn(async () => {
+      started();
+      return new Promise<Response>((resolve) => { release = resolve; });
+    }) as typeof fetch;
+    try {
+      const pending = http.get('/private', { retry: false, cache: false });
+      await requestStarted;
+      await deviceSessionService.addAccount(device, { accountId: user, sessionId: created.sessionId });
+      expect(await deviceSessionService.bindSessionToContext(device, created.sessionId)).toBe(true);
+      const minted = await sessionService.getAccessToken(created.sessionId);
+      expect(minted).not.toBeNull();
+      const next = validateAccessToken(minted!.accessToken).payload;
+      expect(next?.sessionId).toBe(initial?.sessionId);
+      expect(next?.userId).toBe(initial?.userId);
+      expect(next?.act).toEqual(initial?.act);
+      expect(typeof next?.device_context_id).toBe('string');
+      http.setTokens(minted!.accessToken);
+      expect(http.getSessionEpoch()).toBe(epoch);
+      release(new Response(JSON.stringify({ data: { owner: user } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      }));
+      await expect(pending).resolves.toMatchObject({ owner: user });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('audits same-session context rebinding when a session migrates onto a central device', async () => {
+    const user = await account();
+    const key = `audit-${randomUUID()}`;
+    const initial = await sessionService.createSession(user, request(), { stableDeviceKey: key });
+    await deviceSessionService.addAccount(initial.deviceId, { accountId: user, sessionId: initial.sessionId });
+    expect(await deviceSessionService.bindSessionToContext(initial.deviceId, initial.sessionId)).toBe(true);
+    const first = await sessionService.getAccessToken(initial.sessionId);
+    const firstClaims = validateAccessToken(first?.accessToken ?? '').payload;
+    expect(typeof firstClaims?.device_context_id).toBe('string');
+    const firstState = await deviceSessionService.getState(initial.deviceId);
+    const oxy = new OxyServices({ baseURL: 'https://oxy.example' });
+    oxy.session.setAccessToken(first!.accessToken);
+    const client = new SessionClient(createSessionClientHost(oxy));
+    client.adoptState(firstState);
+    const epoch = oxy.http.getSessionEpoch();
+    const originalFetch = globalThis.fetch;
+    let release!: (response: Response) => void;
+    let started!: () => void;
+    const requestStarted = new Promise<void>((resolve) => { started = resolve; });
+    globalThis.fetch = jest.fn(async () => {
+      started();
+      return new Promise<Response>((resolve) => { release = resolve; });
+    }) as typeof fetch;
+    try {
+      const old = client.bootstrap();
+      await requestStarted;
+      const nextDevice = deviceId();
+      const migrated = await sessionService.createSession(user, request(), { stableDeviceKey: key, deviceId: nextDevice });
+      expect(migrated.sessionId).toBe(initial.sessionId);
+      await deviceSessionService.addAccount(nextDevice, { accountId: user, sessionId: initial.sessionId });
+      expect(await deviceSessionService.bindSessionToContext(nextDevice, initial.sessionId)).toBe(true);
+      const next = await sessionService.getAccessToken(initial.sessionId);
+      const nextClaims = validateAccessToken(next?.accessToken ?? '').payload;
+      expect(nextClaims?.sessionId).toBe(firstClaims?.sessionId);
+      expect(nextClaims?.userId).toBe(firstClaims?.userId);
+      expect(nextClaims?.act).toEqual(firstClaims?.act);
+      expect(typeof nextClaims?.device_context_id).toBe('string');
+      expect(nextClaims?.device_context_id).not.toBe(firstClaims?.device_context_id);
+      const nextState = await deviceSessionService.getState(nextDevice);
+      oxy.session.setAccessToken(next!.accessToken);
+      client.adoptState(nextState);
+      expect(oxy.http.getSessionEpoch()).toBe(epoch);
+      release(new Response(JSON.stringify({ data: { state: firstState, activeToken: { accessToken: first!.accessToken, expiresAt: first!.expiresAt.toISOString() } } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      }));
+      await old;
+      expect(client.getState()?.deviceId).toBe(nextDevice);
+      expect(oxy.session.accessToken).toBe(next!.accessToken);
+    } finally { globalThis.fetch = originalFetch; oxy.dispose(); }
   });
 });
 
