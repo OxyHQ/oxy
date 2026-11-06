@@ -168,6 +168,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   captureCampaignAttribution = false,
   platformStorage,
   accountQueries,
+  authStateStore: providedAuthStateStore,
   onAuthStateChange,
   onError,
 }) => {
@@ -200,11 +201,19 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // web; SecureStore session blob on native). Built ONCE per provider mount.
   // Tracked, so a sign-in press can tell SYNCHRONOUSLY whether this origin
   // holds a device credential (the browser bridge must open inside the press).
+  //
+  // A platform's setup client passes its own (`authStateStore`): then it is the
+  // ONLY place a credential is written — the shared device slot and the
+  // background credential below are off, so nothing reaches platform storage.
   const authStoreRef = useRef<CredentialTrackingAuthStateStore | null>(null);
+  const ownsCredentialStorageRef = useRef(providedAuthStateStore === undefined);
   if (!authStoreRef.current) {
-    authStoreRef.current = trackDeviceCredential(createPlatformAuthStateStore({ sessionMode }));
+    authStoreRef.current = trackDeviceCredential(
+      providedAuthStateStore ?? createPlatformAuthStateStore({ sessionMode }),
+    );
   }
   const authStore: AuthStateStore = authStoreRef.current;
+  const usesSharedDeviceCredential = ownsCredentialStorageRef.current;
 
   // Identity-bound session binding (`sessionMode: 'identity'`) — the platform pin
   // store plus the memoised pinned account id every lane below binds to. Built
@@ -791,7 +800,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       ...(!identity && !isWebBrowser()
         ? {
             allowCommonsIdentityFallback: false,
-            sharedDeviceCredential: createPlatformSharedDeviceCredentialStore() ?? undefined,
+            sharedDeviceCredential: usesSharedDeviceCredential
+              ? (createPlatformSharedDeviceCredentialStore() ?? undefined)
+              : undefined,
           }
         : {}),
     });
@@ -806,7 +817,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       scheduler.dispose();
       oxyServices.http.setAuthRefreshHandler(null);
     };
-  }, [oxyServices, authStore, identity, runtime]);
+  }, [oxyServices, authStore, identity, runtime, usesSharedDeviceCredential]);
 
   // ── Session commit funnel ────────────────────────────────────────────────
   // The single place a session becomes committed: plant tokens, persist the
@@ -1473,6 +1484,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       authRedirectUri,
       sessionMode,
       identity: identity?.binding,
+      useSharedDeviceCredential: usesSharedDeviceCredential,
       resolveSessionLane: resolveRegisteredLane,
       beforeDeviceBoot: identity
         ? async () => {
@@ -1504,6 +1516,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     authRedirectUri,
     sessionMode,
     identity,
+    usesSharedDeviceCredential,
     syncDeviceCredentialToHost,
     sessionClient,
     setTokenReady,
@@ -1760,7 +1773,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // needs a bearer, and keyed on the signed-in account so a sign-out or an
   // account switch revokes the credential before anything else happens.
   useBackgroundSessionSync({
-    enabled: backgroundSession,
+    // A platform's own store (`authStateStore`) means no credential of ours
+    // anywhere else, the background one included.
+    enabled: backgroundSession && usesSharedDeviceCredential,
     oxyServices,
     userId: user?.id ?? null,
     canUsePrivateApi,

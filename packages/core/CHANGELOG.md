@@ -1,5 +1,17 @@
 # Changelog — `@oxy.so/core`
 
+## 7.34.0
+
+### Added
+
+- **`@oxy.so/core/host` — the session host contract (ADR 0058 decision 1).** A runtime that holds the person's Oxy session (OxyOS's Bloom host, Astro) registers an `OxySessionHost` with `registerOxySessionHost(host)` before the application bundle first imports `@oxy.so/services`; `getOxySessionHost()` answers `{ host }`, `{ unknownContract: true }` or `null`. `OXY_SESSION_HOST_CONTRACT` is `1`. The registration lives on `globalThis[Symbol.for('oxy.so/session-host')]` so the runtime's copy of core and the bundle's agree; a second registration throws. Its own export subpath: no React, no React Native, no optional peer, no Zod, ESM without `require()`.
+- `createUserEventSocket({ baseURL, getAccessToken })` (`@oxy.so/core/session`): the user socket of a hosted session — bearer-only handshakes, server events by name, no device state.
+- `oxy.session.sessionId`: the session id the access token names.
+
+### Consumers
+
+Bump to 7.34.0 with `@oxy.so/services` 14.11.0. Nothing changes for an app without a registered host.
+
 ## 7.33.0
 
 Round-5 security review of the Peable mainnet identity receive: R5-1 and R5-2 (core halves).

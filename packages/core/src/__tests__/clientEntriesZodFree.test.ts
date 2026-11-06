@@ -41,6 +41,7 @@ describe('@oxy.so/core client entries do not reach Zod', () => {
   it.each([
     ['`.`', 'index.ts'],
     ['`./session`', 'session/index.ts'],
+    ['`./host`', 'host/index.ts'],
     ['`./crypto`', 'crypto/index.ts'],
     ['`./civic`', 'civic/index.ts'],
     ['`./logger`', 'logger/index.ts'],

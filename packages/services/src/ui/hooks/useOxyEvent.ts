@@ -9,14 +9,17 @@ import { useOxy } from '../context/oxyRuntimeContext';
  * is always invoked.
  */
 export function useOxyEvent(event: string, handler: (payload: unknown) => void): void {
-  const { sessionClient } = useOxy();
+  const { sessionClient, onServerEvent } = useOxy();
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
 
   useEffect(() => {
-    if (!sessionClient) return;
-    return sessionClient.onServerEvent(event, (payload) => {
+    const listener = (payload: unknown) => {
       handlerRef.current(payload);
-    });
-  }, [sessionClient, event]);
+    };
+    // A session host's user socket, else the device session's socket.
+    if (onServerEvent) return onServerEvent(event, listener);
+    if (!sessionClient) return;
+    return sessionClient.onServerEvent(event, listener);
+  }, [sessionClient, onServerEvent, event]);
 }

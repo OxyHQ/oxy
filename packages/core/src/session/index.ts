@@ -28,6 +28,10 @@ export type {
 // Injectable for tests/specialized hosts; ordinary consumers use core's lazy
 // transport and do not pull socket.io-client into their initial module graph.
 export type { SocketIOFactory, MinimalSocket } from './socketLoader';
+// The user socket of a session a platform holds (ADR 0058): bearer-only, the
+// `user:<id>` room, no device state.
+export { createUserEventSocket } from './userEventSocket';
+export type { UserEventSocket, UserEventSocketOptions } from './userEventSocket';
 
 // Shared SessionClient integration layer: the host adapter, the pure
 // DeviceSessionState projection helpers, and the client factory are defined

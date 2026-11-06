@@ -57,6 +57,7 @@ module.exports = {
     '^@oxy.so/protocol/sign$': '<rootDir>/../protocol/src/sign.ts',
     '^@oxy.so/core/server$': '<rootDir>/../core/src/server/index.ts',
     '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
+    '^@oxy.so/core/host$': '<rootDir>/../core/src/host/index.ts',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^react-native$': '<rootDir>/__tests__/__mocks__/react-native.ts',
     '^expo-modules-core$': '<rootDir>/__tests__/__mocks__/expo-modules-core.ts',

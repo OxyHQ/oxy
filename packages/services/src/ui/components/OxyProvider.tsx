@@ -4,6 +4,8 @@ import { AppState, Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { OxyProviderProps } from '../types/navigation';
 import { OxyRuntimeProvider, type OxyRuntimeProviderProps } from '../context/OxyContext';
+import { OxyHostedRuntimeProvider } from '../context/OxyHostedContext';
+import { getOxySessionHost } from '@oxy.so/core/host';
 import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
 import { SurfaceProvider } from '@oxy.so/bloom/surfaces';
 import { ToastOutlet } from '@oxy.so/bloom/toast';
@@ -105,7 +107,20 @@ const OxyProvider: FC<OxyProviderProps> = ({
   backgroundSession = false,
   language,
   campaignAttribution = false,
+  authStateStore,
 }) => {
+  // A platform that holds the Oxy session (ADR 0058) registers its host before
+  // the app's code runs. Read once, like `baseURL`: a host registered later
+  // does not re-bind a mounted provider. `'identity'` is never hosted.
+  const [sessionHost] = useState(() => (sessionMode === 'account' ? getOxySessionHost() : null));
+  useEffect(() => {
+    if (__DEV__ && sessionHost && authStateStore) {
+      loggerUtil.warn(
+        'OxyProvider: authStateStore is ignored — a platform holds the session here (session host)',
+        { component: 'OxyProvider' },
+      );
+    }
+  }, [sessionHost, authStateStore]);
   const support = useMemo(
     () => ({ onAskAlia, documentationUrl, aliaAvatar, oxyOneArtwork }),
     [onAskAlia, documentationUrl, aliaAvatar, oxyOneArtwork],
@@ -253,42 +268,70 @@ const OxyProvider: FC<OxyProviderProps> = ({
   // duplicate scope that silently shadows the consumer's configuration.
   // It DOES set Bloom's locale (`BloomLocaleBridge`) to Oxy's language, but
   // defers to a locale the app already set above it.
+  const providerChildren = (
+    <>
+      <SupervisionStateObserver />
+      {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
+      <AccountLanguageBoundary language={language}>
+        <BloomLocaleBridge>
+          <OxySupportContext.Provider value={support}>
+            <SurfaceProvider>
+              {requireAuth === 'off' ? (
+                children
+              ) : (
+                <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
+              )}
+            </SurfaceProvider>
+          </OxySupportContext.Provider>
+          <ToastOutlet />
+        </BloomLocaleBridge>
+      </AccountLanguageBoundary>
+    </>
+  );
+
   const coreContent = (
     <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider
-        oxyServices={oxyServices as OxyRuntimeProviderProps['oxyServices']}
-        baseURL={baseURL}
-        authWebUrl={authWebUrl}
-        authRedirectUri={authRedirectUri}
-        authorizeBaseUrl={authorizeBaseUrl}
-        storageKeyPrefix={storageKeyPrefix}
-        clientId={clientId}
-        sessionMode={sessionMode}
-        webAuthMode={webAuthMode}
-        backgroundSession={backgroundSession}
-        legacyLanguageKeys={language?.legacyStorageKeys}
-        captureCampaignAttribution={campaignAttribution}
-        platformStorage={platformStorage}
-        accountQueries={accountQueries}
-        onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
-      >
-        <SupervisionStateObserver />
-        {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
-        <AccountLanguageBoundary language={language}>
-          <BloomLocaleBridge>
-            <OxySupportContext.Provider value={support}>
-              <SurfaceProvider>
-                {requireAuth === 'off' ? (
-                  children
-                ) : (
-                  <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
-                )}
-              </SurfaceProvider>
-            </OxySupportContext.Provider>
-            <ToastOutlet />
-          </BloomLocaleBridge>
-        </AccountLanguageBoundary>
-      </OxyRuntimeProvider>
+      {sessionHost ? (
+        <OxyHostedRuntimeProvider
+          session={sessionHost}
+          oxyServices={oxyServices as OxyRuntimeProviderProps['oxyServices']}
+          baseURL={baseURL}
+          authWebUrl={authWebUrl}
+          authRedirectUri={authRedirectUri}
+          authorizeBaseUrl={authorizeBaseUrl}
+          storageKeyPrefix={storageKeyPrefix}
+          clientId={clientId}
+          webAuthMode={webAuthMode}
+          legacyLanguageKeys={language?.legacyStorageKeys}
+          captureCampaignAttribution={campaignAttribution}
+          platformStorage={platformStorage}
+          accountQueries={accountQueries}
+          onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
+        >
+          {providerChildren}
+        </OxyHostedRuntimeProvider>
+      ) : (
+        <OxyRuntimeProvider
+          oxyServices={oxyServices as OxyRuntimeProviderProps['oxyServices']}
+          baseURL={baseURL}
+          authWebUrl={authWebUrl}
+          authRedirectUri={authRedirectUri}
+          authorizeBaseUrl={authorizeBaseUrl}
+          storageKeyPrefix={storageKeyPrefix}
+          clientId={clientId}
+          sessionMode={sessionMode}
+          webAuthMode={webAuthMode}
+          backgroundSession={backgroundSession}
+          legacyLanguageKeys={language?.legacyStorageKeys}
+          captureCampaignAttribution={campaignAttribution}
+          platformStorage={platformStorage}
+          accountQueries={accountQueries}
+          authStateStore={authStateStore}
+          onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
+        >
+          {providerChildren}
+        </OxyRuntimeProvider>
+      )}
     </QueryClientProvider>
   );
 

@@ -11,6 +11,7 @@
  * The root entry is the API client and what it needs; heavier pieces have their
  * own entries so an app ships only what it uses:
  * - `@oxy.so/core/session`   — device-first sessions, the account dialog, cold boot
+ * - `@oxy.so/core/host`      — the contract of a platform that holds the session (ADR 0058)
  * - `@oxy.so/core/crypto`    — the self-custody identity (keys, recovery phrase)
  * - `@oxy.so/core/civic`     — Oxy ID QR payloads
  * - `@oxy.so/core/inference` — the inference client

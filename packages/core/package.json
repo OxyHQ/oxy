@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/core",
-  "version": "7.33.0",
+  "version": "7.34.0",
   "description": "OxyHQ SDK Foundation \u2014 API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -18,6 +18,9 @@
       ],
       "session": [
         "dist/types/session/index.d.ts"
+      ],
+      "host": [
+        "dist/types/host/index.d.ts"
       ],
       "crypto": [
         "dist/types/crypto/index.d.ts"
@@ -97,6 +100,18 @@
         "default": "./dist/cjs/session/index.js"
       },
       "default": "./dist/esm/session/index.js"
+    },
+    "./host": {
+      "react-native": "./dist/esm/host/index.js",
+      "import": {
+        "types": "./dist/types/host/index.d.ts",
+        "default": "./dist/esm/host/index.js"
+      },
+      "require": {
+        "types": "./dist/types/host/index.d.ts",
+        "default": "./dist/cjs/host/index.js"
+      },
+      "default": "./dist/esm/host/index.js"
     },
     "./crypto": {
       "react-native": "./dist/esm/crypto/index.js",

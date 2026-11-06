@@ -95,6 +95,16 @@ export class SessionApi {
   }
 
   /**
+   * The session id the access token names (its `sessionId` claim); `null` when
+   * signed out or the token does not say. On a session host (ADR 0058) this is
+   * how the provider learns the shared session an application token belongs to.
+   */
+  get sessionId(): string | null {
+    const sessionId = this.claims()?.sessionId;
+    return typeof sessionId === 'string' && sessionId ? sessionId : null;
+  }
+
+  /**
    * The access token's `exp` in SECONDS since the epoch (the raw JWT unit), or
    * `null` when there is no token or it carries no numeric `exp`. Powers the
    * proactive refresh timer in `@oxy.so/services`.
