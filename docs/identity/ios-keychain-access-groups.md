@@ -12,6 +12,58 @@
 > [Phase 2: every Android app on its own UID](phase-2-shared-uid-migration.md) ·
 > Peable ADR 0002.
 
+## Who may list which group
+
+Since `@oxy.so/app-preset` 6.4.0 an app's `keychain-access-groups` is EXACTLY
+the list for its bundle id, in this order (the first entry is the default
+group, from which `@oxy.so/core` reads the app's role):
+
+| Bundle id | `keychain-access-groups` |
+|---|---|
+| `so.oxy.commons` | `$(AppIdentifierPrefix)so.oxy.identity`, `$(AppIdentifierPrefix)so.oxy.wallet`, `$(AppIdentifierPrefix)group.so.oxy.shared` |
+| `so.oxy.commons.dev` | `$(AppIdentifierPrefix)so.oxy.identity.dev`, `$(AppIdentifierPrefix)so.oxy.wallet.dev`, `$(AppIdentifierPrefix)group.so.oxy.shared` |
+| `to.peable.app` | `$(AppIdentifierPrefix)so.oxy.wallet`, `$(AppIdentifierPrefix)group.so.oxy.shared` |
+| `to.peable.app.dev` | `$(AppIdentifierPrefix)so.oxy.wallet.dev`, `$(AppIdentifierPrefix)group.so.oxy.shared` |
+| every other app | `$(AppIdentifierPrefix)group.so.oxy.shared` |
+
+- Each list may end with the app's OWN application group,
+  `$(AppIdentifierPrefix)<its own bundle id>`, which Apple grants it anyway.
+- A holder (Commons, the Peable wallet) may still list the shared group alone:
+  its build before the split, which can read nothing secret.
+- Nothing else. In particular never another app's bundle id
+  (`$(AppIdentifierPrefix)to.peable.app` in Mention, `so.oxy.commons` in a
+  sibling, `to.peable.app.dev` anywhere but that build): `<TEAM>.<bundle id>`
+  is that app's private group, where its session and its own items live
+  (ADR 0062 D6), and every app of the team may list any of the team's groups.
+- Each entry is spelled exactly as above; another spelling of an allowed group
+  (`$(TeamIdentifierPrefix)…`, a literal team id, other case, whitespace) is
+  refused, and so is an entry with a build variable or a wildcard after its
+  prefix.
+
+Where it is checked:
+
+- **At prebuild**, by the preset's config plugin: `withOxyKeychain` (the
+  `['@oxy.so/app-preset', {}]` plugin) writes the list, and
+  `withOxyKeychainPolicy`, applied by `withOxyUpdates` (every Oxy app), checks
+  an app's own `ios.entitlements` and the final entitlements. A refused list
+  fails `expo prebuild` (and `expo config`) with an
+  `[@oxy.so/app-preset] … may not list …` or `… must list its keychain access
+  groups as exactly …` error.
+- **In release CI**: the shared native release workflow
+  (`.github/workflows/android-release.yml`, every Oxy app's signed release)
+  prebuilds iOS on the same commit and runs `oxy-check-keychain-entitlements
+  <bundle id> ios` over what was written; it fails the release when the app's
+  `@oxy.so/app-preset` is older than 6.4.0.
+- **On pull requests and in the merge queue** of this repository: the
+  `android-kotlin` job of `ci.yml` prebuilds Commons and Accounts for iOS, both
+  variants, and runs the same checker (scoped to changes of their app configs,
+  app-preset's plugins and checker, and the native plugins; always in the
+  queue). The scaffold smoke (`scaffold-smoke.yml`) does the same for a
+  `create-oxy-app` app.
+- **Codesigned output**: `oxy-check-keychain-entitlements <bundle id>
+  <entitlements file> --team-id <TEAMID>` over `codesign -d --entitlements -
+  --xml <app>`.
+
 ## The finding, checked against the code
 
 **On iOS every Oxy app can read the personal identity private key, every
@@ -187,13 +239,17 @@ groups. That residual risk is the same on Android (Commons' certificate).
   Since 6.3.0 every entry is normalised before it is judged (leading build
   variables, a leading team id, whitespace and case), and a restricted group
   must be spelled exactly `$(AppIdentifierPrefix)<group>`, so no other
-  spelling reaches a restricted group. The dev builds (`so.oxy.commons.dev`,
+  spelling reaches a restricted group. Since 6.4.0 (security re-review R5-4)
+  the list is the bundle id's EXACT layout, optionally followed by the app's
+  own application group; any other entry, another app's bundle id above all,
+  fails prebuild ("Who may list which group" above). The dev builds (`so.oxy.commons.dev`,
   `to.peable.app.dev`) hold `so.oxy.identity.dev` / `so.oxy.wallet.dev`, never
   the production groups, because they sit beside the production apps under the
   same team and run JavaScript from a dev server. `oxy-check-keychain-entitlements
   <bundle-id> <ios-dir-or-file> [--team-id <TEAMID>]` runs the same policy over
-  the entitlements a prebuild or a codesign actually wrote (the scaffold smoke
-  runs it after its iOS prebuild).
+  the entitlements a prebuild or a codesign actually wrote (every native
+  release, this repository's CI for Commons and Accounts, and the scaffold
+  smoke run it after an iOS prebuild).
 - **Android is unchanged**: `resolveKeychainAccess()` is `ungrouped` there and
   every call is the call it was; the identity host already narrows.
 

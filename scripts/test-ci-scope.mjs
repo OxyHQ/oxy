@@ -780,12 +780,27 @@ expectScope(
       'true',
     ],
     [
+      'android-app-preset-checker-runs',
+      (root) => write(root, 'packages/app-preset/bin/oxy-check-keychain-entitlements.js', '// c\n'),
+      'true',
+    ],
+    [
+      'android-accounts-app-config-runs',
+      (root) => write(root, 'packages/accounts/app.config.js', '// c\n'),
+      'true',
+    ],
+    [
+      'android-accounts-source-skips',
+      (root) => write(root, 'packages/accounts/app/index.tsx', '// a\n'),
+      'false',
+    ],
+    [
       'android-expo-splash-runs',
       (root) => write(root, 'packages/expo-splash/src/index.ts', '// s\n'),
       'true',
     ],
-    // bun.lock runs the job only when the walk from Commons, services,
-    // expo-splash and app-preset resolves something differently.
+    // bun.lock runs the job only when the walk from Commons, Accounts,
+    // services, expo-splash and app-preset resolves something differently.
     [
       'android-lockfile-a-reached-package-runs',
       (root) => bumpIntegrity(root, 'react-native'),

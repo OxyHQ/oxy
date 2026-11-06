@@ -1541,9 +1541,15 @@ jobs:
   # project; only the two library modules compile, and only the host's JVM unit
   # test runs — no app, no NDK, no emulator.
   #
+  # It also prebuilds Commons and Accounts for iOS, both variants, and runs the
+  # keychain access-group policy over the entitlements each prebuild wrote
+  # (ADR 0062, docs/identity/ios-keychain-access-groups.md): no iOS build of
+  # either app can list a group its bundle id is not entitled to.
+  #
   # On a pull request it runs only when `scope` says the change can reach it
   # (scripts/ci-scope.mjs PATH_SUITES.android: the Kotlin, the manifest
-  # plugins, the manifests or this file, or a bun.lock change to what Commons,
+  # plugins, the manifests, the two app configs, app-preset's plugins and
+  # checker, or this file, or a bun.lock change to what Commons, Accounts,
   # services, expo-splash or app-preset resolve). `CI complete` excuses that
   # skip only on a pull request whose scope succeeded and said `android=false`;
   # the merge queue always runs it, and refuses a skip there.
@@ -1570,6 +1576,25 @@ jobs:
         run: bun install --frozen-lockfile --minimum-release-age=0
       - name: Build expo-splash (Commons' app.config.js loads its plugin)
         run: bun run --filter @oxy.so/expo-splash build
+      # The plugin refuses a bad list at prebuild; the checker then reads what
+      # the prebuild actually WROTE, against the bundle id the config declares.
+      - name: iOS keychain entitlements (Commons, Accounts; both variants)
+        run: |
+          set -euo pipefail
+          check="$PWD/packages/app-preset/bin/oxy-check-keychain-entitlements.js"
+          for app in commons accounts; do
+            for variant in production development; do
+              (
+                cd "packages/$app"
+                export APP_VARIANT="$variant"
+                id="$(bunx expo config --json --type public | jq -r '.ios.bundleIdentifier // empty')"
+                [ -n "$id" ] || { echo "::error::$app ($variant) declares no ios.bundleIdentifier"; exit 1; }
+                bunx expo prebuild --platform ios --no-install --clean
+                node "$check" "$id" ios
+                rm -rf ios
+              )
+            done
+          done
       - name: Prebuild Commons (Android)
         working-directory: ./packages/commons
         run: bunx expo prebuild --platform android --no-install

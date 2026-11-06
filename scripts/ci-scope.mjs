@@ -147,6 +147,11 @@ export const QUEUE_ONLY_JOBS = ['api-image'];
  * the `--no-renames` diff, so a file moved out of one of these paths still
  * counts. A failure to compute the scope runs it, like every other suite.
  *
+ * The same job runs an iOS `expo prebuild` of Commons and Accounts (both
+ * variants) and the keychain access-group policy over the entitlements it
+ * wrote (ADR 0062, R5-4), so their app configs, the preset's plugins and its
+ * checker (`packages/app-preset/bin/`) run it too.
+ *
  * `bun.lock` is not in the pattern: it changes on nearly every pull request,
  * and 58 of 114 pull request runs reached this job through it alone
  * (2026-10-15/17). A changed lockfile runs the suite only when the lockfile
@@ -158,9 +163,10 @@ export const PATH_SUITES = {
   android: {
     jobs: ['android-kotlin'],
     pattern:
-      /^(packages\/services\/(android\/|plugins\/|expo-module\.config\.json|package\.json)|packages\/commons\/(modules\/|plugins\/|app\.config\.js|package\.json)|packages\/app-preset\/plugin\/|packages\/expo-splash\/|\.github\/workflows\/ci\.yml)/,
+      /^(packages\/services\/(android\/|plugins\/|expo-module\.config\.json|package\.json)|packages\/commons\/(modules\/|plugins\/|app\.config\.js|package\.json)|packages\/accounts\/(app\.config\.js|package\.json)|packages\/app-preset\/(plugin|bin)\/|packages\/expo-splash\/|\.github\/workflows\/ci\.yml)/,
     lockfileRoots: [
       'packages/commons',
+      'packages/accounts',
       'packages/services',
       'packages/expo-splash',
       'packages/app-preset',

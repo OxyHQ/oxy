@@ -98,6 +98,15 @@ Commons may list `[identity, wallet, shared]` and only the Peable wallet
 or a holder putting another group first, fails prebuild (`withOxyKeychain`,
 and `withOxyKeychainPolicy` through `withOxyUpdates`, which every app applies).
 
+*Tightened with D6 (security re-review R5-4, app-preset 6.4.0):* the list is
+EXACTLY the bundle id's layout, optionally followed by the app's own
+`$(AppIdentifierPrefix)<bundle id>`. Since D6 puts each app's items in
+`<TEAM>.<bundle id>`, an app listing another app's bundle id would read them, so
+any entry outside that list fails prebuild, and every native release (the shared
+`android-release.yml`) and this repository's CI run `oxy-check-keychain-entitlements`
+over the entitlements an iOS prebuild wrote
+([the table](../identity/ios-keychain-access-groups.md#who-may-list-which-group)).
+
 ## Consequences
 
 - Every iOS app but Commons and the Peable wallet loses silent sign-in: the first

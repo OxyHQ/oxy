@@ -82,10 +82,8 @@ plugins: [
 
 This adds the iOS `keychain-access-groups` entitlement
 (`$(AppIdentifierPrefix)group.so.oxy.shared`; only Commons and the Peable wallet get
-more, their `.dev` builds the `.dev` groups, and any other app naming `so.oxy.identity` or
-`so.oxy.wallet` in any spelling fails prebuild — ADR 0062 of the oxy repo;
-`oxy-check-keychain-entitlements <bundle-id> ios` runs the same policy over what prebuild
-wrote), the Oxy `expo-build-properties`
+more, their `.dev` builds the `.dev` groups — ADR 0062 of the oxy repo, see
+[Keychain access groups](#keychain-access-groups)), the Oxy `expo-build-properties`
 defaults (iOS `deploymentTarget 16.4`; Android ProGuard + resource shrinking — the
 Android compile/target SDK and build tools are the Expo SDK's own, never pinned here), and `@oxy.so/services/plugins/withOxySharedPermissions`:
 the app declares and requests the signature-level `so.oxy.permission.IDENTITY` and
@@ -103,6 +101,30 @@ The iOS and build-property pieces are overridable:
   android: { targetSdkVersion: 34 },    // deep-merges over defaults; false → skip Android build props
 }]
 ```
+
+##### Keychain access groups
+
+Since 6.4.0 an app's `keychain-access-groups` must be EXACTLY its bundle id's list, in
+order (the first entry is the default group, which decides the app's role):
+
+| Bundle id | Groups (each `$(AppIdentifierPrefix)<group>`) |
+|---|---|
+| `so.oxy.commons` | `so.oxy.identity`, `so.oxy.wallet`, `group.so.oxy.shared` |
+| `so.oxy.commons.dev` | `so.oxy.identity.dev`, `so.oxy.wallet.dev`, `group.so.oxy.shared` |
+| `to.peable.app` | `so.oxy.wallet`, `group.so.oxy.shared` |
+| `to.peable.app.dev` | `so.oxy.wallet.dev`, `group.so.oxy.shared` |
+| every other app | `group.so.oxy.shared` |
+
+optionally followed by the app's own `$(AppIdentifierPrefix)<its bundle id>` (a holder may
+also still list the shared group alone, before its split build). Anything else fails
+prebuild, in particular another app's bundle id: `<TEAM>.<bundle id>` is that app's private
+group, where its session lives. Each entry is spelled exactly `$(AppIdentifierPrefix)<group>`.
+The check runs at prebuild (`withOxyKeychain`, and `withOxyKeychainPolicy` through
+`withOxyUpdates` for apps that declare `ios.entitlements` themselves), and
+`oxy-check-keychain-entitlements <bundle-id> <ios-dir-or-file> [--team-id <TEAMID>]` runs it
+over what a prebuild or a codesign wrote: Oxy's shared native release workflow runs it on
+every release, which therefore needs this package at 6.4.0 or later.
+See `docs/identity/ios-keychain-access-groups.md` in the oxy repo.
 
 ##### Dropping React Native's GIF / WebP decoders (opt-in, Expo SDK 58+)
 

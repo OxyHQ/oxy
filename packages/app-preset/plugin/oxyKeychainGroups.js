@@ -21,18 +21,35 @@
  * JavaScript from a dev server, so they never get the production restricted
  * groups: they hold the `.dev` ones, and a production id may not name those.
  *
- * Every entry is NORMALISED before it is judged (`normalizeGroupName`): leading
- * build variables (`$(AppIdentifierPrefix)`, `$(TeamIdentifierPrefix)`,
- * `${…}`, nested), a leading ten-character team id and surrounding whitespace
- * are stripped, and the name is compared without case. An entry that names a
- * restricted group must then be spelled EXACTLY `$(AppIdentifierPrefix)<group>`
- * (or `<TEAMID>.<group>` when checking built entitlements for that team), and
- * an entry still carrying a build variable or a wildcard after normalisation
- * cannot be judged and is refused.
+ * Every entry is spelled EXACTLY `$(AppIdentifierPrefix)<group>` (or
+ * `<TEAMID>.<group>` when checking built entitlements for that team). Any other
+ * entry is NORMALISED (`normalizeGroupName`: leading build variables such as
+ * `$(TeamIdentifierPrefix)` or `${…}`, nested, a leading ten-character team id
+ * and surrounding whitespace are stripped, case is ignored) only to say why it
+ * is refused: another spelling of an allowed group, a restricted group this
+ * app does not hold, or a group that is not this app's at all. An entry still
+ * carrying a build variable or a wildcard after normalisation cannot be judged.
  *
- * Every other app keeps the shared group only. An app config that names a
- * restricted group without being its holder fails prebuild; the entitlement is
- * native, so this is the one place it can be stopped before it ships.
+ * The list is EXACT, not a floor (R5-4). An app may list:
+ *
+ * | Bundle id                       | `keychain-access-groups`                         |
+ * |---------------------------------|--------------------------------------------------|
+ * | `so.oxy.commons`                | `[identity, wallet, shared]`                     |
+ * | `so.oxy.commons.dev`            | `[identity.dev, wallet.dev, shared]`             |
+ * | `to.peable.app`                 | `[wallet, shared]`                               |
+ * | `to.peable.app.dev`             | `[wallet.dev, shared]`                           |
+ * | every other app                 | `[shared]`                                       |
+ *
+ * each optionally followed by the app's OWN application group,
+ * `$(AppIdentifierPrefix)<its own bundle id>`, which Apple grants it anyway.
+ * A holder may also still list `[shared]` alone: the build before its split,
+ * which reads nothing secret. Nothing else, in particular no other bundle id:
+ * `<TEAM>.<bundle id>` is each app's private group (ADR 0062 D6, its session
+ * and its own items live there), and every app of the team may list any of the
+ * team's groups, so an app naming another app's id reads that app's items.
+ * The entitlement is native, so prebuild is the one place it can be stopped
+ * before it ships; `oxy-check-keychain-entitlements` checks what a prebuild or
+ * a codesign wrote, in CI and in every release build.
  */
 const PREFIX = '$(AppIdentifierPrefix)';
 
@@ -127,19 +144,44 @@ function refuse(message) {
   throw new Error(`[@oxy.so/app-preset] ${message} (docs/identity/ios-keychain-access-groups.md)`);
 }
 
+/** The spelling an allowed group must have: `$(AppIdentifierPrefix)<name>`, or `<teamId>.<name>`. */
+function pinnedEntry(name, teamId) {
+  return teamId === undefined ? `${PREFIX}${name}` : `${teamId}.${name}`;
+}
+
+/**
+ * The lists this bundle id may ship, without its optional trailing own group:
+ * its holder layout (or the shared group alone, before its split build), or
+ * the shared group for every other app. An empty list is allowed too: it names
+ * no group, like an app without the entitlement.
+ * @param {string|undefined} bundleId
+ * @returns {readonly (readonly string[])[]}
+ */
+function allowedKeychainLayouts(bundleId) {
+  const layouts = [[], [G.shared]];
+  if (Object.hasOwn(HOLDER_LAYOUTS, bundleId ?? '')) layouts.push(HOLDER_LAYOUTS[bundleId]);
+  return layouts;
+}
+
 /**
  * Throw unless `entries` (a `keychain-access-groups` value) is one this bundle
- * id may ship: every entry judgeable, a restricted group only for its holders
- * and only in its one spelling, and a holder's layout as the leading entries,
- * in order.
+ * id may ship: every entry judgeable and in its one spelling, each one of the
+ * Oxy groups this bundle id holds or its own application group, and the whole
+ * list exactly its layout (`allowedKeychainLayouts`), in order, optionally
+ * followed by its own application group.
  *
  * @param {string|undefined} bundleId
  * @param {unknown} entries
  * @param {{ teamId?: string }} [options] `teamId`: the entries are BUILT
- *   (codesigned) entitlements of that team, so a restricted group is spelled
+ *   (codesigned) entitlements of that team, so a group is spelled
  *   `<teamId>.<group>` instead of `$(AppIdentifierPrefix)<group>`.
  */
 function assertOxyKeychainGroups(bundleId, entries, options = {}) {
+  // An app's implicit own group must never alias a restricted shared group,
+  // even when its entitlements omit keychain-access-groups altogether.
+  if (typeof bundleId === 'string' && restrictedGroup(bundleId) !== undefined) {
+    refuse(`${bundleId} is reserved for an Oxy restricted keychain group, not an app bundle id`);
+  }
   if (entries === undefined || entries === null) return;
   const app = bundleId ?? 'This app';
   if (!Array.isArray(entries)) {
@@ -149,12 +191,24 @@ function assertOxyKeychainGroups(bundleId, entries, options = {}) {
   if (teamId !== undefined && !TEAM_ID.test(teamId)) {
     refuse(`"${teamId}" is not an Apple team id (ten upper-case letters and digits)`);
   }
-  const layout = Object.hasOwn(HOLDER_LAYOUTS, bundleId ?? '') ? HOLDER_LAYOUTS[bundleId] : [];
+  const layout = keychainGroupsFor(bundleId);
+  // The groups this app may name: its layout's, and its own application group.
+  const own = typeof bundleId === 'string' && bundleId !== '' ? bundleId : undefined;
+  const allowed = own === undefined ? [...layout] : [...layout, own];
+  const allowedByName = new Map(allowed.map((name) => [name.toLowerCase(), name]));
+  const ownHint =
+    own === undefined ? '' : ` and, after them, its own application group "${PREFIX}${own}"`;
 
-  const names = entries.map((entry) => {
+  /** The allowed group `entry` names, in its one spelling; throws for anything else. */
+  const judge = (entry) => {
     if (typeof entry !== 'string') {
       refuse(`${app}: every keychain-access-groups entry must be a string`);
     }
+    // The exact spelling first: a bundle id whose first label is ten
+    // characters would otherwise be read as a team prefix below.
+    const exact = allowed.find((name) => entry === pinnedEntry(name, teamId));
+    if (exact !== undefined) return exact;
+
     const name = normalizeGroupName(entry);
     if (name === '' || /[$*?\s]/.test(name)) {
       refuse(
@@ -162,9 +216,14 @@ function assertOxyKeychainGroups(bundleId, entries, options = {}) {
           'whitespace past its team prefix). Name the group literally after $(AppIdentifierPrefix).',
       );
     }
+    const canonical = allowedByName.get(name.toLowerCase());
+    if (canonical !== undefined) {
+      refuse(
+        `${app} must spell the keychain access group "${entry}" exactly "${pinnedEntry(canonical, teamId)}"`,
+      );
+    }
     const restricted = restrictedGroup(name);
-    if (restricted === undefined) return name;
-    if (!layout.includes(restricted)) {
+    if (restricted !== undefined) {
       refuse(
         `${app} may not list the keychain access group "${entry}" (${restricted}): only Commons holds ` +
           'the identity group and only Commons and the Peable wallet the wallet group, the production ' +
@@ -172,28 +231,34 @@ function assertOxyKeychainGroups(bundleId, entries, options = {}) {
           'group.so.oxy.shared',
       );
     }
-    const pinned = teamId === undefined ? `${PREFIX}${restricted}` : `${teamId}.${restricted}`;
-    if (entry !== pinned) {
-      refuse(`${app} must spell the keychain access group "${entry}" exactly "${pinned}"`);
-    }
-    return restricted;
-  });
+    refuse(
+      `${app} may not list the keychain access group "${entry}": it is not one of this app's groups ` +
+        `[${layout.join(', ')}]${ownHint}. "<TEAM>.<bundle id>" is that app's own private group ` +
+        "(ADR 0062 D6), so naming another app's bundle id, or any other group, lets this app read " +
+        'items that are not its own',
+    );
+  };
+  const names = [];
+  for (const entry of entries) names.push(judge(entry));
 
-  if (layout.length > 0 && names.some((name) => restrictedGroup(name) !== undefined)) {
-    const leading = names.slice(0, layout.length);
-    if (leading.join(',') !== layout.join(',')) {
-      refuse(
-        `${bundleId} must list its keychain access groups as [${layout.join(', ')}] first, in that ` +
-          `order (got [${names.join(', ')}]): the first entry is the default group, which decides ` +
-          'where the identity is written and what @oxy.so/core lets this app read',
-      );
-    }
+  const base = own !== undefined && names.at(-1) === own ? names.slice(0, -1) : names;
+  const fits = allowedKeychainLayouts(bundleId).some(
+    (candidate) => candidate.join(',') === base.join(','),
+  );
+  if (!fits) {
+    refuse(
+      `${app} must list its keychain access groups as exactly [${layout.join(', ')}], in that order` +
+        `${own === undefined ? '' : `, optionally followed by its own application group ${PREFIX}${own}`}` +
+        ` (got [${names.join(', ')}]): the first entry is the default group, which decides where the ` +
+        'identity is written and what @oxy.so/core lets this app read',
+    );
   }
 }
 
 module.exports = {
   OXY_KEYCHAIN_GROUPS,
   HOLDER_LAYOUTS,
+  allowedKeychainLayouts,
   assertOxyKeychainGroups,
   keychainEntries,
   keychainGroupsFor,
