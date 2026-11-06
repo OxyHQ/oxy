@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
+import { View, Animated, StyleSheet, Platform } from 'react-native';
 import { LogoIcon } from '@oxy.so/services';
 import { LoadingSpinner } from '@/components/ui/Loading';
 import { useTheme } from '@/hooks/useTheme';
@@ -42,7 +42,8 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, start
       animationRef.current = Animated.timing(fadeAnim, {
         toValue: 0,
         duration: FADE_DURATION,
-        useNativeDriver: true,
+        // The native driver does not exist on web; there the JS driver runs the same fade.
+        useNativeDriver: Platform.OS !== 'web',
       });
 
       animationRef.current.start(({ finished }) => {
