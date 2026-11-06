@@ -6,10 +6,11 @@ import { applications, users } from '../../db/schema';
 import request from 'supertest';
 const mockList = jest.fn();
 const mockSave = jest.fn();
+const mockDelete = jest.fn();
 jest.mock('../../db/postalAddresses', () => ({
   listPostalAddresses: (...args: unknown[]) => mockList(...args),
   savePostalAddress: (...args: unknown[]) => mockSave(...args),
-  deletePostalAddress: jest.fn(),
+  deletePostalAddress: (...args: unknown[]) => mockDelete(...args),
 }));
 jest.mock('../../services/externalMcpMediaRequester.service', () => ({
   hasExternalMcpMediaProof: jest.fn(),
@@ -102,4 +103,18 @@ it('refuses a live third-party application and never reads private addresses', a
   const res = await request(app).get('/addresses').set('Authorization', `Bearer ${ownerToken}`);
   expect(res.status).toBe(403);
   expect(mockList).not.toHaveBeenCalled();
+});
+
+it('refuses malformed address ids before storage', async () => {
+  const patch = await request(app)
+    .patch('/addresses/not-an-id')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ label: 'Home' });
+  const remove = await request(app)
+    .delete('/addresses/not-an-id')
+    .set('Authorization', `Bearer ${ownerToken}`);
+  expect(patch.status).toBe(400);
+  expect(remove.status).toBe(400);
+  expect(mockSave).not.toHaveBeenCalled();
+  expect(mockDelete).not.toHaveBeenCalled();
 });

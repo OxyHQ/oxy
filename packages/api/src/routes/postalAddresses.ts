@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { postalAddressInputSchema, postalAddressUpdateSchema } from '@oxy.so/contracts';
+import {
+  postalAddressInputSchema,
+  postalAddressUpdateSchema,
+  postalAddressParamsSchema,
+} from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { parseValidatedRequestValue } from '../middleware/validate';
@@ -42,14 +46,16 @@ router.post(
 router.patch(
   '/:id',
   asyncHandler(async (req, res) => {
+    const { id } = parseValidatedRequestValue(postalAddressParamsSchema, req.params);
     const input = parseValidatedRequestValue(postalAddressUpdateSchema, req.body);
-    res.json(await privateOperation(() => savePostalAddress(owner(req), input, req.params.id)));
+    res.json(await privateOperation(() => savePostalAddress(owner(req), input, id)));
   }),
 );
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
-    await privateOperation(() => deletePostalAddress(owner(req), req.params.id));
+    const { id } = parseValidatedRequestValue(postalAddressParamsSchema, req.params);
+    await privateOperation(() => deletePostalAddress(owner(req), id));
     res.status(204).end();
   }),
 );
