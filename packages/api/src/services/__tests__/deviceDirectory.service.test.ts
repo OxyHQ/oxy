@@ -1,3 +1,6 @@
+import { SessionClient } from '../../../../core/src/session/SessionClient';
+import { OxyServices } from '../../../../core/src/OxyServices';
+import { createTokenTransport } from '../../../../services/src/ui/session/tokenTransport';
 import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * The device DIRECTORY and the ONE activation write (issue #937, ADR 0002),
@@ -823,6 +826,86 @@ describe('removal — one context and one principal are different operations', (
       holder,
     };
   }
+
+  it.each([false, true])('audit real mint with same-subject actor switch, identity pin=%s', async (pinned) => {
+    const shared = await sharedOrganization();
+    const initial = await deviceSessionService.getState(shared.device);
+    const token = await deviceSessionService.resolveActiveToken(initial);
+    const oxy = new OxyServices({ baseURL: 'https://oxy.example' });
+    oxy.session.setAccessToken(token!.accessToken);
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    const socket = { connected: true, on: (event: string, cb: (...args: unknown[]) => void) => { handlers.set(event, cb); }, off: () => {}, connect: () => {}, disconnect: () => {} };
+    let stateReads = 0;
+    const host = {
+      makeRequest: async (_method: string, path: string) => {
+        if (path === '/session/device/directory') return deviceSessionService.getDirectory(shared.device);
+        if (path === '/session/device/state') {
+          stateReads++;
+          const state = await deviceSessionService.getState(shared.device);
+          return { state, activeToken: await deviceSessionService.resolveActiveToken(state) };
+        }
+        throw new Error(`Unexpected path ${path}`);
+      },
+      getBaseURL: () => 'https://oxy.example', getAccessToken: () => oxy.session.accessToken,
+      getDeviceCredential: () => null, onTokensChanged: () => () => {},
+      setTokens: (value: string) => oxy.session.setAccessToken(value),
+      getCurrentAccountId: () => shared.org,
+    };
+    const client = new SessionClient(host as never, {
+      transport: createTokenTransport(oxy),
+      getPinnedAccountId: () => pinned ? shared.org : null,
+      socketFactory: () => socket as never,
+    });
+    try {
+      await client.start();
+      await client.refreshDirectory();
+      const old = validateAccessToken(oxy.session.accessToken!).payload;
+      expect(old?.act?.sub).toBe(shared.alice);
+      const changed = await deviceSessionService.activateContext(shared.device, shared.viaNate, request());
+      if (!changed.ok) throw new Error('activation failed');
+      const before = stateReads;
+      const observations: Array<{ actor?: string; bearerActor?: string }> = [];
+      client.subscribe(() => observations.push({ actor: client.getActiveContext()?.actor.userId, bearerActor: validateAccessToken(oxy.session.accessToken!).payload?.act?.sub }));
+      handlers.get('session_state')!(changed.state);
+      for (let i = 0; i < 200 && client.getActiveContext()?.actor.userId !== shared.nate; i++) await new Promise<void>(r => setTimeout(r, 10));
+      expect(client.getActiveContext()?.actor.userId).toBe(shared.nate);
+      expect(validateAccessToken(oxy.session.accessToken!).payload?.act?.sub).toBe(shared.alice);
+      expect(stateReads).toBe(before);
+      expect(observations).toContainEqual({ actor: shared.nate, bearerActor: shared.alice });
+      handlers.get('session_accounts_changed')!({userId: shared.org, revision: changed.state.revision, reason: 'switch'});
+      for (let i = 0; i < 100 && stateReads === before; i++) await new Promise<void>(r => setTimeout(r, 10));
+      for (let i = 0; i < 100 && validateAccessToken(oxy.session.accessToken!).payload?.act?.sub !== shared.nate; i++) await new Promise<void>(r => setTimeout(r, 10));
+      expect(stateReads).toBeGreaterThan(before);
+      expect(validateAccessToken(oxy.session.accessToken!).payload?.act?.sub).toBe(shared.nate);
+    } finally { client.stop(); oxy.dispose(); }
+  });
+
+  it('audit explicit directory refresh after another actor activates the same subject', async () => {
+    const shared = await sharedOrganization();
+    const state = await deviceSessionService.getState(shared.device);
+    const token = await deviceSessionService.resolveActiveToken(state);
+    const oxy = new OxyServices({ baseURL: 'https://oxy.example' });
+    oxy.session.setAccessToken(token!.accessToken);
+    const host = {
+      makeRequest: async (_method: string, path: string) => {
+        if (path === '/session/device/directory') return deviceSessionService.getDirectory(shared.device);
+        throw new Error(`Unexpected path ${path}`);
+      }, getBaseURL: () => 'https://oxy.example', getAccessToken: () => oxy.session.accessToken,
+      getDeviceCredential: () => null, onTokensChanged: () => () => {},
+      setTokens: (value: string) => oxy.session.setAccessToken(value), getCurrentAccountId: () => shared.org,
+    };
+    const client = new SessionClient(host as never, { transport: createTokenTransport(oxy) });
+    try {
+      client.adoptState(state);
+      await client.refreshDirectory();
+      const observations: Array<{ actor?: string; bearerActor?: string }> = [];
+      client.subscribe(() => observations.push({ actor: client.getActiveContext()?.actor.userId, bearerActor: validateAccessToken(oxy.session.accessToken!).payload?.act?.sub }));
+      const changed = await deviceSessionService.activateContext(shared.device, shared.viaNate, request());
+      if (!changed.ok) throw new Error('activation failed');
+      await client.refreshDirectory();
+      expect(observations).toContainEqual({ actor: shared.nate, bearerActor: shared.alice });
+    } finally { client.stop(); oxy.dispose(); }
+  });
 
   it('#1549 background secret cannot follow the remaining operator after exact autoheal', async () => {
     const pair = await backgroundPair();
