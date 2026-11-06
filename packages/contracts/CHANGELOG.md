@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.11.1
+
+### Fixed
+
+- Publishes what 6.11.0 describes. The 6.11.0 on npm was released from an earlier commit (2026-11-05 23:43 UTC) before `PRONOUNS` / `Pronouns` / `pronounsSchema` merged under the same version (#2182), so the release skipped them, and `@oxy.so/services` 14.7.0 and later (which import `PRONOUNS` from `@oxy.so/contracts/client`) failed to typecheck in consumers and read `undefined` at runtime. No API change from the 6.11.0 notes below.
+
 ## 6.11.0
 
 ### Added
