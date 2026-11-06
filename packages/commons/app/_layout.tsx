@@ -14,7 +14,7 @@ import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { useQueryClient } from '@tanstack/react-query';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { productAnalytics } from '@/lib/product-analytics';
-import { KeyManager, syncOrganizationKeys } from '@oxy.so/core/crypto';
+import { KeyManager, ensureKeychainGroupsMigrated, syncOrganizationKeys } from '@oxy.so/core/crypto';
 import { logger } from '@oxy.so/core';
 import { useNavigationTheme } from '@oxy.so/bloom/theme';
 import { BloomProvider } from '@oxy.so/bloom/provider';
@@ -329,6 +329,19 @@ function AppStackContent() {
     backfillDoneRef.current = true;
 
     void (async () => {
+      // iOS: move the identity out of the keychain group every Oxy app reads
+      // (docs/identity/ios-keychain-access-groups.md). Every identity read and
+      // write already waits for this run; awaiting it here only reports it.
+      // Verify-before-delete: whatever it cannot move stays readable where it is
+      // and is retried on the next launch. Labels and outcomes only, never values.
+      const migration = await ensureKeychainGroupsMigrated();
+      if (migration.state === 'incomplete') {
+        logger.error(
+          '[commons] keychain access-group migration left items in the shared group',
+          undefined,
+          { component: 'AppStackContent', items: JSON.stringify(migration.items) },
+        );
+      }
       try {
         const synced = await KeyManager.syncSharedIdentity();
         if (!synced) {

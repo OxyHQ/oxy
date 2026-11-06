@@ -121,8 +121,8 @@ export interface CommonsSocialReceiveSignature {
  * resolves `null` when Commons is not installed, holds no identity, or refuses
  * the caller.
  *
- * On iOS the module is a stub that resolves `null`: the Keychain Access Group
- * path in `@oxy.so/core`'s `KeyManager` owns iOS sharing.
+ * On iOS these methods resolve `null`: the keychain access groups in
+ * `@oxy.so/core`'s `KeyManager` own iOS sharing (docs/identity/ios-keychain-access-groups.md).
  */
 export interface CommonsIdentityBridge {
   /**
@@ -150,3 +150,23 @@ export interface CommonsIdentityBridge {
     accountId?: string,
   ): Promise<CommonsSocialReceiveSignature | null>;
 }
+
+/**
+ * What the iOS keychain says about this app's DEFAULT access group: the first
+ * entry of its `keychain-access-groups` entitlement, team prefix included
+ * (`ABCDE12345.so.oxy.identity`). The value is read back from a probe item the
+ * native module writes without a group, because JavaScript cannot see the
+ * entitlements or the team prefix (`$(AppIdentifierPrefix)` expands at build
+ * time), and `kSecAttrAccessGroup` must equal an entitlement value exactly.
+ *
+ * - `resolved`: the group string, as the keychain reported it.
+ * - `unsupported`: not iOS, or a native build whose `OxyIdentity` module
+ *   predates the probe. Callers keep the single-group behaviour that build was
+ *   made for.
+ * - `unavailable`: the probe threw (before first unlock, keychain refused).
+ *   Transient; never cached.
+ */
+export type KeychainDefaultAccessGroup =
+  | { state: 'resolved'; accessGroup: string }
+  | { state: 'unsupported' }
+  | { state: 'unavailable'; cause: unknown };

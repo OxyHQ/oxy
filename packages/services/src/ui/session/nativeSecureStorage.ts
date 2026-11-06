@@ -19,13 +19,30 @@
  * evaluates the constant, so Metro resolved it anyway) and only hid it from the
  * gates that read this source.
  */
-import type { NativeKeyValueStorage } from '@oxy.so/core/session';
+import {
+  type NativeKeyValueStorage,
+  deleteThroughPlan,
+  ownKeychainItemPlan,
+  readThroughPlan,
+  resolveKeychainAccess,
+} from '@oxy.so/core/session';
 import { createPlatformStorage } from '../utils/storageHelpers';
 
 interface SecureStoreLike {
-  getItemAsync(key: string): Promise<string | null>;
-  setItemAsync(key: string, value: string): Promise<void>;
-  deleteItemAsync(key: string): Promise<void>;
+  getItemAsync(key: string, options?: object): Promise<string | null>;
+  setItemAsync(key: string, value: string, options?: object): Promise<void>;
+  deleteItemAsync(key: string, options?: object): Promise<void>;
+}
+
+/**
+ * Where this app's own items go on iOS (`ownKeychainItemPlan`,
+ * docs/identity/ios-keychain-access-groups.md): in Commons and the Peable
+ * wallet, whose default keychain group the access-group split changed, the
+ * default group explicitly and first; in every other app the calls it always
+ * made. Android and web: no options.
+ */
+async function ownItemPlan() {
+  return ownKeychainItemPlan(await resolveKeychainAccess());
 }
 
 let secureStorePromise: Promise<SecureStoreLike | null> | null = null;
@@ -80,14 +97,14 @@ export function createNativeSecureKeyValueStorage(): NativeKeyValueStorage {
     getItem: async (key) => {
       const secure = await loadSecureStore();
       if (secure) {
-        return secure.getItemAsync(key);
+        return readThroughPlan(secure, key, {}, (await ownItemPlan()).read);
       }
       return (await getAsyncStorage()).getItem(key);
     },
     setItem: async (key, value) => {
       const secure = await loadSecureStore();
       if (secure) {
-        await secure.setItemAsync(key, value);
+        await secure.setItemAsync(key, value, (await ownItemPlan()).write);
         return;
       }
       await (await getAsyncStorage()).setItem(key, value);
@@ -95,7 +112,7 @@ export function createNativeSecureKeyValueStorage(): NativeKeyValueStorage {
     removeItem: async (key) => {
       const secure = await loadSecureStore();
       if (secure) {
-        await secure.deleteItemAsync(key);
+        await deleteThroughPlan(secure, key, {}, (await ownItemPlan()).delete);
         return;
       }
       await (await getAsyncStorage()).removeItem(key);

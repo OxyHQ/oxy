@@ -166,6 +166,17 @@ export type {
   SharedDevicePublishOutcome,
   SharedDevicePublishSkipReason,
 } from './sharedDeviceCredential';
+// Where the shared device credential (and an app's own items) live on iOS:
+// docs/identity/ios-keychain-access-groups.md, ADR 0062.
+export {
+  KeychainAccessUnavailableError,
+  keychainAccessGroupValue,
+  ownKeychainItemPlan,
+  readThroughPlan,
+  deleteThroughPlan,
+  resolveKeychainAccess,
+} from '../utils/keychainAccessGroups';
+export type { KeychainAccess, KeychainGroupOption } from '../utils/keychainAccessGroups';
 
 // Identity-bound sessions (the identity vault). The pin is the durable
 // `{publicKey, accountId}` binding between this device's PRIMARY identity key

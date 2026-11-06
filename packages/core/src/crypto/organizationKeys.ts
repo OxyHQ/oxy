@@ -8,8 +8,10 @@
  * other Oxy apps reach it the way they reach the personal identity, by
  * derivation and never by the key:
  *
- * - iOS: the keychain access group `group.so.oxy.shared`, like the personal
- *   shared slot. Only Commons writes it.
+ * - iOS: the pair in the wallet keychain group (`<TEAM>.so.oxy.wallet`), which
+ *   only Commons and the Peable wallet hold; the phrase and the index in the
+ *   identity group, Commons only (docs/identity/ios-keychain-access-groups.md).
+ *   Only Commons writes them; every other app reads nothing.
  * - Android: Commons' own expo-secure-store slot, mirrored into the identity
  *   signer store (`./identitySigner`) that Commons' identity host answers
  *   `accountId` requests from. Every other app asks Commons over IPC
@@ -17,7 +19,7 @@
  *
  * The phrase is kept only in Commons, on the device that created or imported
  * it, so an owner can show it to another owner (ADR 0061 D5); it never reaches
- * the keychain group, an IPC answer or a log.
+ * the wallet or shared group, an IPC answer or a log.
  *
  * This module imports nothing from `./keyManager` (which imports it): the
  * signer store comes from `./identitySigner`'s registry.
@@ -38,8 +40,28 @@ import {
   normalizeSecp256k1PublicKey,
 } from '@oxy.so/protocol/secp256k1';
 import { logger } from '../logger';
+import {
+  type KeychainItemClass,
+  groupedKeychainStore,
+  resolveKeychainAccess,
+} from '../utils/keychainAccessGroups';
 import { isAndroid, isIOS, isWeb } from '../utils/platform';
 import { registeredIdentitySignerStore } from './identitySigner';
+import { ensureKeychainGroupsMigrated } from './keychainGroupMigration';
+import {
+  ORGANIZATION_ANDROID_KEYCHAIN_SERVICE as ANDROID_KEYCHAIN_SERVICE,
+  ORGANIZATION_INDEX_KEYCHAIN_SERVICE as INDEX_KEYCHAIN_SERVICE,
+  ORGANIZATION_INDEX_STORAGE_KEY as INDEX_STORAGE_KEY,
+  ORGANIZATION_MNEMONIC_KEYCHAIN_SERVICE as MNEMONIC_KEYCHAIN_SERVICE,
+  isOrganizationAccountId,
+  organizationMnemonicName as mnemonicName,
+  organizationPrivateKeyName as privateKeyName,
+  organizationPublicKeyName as publicKeyName,
+  serializeOrganizationIndex,
+} from './keychainItems';
+import type { OxySecureStoreOptions as SecureStoreOptions } from './secureStoreOptions';
+
+export { isOrganizationAccountId };
 
 /** A secp256k1 pair: private key 64 hex, public key lowercase uncompressed (`04…`, 130 hex). */
 export interface OrganizationKeyPair {
@@ -57,38 +79,13 @@ export interface StoredOrganizationKey extends OrganizationKeyPair {
   mnemonic?: string;
 }
 
-/** Same set the server's account ids come from: a legacy 24-hex id or a lowercase uuid. */
-const ACCOUNT_ID =
-  /^(?:[0-9a-f]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
-
-const IOS_KEYCHAIN_GROUP = 'group.so.oxy.shared';
-/** Android, Commons-local: its own Keystore key, shared with no personal slot. */
-const ANDROID_KEYCHAIN_SERVICE = 'oxy_org_identity';
-const MNEMONIC_KEYCHAIN_SERVICE = 'oxy_org_identity_mnemonic';
-const INDEX_KEYCHAIN_SERVICE = 'oxy_org_identity_index';
-const INDEX_STORAGE_KEY = 'oxy_org_identity_index_v1';
 const ORGANIZATION_PHRASE_WORDS = 24;
-
-interface SecureStoreOptions {
-  keychainService?: string;
-  keychainAccessible?: number;
-  keychainAccessGroup?: string;
-}
-
-/** Whether `value` is an account id an organization key can be stored under. */
-export function isOrganizationAccountId(value: string): boolean {
-  return ACCOUNT_ID.test(value);
-}
 
 function assertAccountId(accountId: string): void {
   if (!isOrganizationAccountId(accountId)) {
     throw new Error('organization key: accountId must be a 24-hex or uuid account id');
   }
 }
-
-const privateKeyName = (accountId: string) => `oxy_org_identity_private_key.${accountId}`;
-const publicKeyName = (accountId: string) => `oxy_org_identity_public_key.${accountId}`;
-const mnemonicName = (accountId: string) => `oxy_org_identity_mnemonic.${accountId}`;
 
 function toHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
@@ -152,9 +149,24 @@ export async function organizationKeyFromPhrase(phrase: string): Promise<Organiz
   return pairFromPhrase(phrase);
 }
 
-async function secureStore(): Promise<ExpoSecureStoreLike> {
-  return loadSecureStore();
+/**
+ * The secure store for one class of organization item: on iOS the pair is a
+ * `spending-key` (wallet group), the phrase and the index `identity-secret`
+ * (identity group); see `../utils/keychainAccessGroups`. In Commons every
+ * access first awaits the access-group migration. Android is unchanged.
+ */
+async function secureStore(item: KeychainItemClass): Promise<ExpoSecureStoreLike> {
+  const raw = await loadSecureStore();
+  const access = await resolveKeychainAccess();
+  if (access.mode === 'grouped' && access.role === 'holder') {
+    await ensureKeychainGroupsMigrated();
+  }
+  return groupedKeychainStore(raw, access, item);
 }
+
+const pairStore = () => secureStore('spending-key');
+const phraseStore = () => secureStore('identity-secret');
+const indexStore = () => secureStore('identity-secret');
 
 async function readIndex(store: ExpoSecureStoreLike): Promise<string[]> {
   const raw = await store.getItemAsync(INDEX_STORAGE_KEY, {
@@ -176,20 +188,18 @@ async function readIndex(store: ExpoSecureStoreLike): Promise<string[]> {
 }
 
 async function writeIndex(store: ExpoSecureStoreLike, ids: string[]): Promise<void> {
-  await store.setItemAsync(INDEX_STORAGE_KEY, JSON.stringify([...new Set(ids)].sort()), {
+  await store.setItemAsync(INDEX_STORAGE_KEY, serializeOrganizationIndex(ids), {
     keychainService: INDEX_KEYCHAIN_SERVICE,
   } satisfies SecureStoreOptions);
 }
 
-/** Where this platform keeps the pair: the iOS keychain group, or Commons' own Android slot. */
+/**
+ * The options of the pair on this platform: on iOS no keychain service (the
+ * wallet group comes from {@link pairStore}), on Android Commons' own slot.
+ */
 function pairOptions(store: ExpoSecureStoreLike, forPrivateWrite: boolean): SecureStoreOptions {
   if (isIOS()) {
-    return forPrivateWrite
-      ? {
-          keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-          keychainAccessGroup: IOS_KEYCHAIN_GROUP,
-        }
-      : { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
+    return forPrivateWrite ? { keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY } : {};
   }
   return forPrivateWrite
     ? {
@@ -205,7 +215,7 @@ async function readLocalPair(accountId: string): Promise<OrganizationKeyPair | n
   if (isAndroid()) {
     const signer = registeredIdentitySignerStore();
     if (!signer) return null; // Only Commons holds organization keys on Android.
-    const store = await secureStore();
+    const store = await pairStore();
     const options = pairOptions(store, false);
     const privateKey = await store.getItemAsync(privateKeyName(accountId), options);
     const publicKey = await store.getItemAsync(publicKeyName(accountId), options);
@@ -222,7 +232,9 @@ async function readLocalPair(accountId: string): Promise<OrganizationKeyPair | n
       : null;
   }
   if (!isIOS()) return null;
-  const store = await secureStore();
+  // The wallet group: `null` without a keychain read in every app but Commons
+  // and the Peable wallet.
+  const store = await pairStore();
   const options = pairOptions(store, false);
   const privateKey = await store.getItemAsync(privateKeyName(accountId), options);
   const publicKey = await store.getItemAsync(publicKeyName(accountId), options);
@@ -237,7 +249,7 @@ async function readLocalPair(accountId: string): Promise<OrganizationKeyPair | n
 /**
  * Keep an organization key on this device. Commons only: on Android it needs
  * the identity signer store Commons registers, so the identity host can serve
- * it; on iOS only Commons calls it (the keychain group is shared).
+ * it; on iOS only Commons holds the groups it writes (any other app throws).
  *
  * Refuses a pair whose public key does not derive from its private key, and a
  * phrase that does not derive the pair. Overwrites whatever this device held for
@@ -267,7 +279,7 @@ export async function storeOrganizationKey(
       'On Android only Commons holds organization keys; this app has no identity signer store for them.',
     );
   }
-  const store = await secureStore();
+  const store = await pairStore();
   await store.setItemAsync(privateKeyName(accountId), privateKey, pairOptions(store, true));
   await store.setItemAsync(publicKeyName(accountId), publicKey, pairOptions(store, false));
   if (
@@ -278,22 +290,24 @@ export async function storeOrganizationKey(
       `The identity signer store (${signer.name}) did not confirm the organization key.`,
     );
   }
+  const phrases = await phraseStore();
   if (key.mnemonic !== undefined) {
-    await store.setItemAsync(mnemonicName(accountId), normalizePhrase(key.mnemonic), {
+    await phrases.setItemAsync(mnemonicName(accountId), normalizePhrase(key.mnemonic), {
       keychainService: MNEMONIC_KEYCHAIN_SERVICE,
-      keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+      keychainAccessible: phrases.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     } satisfies SecureStoreOptions);
   } else {
-    await store.deleteItemAsync(mnemonicName(accountId), {
+    await phrases.deleteItemAsync(mnemonicName(accountId), {
       keychainService: MNEMONIC_KEYCHAIN_SERVICE,
     } satisfies SecureStoreOptions);
   }
-  await writeIndex(store, [...(await readIndex(store)), accountId]);
+  const index = await indexStore();
+  await writeIndex(index, [...(await readIndex(index)), accountId]);
 }
 
 /**
  * The organization's public key as THIS device can reach it, or `null`.
- * iOS: the keychain group. Android: Commons' own slot inside Commons, and
+ * iOS: the wallet keychain group (Commons, the Peable wallet). Android: Commons' own slot inside Commons, and
  * Commons' identity host (`describe` with `accountId`) everywhere else. Compare
  * it with the organization's DID `#key-1` before receiving (Peable ADR 0002).
  */
@@ -317,8 +331,8 @@ export async function getOrganizationPublicKey(accountId: string): Promise<strin
 
 /**
  * The organization's private key, where this app may hold it: Commons (both
- * platforms) and, on iOS, the keychain group. `null` on Android outside
- * Commons. Use it to sign within the app only; never transmit it.
+ * platforms) and, on iOS, the Peable wallet through the wallet keychain group.
+ * `null` everywhere else. Use it to sign within the app only; never transmit it.
  */
 export async function getOrganizationPrivateKey(accountId: string): Promise<string | null> {
   if (!isOrganizationAccountId(accountId)) return null;
@@ -336,7 +350,7 @@ export async function getOrganizationPrivateKey(accountId: string): Promise<stri
 /** The organization's phrase, if this device created or imported it with one. Commons only. */
 export async function getOrganizationRecoveryPhrase(accountId: string): Promise<string | null> {
   if (!isOrganizationAccountId(accountId) || isWeb()) return null;
-  const store = await secureStore();
+  const store = await phraseStore();
   return store.getItemAsync(mnemonicName(accountId), {
     keychainService: MNEMONIC_KEYCHAIN_SERVICE,
   } satisfies SecureStoreOptions);
@@ -345,25 +359,26 @@ export async function getOrganizationRecoveryPhrase(accountId: string): Promise<
 /** The organizations this device keeps a key for (Commons' own index). */
 export async function listOrganizationKeys(): Promise<string[]> {
   if (isWeb()) return [];
-  return readIndex(await secureStore());
+  return readIndex(await indexStore());
 }
 
 /** Forget an organization key on this device: its pair, its phrase, its signer copy and its index entry. */
 export async function deleteOrganizationKey(accountId: string): Promise<void> {
   assertAccountId(accountId);
   if (isWeb()) return;
-  const store = await secureStore();
+  const store = await pairStore();
   const options = pairOptions(store, false);
   await store.deleteItemAsync(privateKeyName(accountId), options);
   await store.deleteItemAsync(publicKeyName(accountId), options);
-  await store.deleteItemAsync(mnemonicName(accountId), {
+  await (await phraseStore()).deleteItemAsync(mnemonicName(accountId), {
     keychainService: MNEMONIC_KEYCHAIN_SERVICE,
   } satisfies SecureStoreOptions);
   const signer = isAndroid() ? registeredIdentitySignerStore() : null;
   await signer?.clearOrganization?.(accountId);
+  const index = await indexStore();
   await writeIndex(
-    store,
-    (await readIndex(store)).filter((id) => id !== accountId),
+    index,
+    (await readIndex(index)).filter((id) => id !== accountId),
   );
 }
 
@@ -376,9 +391,9 @@ export async function deleteOrganizationKey(accountId: string): Promise<void> {
 export async function syncOrganizationKeys(): Promise<number> {
   const signer = isAndroid() ? registeredIdentitySignerStore() : null;
   if (!signer?.writeOrganization || !signer.readOrganization) return 0;
-  const store = await secureStore();
+  const store = await pairStore();
   let mirrored = 0;
-  for (const accountId of await readIndex(store)) {
+  for (const accountId of await readIndex(await indexStore())) {
     const options = pairOptions(store, false);
     const privateKey = await store.getItemAsync(privateKeyName(accountId), options);
     const publicKey = await store.getItemAsync(publicKeyName(accountId), options);

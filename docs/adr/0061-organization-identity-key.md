@@ -1,7 +1,8 @@
 # ADR 0061 — An organization has its own identity key, created and held in Commons by its owners and admins
 
 - Status: accepted; D7 amended 2026-11-06, before any key existed, to keep Peable ADR 0002's
-  "no second address tree" (Commons holds only the current key)
+  "no second address tree" (Commons holds only the current key); D6's iOS clause changed by
+  [0062](0062-ios-keychain-access-group-split.md)
 - Date: 2026-11-06
 - Decision: the owner (2026-11-06): organization accounts get a Peable wallet.
   Peable receives FairCoin for a merchant into the wallet of the Oxy account that
@@ -152,7 +153,10 @@ key exactly as they reach the personal one, by derivation, never by the key:
 `KeyManager.deriveScopedSeed(info, { accountId })` and
 `signSocialReceive(index, digest, { accountId })` — on Android through the
 Commons identity host with an `accountId` extra, under the same caller policy
-(the wallet only), on iOS through the shared keychain access group.
+(the wallet only), on iOS through the shared keychain access group. *Changed by
+[ADR 0062](0062-ios-keychain-access-group-split.md):* on iOS the pair is in the wallet
+keychain group, which only Commons and the Peable wallet hold, and the phrase in the
+identity group, Commons only; every other app reaches neither.
 
 ### D7 — Replacing the key, and what happens to the money
 

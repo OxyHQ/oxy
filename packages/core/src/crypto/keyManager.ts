@@ -33,6 +33,21 @@ import { deriveScopedSeedFromKey, signSocialReceiveDigest } from './identityDeri
 import { type IdentitySignerStore, registerIdentitySignerStore } from './identitySigner';
 import { getOrganizationPrivateKey, isOrganizationAccountId } from './organizationKeys';
 import {
+  type KeychainItemClass,
+  groupedKeychainStore,
+  resolveKeychainAccess,
+} from '../utils/keychainAccessGroups';
+import { ensureKeychainGroupsMigrated } from './keychainGroupMigration';
+import {
+  RECOVERY_MNEMONIC_KEYCHAIN_SERVICE,
+  RECOVERY_MNEMONIC_STORAGE_KEY,
+  STORAGE_KEYS,
+  V2_BACKUP_KEYCHAIN_SERVICE,
+  V2_PRIMARY_KEYCHAIN_SERVICE,
+  V2_STORAGE_KEYS,
+} from './keychainItems';
+import type { OxySecureStoreOptions } from './secureStoreOptions';
+import {
   type IdentityMarker,
   clearIdentityMarker,
   readIdentityMarker,
@@ -52,37 +67,6 @@ import {
  * JSON with no key, which `parseDeviceBackup` rejects, so it restores nothing.
  */
 const DEVICE_BACKUP_TOMBSTONE = JSON.stringify({ deleted: true });
-
-/**
- * Options for expo-secure-store calls made by KeyManager.
- *
- * Defined as a standalone interface (not extending expo-secure-store's
- * `SecureStoreOptions`) so that server / Node.js consumers of @oxy.so/core
- * do not transitively pull in expo-modules-core's type declarations under
- * NodeNext module resolution (which would cause NodeJS.Timeout / number
- * pollution across all timer APIs). The fields mirror SecureStoreOptions
- * exactly — any object satisfying this interface is safe to pass to the
- * real expo-secure-store methods (which accept `options?: object`).
- */
-interface OxySecureStoreOptions {
-  /** Keychain service name (Android keystore / iOS keychain tag). */
-  keychainService?: string;
-  /**
-   * Keychain / Keystore item accessibility. Use the constants from the
-   * `ExpoSecureStoreLike` handle returned by `initSecureStore()`, e.g.
-   * `store.WHEN_UNLOCKED_THIS_DEVICE_ONLY`.
-   */
-  keychainAccessible?: number;
-  /** Prompt shown to the user for biometric/auth-protected items. */
-  authenticationPrompt?: string;
-  /** Whether Face ID / Touch ID / biometric auth is required to read the item. */
-  requireAuthentication?: boolean;
-  /**
-   * iOS Keychain access group. Required for sharing identity material across
-   * apps in the Oxy ecosystem via Keychain Sharing entitlements.
-   */
-  keychainAccessGroup?: string;
-}
 
 /**
  * Thrown when an identity-mutating operation (createIdentity / importKeyPair)
@@ -181,17 +165,6 @@ export type IdentityRecoveryResult =
   | { recovered: true; source: 'backup' | 'shared' | 'device-backup'; publicKey: string }
   | { recovered: false; reason: 'not-lost' | 'no-sources' | 'mismatch' | 'unavailable' };
 
-const STORAGE_KEYS = {
-  PRIVATE_KEY: 'oxy_identity_private_key',
-  PUBLIC_KEY: 'oxy_identity_public_key',
-  BACKUP_PRIVATE_KEY: 'oxy_identity_backup_private_key',
-  BACKUP_PUBLIC_KEY: 'oxy_identity_backup_public_key',
-  BACKUP_TIMESTAMP: 'oxy_identity_backup_timestamp',
-  // The cross-app identity in the iOS keychain access group (iOS only).
-  SHARED_PRIVATE_KEY: 'oxy_shared_identity_private_key',
-  SHARED_PUBLIC_KEY: 'oxy_shared_identity_public_key',
-} as const;
-
 /**
  * v2 identity slot layout — blast-radius isolation.
  *
@@ -207,16 +180,8 @@ const STORAGE_KEYS = {
  * Migration from the legacy layout is lazy + verify-before-delete — see
  * {@link KeyManager._runSlotMigration}.
  */
-const V2_PRIMARY_KEYCHAIN_SERVICE = 'oxy_identity';
-const V2_BACKUP_KEYCHAIN_SERVICE = 'oxy_identity_backup';
-
-const V2_STORAGE_KEYS = {
-  PRIVATE_KEY: 'oxy_identity_private_key_v2',
-  PUBLIC_KEY: 'oxy_identity_public_key_v2',
-  BACKUP_PRIVATE_KEY: 'oxy_identity_backup_private_key_v2',
-  BACKUP_PUBLIC_KEY: 'oxy_identity_backup_public_key_v2',
-  BACKUP_TIMESTAMP: 'oxy_identity_backup_timestamp_v2',
-} as const;
+// The names (V2_PRIMARY_KEYCHAIN_SERVICE, V2_BACKUP_KEYCHAIN_SERVICE,
+// V2_STORAGE_KEYS) live in `./keychainItems`, beside every other identity item.
 
 /**
  * Dedicated keychain slot for the recovery mnemonic (the 12-word phrase).
@@ -234,8 +199,7 @@ const V2_STORAGE_KEYS = {
  * lives ONLY in this slot: it is never mirrored into the identity marker,
  * {@link KeyManager.getIdentityStatus}, logs, or any exported bundle.
  */
-const RECOVERY_MNEMONIC_KEYCHAIN_SERVICE = 'oxy_identity_mnemonic';
-const RECOVERY_MNEMONIC_STORAGE_KEY = 'oxy_identity_mnemonic_v1';
+// RECOVERY_MNEMONIC_KEYCHAIN_SERVICE / RECOVERY_MNEMONIC_STORAGE_KEY: `./keychainItems`.
 
 /**
  * Advisory AsyncStorage fast-path flag: set once the v2 slots own the identity.
@@ -302,13 +266,6 @@ type SlotMigrationResult =
   | { mode: 'deferred'; cause: unknown };
 
 /**
- * iOS Keychain Access Group for sharing identities across Oxy apps
- * All Oxy apps must have this access group enabled in their entitlements
- * Format: [Team ID].so.oxy.shared or group.so.oxy.shared
- */
-const IOS_KEYCHAIN_GROUP = 'group.so.oxy.shared';
-
-/**
  * Initialize React Native specific modules
  *
  * Delegates to `@oxy.so/protocol`'s `platform/crypto`, a per-platform module
@@ -317,7 +274,7 @@ const IOS_KEYCHAIN_GROUP = 'group.so.oxy.shared';
  * `expo-secure-store`; off RN it throws (and is never called because every
  * caller is gated by `isWebPlatform()` / native-only paths).
  */
-async function initSecureStore(): Promise<ExpoSecureStoreLike> {
+async function loadRawSecureStore(): Promise<ExpoSecureStoreLike> {
   try {
     return await loadSecureStore();
   } catch (error) {
@@ -326,6 +283,31 @@ async function initSecureStore(): Promise<ExpoSecureStoreLike> {
       `Failed to load expo-secure-store: ${errorMessage}. Make sure expo-secure-store is installed and properly configured.`,
     );
   }
+}
+
+/**
+ * The secure store routed to the keychain group of `item`
+ * (`../utils/keychainAccessGroups`): on iOS reads walk the item's group then
+ * the pre-split shared group, writes carry the item's group and THROW in an app
+ * that may not hold it, and in Commons every access first awaits the
+ * access-group migration. Android and web are unchanged (`ungrouped`).
+ *
+ * Throws when the store cannot load or the keychain cannot say which groups
+ * this app holds; every caller already treats a throw here as "storage
+ * unavailable".
+ */
+async function keychainItemStore(item: KeychainItemClass): Promise<ExpoSecureStoreLike> {
+  const raw = await loadRawSecureStore();
+  const access = await resolveKeychainAccess();
+  if (access.mode === 'grouped' && access.role === 'holder') {
+    await ensureKeychainGroupsMigrated();
+  }
+  return groupedKeychainStore(raw, access, item);
+}
+
+/** The store for the identity slots (primary, backup, legacy, phrase): Commons only on iOS. */
+function initSecureStore(): Promise<ExpoSecureStoreLike> {
+  return keychainItemStore('identity-secret');
 }
 
 /**
@@ -875,13 +857,15 @@ export class KeyManager {
    * Android signer store is cleared on every delete, in {@link deleteIdentity}.
    */
   private static async _clearSharedSlot(
-    store: Awaited<ReturnType<typeof initSecureStore>>,
+    _identityStore: Awaited<ReturnType<typeof initSecureStore>>,
   ): Promise<void> {
     try {
       if (isIOS()) {
-        const opts: OxySecureStoreOptions = { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
-        await store.deleteItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, opts);
-        await store.deleteItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, opts);
+        // The shared slot lives in two groups of its own, not the identity slots'.
+        await (await keychainItemStore('spending-key')).deleteItemAsync(
+          STORAGE_KEYS.SHARED_PRIVATE_KEY,
+        );
+        await (await keychainItemStore('shared')).deleteItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY);
       }
       KeyManager.invalidateSharedCache();
     } catch (error) {
@@ -965,6 +949,25 @@ export class KeyManager {
   }
 
   /**
+   * iOS: write the personal key's cross-app slot — the private key to the
+   * wallet group (Commons and the Peable wallet), the public key to the shared
+   * group (every Oxy app). Throws in any app that may not hold the private key.
+   * @internal
+   */
+  private static async _writeIosSharedSlot(privateKey: string, publicKey: string): Promise<void> {
+    const privateStore = await keychainItemStore('spending-key');
+    const privateOpts: OxySecureStoreOptions = {
+      keychainAccessible: privateStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    };
+    await privateStore.setItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, privateKey, privateOpts);
+    await (await keychainItemStore('shared')).setItemAsync(
+      STORAGE_KEYS.SHARED_PUBLIC_KEY,
+      publicKey,
+      {},
+    );
+  }
+
+  /**
    * Lowercase and pad to canonical 64-hex-char form.
    *
    * Tolerates legacy leading-zero-stripped keys and externally imported
@@ -1002,8 +1005,10 @@ export class KeyManager {
   // ==================== SHARED IDENTITY METHODS ====================
   // One Oxy identity across every Oxy app on a device.
   //
-  // iOS: the keychain access group `group.so.oxy.shared`. Every Oxy app reads
-  //   the same keychain item, and no app can wipe another's keychain.
+  // iOS: keychain access groups (docs/identity/ios-keychain-access-groups.md).
+  //   The private key is in `<TEAM>.so.oxy.wallet` (Commons and the Peable
+  //   wallet only), the public key in `<TEAM>.group.so.oxy.shared`, which every
+  //   Oxy app reads. Every other app signs in through Commons (ADR 0029).
   // Android: every app has its own UID, so nothing is shared through storage.
   //   Commons is the ONLY holder of the private key. It keeps the identity
   //   signer store (`setIdentitySignerStore`) for its identity host, and every
@@ -1031,22 +1036,11 @@ export class KeyManager {
     const { privateKey, publicKey } = await KeyManager.generateKeyPair();
 
     if (isIOS()) {
-      const store = await initSecureStore();
-      // Note: keychainAccessGroup requires Keychain Sharing capability in Xcode
       try {
-        const privateOpts: OxySecureStoreOptions = {
-          keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-          keychainAccessGroup: IOS_KEYCHAIN_GROUP, // Enables sharing across apps
-        };
-        await store.setItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, privateKey, privateOpts);
-
-        const publicOpts: OxySecureStoreOptions = {
-          keychainAccessGroup: IOS_KEYCHAIN_GROUP,
-        };
-        await store.setItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, publicKey, publicOpts);
+        await KeyManager._writeIosSharedSlot(privateKey, publicKey);
       } catch (error) {
         throw new Error(
-          `Failed to create shared identity on iOS. Ensure your app has the Keychain Sharing capability enabled with access group "${IOS_KEYCHAIN_GROUP}". Error: ${error}`,
+          `Failed to create shared identity on iOS. Only Commons may write it, with the keychain access groups of docs/identity/ios-keychain-access-groups.md. Error: ${error}`,
         );
       }
     } else if (isAndroid()) {
@@ -1093,9 +1087,8 @@ export class KeyManager {
       let publicKey: string | null = null;
 
       if (isIOS()) {
-        const store = await initSecureStore();
-        const opts: OxySecureStoreOptions = { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
-        publicKey = await store.getItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, opts);
+        const store = await keychainItemStore('shared');
+        publicKey = await store.getItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, {});
       } else if (isAndroid()) {
         const signer = KeyManager.identitySignerStore;
         if (signer) {
@@ -1136,9 +1129,10 @@ export class KeyManager {
     }
 
     try {
-      const store = await initSecureStore();
-      const opts: OxySecureStoreOptions = { keychainAccessGroup: IOS_KEYCHAIN_GROUP };
-      return await store.getItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, opts);
+      // The wallet group: Commons and the Peable wallet. Every other app's plan
+      // is empty, so this is `null` there without touching the keychain.
+      const store = await keychainItemStore('spending-key');
+      return await store.getItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, {});
     } catch (error) {
       if (isDev()) {
         logger.warn('Failed to get shared private key', { component: 'KeyManager' }, error);
@@ -1245,17 +1239,7 @@ export class KeyManager {
     const publicKey = deriveSecp256k1PublicKey(canonicalPrivate);
 
     if (isIOS()) {
-      const store = await initSecureStore();
-      const privateOpts: OxySecureStoreOptions = {
-        keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-        keychainAccessGroup: IOS_KEYCHAIN_GROUP,
-      };
-      await store.setItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, canonicalPrivate, privateOpts);
-
-      const publicOpts: OxySecureStoreOptions = {
-        keychainAccessGroup: IOS_KEYCHAIN_GROUP,
-      };
-      await store.setItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, publicKey, publicOpts);
+      await KeyManager._writeIosSharedSlot(canonicalPrivate, publicKey);
     } else if (isAndroid()) {
       await KeyManager._writeIdentitySigner(canonicalPrivate, publicKey);
     }
@@ -3230,7 +3214,8 @@ export class KeyManager {
    * `HDKey.fromMasterSeed` and never touches the identity key.
    *
    * Key source (native only):
-   * - iOS: the shared identity in `group.so.oxy.shared`, then this device's
+   * - iOS: the shared slot's private key in the wallet keychain group (Commons
+   *   and the Peable wallet only; `null` in every other app), then this device's
    *   primary identity.
    * - Android: Commons (the one app with a signer store) uses its own primary
    *   identity; every other app asks Commons over IPC and never reads a local

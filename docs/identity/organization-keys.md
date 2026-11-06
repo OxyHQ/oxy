@@ -112,7 +112,7 @@ The key lives in Commons, beside the person's own root (ADR 0061 D6), from
 |---|---|---|
 | `generateOrganizationKey()` | Commons | a fresh 24-word phrase and its `seed[0:32]` pair; stores nothing |
 | `organizationKeyFromPhrase(phrase)` | Commons | the pair a 24-word phrase derives; stores nothing |
-| `storeOrganizationKey(accountId, { privateKey, publicKey, mnemonic? })` | Commons | keep it: iOS keychain group `group.so.oxy.shared`; Android Commons' own slot plus the identity host's signer store |
+| `storeOrganizationKey(accountId, { privateKey, publicKey, mnemonic? })` | Commons | keep it: iOS the wallet keychain group (pair) and the identity group (phrase, index), ADR 0062; Android Commons' own slot plus the identity host's signer store |
 | `getOrganizationPublicKey(accountId)` | any Oxy app | the key this device can reach, or `null` (Android outside Commons: Commons' identity host, `describe` with `accountId`) |
 | `getOrganizationPrivateKey(accountId)` | Commons, iOS group | for signing in the app; `null` on Android outside Commons |
 | `getOrganizationRecoveryPhrase(accountId)`, `listOrganizationKeys()`, `deleteOrganizationKey(accountId)` | Commons | |

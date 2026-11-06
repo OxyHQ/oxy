@@ -1,9 +1,11 @@
 # iOS: who can read identity private keys (keychain access-group split)
 
-> Status: **proposed, not decided**. A design note for the owner: either take
-> the split described below, or accept the risk in writing (an ADR that says so).
-> Nothing here is implemented. Written 2026-11-06 after an independent security
-> review refused Peable mainnet partly on this point (finding F5).
+> Status: **decided and implemented** ([ADR 0062](../adr/0062-ios-keychain-access-group-split.md)).
+> The owner took the split on 2026-11-06 ("Fix F5, F1 and D9") instead of
+> accepting the risk. Written 2026-11-06 after an independent security review
+> refused Peable mainnet partly on this point (finding F5); "As implemented"
+> below records what shipped and what still needs a device. The analysis that
+> follows describes the code BEFORE the split.
 >
 > Related: [Root holders, enrollment and recovery](holders-and-recovery.md) ·
 > [Organization identity keys](organization-keys.md) (ADR 0061 D6) ·
@@ -91,7 +93,85 @@ narrower group. It does not protect against someone holding the Apple team's
 signing identity: any app built under the team can declare any of the team's
 groups. That residual risk is the same on Android (Commons' certificate).
 
+## As implemented
+
+- **One table, one helper.** `@oxy.so/core` `src/utils/keychainAccessGroups.ts`:
+  `keychainGroupFor(item)` maps an item class to its group —
+  `identity-secret` → identity, `spending-key` → wallet, `shared` → shared;
+  `mayHoldKeychainItem(role, item)`, `keychainReadPlan` (its group, then the
+  shared group until release 4), `keychainWriteOption` (throws for a role that
+  may not hold the item), `keychainDeletePlan`, `groupedKeychainStore(store,
+  access, item)` (the wrapper KeyManager and `organizationKeys` use), and
+  `ownKeychainItemPlan` for an app's own items. Item names live in
+  `src/crypto/keychainItems.ts`.
+- **Team prefix and role: discovered, not injected.** No app config in any repo
+  carries the team id, and the role must not have a second source that can
+  disagree with the entitlements. `@oxy.so/services`' iOS `OxyIdentity` module
+  answers `keychainDefaultAccessGroup()`: it deletes its probe item
+  (`so.oxy.keychain-probe`, account = bundle id) in every group, adds it without
+  a group, and returns the `kSecAttrAccessGroup` the keychain reports — the
+  default group, prefix included. `@oxy.so/protocol`'s
+  `loadKeychainDefaultAccessGroup()` narrows it; core's
+  `resolveKeychainAccess()` memoizes `{ prefix, defaultGroup, role }`. A native
+  module without the probe is `ungrouped` (the old behaviour); a thrown probe
+  (before first unlock) is retried and reads as "storage unavailable".
+- **Option names are checked.** Both ambient `expo-secure-store` shims are
+  deleted; `crypto/secureStoreOptions.ts` fails `tsc` on a field
+  `SecureStoreOptions` does not have, without naming expo-secure-store in the
+  published declarations.
+- **Roles.** `member`: identity-secret and spending-key reads answer `null` with
+  no keychain call; `hasSharedIdentity()` is false, so `signInWithCommonsIdentity`
+  returns `null` and the account dialog continues to the Commons round-trip
+  (`signInWithOxy` → `startDeviceFlowSession`). `wallet`: spending keys and
+  public keys. `holder`: all, written with explicit groups.
+- **The migration** is `ensureKeychainGroupsMigrated()`
+  (`src/crypto/keychainGroupMigration.ts`), awaited by every KeyManager and
+  organization-key storage access in Commons and reported by Commons' boot.
+  Units: primary, backup (+ timestamp), legacy slots, the phrase, the shared
+  slot (private → wallet, public stays), each organization pair (→ wallet) and
+  phrase (→ identity), then the index (→ identity, merged as a union). Outcomes
+  per unit: `absent`, `moved`, `conflict` (two different values: both kept),
+  `unhealthy` (never moved), `failed` (retried next launch), `deferred` (locked;
+  retried on the next access).
+- **App items.** `@oxy.so/services`' native SecureStore adapter and Peable's
+  `kv-store` write an app's own items to its default group explicitly and read
+  it first in Commons and the Peable wallet, because the split changed their
+  default group; Peable also moves its wallet items out of the shared group.
+- **Entitlements.** `@oxy.so/app-preset` (`plugin/oxyKeychainGroups.js`) holds
+  the policy; `withOxyKeychain` writes it, and `withOxyKeychainPolicy` (applied
+  by `withOxyUpdates`) checks apps that declare `ios.entitlements` themselves.
+- **Android is unchanged**: `resolveKeychainAccess()` is `ungrouped` there and
+  every call is the call it was; the identity host already narrows.
+
+### Verified in CI, and what needs a device
+
+Covered by tests: `accessGroup` (never `keychainAccessGroup`) with the
+team-prefixed value for every item (core `keychainAccessGroups.test.ts`,
+services `sharedDeviceCredentialStore.test.ts`); each role's reads; the
+migration from a keychain written by the pre-split code, the locked keychain,
+a failed copy, a copy that reads back wrong, an unhealthy pair, two differing
+keys, merged indexes, and a crash or a single failure at EVERY mutation of a run
+(each value keeps a copy, no copy changes, the next launch completes); the
+entitlement policy and order (app-preset `withOxyKeychain.test.js`).
+
+Not verifiable off a device (owner steps):
+
+1. The Swift probe compiles and returns `<TEAM>.so.oxy.identity` in Commons,
+   `<TEAM>.so.oxy.wallet` in Peable, `<TEAM>.group.so.oxy.shared` elsewhere.
+2. A phone with an identity and an organization key, upgraded from Commons
+   1.5.0: after 1.6.0's first launch a debug sibling app reading
+   `oxy_identity_mnemonic_v1` (service `oxy_identity_mnemonic`), the v2 primary,
+   the shared-slot private key and an organization key gets nothing; before it,
+   the phrase (the confirmation point 2 asked for).
+3. Peable derives the same wallet and signs a social-receive input before and
+   after that upgrade, for the person and an organization.
+4. A key rotation in Commons while the migration is mid-way (kill the app during
+   first launch, rotate on the next).
+5. A sibling app signs in through the Commons round-trip (one app switch).
+
 ## What the split would take
+
+(The design as proposed; "As implemented" above is what shipped.)
 
 ### Groups and who holds them
 
@@ -184,7 +264,7 @@ sign-in, which is the intended effect.
   after; Peable deriving the same wallet and signing a social-receive input
   before and after; a key rotation mid-migration (ADR 0002's open item).
 
-## The decision the owner has to write down
+## The decision (taken: the split, ADR 0062)
 
 - **Take the split** (above), with its cost: one app switch at first sign-in
   in every iOS app but Commons and Peable, three ordered native releases, and

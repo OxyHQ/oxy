@@ -8,7 +8,7 @@
  * explicit status. Collapsing either failure into "absent" is what would let a
  * locked device look like one that never had a session.
  */
-import type { SharedDeviceCredentialStore } from '@oxy.so/core/session';
+import type { KeychainAccess, SharedDeviceCredentialStore } from '@oxy.so/core/session';
 
 const CRED = { deviceId: 'dev-shared', deviceSecret: 'ds-shared' };
 const STORAGE_KEY = 'oxy_shared_device_session_v1';
@@ -85,9 +85,19 @@ function loadStore(
   seams: {
     secureStore?: ReturnType<typeof makeSecureStoreMock>;
     broker?: BrokerModule | null;
+    /** What `resolveKeychainAccess` answers (an Error: throws); default: a build without the probe. */
+    access?: KeychainAccess | Error;
   } = {},
 ): SharedDeviceCredentialStore | null {
   jest.resetModules();
+  const access: KeychainAccess | Error = seams.access ?? { mode: 'ungrouped' };
+  jest.doMock('@oxy.so/core/session', () => ({
+    ...jest.requireActual('@oxy.so/core/session'),
+    resolveKeychainAccess: async () => {
+      if (access instanceof Error) throw access;
+      return access;
+    },
+  }));
   jest.doMock('expo-modules-core', () => ({
     requireOptionalNativeModule: () => seams.broker ?? null,
     requireNativeModule: () => {
@@ -115,6 +125,7 @@ function loadStore(
 }
 
 afterEach(() => {
+  jest.dontMock('@oxy.so/core/session');
   jest.dontMock('expo-modules-core');
   jest.dontMock('expo-secure-store');
   jest.resetModules();
@@ -182,22 +193,53 @@ describe('iOS keychain-group slot', () => {
     expect((await store?.read())?.state).toBe('unavailable');
   });
 
-  test('reads and writes carry the dedicated service AND the access group', async () => {
+  test('reads and writes carry the dedicated service AND the team-prefixed shared group', async () => {
+    // Commons: its DEFAULT group is the identity group, so an item written
+    // without the explicit shared group would be invisible to every sibling.
+    const secureStore = makeSecureStoreMock();
+    const store = loadStore('ios', {
+      secureStore,
+      access: {
+        mode: 'grouped',
+        prefix: 'ABCDE12345.',
+        defaultGroup: 'ABCDE12345.so.oxy.identity',
+        role: 'holder',
+      },
+    });
+    await store?.publish(CRED);
+    await store?.read();
+    await store?.clear();
+
+    // `accessGroup` is expo-secure-store's real option (`keychainAccessGroup`
+    // never was) and must equal the entitlement value exactly. Without the
+    // dedicated `keychainService` the item would share a namespace with others.
+    for (const call of secureStore.calls) {
+      expect(call.options).toEqual(
+        expect.objectContaining({
+          keychainService: 'oxy_device_session',
+          accessGroup: 'ABCDE12345.group.so.oxy.shared',
+        }),
+      );
+    }
+    expect(secureStore.calls.length).toBeGreaterThan(2);
+  });
+
+  test('a build without the keychain probe names no group (its one group is its default)', async () => {
     const secureStore = makeSecureStoreMock();
     const store = loadStore('ios', { secureStore });
     await store?.publish(CRED);
-
-    // Without `keychainAccessGroup` the item is package-private and no sibling
-    // app can ever join. Without the dedicated `keychainService` it shares the
-    // legacy shared-IDENTITY namespace inside the group — the exact conflation
-    // this phase exists to end.
     for (const call of secureStore.calls) {
-      expect(call.options).toMatchObject({
-        keychainService: 'oxy_device_session',
-        keychainAccessGroup: 'group.so.oxy.shared',
-      });
+      expect(call.options).toMatchObject({ keychainService: 'oxy_device_session' });
+      expect(call.options).not.toHaveProperty('accessGroup');
+      expect(call.options).not.toHaveProperty('keychainAccessGroup');
     }
-    expect(secureStore.calls.length).toBeGreaterThan(0);
+  });
+
+  test('a keychain that cannot name its groups yet reads as unavailable, never absent', async () => {
+    const secureStore = makeSecureStoreMock();
+    const locked = loadStore('ios', { secureStore, access: new Error('locked') });
+    expect((await locked?.read())?.state).toBe('unavailable');
+    await expect(locked?.publish(CRED)).resolves.toBe(false);
   });
 
   test('the item is written device-only so it never rides an OS backup to a new handset', async () => {

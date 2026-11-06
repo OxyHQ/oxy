@@ -80,6 +80,7 @@ import type {
   CommonsSocialReceiveSignature,
   ExpoCryptoLike,
   ExpoSecureStoreLike,
+  KeychainDefaultAccessGroup,
 } from './expoTypes';
 
 // Re-export the interfaces so consumers can import them from the same
@@ -91,6 +92,7 @@ export type {
   CommonsSocialReceiveSignature,
   ExpoCryptoLike,
   ExpoSecureStoreLike,
+  KeychainDefaultAccessGroup,
 };
 
 // ---------------------------------------------------------------------------
@@ -175,4 +177,12 @@ export { getRandomBytesRN } from './random';
 
 export function loadCommonsIdentityBridge(): Promise<CommonsIdentityBridge | null> {
   return Promise.resolve(null);
+}
+
+// ---------------------------------------------------------------------------
+// iOS keychain default access group — native-only; off RN there is no keychain.
+// ---------------------------------------------------------------------------
+
+export function loadKeychainDefaultAccessGroup(): Promise<KeychainDefaultAccessGroup> {
+  return Promise.resolve({ state: 'unsupported' });
 }

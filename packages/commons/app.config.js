@@ -40,8 +40,10 @@ module.exports = {
     // expo-image-picker and expo-clipboard; 1.4.0 is the first binary that
     // verifies Oxy Updates signatures (the certificate is baked in), so no
     // update is ever published for a runtime that would run it unverified;
-    // 1.5.0 carries the caller allow-list with every app on its own domain's id.
-    version: '1.5.0',
+    // 1.5.0 carries the caller allow-list with every app on its own domain's id;
+    // 1.6.0 is the iOS keychain access-group split (new entitlements, the
+    // keychain probe in @oxy.so/services' native module, the migration).
+    version: '1.6.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /
@@ -78,13 +80,22 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: APP_ID,
-      // Shared Keychain Access Group so the identity keypair is readable by
-      // every same-Team Oxy app (silent "Sign in with Oxy"). `$(AppIdentifierPrefix)`
-      // expands to the Team ID prefix at build; the runtime group string in
-      // @oxy.so/core's KeyManager stays `group.so.oxy.shared` (suffix match).
+      // Keychain access groups (docs/identity/ios-keychain-access-groups.md,
+      // ADR 0062). The identity group is FIRST: the first entry is the default
+      // group, so everything Commons writes without naming a group stays in the
+      // group only Commons holds, and @oxy.so/core reads Commons' role from it.
+      // The wallet group (Commons and the Peable wallet) holds the private keys
+      // the wallet signs with; the shared group (every Oxy app) only public keys
+      // and the device-session credential. `$(AppIdentifierPrefix)` expands to
+      // the Team ID prefix at build; @oxy.so/core learns it at runtime from the
+      // keychain. @oxy.so/app-preset refuses any other app naming the first two.
       // Prerequisite: all Oxy iOS apps ship under the SAME Apple Developer Team.
       entitlements: {
-        'keychain-access-groups': ['$(AppIdentifierPrefix)group.so.oxy.shared'],
+        'keychain-access-groups': [
+          '$(AppIdentifierPrefix)so.oxy.identity',
+          '$(AppIdentifierPrefix)so.oxy.wallet',
+          '$(AppIdentifierPrefix)group.so.oxy.shared',
+        ],
       },
     },
     plugins: [

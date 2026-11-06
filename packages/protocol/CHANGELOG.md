@@ -1,5 +1,12 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.8.0
+
+### Added
+
+- `loadKeychainDefaultAccessGroup()` (`KeychainDefaultAccessGroup`): on iOS the default keychain access group the `OxyIdentity` native module's probe reports (`resolved`), `unsupported` off iOS or on a native module that predates the probe, `unavailable` while the keychain refuses (never memoized). `@oxy.so/core` derives the keychain role and team prefix from it (ADR 0062).
+
+
 ## 1.7.0
 
 ### Added
