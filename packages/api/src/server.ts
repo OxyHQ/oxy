@@ -241,7 +241,7 @@ import { errorHandler } from './middleware/errorHandler';
 import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
-import { createInboxMcpHttpService } from './capabilities/inbox-mcp-http';
+import { createInboxMcpHttpService, isInboxMcpResourceHost } from './capabilities/inbox-mcp-http';
 import { handleOxyProfileInternalMcp } from './capabilities/oxy-profile.transport';
 import foregroundProfilesRouter from './routes/foregroundProfiles';
 import { serviceTokenPublicJwks, serviceTokenSigningConfig } from './config/serviceTokenSigning';
@@ -853,6 +853,19 @@ app.use(bruteForceProtection);
 // the defence with it.
 
 // API Routes
+// The root authorization-server metadata is for api.oxy.so only. Served on the Inbox
+// MCP host it advertises a different issuer, which RFC 8414 clients reject before OAuth.
+app.use((request, response, next) => {
+  if (
+    request.method === 'GET' &&
+    request.path === '/.well-known/oauth-authorization-server' &&
+    isInboxMcpResourceHost(request.headers.host)
+  ) {
+    response.status(404).json({ error: 'not_found' });
+    return;
+  }
+  next();
+});
 // Apply stricter rate limiting to auth routes
 app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
