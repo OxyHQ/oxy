@@ -182,10 +182,15 @@ export {
   readThroughPlan,
   deleteThroughPlan,
   resolveKeychainAccess,
+  // Reads one item of the SHARED group without ever prompting (R5-9, R6-16):
+  // any Oxy app can plant an `:auth` copy there, which expo-secure-store's own
+  // read would answer with a Face ID prompt.
+  readSharedWithoutInteraction,
 } from '../utils/keychainAccessGroups';
 export type {
   KeychainAccess,
   KeychainGroupOption,
+  KeychainStoreLike,
   OwnKeychainItemNames,
 } from '../utils/keychainAccessGroups';
 

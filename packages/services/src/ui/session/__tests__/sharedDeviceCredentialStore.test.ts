@@ -87,17 +87,40 @@ function loadStore(
     broker?: BrokerModule | null;
     /** What `resolveKeychainAccess` answers (an Error: throws); default: a build without the probe. */
     access?: KeychainAccess | Error;
+    /**
+     * The OxyIdentity native read that never prompts (R6-16): `(key, service,
+     * group)`. Absent: a native module that predates it.
+     */
+    nativeRead?: (
+      key: string,
+      service: string | undefined,
+      group: string,
+    ) => Promise<string | null>;
   } = {},
 ): SharedDeviceCredentialStore | null {
   jest.resetModules();
   const access: KeychainAccess | Error = seams.access ?? { mode: 'ungrouped' };
-  jest.doMock('@oxy.so/core/session', () => ({
-    ...jest.requireActual('@oxy.so/core/session'),
-    resolveKeychainAccess: async () => {
-      if (access instanceof Error) throw access;
-      return access;
-    },
-  }));
+  const nativeRead = seams.nativeRead;
+  jest.doMock('@oxy.so/core/session', () => {
+    const actual = jest.requireActual('@oxy.so/core/session');
+    return {
+      ...actual,
+      resolveKeychainAccess: async () => {
+        if (access instanceof Error) throw access;
+        return access;
+      },
+      // Core's reader with the native read the module would load on a device.
+      readSharedWithoutInteraction: async (
+        store: { getItemAsync(key: string, options?: object): Promise<string | null> },
+        key: string,
+        options: { keychainService?: string },
+        shared: { accessGroup?: string },
+      ) =>
+        nativeRead && shared.accessGroup
+          ? nativeRead(key, options.keychainService, shared.accessGroup)
+          : actual.readSharedWithoutInteraction(store, key, options, shared),
+    };
+  });
   jest.doMock('expo-modules-core', () => ({
     requireOptionalNativeModule: () => seams.broker ?? null,
     requireNativeModule: () => {
@@ -222,6 +245,50 @@ describe('iOS keychain-group slot', () => {
       );
     }
     expect(secureStore.calls.length).toBeGreaterThan(2);
+  });
+
+  test('reads never prompt: they go through the non-interactive native read, not expo-secure-store (R6-16)', async () => {
+    // Any Oxy app can plant `oxy_device_session:auth` in the shared group;
+    // expo-secure-store's read would try it and show Face ID in every app.
+    const secureStore = makeSecureStoreMock();
+    const reads: Array<[string, string | undefined, string]> = [];
+    const store = loadStore('ios', {
+      secureStore,
+      access: {
+        mode: 'grouped',
+        prefix: 'ABCDE12345.',
+        defaultGroup: 'ABCDE12345.group.so.oxy.shared',
+        role: 'member',
+      },
+      nativeRead: async (key, service, group) => {
+        reads.push([key, service, group]);
+        return secureStore.items.get(key) ?? null;
+      },
+    });
+    await expect(store?.read()).resolves.toEqual({ state: 'absent' });
+    await expect(store?.publish(CRED)).resolves.toBe(true);
+    await expect(store?.read()).resolves.toEqual({ state: 'present', credential: CRED });
+    expect(reads).toEqual(
+      Array(3).fill([STORAGE_KEY, 'oxy_device_session', 'ABCDE12345.group.so.oxy.shared']),
+    );
+    // expo-secure-store only WROTE; it never read.
+    expect(secureStore.calls.map((call) => call.key)).toEqual([STORAGE_KEY]);
+  });
+
+  test('a locked keychain (the native read throws) is unavailable, never absent', async () => {
+    const store = loadStore('ios', {
+      secureStore: makeSecureStoreMock(),
+      access: {
+        mode: 'grouped',
+        prefix: 'ABCDE12345.',
+        defaultGroup: 'ABCDE12345.group.so.oxy.shared',
+        role: 'member',
+      },
+      nativeRead: async () => {
+        throw new Error('keychain locked');
+      },
+    });
+    expect((await store?.read())?.state).toBe('unavailable');
   });
 
   test('a build without the keychain probe names no group (its one group is its default)', async () => {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 14.14.0
+
+### Security
+
+- **The device-session slot never prompts (R6-16).** The iOS shared device-session credential (`oxy_device_session`) is read through `readSharedWithoutInteraction` (`@oxy.so/core` 7.38.0), never expo-secure-store's read, which also tries an `:auth` copy. Any Oxy app could plant one in the shared group and make every Oxy app show Face ID at cold boot.
+- **A locked keychain is not an empty one (R6-13).** The iOS `OxyIdentity.readKeychainItemWithoutInteraction` THROWS when it meets `errSecInteractionNotAllowed` (or `errSecAuthFailed`) while protected data is unavailable (the device is locked), instead of answering "absent". An item that needs the user is still skipped (`nil`) while the device is unlocked. Commons' access-group migration therefore defers on a locked phone instead of settling with copies it could not see, and the device-session read reports `unavailable`. Native: an app needs a new build.
+
 ## 14.13.0
 
 - The iOS `OxyIdentity` native module answers `readKeychainItemWithoutInteraction(key, service, accessGroup)`: one expo-secure-store item read with an `LAContext` that refuses interaction, from its `:no-auth` and legacy copies only, never the `:auth` copy that would show a Face ID prompt (round-5 review R5-9). `@oxy.so/core` 7.36.0 reads the shared keychain group through it. Native: an app needs a new build to get it; until then it reads through expo-secure-store as before.

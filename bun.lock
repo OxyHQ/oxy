@@ -491,7 +491,7 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "7.37.0",
+      "version": "7.38.0",
       "dependencies": {
         "@noble/ciphers": "^2.4.0",
         "@noble/hashes": "^2.4.0",
@@ -710,7 +710,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "14.13.0",
+      "version": "14.14.0",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "^4.0.0",
