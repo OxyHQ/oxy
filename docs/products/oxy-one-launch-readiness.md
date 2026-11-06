@@ -1,6 +1,6 @@
-# Oxy One Personal launch readiness — inactive local handoff
+# Oxy personal billing readiness and historical handoffs
 
-## Native Orbit billing (as built, 2026-11-04)
+## Native Orbit billing (current through 2026-11-06)
 
 **This section supersedes every proxy-era description below** (signed tax quotes,
 invoice authority, `billing.observation.updated`, checkout-operation recovery,
@@ -34,21 +34,32 @@ runtime uses Peable's native engine (Peable ADR 0018) through `@peable.to/sdk`:
   windows, refunds fences, closure fences and ancestor inheritance are not
   expressible as Peable active entitlements, which are flat per-customer lookup
   keys. The Orbit features mirror the same benefits so Peable's answer agrees.
-- **Mention Plus runtime live, purchases held (2026-11-05)**:
-  `OXY_ONE_PEABLE_RUNTIME_ENABLED=true`; the runtime file
-  (`/oxy/oxy-api/OXY_ONE_PEABLE_RUNTIME`, oxy-infra
-  `config/personal-plans-runtime.json`) has `eventsEnabled` and
-  `recoveryEnabled`; the catalogue binds both Mention Plus offers; Peable
-  endpoint `we_be428a01c9d837c8a0ff9b7f` delivers `PEABLE_PERSONAL_EVENT_TYPES`
-  to `/billing/peable/events`. `purchasesEnabled` is held false: Peable refuses
-  to create any Checkout Session with automatic tax until the owner approves
-  Oxy's Peable Tax settings in Orbit (`400 tax_settings_not_active`, verified
-  live), and checkout reserves an intent and creates a customer before it asks.
-  After that approval, flip it (oxy-infra runbook 51). With no registrations,
-  every sale is then recorded `not_registered`. Oxy One has no approved price,
-  so it has no rows and stays unpurchasable. The runtime never fails the boot:
-  if it cannot start (Peable unreachable, a bad file), purchases answer
-  `unavailable`, the error is logged and the start retries every minute.
+- **Mention Plus purchases enabled (2026-11-06)**: the owner approved the
+  Oxy Central Billing application's Peable Tax settings in Orbit at
+  `2026-11-06T19:29:58.549Z`; a read-only workload check confirmed `active`.
+  The settings default is `exclusive`, while both approved Mention Plus prices
+  explicitly remain `inclusive`: `599` USD base units ($5.99/month) and
+  `5750` USD base units ($57.50/year). The explicit price tax behavior controls these offers; the default
+  must not be mistaken for adding tax to their advertised totals.
+  [oxy-infra #432](https://github.com/OxyHQ/oxy-infra/pull/432), merged as
+  `4fd41ff2`, enabled `purchasesEnabled`. The targeted
+  [Terraform apply](https://github.com/OxyHQ/oxy-infra/actions/runs/42280495462)
+  completed, and SSM readback confirmed purchases, events and recovery enabled.
+  The existing running task definition `oxy-oxy-api:1265` was cloned to `1266`
+  with identical containers to reload the runtime file. ECS reported the new
+  rollout `COMPLETED`, with three running tasks out of three desired.
+  A subsequent independent read of
+  [`GET /billing/product-plans/mention`](https://api.oxy.so/billing/product-plans/mention)
+  returned `purchase: available`, both approved offers, and `taxTreatment:
+  inclusive` / `merchantTotal: final`.
+- **Verification scope**: these are configuration, deployment and public
+  catalogue checks. No live checkout, subscription or charge was created for
+  this verification; they do not prove a live payment or entitlement grant.
+  Approval of collection settings is not a claim about tax registrations or
+  legal obligations. Oxy One has no approved price and remains unpurchasable;
+  this activation is for standalone Mention Plus only. The native runtime
+  continues to fail closed with `unavailable` if startup cannot complete and
+  retries every minute.
 
 ## Operating company transition (2026-10-20)
 
