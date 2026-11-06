@@ -61,6 +61,28 @@ describe('Commons identity host source', () => {
     expect(policy).toContain('"peable/faircoin/v1"');
   });
 
+  test('retired keys spend for the wallet and never sign anyone in', () => {
+    // Listing retired keys is the wallet's alone, like the methods that spend.
+    expect(policy).toContain(
+      'fun mayListRetiredKeys(pkg: String): Boolean = pkg in WALLET_PACKAGES',
+    );
+    expect(provider).toContain('OxyCallerPolicy.mayListRetiredKeys(r.caller)');
+    // proveIdentity and describe refuse a key selector outright.
+    expect(provider).toContain('if (r.accountId != null || r.keyPublicKey != null) return null');
+    const describe = provider.slice(
+      provider.indexOf('private fun describe('),
+      provider.indexOf('private fun proveIdentity('),
+    );
+    expect(describe).toContain('if (r.keyPublicKey != null) return null');
+    // A named key is that key or nothing: never the current key in its place.
+    expect(provider).toContain('if (current != null && current.second == named) return current');
+    expect(provider).toContain(
+      'readRetired(r.ctx, scopeOf(r), named)?.takeIf { it.second == named }',
+    );
+    // And every keyPublicKey answer says which key it was.
+    expect(provider).toContain('answer.putString(KEY_KEY_PUBLIC_KEY, keyPublicKey)');
+  });
+
   test('the signer module is registered for autolinking', () => {
     const config = JSON.parse(readFileSync(resolve(MODULE, 'expo-module.config.json'), 'utf8')) as {
       android?: { modules?: string[] };

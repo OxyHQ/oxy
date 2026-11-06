@@ -14,7 +14,12 @@ import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { useQueryClient } from '@tanstack/react-query';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { productAnalytics } from '@/lib/product-analytics';
-import { KeyManager, ensureKeychainGroupsMigrated, syncOrganizationKeys } from '@oxy.so/core/crypto';
+import {
+  KeyManager,
+  ensureKeychainGroupsMigrated,
+  syncOrganizationKeys,
+  syncRetiredKeys,
+} from '@oxy.so/core/crypto';
 import { logger } from '@oxy.so/core';
 import { useNavigationTheme } from '@oxy.so/bloom/theme';
 import { BloomProvider } from '@oxy.so/bloom/provider';
@@ -373,6 +378,15 @@ function AppStackContent() {
         await syncOrganizationKeys();
       } catch (error) {
         logger.error('[commons] organization-key sync threw unexpectedly', error, {
+          component: 'AppStackContent',
+        });
+      }
+      // The same for retired keys (kept for spending after a rotation or a
+      // replacement, ADR 0061 D7 as amended), so Peable still reaches them.
+      try {
+        await syncRetiredKeys();
+      } catch (error) {
+        logger.error('[commons] retired-key sync threw unexpectedly', error, {
           component: 'AppStackContent',
         });
       }

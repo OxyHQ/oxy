@@ -23,6 +23,7 @@ import {
   identityLinkCreateResponseCheck,
   identityLinkStateCheck,
 } from '@oxy.so/contracts/client';
+import { identityKeyHistoryCheck, type IdentityKeyHistory } from '@oxy.so/contracts/client';
 import type {
   AuthMethodsResponse,
   BackupStatusResponse,
@@ -283,9 +284,8 @@ export class IdentityApi {
       throw new Error('No authenticated user — sign in before rotating your key.');
     }
 
-    const { KeyManager, RecoveryPhraseService, SignatureService, signMessage } = await import(
-      '../crypto/index'
-    );
+    const { KeyManager, RecoveryPhraseService, SignatureService, signMessage, retireIdentityKey } =
+      await import('../crypto/index');
 
     // 1. The NEW identity (in memory only). The UI may pre-derive + pre-show
     //    it and pass it back here so the phrase shown === the phrase committed.
@@ -296,6 +296,7 @@ export class IdentityApi {
     // 2. Resolve the OLD signing capability from the chosen proof mode.
     let oldPublicKey: string;
     let signWithOldKey: (message: string) => Promise<string>;
+    let oldPrivateKeyForRing: string | null;
     if (options.proof === 'phrase') {
       const phrase = options.phrase?.trim();
       if (!phrase) {
@@ -304,6 +305,7 @@ export class IdentityApi {
       const oldPrivateKey = await RecoveryPhraseService.derivePrivateKeyFromPhrase(phrase);
       oldPublicKey = KeyManager.derivePublicKey(oldPrivateKey);
       signWithOldKey = (message) => signMessage(message, oldPrivateKey);
+      oldPrivateKeyForRing = oldPrivateKey;
     } else {
       const currentPublicKey = await KeyManager.getPublicKey();
       if (!currentPublicKey) {
@@ -313,6 +315,30 @@ export class IdentityApi {
       }
       oldPublicKey = currentPublicKey;
       signWithOldKey = (message) => SignatureService.sign(message);
+      oldPrivateKeyForRing = isWeb() ? null : await KeyManager.getPrivateKey();
+    }
+
+    // 2b. Keep the key being replaced in the retired ring BEFORE anything
+    //     changes (oxy ADR 0061 D7 as amended, Peable ADR 0002): coins keep
+    //     arriving under it after the swap, and the Peable wallet spends them
+    //     through the `publicKey` selector of `deriveScopedSeed` /
+    //     `signSocialReceive`. A device that cannot keep it does not rotate:
+    //     the phrase would become the only way to those coins. Native only —
+    //     on web no key is stored. Idempotent, so a retried rotation is fine.
+    if (!isWeb()) {
+      try {
+        if (!oldPrivateKeyForRing) throw new Error('no readable private key');
+        await retireIdentityKey({ privateKey: oldPrivateKeyForRing, publicKey: oldPublicKey });
+      } catch (retainError) {
+        logger.warn(
+          'Could not keep the current key as a retired key; not rotating.',
+          { component: 'oxy.identity', method: 'rotateKey' },
+          retainError,
+        );
+        throw new Error(
+          'Your current key could not be kept on this device, so it was not rotated. Nothing changed.',
+        );
+      }
     }
 
     // 3. Request a single-use rotate_key challenge (bearer).
@@ -501,6 +527,23 @@ export class IdentityApi {
     const keys = ['GET:/auth/methods', 'GET:/identity/domains'];
     if (userId) keys.push(`GET:/u/${encodeURIComponent(userId)}/did.json`);
     this.ctx.http.invalidateCache({ keys, prefixes: ['GET:/users/me'] });
+  }
+
+  /**
+   * The signed-in personal account's current root (`null` without one) and
+   * every root a rotation replaced, oldest first, all canonical (uncompressed,
+   * lowercase). Commons reads it to accept a previous recovery phrase only when
+   * it derives a key that WAS this account's root. A retired root is never any
+   * account's again. First-party only; a non-personal account is refused
+   * (`IDENTITY_NOT_PERSONAL_ACCOUNT`).
+   */
+  async keyHistory(): Promise<IdentityKeyHistory> {
+    const res = await this.ctx.request<unknown>('GET', '/identity/key-history', undefined, {
+      cache: false,
+    });
+    const parsed = checkContract(identityKeyHistoryCheck, res);
+    if (!parsed) throw new Error('identity/key-history returned an unexpected response shape');
+    return parsed;
   }
 }
 

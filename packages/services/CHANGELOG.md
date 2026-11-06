@@ -1,5 +1,15 @@
 # Changelog
 
+## 14.9.0
+
+### Added
+
+- Android `OxyIdentity`: `listRetiredKeys(accountId?)`, `deriveRetiredScopedSeed(info, publicKey, accountId?)` and `signRetiredSocialReceive(index, digest, publicKey, accountId?)` over Commons' identity host protocol 4 (`keyPublicKey` extra, `listRetiredKeys`): the keys a person or an organization rotated away from, kept by Commons for spending only (ADR 0061 D7 as amended). An answer is `null` unless Commons echoes the key and the account asked for. iOS stubs resolve `null` (iOS reads the wallet keychain group directly).
+
+### Consumers
+
+Bump to 14.9.0 with `@oxy.so/core` 7.30.0. Native: the Peable wallet needs a new binary for Android to reach retired keys; Commons needs its 1.7.0 build (identity host protocol 4).
+
 ## 14.8.0
 
 ### Security

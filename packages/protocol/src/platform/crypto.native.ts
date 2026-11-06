@@ -225,9 +225,29 @@ interface OxyIdentityNativeModule {
    * Older native modules and Android lack it.
    */
   keychainDefaultAccessGroup?(): Promise<unknown>;
+  /**
+   * Retired keys (Commons protocol 4), added after the organization methods and
+   * just as absent on an older native module. `accountId` is `null` for the
+   * person. Each answer echoes the `keyPublicKey` (and the `accountId`) Commons
+   * answered for.
+   */
+  listRetiredKeys?(accountId: string | null): Promise<unknown>;
+  deriveRetiredScopedSeed?(
+    info: string,
+    publicKey: string,
+    accountId: string | null,
+  ): Promise<unknown>;
+  signRetiredSocialReceive?(
+    index: number,
+    digest: string,
+    publicKey: string,
+    accountId: string | null,
+  ): Promise<unknown>;
 }
 
 const LOWER_HEX = /^[0-9a-f]+$/;
+/** A lowercase uncompressed SEC1 public key, as Commons names every key it holds. */
+const PUBLIC_KEY = /^04[0-9a-f]{128}$/;
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
@@ -264,6 +284,40 @@ function narrowOrganizationDescription(
 ): CommonsIdentityDescription | null {
   const description = narrowDescription(echoes(value, accountId));
   return description ? { ...description, accountId } : null;
+}
+
+/**
+ * A retired-key answer must name the key asked for, and the scope asked for:
+ * the organization's `accountId`, or none for the person. A Commons before
+ * protocol 4 ignores `keyPublicKey` and answers with the CURRENT key, without
+ * the echo; that answer is refused here.
+ */
+function echoesRetired(
+  value: unknown,
+  publicKey: string,
+  accountId: string | undefined,
+): Record<string, unknown> | null {
+  const r = record(value);
+  if (!r || r.keyPublicKey !== publicKey) return null;
+  return (r.accountId ?? undefined) === accountId ? r : null;
+}
+
+/**
+ * The list must be every entry a well-formed public key: one malformed entry
+ * means an answer this side does not understand, and the whole answer is
+ * `null` rather than a list missing a key the wallet would then never sweep.
+ */
+function narrowRetiredKeys(value: unknown, accountId: string | undefined): string[] | null {
+  const r = record(value);
+  if (!r || (r.accountId ?? undefined) !== accountId) return null;
+  const keys = r.publicKeys;
+  if (!Array.isArray(keys)) return null;
+  const out: string[] = [];
+  for (const key of keys) {
+    if (typeof key !== 'string' || !PUBLIC_KEY.test(key)) return null;
+    if (!out.includes(key)) out.push(key);
+  }
+  return out;
 }
 
 function narrowProof(value: unknown): CommonsIdentityProof | null {
@@ -345,6 +399,39 @@ export function loadCommonsIdentityBridge(): Promise<CommonsIdentityBridge | nul
           return ask(
             () => sign.call(m, index, digest, accountId),
             (v) => narrowSocialReceive(echoes(v, accountId)),
+          );
+        },
+        listRetiredKeys: (accountId?: string) => {
+          const list = m.listRetiredKeys;
+          if (typeof list !== 'function') return Promise.resolve(null);
+          return ask(
+            () => list.call(m, accountId ?? null),
+            (v) => narrowRetiredKeys(v, accountId),
+          );
+        },
+        deriveRetiredScopedSeed: (info: string, publicKey: string, accountId?: string) => {
+          const derive = m.deriveRetiredScopedSeed;
+          if (typeof derive !== 'function' || !PUBLIC_KEY.test(publicKey)) {
+            return Promise.resolve(null);
+          }
+          return ask(
+            () => derive.call(m, info, publicKey, accountId ?? null),
+            (v) => hexField(echoesRetired(v, publicKey, accountId)?.seed, 64),
+          );
+        },
+        signRetiredSocialReceive: (
+          index: number,
+          digest: string,
+          publicKey: string,
+          accountId?: string,
+        ) => {
+          const sign = m.signRetiredSocialReceive;
+          if (typeof sign !== 'function' || !PUBLIC_KEY.test(publicKey)) {
+            return Promise.resolve(null);
+          }
+          return ask(
+            () => sign.call(m, index, digest, publicKey, accountId ?? null),
+            (v) => narrowSocialReceive(echoesRetired(v, publicKey, accountId)),
           );
         },
       } satisfies CommonsIdentityBridge;

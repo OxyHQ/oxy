@@ -104,6 +104,12 @@ groups. That residual risk is the same on Android (Commons' certificate).
   access, item)` (the wrapper KeyManager and `organizationKeys` use), and
   `ownKeychainItemPlan` for an app's own items. Item names live in
   `src/crypto/keychainItems.ts`.
+- **Retired keys are spending keys.** The keys a person or an organization
+  rotated away from (ADR 0061 D7 as amended 2026-11-06, `crypto/retiredKeys.ts`,
+  `oxy_retired_identity_private_key.<scope>.<publicKey>` and the ring's index
+  `oxy_retired_identity_index_v1`) are `spending-key` items: the wallet group,
+  written by Commons only, read by Commons and the Peable wallet. They are new
+  items, so the migration has nothing to move for them.
 - **Team prefix and role: discovered, not injected.** No app config in any repo
   carries the team id, and the role must not have a second source that can
   disagree with the entitlements. `@oxy.so/services`' iOS `OxyIdentity` module

@@ -30971,6 +30971,99 @@
         "operationId": "getIdentityHeadUserId"
       }
     },
+    "/identity/key-history": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "summary": "A personal account's current root and every root a rotation replaced.",
+        "description": "Oldest first, keys canonical; a non-personal account is refused\n(`IDENTITY_NOT_PERSONAL_ACCOUNT`).\n\nGated like `GET /accounts/:id/identity-key` (the organization's key history),\nnot like `root-status`: the answer names keys the DID no longer publishes,\nwhich tie the account to every address tree it ever received into. Only\nCommons needs it, so a third-party application's bearer is refused\n(`requireFirstPartyDeviceAccess`), while `root-status` carries no key and is\nread from any origin.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The current root (`null` without one) and the retired roots.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "publicKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^04[0-9a-f]{128}$"
+                    },
+                    "retired": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "publicKey": {
+                            "type": "string",
+                            "pattern": "^04[0-9a-f]{128}$"
+                          },
+                          "retiredAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "publicKey",
+                          "retiredAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "publicKey",
+                    "retired"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getIdentityKeyHistory"
+      }
+    },
     "/identity/link": {
       "post": {
         "tags": [

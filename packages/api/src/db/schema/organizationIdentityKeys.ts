@@ -15,7 +15,8 @@
  * a key that came back as another account's would hand that account the
  * organization's address tree. `public_key` is unique across every row, retired
  * ones included, and the personal key writers refuse a key found here
- * (`organizationKeyEverUsed`). Deleting the organization keeps its rows
+ * (`identityKeyEverUsed`, which also covers a person's retired roots,
+ * `personal_identity_key_retirements`). Deleting the organization keeps its rows
  * (`account_id` becomes NULL, `SET NULL`) for the same reason: the key stays a
  * tombstone.
  */

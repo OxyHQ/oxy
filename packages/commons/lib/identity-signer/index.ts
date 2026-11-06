@@ -26,6 +26,17 @@ interface OxyIdentitySignerNative {
   ): Promise<{ privateKey?: unknown; publicKey?: unknown } | null>;
   writeOrganization?(accountId: string, privateKey: string, publicKey: string): Promise<boolean>;
   clearOrganization?(accountId: string): Promise<void>;
+  /**
+   * The retired key ring (scope `'personal'` or an organization account id);
+   * absent on a binary built before it.
+   */
+  readRetired?(
+    scope: string,
+    publicKey: string,
+  ): Promise<{ privateKey?: unknown; publicKey?: unknown } | null>;
+  writeRetired?(scope: string, privateKey: string, publicKey: string): Promise<boolean>;
+  listRetired?(scope: string): Promise<unknown>;
+  clearRetired?(scope: string, publicKey: string): Promise<void>;
 }
 
 function pairOf(
@@ -36,6 +47,13 @@ function pairOf(
   return typeof privateKey === 'string' && typeof publicKey === 'string'
     ? { privateKey, publicKey }
     : null;
+}
+
+/** The ring's public keys as the native side listed them; anything not a string is dropped. */
+function stringsOf(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
 }
 
 function loadNative(): OxyIdentitySignerNative | null {
@@ -51,6 +69,7 @@ export function createIdentitySignerStore(): IdentitySignerStore | null {
   const native = loadNative();
   if (!native) return null;
   const { readOrganization, writeOrganization, clearOrganization } = native;
+  const { readRetired, writeRetired, listRetired, clearRetired } = native;
   return {
     name: 'android-identity-signer',
     read: async () => pairOf(await native.read()),
@@ -67,6 +86,23 @@ export function createIdentitySignerStore(): IdentitySignerStore | null {
           writeOrganization: (accountId: string, privateKey: string, publicKey: string) =>
             writeOrganization.call(native, accountId, privateKey, publicKey),
           clearOrganization: (accountId: string) => clearOrganization.call(native, accountId),
+        }
+      : {}),
+    // The retired ring likewise only when this binary carries all four;
+    // without them `retireIdentityKey` refuses on Android rather than keep a
+    // key the identity host could never spend.
+    ...(typeof readRetired === 'function' &&
+    typeof writeRetired === 'function' &&
+    typeof listRetired === 'function' &&
+    typeof clearRetired === 'function'
+      ? {
+          readRetired: async (scope: string, publicKey: string) =>
+            pairOf(await readRetired.call(native, scope, publicKey)),
+          writeRetired: (scope: string, privateKey: string, publicKey: string) =>
+            writeRetired.call(native, scope, privateKey, publicKey),
+          listRetired: async (scope: string) => stringsOf(await listRetired.call(native, scope)),
+          clearRetired: (scope: string, publicKey: string) =>
+            clearRetired.call(native, scope, publicKey),
         }
       : {}),
   };

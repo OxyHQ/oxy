@@ -581,6 +581,21 @@ const PAIRS: Pair[] = [
     ],
   },
   {
+    name: 'identityKeyHistory',
+    check: client.identityKeyHistoryCheck,
+    schema: contracts.identityKeyHistorySchema,
+    samples: [
+      { publicKey: null, retired: [] },
+      {
+        publicKey: `04${'c'.repeat(128)}`,
+        retired: [
+          { publicKey: `04${'a'.repeat(128)}`, retiredAt: ISO },
+          { publicKey: `04${'b'.repeat(128)}`, retiredAt: ISO_LATER },
+        ],
+      },
+    ],
+  },
+  {
     name: 'agentKeyListResponse',
     check: client.agentKeyListResponseCheck,
     schema: contracts.agentKeyListResponseSchema,

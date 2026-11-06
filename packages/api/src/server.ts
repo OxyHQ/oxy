@@ -1061,9 +1061,10 @@ app.use('/identity/backup', identityBackupRoutes);
 // relay for the root proof Commons signs, confirmed by an email code. Before
 // `/identity`.
 app.use('/identity/link', identityLinkRoutes);
-// One-use challenges for root proofs (ADR 0024 D7) and root readiness metadata.
-// Bearer only; a challenge authorizes nothing until a root signs it, and the
-// status carries no ciphertext. Two exact paths, before `/identity`.
+// One-use challenges for root proofs (ADR 0024 D7), root readiness metadata and
+// a personal account's key history. Bearer only; a challenge authorizes nothing
+// until a root signs it, and neither read carries ciphertext. Three exact paths,
+// before `/identity`.
 app.use('/identity', identityProofRoutes);
 // Self-sovereign identity layer: signed records + verified-domain badges.
 // Mixed public/private routes (each gates its own auth); writes are

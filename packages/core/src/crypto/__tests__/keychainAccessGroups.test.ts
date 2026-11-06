@@ -291,6 +291,36 @@ describe('Commons writes each item to its group, team prefix included', () => {
   });
 });
 
+describe('retired keys (ADR 0061 D7 as amended) are spending keys', () => {
+  const RETIRED = '6c'.repeat(32);
+
+  it('Commons keeps them in the wallet group; the wallet derives by selector; no other app can', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    await commons.KeyManager.importKeyPair(PRIVATE, { overwrite: true });
+    const ring = await import('../retiredKeys');
+    const publicKey = commons.KeyManager.derivePublicKey(RETIRED);
+    await ring.retireIdentityKey({ privateKey: RETIRED, publicKey });
+    const writes = mockKeychain.calls.filter((c) => c.op === 'set');
+    const retiredWrites = writes.filter((w) => w.key.startsWith('oxy_retired_identity'));
+    expect(retiredWrites.length).toBeGreaterThan(0);
+    expect(retiredWrites.every((w) => w.options.accessGroup === GROUP.wallet)).toBe(true);
+    for (const w of retiredWrites) {
+      expect(mockKeychain.get(GROUP.shared, w.key, w.options.keychainService)).toBeNull();
+    }
+
+    const peable = await launch(ENTITLEMENTS.wallet);
+    const seed = await peable.KeyManager.deriveScopedSeed(LABEL, { publicKey });
+    expect(hex(seed)).not.toBeNull();
+    const peableRing = await import('../retiredKeys');
+    expect((await peableRing.listRetiredIdentityKeys()).map((k) => k.publicKey)).toEqual([
+      publicKey,
+    ]);
+
+    const member = await launch(ENTITLEMENTS.member);
+    await expect(member.KeyManager.deriveScopedSeed(LABEL, { publicKey })).resolves.toBeNull();
+  });
+});
+
 describe('the migration never loses a key', () => {
   it('a locked keychain defers without writing, and the next access completes', async () => {
     await seedPreSplitCommons();

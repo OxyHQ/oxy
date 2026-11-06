@@ -601,6 +601,10 @@ export type {
   RotateKeyCompleteResponse,
 } from './keyRotation';
 
+// A personal account's current root and the roots rotation replaced
+export { identityKeyHistorySchema } from './identityKeyHistory';
+export type { IdentityKeyHistory } from './identityKeyHistory';
+
 export {
   // Schemas — encrypted off-device identity backup (b3 Feature 1)
   backupLookupIdSchema,

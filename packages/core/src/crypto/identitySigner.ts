@@ -34,6 +34,29 @@ export interface IdentitySignerStore {
   writeOrganization?(accountId: string, privateKey: string, publicKey: string): Promise<boolean>;
   /** Drop that organization's pair. */
   clearOrganization?(accountId: string): Promise<void>;
+  /**
+   * The RETIRED key ring: keys a scope rotated away from (a personal rotation,
+   * or an organization key replacement, ADR 0061 D7), kept so the identity host
+   * can still derive and sign with them for the wallet when a request names
+   * their public key. Spending only: the host never signs anyone in with one.
+   *
+   * `scope` is `'personal'` or an organization's account id (24-hex or uuid);
+   * `publicKey` is the retired key's lowercase uncompressed SEC1 hex (130),
+   * which names its entry. The native side refuses anything else. Clearing the
+   * personal pair ({@link clear}) or an organization's never drops a ring.
+   * Optional so a store built before retired keys still type-checks; Commons
+   * offers all four or none.
+   */
+  readRetired?(
+    scope: string,
+    publicKey: string,
+  ): Promise<{ privateKey: string; publicKey: string } | null>;
+  /** Keep a retired pair in `scope`'s ring. Resolves whether a read-back confirmed it. */
+  writeRetired?(scope: string, privateKey: string, publicKey: string): Promise<boolean>;
+  /** The public keys in `scope`'s ring (healthy entries only, sorted); `[]` when none. */
+  listRetired?(scope: string): Promise<string[]>;
+  /** Drop one retired key from `scope`'s ring. */
+  clearRetired?(scope: string, publicKey: string): Promise<void>;
 }
 
 /**

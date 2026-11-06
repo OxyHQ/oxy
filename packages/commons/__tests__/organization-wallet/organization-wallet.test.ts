@@ -2,6 +2,7 @@ import { IDENTITY_ERROR_CODES, ORGANIZATION_KEY_ERROR_CODES } from '@oxy.so/cont
 import en from '@/lib/i18n/locales/en.json';
 import es from '@/lib/i18n/locales/es.json';
 import {
+  isRetiredOrganizationKey,
   deviceKeyStatus,
   governedOrganizations,
   organizationKeyErrorKey,
@@ -39,6 +40,21 @@ describe('deviceKeyStatus', () => {
     expect(deviceKeyStatus(KEY, KEY.toUpperCase())).toBe('held');
     expect(deviceKeyStatus(KEY, OTHER)).toBe('stale');
     expect(deviceKeyStatus(KEY, null)).toBe('elsewhere');
+  });
+});
+
+describe('isRetiredOrganizationKey', () => {
+  const state = {
+    keys: [
+      { publicKey: `04${'aa'.repeat(64)}`, retiredAt: '2026-11-01T00:00:00.000Z' },
+      { publicKey: `04${'bb'.repeat(64)}`, retiredAt: null },
+    ],
+  };
+  it('is true only for a key the organization had and replaced', () => {
+    expect(isRetiredOrganizationKey(state, `04${'AA'.repeat(64)}`)).toBe(true);
+    expect(isRetiredOrganizationKey(state, `04${'bb'.repeat(64)}`)).toBe(false);
+    expect(isRetiredOrganizationKey(state, `04${'cc'.repeat(64)}`)).toBe(false);
+    expect(isRetiredOrganizationKey(state, null)).toBe(false);
   });
 });
 

@@ -38,7 +38,7 @@ import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users, type AccountKind } from '../db/schema/users';
 import { ApiError, BadRequestError, ConflictError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { organizationKeyEverUsed } from './organizationKeyHistory';
+import { identityKeyEverUsed } from './organizationKeyHistory';
 import { untrustedNameColumns } from '../utils/displayNameSanitize';
 import { normalizeUsername } from '../utils/username';
 import type { AccountRow } from './account.service';
@@ -314,8 +314,9 @@ export async function createPersonalAccount(
   credential: PersonalCredential,
   acquisition?: { languages?: string[]; campaignAttribution?: CampaignAttribution },
 ): Promise<AccountRow> {
-  // A key that was ever an organization's is never a person's (ADR 0061 D2).
-  if ('publicKey' in credential && (await organizationKeyEverUsed(tx, credential.publicKey))) {
+  // A key that was ever an organization's, or a person's retired root, is never
+  // a person's (ADR 0061 D2).
+  if ('publicKey' in credential && (await identityKeyEverUsed(tx, credential.publicKey))) {
     throw new ApiError(
       409,
       'This identity is already linked to another account',

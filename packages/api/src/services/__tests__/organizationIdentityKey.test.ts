@@ -29,6 +29,7 @@ import { users } from '../../db/schema/users';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { organizationProfiles } from '../../db/schema/organizationProfiles';
 import { organizationIdentityKeys } from '../../db/schema/organizationIdentityKeys';
+import { personalIdentityKeyRetirements } from '../../db/schema/personalIdentityKeyRetirements';
 import { identityProofChallenges } from '../../db/schema/identityProofChallenges';
 import { securityActivities } from '../../db/schema/securityActivities';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
@@ -320,6 +321,15 @@ it('replacing retires the key for good; the current key is optional and recorded
   // Nor a person's key an organization's.
   await expect(change(owner, other, 'create', admin.key)).rejects.toMatchObject({
     statusCode: 409,
+  });
+  // Nor a person's retired root: answered as a key another account holds.
+  const retiredRoot = newKey();
+  await getDb()
+    .insert(personalIdentityKeyRetirements)
+    .values({ userId: admin.id, publicKey: retiredRoot.publicKey });
+  await expect(change(owner, other, 'create', retiredRoot)).rejects.toMatchObject({
+    statusCode: 409,
+    code: IDENTITY_ERROR_CODES.rootLinkedElsewhere,
   });
   const current = await getDb()
     .select({ publicKey: organizationIdentityKeys.publicKey })

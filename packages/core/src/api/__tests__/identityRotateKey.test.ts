@@ -26,6 +26,16 @@ import { SignatureService } from '../../crypto/signatureService';
 import { RecoveryPhraseService } from '../../crypto/recoveryPhrase';
 import { setPlatformOS } from '../../utils/platform';
 
+// The retired-key ring (ADR 0061 D7 as amended): stubbed so the orchestration
+// can be observed; the ring itself is `crypto/__tests__/retiredKeys.test.ts`.
+const mockRetire = jest.fn<Promise<void>, [{ privateKey: string; publicKey: string }]>(
+  async () => undefined,
+);
+jest.mock('../../crypto/retiredKeys', () => ({
+  ...jest.requireActual('../../crypto/retiredKeys'),
+  retireIdentityKey: (key: { privateKey: string; publicKey: string }) => mockRetire(key),
+}));
+
 /** Route `invalidateCache` into per-key / per-prefix mocks (one pair per client). */
 const cacheSpyMap = new WeakMap<OxyServices, { keys: jest.Mock; prefixes: jest.Mock }>();
 function cacheSpies(client: OxyServices): { keys: jest.Mock; prefixes: jest.Mock } {
@@ -103,6 +113,9 @@ describe('OxyServices.rotateKey', () => {
     cacheSpies(oxy).prefixes;
     clearEntrySpy = cacheSpies(oxy).keys;
     jest.spyOn(oxy.session, 'userId', 'get').mockReturnValue('user-123');
+    mockRetire.mockReset();
+    mockRetire.mockResolvedValue(undefined);
+    jest.spyOn(KeyManager, 'getPrivateKey').mockResolvedValue(oldKeyPair.privateKey);
   });
 
   afterEach(() => {
@@ -407,6 +420,67 @@ describe('OxyServices.rotateKey', () => {
     });
   });
 
+  describe('the retired key ring', () => {
+    it('keeps the replaced key BEFORE asking for the challenge', async () => {
+      jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+      jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
+      jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+      jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue(NEW_PUBLIC);
+      const order: string[] = [];
+      mockRetire.mockImplementation(async () => {
+        order.push('retire');
+      });
+      makeRequestSpy.mockImplementation(async (_method: string, path: string) => {
+        order.push(path);
+        return path.endsWith('/challenge')
+          ? { challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' }
+          : { success: true, publicKey: NEW_PUBLIC, message: 'ok' };
+      });
+
+      await oxy.identity.rotateKey({ proof: 'device' });
+
+      expect(mockRetire).toHaveBeenCalledWith({
+        privateKey: oldKeyPair.privateKey,
+        publicKey: OLD_PUBLIC,
+      });
+      expect(order).toEqual(['retire', '/auth/rotate/challenge', '/auth/rotate/complete']);
+    });
+
+    it('does not rotate (no request at all) when the replaced key cannot be kept', async () => {
+      jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+      mockRetire.mockRejectedValue(new Error('keychain refused'));
+
+      await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow('Nothing changed');
+      expect(makeRequestSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not rotate when the device key cannot be read to keep it', async () => {
+      jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+      jest.spyOn(KeyManager, 'getPrivateKey').mockResolvedValue(null);
+
+      await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow('Nothing changed');
+      expect(mockRetire).not.toHaveBeenCalled();
+      expect(makeRequestSpy).not.toHaveBeenCalled();
+    });
+
+    it('on web keeps nothing (no key is stored there) and still rotates', async () => {
+      setPlatformOS('web');
+      jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+      jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
+      jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+      makeRequestSpy
+        .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
+        .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
+
+      await oxy.identity.rotateKey({ proof: 'device' });
+      expect(mockRetire).not.toHaveBeenCalled();
+    });
+  });
+
   describe('phrase proof (replace the LAST credential)', () => {
     it('re-derives the CURRENT key from the entered phrase and signs the proof with it', async () => {
       // A real "current" identity whose phrase the user re-enters, and a real new one.
@@ -428,6 +502,11 @@ describe('OxyServices.rotateKey', () => {
 
       const result = await oxy.identity.rotateKey({ proof: 'phrase', phrase: current.phrase });
       expect(result.newPublicKey).toBe(next.publicKey);
+      // The key the phrase derives is the one kept in the retired ring.
+      expect(mockRetire).toHaveBeenCalledWith({
+        privateKey: current.privateKey,
+        publicKey: KeyManager.derivePublicKey(current.privateKey),
+      });
 
       // The OLD-key signature MUST verify against the current key over the exact message.
       const message = JSON.stringify({

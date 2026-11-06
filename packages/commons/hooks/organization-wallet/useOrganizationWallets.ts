@@ -8,12 +8,18 @@
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { getNormalizedUserHandle } from '@oxy.so/core';
-import { getOrganizationPublicKey } from '@oxy.so/core/crypto';
+import {
+  getOrganizationPrivateKey,
+  getOrganizationPublicKey,
+  KeyManager,
+  retireIdentityKey,
+} from '@oxy.so/core/crypto';
 import type { OrganizationIdentityKeyState } from '@oxy.so/contracts';
 import { useOxy } from '@oxy.so/services';
 import {
   deviceKeyStatus,
   governedOrganizations,
+  isRetiredOrganizationKey,
   type DeviceKeyStatus,
 } from '@/lib/organization-wallet';
 
@@ -30,6 +36,19 @@ export interface OrganizationWallet {
 }
 
 const ROOT = 'organizationWallet';
+
+async function keepReplacedOrganizationKey(accountId: string): Promise<void> {
+  try {
+    const privateKey = await getOrganizationPrivateKey(accountId);
+    if (!privateKey) return;
+    await retireIdentityKey(
+      { privateKey, publicKey: KeyManager.derivePublicKey(privateKey) },
+      { accountId },
+    );
+  } catch {
+    // Best effort; the key stays in the organization's slot until it works.
+  }
+}
 
 /** The organizations this person owns or administers. */
 export function useGovernedOrganizations(): UseQueryResult<GovernedOrganization[]> {
@@ -66,7 +85,15 @@ export function useOrganizationWallet(
         oxyServices.accounts.identityKey.get(accountId),
         getOrganizationPublicKey(accountId),
       ]);
-      return { state, deviceKey, status: deviceKeyStatus(state.publicKey, deviceKey) };
+      const status = deviceKeyStatus(state.publicKey, deviceKey);
+      // Another owner replaced the key this phone holds: keep it as one of the
+      // organization's previous keys, so Peable can still spend what it
+      // received (ADR 0061 D7 as amended). Idempotent; a failure only means
+      // the next visit tries again.
+      if (status === 'stale' && isRetiredOrganizationKey(state, deviceKey)) {
+        await keepReplacedOrganizationKey(accountId);
+      }
+      return { state, deviceKey, status };
     },
   });
 }

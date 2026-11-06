@@ -135,23 +135,37 @@ the person owns or administers, each with where its wallet stands:
   the phone only after Oxy took it.
 - **Wallet set up on another phone** → **Add the key you were given** → type the
   24 words the person who set it up gave you → **Add the key**. Commons checks the
-  phrase derives the organization's current `#key-1` and sends nothing.
+  phrase derives the organization's current `#key-1` and sends nothing. A phrase
+  of one of the organization's REPLACED keys (`keys[].retiredAt` set) is kept as
+  a previous key instead, for spending only; any other phrase is refused.
 - **Wallet key on this phone** → **Show the recovery phrase** (to hand it to
   another owner or admin, in person) or **Replace the key**.
 - **Replace the key** (also from "another phone" and "old key") → a new phrase →
-  "Move the funds first" and its checkbox → **Replace the organization's key**.
-  The current key signs too when this phone holds it.
+  "The current key stays with the funds" and its checkbox → **Replace the
+  organization's key**. When this phone holds the current key it is first kept
+  in the retired ring (the replacement stops if it cannot be), and it signs too.
 
 ## Replacing a key, and the money
 
 Replacing the key does not move funds (Peable ADR 0002): addresses already
-reserved derive from the key they were reserved against, and coins received under
-a replaced key are spendable only with that key. So:
+reserved derive from the key they were reserved against, and coins keep arriving
+under a replaced key after the replacement (broadcast payments settle, late
+payers and `@username` senders hold its addresses). So the replaced key is kept,
+for spending only (ADR 0061 D7 as amended 2026-11-06):
 
-- when a holder leaves the organization, an owner or admin replaces the key;
-- before a voluntary replacement, the holder moves the funds while the key is held;
-- there is no second address tree: after a replacement Commons holds only the
-  new key, and the replaced key's coins are spent with its phrase;
+- Commons keeps it in the organization's retired ring (`@oxy.so/core`
+  `crypto/retiredKeys.ts`) before replacing, and a phone holding a key another
+  owner replaced moves it there the next time it reads the organization;
+- a phone without it adds the replaced key's phrase as a previous key, checked
+  against `keys`;
+- Peable reaches it with `deriveScopedSeed` / `signSocialReceive` and the
+  `publicKey` selector (Android: the identity host's `keyPublicKey` extra and
+  `listRetiredKeys`, wallet only), shows the coins as spendable and offers to
+  move them to the current key;
+- a retired key never signs anyone in, never takes a new reservation and is
+  never the current key again;
+- when a holder leaves or the phrase may be exposed, replace the key and move the
+  funds at once: the retired key is still theirs too, and the move races them;
 - a wallet compares the device's key with the DID's `#key-1` and stops offering
   to receive on a mismatch, and reads `keys` to know which keys were the
   organization's.

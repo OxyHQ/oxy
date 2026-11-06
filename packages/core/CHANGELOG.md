@@ -1,5 +1,22 @@
 # Changelog — `@oxy.so/core`
 
+## 7.30.0
+
+### Added
+
+- **Retired identity keys** (ADR 0061 D7 as amended 2026-11-06; mainnet gate F1): a replaced key stays on the device for SPENDING only, so the Peable wallet can still spend coins received under it. `crypto/retiredKeys.ts`, exported from `@oxy.so/core/crypto`: `retireIdentityKey(pair, { accountId? })` (Commons only; idempotent; throws unless every copy confirmed), `listRetiredIdentityKeys({ accountId? })`, `forgetRetiredIdentityKey`, `forgetRetiredIdentityKeys`, `syncRetiredKeys()` (Commons on Android, every boot, beside `syncOrganizationKeys`), `retiredKeyFromPhrase(phrase)` (12–24 words, stores nothing). One ring per account: the person's, and one per organization account id. On iOS each item is a `spending-key` (ADR 0062: the wallet group, Commons and the Peable wallet only); on Android Commons' own slot, mirrored into the identity signer store. A retired phrase is not kept.
+- **`KeyManager.deriveScopedSeed(info, { accountId?, publicKey })` and `signSocialReceive(index, digest, { accountId?, publicKey })`**: `publicKey` (any encoding) selects the key of that account whose public key it is: the current key when it matches, else the retired ring; `null` when this device cannot reach it, never another key. On Android outside Commons it asks Commons' identity host (protocol 4, wallet only).
+- **`oxy.identity.keyHistory()`** (`GET /identity/key-history`): the person's current root and every root they rotated away from, oldest first. Commons checks a previous phrase against it before keeping its key.
+
+### Changed
+
+- **`oxy.identity.rotateKey` keeps the replaced key before it rotates.** On a native device it writes the current private key to the retired ring BEFORE asking for the challenge, and refuses to rotate (no request sent) when it cannot: "Nothing changed". On web nothing is stored, as before.
+- **`KeyManager.deleteIdentity(…, force = true, …)` also forgets the person's retired keys**, so a phone handed on keeps none of them. Organization rings are untouched.
+
+### Consumers
+
+Bump to 7.30.0 with `@oxy.so/protocol` 1.9.0 and `@oxy.so/services` 14.9.0 (its Android `OxyIdentity` module carries the new identity-host calls; an older binary answers `null` for every retired key). Peable's wallet passes `publicKey` to reach a previous key's HD wallet and social-receive addresses.
+
 ## 7.29.0
 
 ### Security

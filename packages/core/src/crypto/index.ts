@@ -74,6 +74,17 @@ export type {
   KeychainGroupMigrationReport,
   KeychainItemMigrationOutcome,
 } from './keychainGroupMigration';
+// Retired identity keys: kept for spending after a rotation or replacement
+// (docs/adr/0061-organization-identity-key.md D7 as amended 2026-11-06)
+export {
+  retireIdentityKey,
+  listRetiredIdentityKeys,
+  forgetRetiredIdentityKey,
+  forgetRetiredIdentityKeys,
+  syncRetiredKeys,
+  retiredKeyFromPhrase,
+} from './retiredKeys';
+export type { RetiredIdentityKey, RetiredKeyPair, RetiredKeySelector } from './retiredKeys';
 export { SignatureService } from './signatureService';
 export type { SignedMessage, AuthChallenge } from './signatureService';
 export { RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO } from './recoveryPhrase';

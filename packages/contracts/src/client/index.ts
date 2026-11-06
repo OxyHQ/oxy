@@ -131,6 +131,9 @@ export {
   sessionAccountsChangedEventCheck,
 } from './deviceSession';
 
+export { identityKeyHistoryCheck } from './identityKeyHistory';
+export type { IdentityKeyHistory } from '../identityKeyHistory';
+
 export {
   IDENTITY_LINK_QR_PREFIX,
   IDENTITY_LINK_STATUSES,
