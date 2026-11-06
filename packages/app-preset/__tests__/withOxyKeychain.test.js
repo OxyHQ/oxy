@@ -51,10 +51,26 @@ test('every app but the two holders gets the shared group, and only it', async (
 });
 
 test('Commons lists identity, wallet, shared — identity FIRST, ahead of anything declared', async () => {
-  const groups = await entitlementsAfter(withOxyKeychain(app('so.oxy.commons')), {
-    'keychain-access-groups': [SHARED, `${P}com.example.other`],
-  });
-  assert.deepEqual(groups, [IDENTITY, WALLET, SHARED, `${P}com.example.other`]);
+  assert.deepEqual(
+    await entitlementsAfter(withOxyKeychain(app('so.oxy.commons')), {
+      'keychain-access-groups': [SHARED],
+    }),
+    [IDENTITY, WALLET, SHARED],
+  );
+  // Its own application group, declared by the app, stays after the layout.
+  assert.deepEqual(
+    await entitlementsAfter(withOxyKeychain(app('so.oxy.commons')), {
+      'keychain-access-groups': [`${P}so.oxy.commons`, SHARED],
+    }),
+    [IDENTITY, WALLET, SHARED, `${P}so.oxy.commons`],
+  );
+  // Any other group another plugin declared fails prebuild instead of being kept.
+  await assert.rejects(
+    entitlementsAfter(withOxyKeychain(app('so.oxy.commons')), {
+      'keychain-access-groups': [SHARED, `${P}com.example.other`],
+    }),
+    /may not list the keychain access group "\$\(AppIdentifierPrefix\)com\.example\.other": it is not one of/,
+  );
 });
 
 test('the Peable wallet lists wallet, shared — wallet first', async () => {
@@ -264,17 +280,158 @@ test('an entry that cannot be judged is refused, for every app', () => {
   assert.doesNotThrow(() => assertOxyKeychainGroups('so.oxy.mention', undefined));
 });
 
-test('ordinary groups keep working in any spelling', () => {
+test('the shared group and the own application group must be spelled exactly', () => {
   for (const entry of [
-    SHARED,
     `$(TeamIdentifierPrefix)group.so.oxy.shared`,
     'ABCDE12345.group.so.oxy.shared',
+    `${P}GROUP.so.oxy.shared`,
+    ` ${SHARED}`,
+  ]) {
+    assert.throws(
+      () => assertOxyKeychainGroups('so.oxy.mention', [entry]),
+      /must spell the keychain access group/,
+      entry,
+    );
+  }
+  for (const entry of [
+    '$(TeamIdentifierPrefix)so.oxy.mention',
+    'ABCDE12345.so.oxy.mention',
+    `${P}SO.OXY.MENTION`,
+  ]) {
+    assert.throws(
+      () => assertOxyKeychainGroups('so.oxy.mention', [SHARED, entry]),
+      /must spell the keychain access group/,
+      entry,
+    );
+  }
+});
+
+// R5-4: `<TEAM>.<bundle id>` is each app's own private group (ADR 0062 D6), so
+// an app listing another app's id reads that app's session and items.
+test("another app's bundle-id group is refused, in every spelling", () => {
+  const cases = [
+    ['so.oxy.mention', `${P}to.peable.app`],
+    ['so.oxy.mention', `${P}so.oxy.commons`],
+    ['so.oxy.mention', 'to.peable.app.dev'],
+    ['so.oxy.mention', `${P}to.peable.app.dev`],
+    ['so.oxy.mention', '$(TeamIdentifierPrefix)so.oxy.commons'],
+    ['so.oxy.mention', 'ABCDE12345.to.peable.app'],
+    ['so.oxy.mention', `${P}so.oxy.accounts`],
+    ['so.oxy.mention', `${P}so.oxy.mention.dev`],
+    ['so.oxy.mention.dev', `${P}so.oxy.mention`],
+    ['to.peable.orbit', `${P}to.peable.app`],
+    // The holders too: another holder's, or the other variant's, own group.
+    ['to.peable.app', `${P}so.oxy.commons`],
+    ['so.oxy.commons', `${P}to.peable.app`],
+    ['so.oxy.commons.dev', `${P}so.oxy.commons`],
+    ['to.peable.app.dev', `${P}to.peable.app`],
+    [undefined, `${P}so.oxy.commons`],
+  ];
+  for (const [id, entry] of cases) {
+    const layout = keychainEntries(keychainGroupsFor(id));
+    for (const groups of [
+      [...layout, entry],
+      [entry, ...layout],
+    ]) {
+      assert.throws(
+        () => assertOxyKeychainGroups(id, groups),
+        /may not list the keychain access group .*not one of this app's groups/,
+        `${id} ${JSON.stringify(groups)}`,
+      );
+    }
+    // Declared straight in the app config, past the preset (withOxyUpdates).
+    assert.throws(
+      () => withOxyKeychainPolicy(app(id, { 'keychain-access-groups': [...layout, entry] })),
+      /may not list/,
+      `${id} ${entry}`,
+    );
+    // And through the preset's own plugin: kept, then refused, never repaired.
+    assert.throws(
+      () => withOxyKeychain(app(id), [...keychainGroupsFor(id), entry]),
+      /may not list/,
+    );
+  }
+});
+
+test('any group that is not one of the Oxy groups the bundle id holds is refused', () => {
+  for (const entry of [
     `${P}com.example.other`,
     `${P}so.oxy.identityx`,
     `${P}group.so.oxy.identity`,
+    `${P}group.so.oxy.shared.dev`,
+    'ABCDE12345.com.example.other',
   ]) {
-    assert.doesNotThrow(() => assertOxyKeychainGroups('so.oxy.mention', [SHARED, entry]), entry);
+    assert.throws(
+      () => assertOxyKeychainGroups('so.oxy.mention', [SHARED, entry]),
+      /may not list/,
+      entry,
+    );
   }
+});
+
+test('each app may ship exactly its layout, optionally followed by its own application group', () => {
+  const accepted = [
+    ['so.oxy.commons', [IDENTITY, WALLET, SHARED]],
+    ['so.oxy.commons', [IDENTITY, WALLET, SHARED, `${P}so.oxy.commons`]],
+    ['so.oxy.commons.dev', [IDENTITY_DEV, WALLET_DEV, SHARED]],
+    ['so.oxy.commons.dev', [IDENTITY_DEV, WALLET_DEV, SHARED, `${P}so.oxy.commons.dev`]],
+    ['to.peable.app', [WALLET, SHARED]],
+    ['to.peable.app', [WALLET, SHARED, `${P}to.peable.app`]],
+    ['to.peable.app.dev', [WALLET_DEV, SHARED]],
+    ['to.peable.app.dev', [WALLET_DEV, SHARED, `${P}to.peable.app.dev`]],
+    ['so.oxy.mention', [SHARED]],
+    ['so.oxy.mention', [SHARED, `${P}so.oxy.mention`]],
+    ['to.peable.orbit', [SHARED]],
+    // A holder before its split build: the shared group alone reads nothing secret.
+    ['to.peable.app', [SHARED]],
+    ['so.oxy.commons', [SHARED]],
+    // No group at all, like an app without the entitlement.
+    ['so.oxy.mention', []],
+    [undefined, [SHARED]],
+  ];
+  for (const [id, groups] of accepted) {
+    assert.doesNotThrow(() => assertOxyKeychainGroups(id, groups), `${id} ${groups}`);
+    assert.doesNotThrow(
+      () => withOxyKeychainPolicy(app(id, { 'keychain-access-groups': groups })),
+      `${id} ${groups}`,
+    );
+  }
+  assert.doesNotThrow(() =>
+    assertOxyKeychainGroups(
+      'to.peable.app',
+      ['ABCDE12345.so.oxy.wallet', 'ABCDE12345.group.so.oxy.shared', 'ABCDE12345.to.peable.app'],
+      { teamId: 'ABCDE12345' },
+    ),
+  );
+
+  const refused = [
+    // Duplicates, a missing shared group, the own group first or in the middle.
+    ['so.oxy.mention', [SHARED, SHARED]],
+    ['so.oxy.mention', [`${P}so.oxy.mention`, SHARED]],
+    ['so.oxy.commons', [IDENTITY, WALLET]],
+    ['so.oxy.commons', [IDENTITY, SHARED]],
+    ['so.oxy.commons', [IDENTITY, WALLET, `${P}so.oxy.commons`, SHARED]],
+    ['so.oxy.commons', [IDENTITY, WALLET, SHARED, SHARED]],
+    ['to.peable.app', [WALLET]],
+    ['to.peable.app', [WALLET, SHARED, `${P}to.peable.app`, `${P}to.peable.app`]],
+  ];
+  for (const [id, groups] of refused) {
+    assert.throws(
+      () => assertOxyKeychainGroups(id, groups),
+      /must list its keychain access groups as exactly/,
+      `${id} ${groups}`,
+    );
+  }
+});
+
+test('a bundle id whose first label looks like a team id still owns its application group', () => {
+  assert.doesNotThrow(() =>
+    assertOxyKeychainGroups('abcdefghij.example', [SHARED, `${P}abcdefghij.example`]),
+  );
+  assert.throws(
+    () => assertOxyKeychainGroups('abcdefghij.example', [SHARED, `${P}example`]),
+    /may not list/,
+  );
 });
 
 test('the preset keeps a misspelled restricted group another plugin wrote, so the check refuses it', async () => {
@@ -340,12 +497,13 @@ test('normalizeGroupName strips every team-prefix spelling and nothing else', ()
 });
 
 /**
- * Commons' app.config.js, evaluated for a variant. Its only build-time
- * dependency outside this repository's plain CommonJS is the splash plugin
- * factory, which is stubbed: only `ios` is read here.
+ * An app.config.js of this repository (Commons, Accounts), evaluated for a
+ * variant. Its only build-time dependency outside this repository's plain
+ * CommonJS is the splash plugin factory, which is stubbed: only `ios` is read
+ * here.
  */
-function loadCommonsConfig(variant) {
-  const path = resolve(__dirname, '../../commons/app.config.js');
+function loadAppConfig(dir, variant) {
+  const path = resolve(__dirname, '../..', dir, 'app.config.js');
   const Module = require('node:module');
   const load = Module._load;
   const previous = { APP_VARIANT: process.env.APP_VARIANT, warn: console.warn };
@@ -373,10 +531,22 @@ test('Commons lists its own variant’s groups, in order, and the policy accepts
     [undefined, 'so.oxy.commons'],
     ['development', 'so.oxy.commons.dev'],
   ]) {
-    const expo = loadCommonsConfig(variant);
+    const expo = loadAppConfig('commons', variant);
     assert.equal(expo.ios.bundleIdentifier, id);
     const groups = expo.ios.entitlements['keychain-access-groups'];
     assert.deepEqual(groups, keychainEntries(keychainGroupsFor(id)));
+    assert.doesNotThrow(() => withOxyKeychainPolicy(expo));
+  }
+});
+
+test('Accounts lists the shared group only, in both variants, and the policy accepts it', () => {
+  for (const [variant, id] of [
+    [undefined, 'so.oxy.accounts'],
+    ['development', 'so.oxy.accounts.dev'],
+  ]) {
+    const expo = loadAppConfig('accounts', variant);
+    assert.equal(expo.ios.bundleIdentifier, id);
+    assert.deepEqual(expo.ios.entitlements['keychain-access-groups'], [SHARED]);
     assert.doesNotThrow(() => withOxyKeychainPolicy(expo));
   }
 });

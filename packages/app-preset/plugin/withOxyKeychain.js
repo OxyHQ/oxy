@@ -14,8 +14,12 @@
  *
  * The Oxy groups are put FIRST, in their order; entries the app or another
  * plugin already declared are kept after them. Then the policy is checked on
- * the result, and on the app's own `ios.entitlements`: an app that is not a
- * holder and names the identity or wallet group fails prebuild.
+ * the result, and on the app's own `ios.entitlements`: the list must be
+ * EXACTLY the bundle id's layout, optionally followed by the app's own
+ * `$(AppIdentifierPrefix)<bundle id>`. An app that is not a holder and names
+ * the identity or wallet group, or any app naming another group (another app's
+ * bundle id above all: that is the other app's private group, ADR 0062 D6),
+ * fails prebuild.
  *
  * @param {import('expo/config').ExpoConfig} config
  * @param {string|string[]} [keychainGroups] Group name(s) without the prefix.

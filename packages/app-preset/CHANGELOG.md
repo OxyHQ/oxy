@@ -1,5 +1,18 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.4.0
+
+### Security
+
+- The keychain access-group list is EXACT, not a floor (security re-review R5-4). An app may list only its bundle id's layout — Commons `[so.oxy.identity, so.oxy.wallet, group.so.oxy.shared]`, its dev build the `.dev` groups, the Peable wallet `[so.oxy.wallet, group.so.oxy.shared]`, its dev build `[so.oxy.wallet.dev, group.so.oxy.shared]`, every other app `[group.so.oxy.shared]` — in that order, optionally followed by its own `$(AppIdentifierPrefix)<bundle id>` (a holder may still list the shared group alone, before its split build). Any other entry fails prebuild; above all another app's bundle id (`$(AppIdentifierPrefix)to.peable.app` or `$(AppIdentifierPrefix)so.oxy.commons` in Mention, `to.peable.app.dev` anywhere but that build), because `<TEAM>.<bundle id>` is that app's private group, where its session and own items live (ADR 0062 D6). Before, any group other than the restricted ones passed.
+- Every entry, the shared group included, must be spelled exactly `$(AppIdentifierPrefix)<group>` (or `<TEAMID>.<group>` with `--team-id`); another spelling of an allowed group is refused, not judged by its normalised name.
+- `withOxyKeychain` no longer keeps another group a plugin or the app declared after the Oxy groups: it is kept, then refused.
+
+### Added
+
+- `allowedKeychainLayouts(bundleId)` (`@oxy.so/app-preset/plugin/oxyKeychainGroups`).
+- Oxy's shared native release workflow runs `oxy-check-keychain-entitlements` over an iOS prebuild of every release and requires this version.
+
 ## 6.3.0
 
 ### Security

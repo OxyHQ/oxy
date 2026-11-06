@@ -117,11 +117,13 @@ jobs:
           version="$(jq -r '.version' <<<"$config")"
           version_code="$(jq -r '.android.versionCode' <<<"$config")"
           package="$(jq -r '.android.package' <<<"$config")"
+          ios_bundle_id="$(jq -r '.ios.bundleIdentifier // empty' <<<"$config")"
           tag="${TAG_PREFIX}-v${version}"
           {
             echo "version=$version"
             echo "version-code=$version_code"
             echo "package=$package"
+            echo "ios-bundle-id=$ios_bundle_id"
             echo "tag=$tag"
           } >> "$GITHUB_OUTPUT"
           if gh release view "$tag" >/dev/null 2>&1; then
@@ -142,6 +144,40 @@ jobs:
       - name: Build the app's workspace dependencies
         if: steps.plan.outputs.build == 'true' && hashFiles('turbo.json') != ''
         run: bunx --no-install turbo run build --filter="{./${APP_DIR}}^..."
+
+      # Every native release also checks the app's iOS keychain access groups
+      # (ADR 0062 of the oxy repo, docs/identity/ios-keychain-access-groups.md):
+      # an iOS prebuild of the same commit, then @oxy.so/app-preset's
+      # oxy-check-keychain-entitlements over the entitlements it wrote. The list
+      # must be exactly the bundle id's layout (the shared group; Commons and the
+      # Peable wallet their restricted groups), optionally followed by the app's
+      # own `$(AppIdentifierPrefix)<bundle id>`: another app's bundle id is that
+      # app's private group. The preset's plugin already refuses a bad list at
+      # prebuild; this reads what was written. Needs @oxy.so/app-preset >= 6.4.0
+      # (the exact-layout policy); an app with no ios.bundleIdentifier has no
+      # iOS build and nothing to check.
+      - name: Check the iOS keychain entitlements
+        if: steps.plan.outputs.build == 'true'
+        working-directory: ${{ inputs.app-dir }}
+        env:
+          IOS_BUNDLE_ID: ${{ steps.plan.outputs.ios-bundle-id }}
+        run: |
+          set -euo pipefail
+          if [ -z "$IOS_BUNDLE_ID" ]; then
+            echo "::notice::No ios.bundleIdentifier in the app config: no iOS build, no keychain entitlements to check."
+            exit 0
+          fi
+          preset="$(node -p 'require("@oxy.so/app-preset/package.json").version' 2>/dev/null || true)"
+          if ! node -e '
+            const [major, minor] = (process.argv[1] || "0.0").split(".").map(Number);
+            process.exit(major > 6 || (major === 6 && minor >= 4) ? 0 : 1);
+          ' "$preset"; then
+            echo "::error::The iOS keychain entitlement check needs @oxy.so/app-preset >= 6.4.0 (found ${preset:-none}): bump it in the app."
+            exit 1
+          fi
+          checker="$(node -p 'require.resolve("@oxy.so/app-preset/check-entitlements")')"
+          bunx expo prebuild --platform ios --no-install --clean
+          node "$checker" "$IOS_BUNDLE_ID" ios
 
       - name: Prebuild the native project
         if: steps.plan.outputs.build == 'true'

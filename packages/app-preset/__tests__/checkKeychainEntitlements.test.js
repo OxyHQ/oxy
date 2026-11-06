@@ -88,6 +88,10 @@ test('a violation exits 1 and names the file', () => {
     ['to.peable.app.dev', [`${P}so.oxy.wallet`, `${P}group.so.oxy.shared`]],
     ['so.oxy.commons', [`${P}group.so.oxy.shared`, `${P}so.oxy.identity`, `${P}so.oxy.wallet`]],
     ['so.oxy.mention', [`${P}*`]],
+    // R5-4: another app's own application group, which is that app's private group.
+    ['so.oxy.mention', [`${P}group.so.oxy.shared`, `${P}to.peable.app`]],
+    ['so.oxy.mention', [`${P}group.so.oxy.shared`, `${P}so.oxy.commons`]],
+    ['so.oxy.mention', [`${P}group.so.oxy.shared`, 'to.peable.app.dev']],
   ];
   for (const [id, groups] of cases) {
     const dir = iosDir(groups);
