@@ -26,6 +26,11 @@ import { restrictions } from '../db/schema/restrictions';
 import { userAncestors } from '../db/schema/userAncestors';
 import { userFollows } from '../db/schema/userFollows';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
+import {
+  buildProfileLinkRows,
+  hydrateProfileLinks,
+  parseProfileLinkInputs,
+} from './profileLinks.service';
 import { type USER_LOCATION_TYPES, userLocations } from '../db/schema/userLocations';
 import {
   type ACCOUNT_KINDS,
@@ -56,7 +61,6 @@ import {
   syncProfileAvatarReference,
 } from './profileMediaReferences.service';
 import {
-  normalizeLinks,
   normalizeLinksMetadata,
   normalizeLocations,
   normalizeProfileName,
@@ -267,7 +271,7 @@ async function loadPublicUsersInOrder(
   const ordered: PublicUserView[] = [];
   for (const id of orderedIds) {
     const row = byId.get(id);
-    if (row) ordered.push(toPublicUserView(row));
+    if (row) ordered.push(await toPublicUserView(row));
   }
   return ordered;
 }
@@ -383,8 +387,6 @@ function normalizeProfileField(
       return normalizeLinksMetadata(value);
     case 'locations':
       return normalizeLocations(value);
-    case 'links':
-      return normalizeLinks(value);
     default:
       return value;
   }
@@ -494,9 +496,9 @@ type SelfUserRow = PublicUserRow & {
  * `users_theme_preference_check` constraint already makes the only
  * representable state — the check here keeps the DTO honest regardless.
  */
-function toSelfUserView(row: SelfUserRow): SelfUserView {
+async function toSelfUserView(row: SelfUserRow): Promise<SelfUserView> {
   const view: SelfUserView = {
-    ...toPublicUserView(row),
+    ...(await toPublicUserView(row)),
     userPreferences: { displayCurrency: row.preferenceDisplayCurrency ?? undefined },
     languages: row.languages,
     phone: row.phone ?? undefined,
@@ -733,6 +735,7 @@ export class UserService {
 
     const row = rows[0];
     if (!row) return null;
+    const linksMetadata = await hydrateProfileLinks(linkRows);
 
     return {
       _id: row.id,
@@ -771,13 +774,8 @@ export class UserService {
       description: row.description ?? undefined,
       address: row.address ?? undefined,
       birthday: row.birthday ?? undefined,
-      links: row.links ?? undefined,
-      linksMetadata: linkRows.map((link) => ({
-        url: link.url,
-        title: link.title,
-        description: link.description,
-        image: link.image ?? undefined,
-      })),
+      links: linksMetadata.map((link) => link.url),
+      linksMetadata,
       locations: locationRows.map((location) => ({
         id: location.locationKey,
         name: location.name,
@@ -871,7 +869,7 @@ export class UserService {
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
-    return row ? toSelfUserView(row) : null;
+    return row ? await toSelfUserView(row) : null;
   }
 
   /**
@@ -884,7 +882,7 @@ export class UserService {
       .from(users)
       .where(and(eq(users.id, userId), visibleOrganizationIdentityPredicate()))
       .limit(1);
-    return row ? toPublicUserView(row) : null;
+    return row ? await toPublicUserView(row) : null;
   }
 
   /**
@@ -934,7 +932,6 @@ export class UserService {
       'address',
       'birthday',
       'dateOfBirth',
-      'links',
       'linksMetadata',
       'locations',
       'languages',
@@ -1124,6 +1121,11 @@ export class UserService {
     const linksMetadata = Array.isArray(filteredUpdates.linksMetadata)
       ? filteredUpdates.linksMetadata
       : undefined;
+    // Each link is a Clarity document: its URL is resolved here, before the
+    // transaction, and only the document id is stored.
+    const linkRows = linksMetadata
+      ? await buildProfileLinkRows(userId, parseProfileLinkInputs(linksMetadata))
+      : undefined;
 
     // The avatar is a use of a file by Oxy Accounts (ADR 0043 D4): resolved
     // before the transaction, its reference moves inside it.
@@ -1167,13 +1169,10 @@ export class UserService {
         }
       }
 
-      if (linksMetadata) {
+      if (linkRows) {
         await tx.delete(userLinkMetadata).where(eq(userLinkMetadata.userId, userId));
-        const rows = linksMetadata
-          .map((entry, index) => toLinkMetadataRow(userId, entry, index))
-          .filter((row): row is NonNullable<typeof row> => row !== null);
-        if (rows.length > 0) {
-          await tx.insert(userLinkMetadata).values(rows);
+        if (linkRows.length > 0) {
+          await tx.insert(userLinkMetadata).values(linkRows);
         }
       }
     });
@@ -2149,17 +2148,19 @@ export class UserService {
     const identityByCanonical = new Map(
       [...identityUsers.values()].map((identity) => [identity.userId, identity]),
     );
-    return rows.map((row) => {
-      const identity = identityByCanonical.get(row.id);
-      return {
-        ...this.formatUserResponse(toPublicUserView(row), {
-          followers: row.followersCount,
-          following: row.followingCount,
-        }),
-        externalIdentities: identity?.externalIdentities ?? [],
-        redirectedUserIds: identity?.redirectedUserIds ?? [],
-      };
-    });
+    return Promise.all(
+      rows.map(async (row) => {
+        const identity = identityByCanonical.get(row.id);
+        return {
+          ...this.formatUserResponse(await toPublicUserView(row), {
+            followers: row.followersCount,
+            following: row.followingCount,
+          }),
+          externalIdentities: identity?.externalIdentities ?? [],
+          redirectedUserIds: identity?.redirectedUserIds ?? [],
+        };
+      }),
+    );
   }
 
   async withExternalIdentities<T extends PublicUserProfile>(profile: T) {
@@ -2214,9 +2215,10 @@ export class UserService {
       bio: stringOrUndefined(user.bio),
       description: stringOrUndefined(user.description),
       color: stringOrUndefined(user.color),
-      links: Array.isArray(user.links)
-        ? user.links.filter((link): link is string => typeof link === 'string')
-        : undefined,
+      links:
+        Array.isArray(user.linksMetadata) && user.linksMetadata.length > 0
+          ? user.linksMetadata.map((link) => link.url)
+          : undefined,
       linksMetadata: Array.isArray(user.linksMetadata) ? user.linksMetadata : undefined,
       createdAt: user.createdAt instanceof Date ? user.createdAt : undefined,
       updatedAt: user.updatedAt instanceof Date ? user.updatedAt : undefined,
@@ -2356,9 +2358,6 @@ function buildUserColumnUpdates(filtered: Record<string, unknown>): Record<strin
   if ('dateOfBirth' in filtered) {
     set.dateOfBirth = typeof filtered.dateOfBirth === 'string' ? filtered.dateOfBirth : null;
   }
-  if (Array.isArray(filtered.links)) {
-    set.links = filtered.links.filter((link): link is string => typeof link === 'string');
-  }
   if (Array.isArray(filtered.languages)) set.languages = filtered.languages;
   if ('accountExpiresAfterInactivityDays' in filtered) {
     const days = filtered.accountExpiresAfterInactivityDays;
@@ -2448,28 +2447,6 @@ function toLocationRow(userId: string, entry: unknown, index: number) {
     osmType: blankToNull(metadata.osmType),
     countryCode: blankToNull(metadata.countryCode),
     timezone: blankToNull(metadata.timezone),
-  };
-}
-
-/**
- * One `linksMetadata[]` entry → a `user_link_metadata` row.
- *
- * `position` is the submitted order, which is the only ordering the wire ever
- * carried — an embedded array is ordered, a child table is not until something
- * says so.
- */
-function toLinkMetadataRow(userId: string, entry: unknown, index: number) {
-  if (!isRecord(entry)) return null;
-  const url = stringOrUndefined(entry.url);
-  if (!url) return null;
-
-  return {
-    userId,
-    position: index,
-    url,
-    title: stringOrUndefined(entry.title) ?? '',
-    description: stringOrUndefined(entry.description) ?? '',
-    image: blankToNull(entry.image),
   };
 }
 

@@ -58,9 +58,9 @@ export class UsersController {
         .orderBy(...peopleSearchOrder(term))
         .limit(5);
 
-      const formattedUsers = rows
-        .map((row) => formatUserResponse(toPublicUserView(row)))
-        .filter((user): user is NonNullable<typeof user> => user !== null);
+      const formattedUsers = (
+        await Promise.all(rows.map(async (row) => formatUserResponse(await toPublicUserView(row))))
+      ).filter((user): user is NonNullable<typeof user> => user !== null);
 
       logger.debug('User search performed', {
         query: term,

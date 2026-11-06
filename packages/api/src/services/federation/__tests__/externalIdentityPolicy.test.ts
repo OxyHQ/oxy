@@ -1,7 +1,9 @@
 import {
   deriveExternalActorProfile,
+  fieldLink,
   identityLinks,
   normalizeExternalBio,
+  uniqueLinks,
 } from '../externalIdentityPolicy';
 import { federationBridges, identityDomainOfHost } from '../../../config/federationBridgePolicy';
 import { BRIDGED_ACTOR_FIXTURES } from '../__fixtures__/bridgedActors';
@@ -207,5 +209,46 @@ describe('identityDomainOfHost', () => {
     expect(identityDomainOfHost('KILOGRAM.makeup')).toBe('instagram.com');
     expect(identityDomainOfHost('bsky.brid.gy')).toBeUndefined();
     expect(identityDomainOfHost('mastodon.social')).toBeUndefined();
+  });
+});
+
+describe('profile links of a source actor', () => {
+  it('reads a link field as a link titled by the field name, the href of its anchor', () => {
+    expect(
+      fieldLink({ name: 'YouTube', value: '<a href="https://youtube.com/@x" rel="me">x</a>' }),
+    ).toEqual({ title: 'YouTube', url: 'https://youtube.com/@x' });
+  });
+
+  it('reads a bare URL value, and refuses a link that is not https', () => {
+    expect(fieldLink({ name: 'Site', value: 'https://example.test' })).toEqual({
+      title: 'Site',
+      url: 'https://example.test/',
+    });
+    expect(fieldLink({ name: 'Old', value: 'http://example.test' })).toBeNull();
+    expect(fieldLink({ name: 'Pronouns', value: 'they/them' })).toBeNull();
+  });
+
+  it('keeps one link per address, in the author’s order, up to the limit', () => {
+    const many = Array.from({ length: 12 }, (_, index) => ({
+      title: `L${index}`,
+      url: `https://example.test/${index}`,
+    }));
+    const kept = uniqueLinks([many[0], many[0], ...many]);
+    expect(kept).toHaveLength(10);
+    expect(kept[0]).toEqual(many[0]);
+  });
+
+  it('carries the link fields of a profile as its links', () => {
+    const profile = deriveExternalActorProfile(
+      {
+        ...actor,
+        attachment: [
+          { name: 'Web', value: '<a href="https://example.test/me">example.test/me</a>' },
+          { name: 'Pronouns', value: 'they/them' },
+        ],
+      },
+      actorUri,
+    );
+    expect(profile?.links).toEqual([{ title: 'Web', url: 'https://example.test/me' }]);
   });
 });

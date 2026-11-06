@@ -13,6 +13,8 @@ export interface ProfileLink {
   url: string;
   description?: string;
   image?: string;
+  /** Clarity's favicon for the link's host, when Clarity has one. */
+  faviconUrl?: string;
 }
 
 /** Source shape of a single `User.linksMetadata` entry. */
@@ -22,6 +24,7 @@ export interface ProfileLinkMetadata {
   description?: string;
   image?: string;
   id?: string;
+  faviconUrl?: string;
 }
 
 function cleanUrl(value: unknown): string | null {
@@ -63,12 +66,14 @@ export function normalizeProfileLinks(
       const title = typeof entry?.title === 'string' ? entry.title : undefined;
       const description = typeof entry?.description === 'string' ? entry.description : undefined;
       const image = typeof entry?.image === 'string' ? entry.image : undefined;
+      const faviconUrl = typeof entry?.faviconUrl === 'string' ? entry.faviconUrl : undefined;
       result.push({
         id,
         url,
         ...(title !== undefined ? { title } : {}),
         ...(description !== undefined ? { description } : {}),
         ...(image !== undefined ? { image } : {}),
+        ...(faviconUrl !== undefined ? { faviconUrl } : {}),
       });
     });
     return result;
@@ -85,4 +90,43 @@ export function normalizeProfileLinks(
   }
 
   return [];
+}
+
+/** A platform a profile can point supporters to, recognised by the link's host. */
+export interface SupportProvider {
+  id: 'patreon' | 'kofi' | 'buymeacoffee' | 'github-sponsors' | 'liberapay';
+  name: string;
+}
+
+const SUPPORT_PROVIDERS: readonly { provider: SupportProvider; hosts: readonly string[] }[] = [
+  { provider: { id: 'patreon', name: 'Patreon' }, hosts: ['patreon.com'] },
+  { provider: { id: 'kofi', name: 'Ko-fi' }, hosts: ['ko-fi.com'] },
+  { provider: { id: 'buymeacoffee', name: 'Buy Me a Coffee' }, hosts: ['buymeacoffee.com'] },
+  { provider: { id: 'github-sponsors', name: 'GitHub Sponsors' }, hosts: ['github.com'] },
+  { provider: { id: 'liberapay', name: 'Liberapay' }, hosts: ['liberapay.com'] },
+];
+
+/**
+ * The support platform a link points at, or `null`. GitHub Sponsors is the one
+ * host shared with ordinary GitHub pages, so only its `/sponsors/` path counts.
+ */
+export function supportProviderOf(url: string): SupportProvider | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+  for (const { provider, hosts } of SUPPORT_PROVIDERS) {
+    if (!hosts.some((known) => host === known || host.endsWith(`.${known}`))) continue;
+    if (
+      provider.id === 'github-sponsors' &&
+      !parsed.pathname.toLowerCase().startsWith('/sponsors/')
+    ) {
+      continue;
+    }
+    return provider;
+  }
+  return null;
 }

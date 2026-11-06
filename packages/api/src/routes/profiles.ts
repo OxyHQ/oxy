@@ -244,7 +244,7 @@ async function loadProfileByPredicate(predicate: SQL): Promise<LoadedProfile | n
     .limit(1);
   if (!row) return null;
   return {
-    view: toPublicUserView(row),
+    view: await toPublicUserView(row),
     stats: { followers: row.followersCount, following: row.followingCount },
     reputationTotal: row.reputationTotal,
   };
@@ -580,10 +580,12 @@ router.get(
         : Promise.resolve(null),
     ]);
 
-    const profiles = pageRows.map((row) => ({
-      view: toPublicUserView(row),
-      stats: { followers: row.followersCount, following: row.followingCount },
-    }));
+    const profiles = await Promise.all(
+      pageRows.map(async (row) => ({
+        view: await toPublicUserView(row),
+        stats: { followers: row.followersCount, following: row.followingCount },
+      })),
+    );
     let total = pageRows[0]?.total ?? 0;
 
     // If federation resolved a user not already in DB results, prepend it.

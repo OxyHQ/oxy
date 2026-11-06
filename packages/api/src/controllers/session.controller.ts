@@ -9,6 +9,7 @@ import { authChallenges } from '../db/schema/authChallenges';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { sessions } from '../db/schema/sessions';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
+import { hydrateProfileLinks } from '../services/profileLinks.service';
 import { users } from '../db/schema/users';
 import type { SessionAuthResponse, ClientSession } from '../types/session';
 import { getDeviceActiveSessions } from '../utils/deviceUtils';
@@ -1053,24 +1054,21 @@ export class SessionController {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      // The `linksMetadata` array is a child table now, and the projection
-      // named it, so the preview list is joined back in its author-chosen order.
+      // The `linksMetadata` array is a child table, joined back in its
+      // author-chosen order and resolved through Clarity like every other read.
       const previews = await getDb()
         .select({
-          url: userLinkMetadata.url,
+          position: userLinkMetadata.position,
+          clarityDocumentId: userLinkMetadata.clarityDocumentId,
           title: userLinkMetadata.title,
+          url: userLinkMetadata.url,
           description: userLinkMetadata.description,
           image: userLinkMetadata.image,
         })
         .from(userLinkMetadata)
         .where(eq(userLinkMetadata.userId, user.id))
         .orderBy(asc(userLinkMetadata.position));
-      // A preview with no image OMITS the key — `null` would be a new value on
-      // the wire.
-      const linksMetadata = previews.map(({ image, ...preview }) => ({
-        ...preview,
-        ...(image === null ? {} : { image }),
-      }));
+      const linksMetadata = await hydrateProfileLinks(previews);
 
       const userData = userService.formatUserResponse({
         ...user,

@@ -69,6 +69,7 @@
     "@levischuck/tiny-cbor": "^0.3.6",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "workspace:*",
+    "@clarity.surf/sdk": "0.11.0",
     "@oxy.so/core": "workspace:*",
     "@oxy.so/db": "workspace:*",
     "@oxy.so/federation": "workspace:*",

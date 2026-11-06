@@ -1,22 +1,17 @@
 /**
- * `user_link_metadata` — the resolved preview of one profile link.
+ * `user_link_metadata` — one profile link, held as a reference to its Clarity
+ * document.
  *
- * Ported from the `linksMetadata` array embedded in `models/User.ts`. `url`,
- * `title` and `description` were all `required: true` there and stay `NOT NULL`
- * here.
+ * Clarity holds the URL and everything Clarity knows about the page (title,
+ * description, image, favicon). This row keeps only the document id, the
+ * owner's own title and the link's position in the profile.
  *
- * `users.links` (the bare URL list) stays a native `text[]` on the parent: it is
- * a handful of scalars, never queried by element. This table is the ENTITY half
- * — an array of objects, which `CONVENTIONS.md` sends to a child table rather
- * than `jsonb`, so a preview can be replaced or re-resolved on its own.
+ * The URL, description and image columns predate that and are still present
+ * while existing links are migrated to Clarity documents: the backfill resolves
+ * each URL, writes `clarity_document_id`, and only then does a follow-up
+ * migration drop the URL columns and make the id required.
  *
- * `position` preserves the array's order, which is user-chosen and visible on
- * the profile. Without it the order would be whatever Postgres returned.
- *
- * `title` / `description` hold text scraped from a REMOTE page. The
- * normalization (interior newlines from an
- * indented `<title>`, length caps) lives in `utils/profileTextNormalization.ts`
- * and must be re-applied at the write call site — Postgres has no setter.
+ * `position` preserves the order the owner chose, which is visible on the profile.
  */
 
 import { pgTable, text, integer, uniqueIndex } from 'drizzle-orm/pg-core';
@@ -33,10 +28,15 @@ export const userLinkMetadata = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     /** Zero-based position in the profile's link list. */
     position: integer().notNull(),
-    url: text().notNull(),
-    title: text().notNull(),
-    description: text().notNull(),
-    /** Oxy-hosted preview image id. Optional — many pages have none. */
+    /** The Clarity document this link points at. Null only on a row not yet migrated. */
+    clarityDocumentId: text(),
+    /** The owner's own title for the link, if they set one. */
+    title: text(),
+    /** Legacy, removed by the migration that follows the Clarity backfill. */
+    url: text(),
+    /** Legacy, removed by the migration that follows the Clarity backfill. */
+    description: text(),
+    /** Legacy, removed by the migration that follows the Clarity backfill. */
     image: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

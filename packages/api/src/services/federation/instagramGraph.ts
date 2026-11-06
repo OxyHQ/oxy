@@ -288,6 +288,7 @@ export async function fetchInstagramGraphProfile(
     // Graph sources carry no rel=me claims and no stable id: they never create
     // cross-network edges and never trigger the stable-owner revocation path.
     evidenceLinks: [],
+    links: [],
   };
   return remember(username, { ok: true, profile, igUserId });
 }

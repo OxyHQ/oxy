@@ -1,5 +1,16 @@
 # Changelog — `@oxy.so/core`
 
+## 7.26.0
+
+### Added
+
+- `supportProviderOf(url)` and `SupportProvider`: the support platform a link points at (Patreon, Ko-fi, Buy Me a Coffee, GitHub Sponsors on its `/sponsors/` path, Liberapay), by host, or `null`.
+- `ProfileLink.faviconUrl` and `ProfileLinkMetadata.faviconUrl`: Clarity's favicon for the link's host, carried through by `normalizeProfileLinks`.
+
+### Consumers
+
+Bump to 7.26.0. No existing API changes. A profile link is now a Clarity document on the server: its `url` and `faviconUrl` come from Clarity, and the `image` is omitted when there is none.
+
 ## 7.25.0
 
 ### Added

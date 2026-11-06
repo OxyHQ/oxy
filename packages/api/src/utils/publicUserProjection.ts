@@ -45,6 +45,7 @@ import type { AccountCategoryId, AccountKind, AvatarCharacter } from '@oxy.so/co
 import { qualified } from '@oxy.so/db';
 import { reputationBalances } from '../db/schema/reputationBalances';
 import { userFollows } from '../db/schema/userFollows';
+import { hydrateProfileLinks, type ProfileLinkRow } from '../services/profileLinks.service';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
 import { users } from '../db/schema/users';
 import type { NameParts } from './displayName';
@@ -60,6 +61,8 @@ export interface LinkMetadataDto {
   title: string;
   description: string;
   image?: string | null;
+  /** Clarity's favicon for the link's host; absent when Clarity has none. */
+  faviconUrl?: string | null;
 }
 
 /**
@@ -119,11 +122,13 @@ export interface PublicUserView {
  * come from the casing setting rather than being spelled out here (see the trap
  * in `db/schema/CONVENTIONS.md`).
  */
-const linksMetadataAggregate: SQL<LinkMetadataDto[]> = sql`coalesce((
+const linksMetadataAggregate: SQL<ProfileLinkRow[]> = sql`coalesce((
   select json_agg(
     json_build_object(
-      'url', ${qualified(userLinkMetadata.url)},
+      'position', ${qualified(userLinkMetadata.position)},
+      'clarityDocumentId', ${qualified(userLinkMetadata.clarityDocumentId)},
       'title', ${qualified(userLinkMetadata.title)},
+      'url', ${qualified(userLinkMetadata.url)},
       'description', ${qualified(userLinkMetadata.description)},
       'image', ${qualified(userLinkMetadata.image)}
     )
@@ -170,7 +175,6 @@ export const publicUserColumns = {
   color: users.color,
   bio: users.bio,
   description: users.description,
-  links: users.links,
   linksMetadata: linksMetadataAggregate,
   verified: users.verified,
   type: users.type,
@@ -198,8 +202,7 @@ export interface PublicUserRow {
   color: string;
   bio: string | null;
   description: string | null;
-  links: string[] | null;
-  linksMetadata: LinkMetadataDto[];
+  linksMetadata: ProfileLinkRow[];
   verified: boolean;
   type: string;
   federationActorUri: string | null;
@@ -250,7 +253,8 @@ function optional<T>(value: T | null): T | undefined {
  * data: the subdocument is absent on a local account and `formatUserResponse`
  * tests it for truthiness.
  */
-export function toPublicUserView(row: PublicUserRow): PublicUserView {
+export async function toPublicUserView(row: PublicUserRow): Promise<PublicUserView> {
+  const linksMetadata = await hydrateProfileLinks(row.linksMetadata);
   const federation =
     row.federationActorUri !== null || row.federationDomain !== null
       ? {
@@ -278,8 +282,9 @@ export function toPublicUserView(row: PublicUserRow): PublicUserView {
     color: row.color,
     bio: optional(row.bio),
     description: optional(row.description),
-    links: optional(row.links),
-    linksMetadata: row.linksMetadata,
+    // Emitted only when the profile has links, as the column was before.
+    links: linksMetadata.length > 0 ? linksMetadata.map((link) => link.url) : undefined,
+    linksMetadata,
     verified: row.verified,
     type: row.type,
     federation,

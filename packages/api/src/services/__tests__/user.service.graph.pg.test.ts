@@ -30,6 +30,22 @@ import { userLinkMetadata } from '../../db/schema/userLinkMetadata';
 import { users } from '../../db/schema/users';
 import { userService } from '../user.service';
 
+jest.mock('../clarityLinkDocuments.service', () => {
+  const actual = jest.requireActual('../clarityLinkDocuments.service');
+  return {
+    ...actual,
+    resolveLinkDocuments: async (urls: readonly string[]) => ({
+      documents: new Map(
+        urls.map((url) => [
+          url,
+          { id: `doc:${url.replace(/\/$/, '')}`, canonicalUrl: url, faviconUrl: null },
+        ]),
+      ),
+      pending: [],
+    }),
+  };
+});
+
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
 /** A minimal, discoverable account. */
@@ -344,7 +360,7 @@ describe('public user DTO parity', () => {
     expect(dto.description).toBe('Engines');
     expect(dto.links).toEqual(['https://example.test']);
     expect(dto.linksMetadata).toEqual([
-      { url: 'https://example.test', title: 'Example', description: 'An example', image: null },
+      { url: 'https://example.test', title: 'Example', description: 'An example' },
     ]);
     expect(dto.verified).toBe(true);
     expect(dto.isFederated).toBe(true);
@@ -566,26 +582,26 @@ describe('profile writes', () => {
     const id = await makeUser();
 
     await userService.updateUserProfile(id, {
-      linksMetadata: [
-        { url: 'https://b.test', title: 'B', description: 'second' },
-        { url: 'https://a.test', title: 'A', description: 'first' },
-      ],
+      linksMetadata: [{ url: 'https://b.test' }, { url: 'https://a.test' }],
     });
 
     const rows = await getDb()
-      .select({ url: userLinkMetadata.url, position: userLinkMetadata.position })
+      .select({
+        clarityDocumentId: userLinkMetadata.clarityDocumentId,
+        position: userLinkMetadata.position,
+      })
       .from(userLinkMetadata)
       .where(eq(userLinkMetadata.userId, id))
       .orderBy(userLinkMetadata.position);
     expect(rows).toEqual([
-      { url: 'https://b.test', position: 0 },
-      { url: 'https://a.test', position: 1 },
+      { clarityDocumentId: 'doc:https://b.test', position: 0 },
+      { clarityDocumentId: 'doc:https://a.test', position: 1 },
     ]);
 
     // A second write REPLACES rather than appends — an embedded array was
     // overwritten wholesale, and a child table has to be told to be.
     await userService.updateUserProfile(id, {
-      linksMetadata: [{ url: 'https://c.test', title: 'C', description: 'only' }],
+      linksMetadata: [{ url: 'https://c.test' }],
     });
     const [{ n }] = await getDb()
       .select({ n: sql<number>`count(*)::int` })
