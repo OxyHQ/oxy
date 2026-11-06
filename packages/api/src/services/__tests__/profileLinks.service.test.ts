@@ -67,6 +67,22 @@ describe('hydrateProfileLinks', () => {
     ]);
   });
 
+  it('names a link by its page title, and by nothing when the page has none', async () => {
+    readMock.mockResolvedValue(
+      new Map([
+        ['doc-titled', doc('doc-titled', 'https://t.test/')],
+        ['doc-untitled', doc('doc-untitled', 'https://u.test/', { title: undefined })],
+      ]),
+    );
+
+    const links = await hydrateProfileLinks([
+      { position: 0, clarityDocumentId: 'doc-titled', title: null },
+      { position: 1, clarityDocumentId: 'doc-untitled', title: null },
+    ]);
+
+    expect(links.map((link) => link.title)).toEqual(['Title of doc-titled', '']);
+  });
+
   it('omits an absent image and favicon rather than sending null', async () => {
     readMock.mockResolvedValue(new Map([['doc-a', doc('doc-a', 'https://a.test/')]]));
 
