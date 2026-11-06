@@ -4,17 +4,19 @@ import { introspectMcpAccessToken, resolveMcpResource } from '../services/mcpOAu
 import { logger } from '../utils/logger';
 import { INBOX_MCP_CATALOG, INBOX_MCP_HANDLERS } from './inbox.handlers';
 
-const DEFAULT_ALLOWED_ORIGINS = ['https://chatgpt.com', 'https://claude.ai'] as const;
-
+/**
+ * Browser origins allowed to read Inbox MCP responses over CORS. There is no built-in
+ * list: MCP clients are server-side or native and need no CORS grant, and the transport
+ * does not refuse unlisted origins (see `applyCorsHeaders` in `@oxy.so/mcp`).
+ */
 export function parseInboxMcpAllowedOrigins(configured?: string): string[] {
   return [
-    ...new Set([
-      ...DEFAULT_ALLOWED_ORIGINS,
-      ...(configured ?? '')
+    ...new Set(
+      (configured ?? '')
         .split(',')
         .map((origin) => origin.trim())
         .filter(Boolean),
-    ]),
+    ),
   ];
 }
 

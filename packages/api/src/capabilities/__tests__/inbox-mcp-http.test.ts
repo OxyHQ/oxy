@@ -52,10 +52,11 @@ describe('Inbox MCP HTTP service', () => {
     delete process.env.OXY_API_URL;
   });
 
-  it('keeps the trusted defaults and normalizes configured origins', () => {
+  it('has no built-in origins and normalizes configured ones', () => {
+    expect(parseInboxMcpAllowedOrigins()).toEqual([]);
     expect(
       parseInboxMcpAllowedOrigins(' https://example.com,https://chatgpt.com,,https://example.com '),
-    ).toEqual(['https://chatgpt.com', 'https://claude.ai', 'https://example.com']);
+    ).toEqual(['https://example.com', 'https://chatgpt.com']);
   });
 
   it('adapts the canonical catalog and binds introspection to its registered app', async () => {
@@ -68,7 +69,7 @@ describe('Inbox MCP HTTP service', () => {
     expect(options).toMatchObject({
       catalog: expect.objectContaining({ appId: 'inbox', version: 'mcp-view' }),
       authorizationServer: 'https://api.example.test',
-      allowedOrigins: ['https://chatgpt.com', 'https://claude.ai', 'https://client.example.test'],
+      allowedOrigins: ['https://client.example.test'],
       serverName: 'inbox-mcp',
     });
 

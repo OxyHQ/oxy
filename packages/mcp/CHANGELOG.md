@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/mcp`
 
+## Unreleased
+
+### Fixed
+
+- The public catalogue MCP transport no longer answers `403 Origin is not allowed` before authentication. An unlisted `Origin` (every non-browser MCP client, such as Grok) got no OAuth challenge and never reached login. Origin now only decides which browser origins receive CORS headers; Bearer authentication and the pinned Host remain the gates. `configureCors` (internal transport) is unchanged.
+
 ## 1.4.1
 
 ### Changed

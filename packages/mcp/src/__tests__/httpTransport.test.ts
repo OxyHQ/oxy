@@ -178,15 +178,42 @@ describe('catalog MCP HTTP service', () => {
     expect(introspectionFetch).not.toHaveBeenCalled();
   });
 
-  it('rejects disallowed origins before token introspection', async () => {
+  it('answers an unauthenticated request from an unlisted origin with the OAuth challenge', async () => {
+    const response = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json',
+        origin: 'https://client.example',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get('www-authenticate')).toContain('resource_metadata=');
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    expect(introspectionFetch).not.toHaveBeenCalled();
+  });
+
+  it('serves an authenticated request from an unlisted origin without granting it CORS', async () => {
     const response = await fetch(`${baseUrl}/mcp`, {
       method: 'POST',
       headers: authorizedHeaders({ origin: 'https://attacker.example' }),
-      body: '{}',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: { name: 'transport-test', version: '1.0.0' },
+        },
+      }),
     });
 
-    expect(response.status).toBe(403);
-    expect(introspectionFetch).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    expect(introspectionFetch).toHaveBeenCalledTimes(1);
   });
 
   it('rejects the MCP route on a host other than the bound resource', async () => {
