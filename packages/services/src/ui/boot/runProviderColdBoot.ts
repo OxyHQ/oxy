@@ -107,6 +107,12 @@ export interface RunProviderColdBootOptions {
   sessionMode?: SessionMode;
   /** The identity binding required by `sessionMode: 'identity'`. */
   identity?: IdentityBinding;
+  /**
+   * `false` keeps the device-wide shared credential slot out of this boot (no
+   * adopt, no publish): the provider was given a platform's own store
+   * (`OxyProviderProps.authStateStore`). Default `true`.
+   */
+  useSharedDeviceCredential?: boolean;
   sessionClient: SessionClient;
   /** Provider-owned fresh classifier, also used by explicit action recovery. */
   resolveSessionLane?: () => Promise<'device' | 'oauth'>;
@@ -204,7 +210,12 @@ async function restoreDeviceSession(
     // instead of falling back to signing a challenge with the Commons identity
     // key. `null` on web, where each origin is its own device by design; the
     // core lane is also skipped outright in `sessionMode: 'identity'`.
-    sharedDeviceCredential: createPlatformSharedDeviceCredentialStore() ?? undefined,
+    // Off when the provider was given a platform's own store: the credential
+    // then lives there and nowhere else.
+    sharedDeviceCredential:
+      opts.useSharedDeviceCredential === false
+        ? undefined
+        : (createPlatformSharedDeviceCredentialStore() ?? undefined),
     overallDeadlineMs: COLD_BOOT_OVERALL_DEADLINE_MS,
     isOffline: () => offline,
     requireServerVerdict: painted,

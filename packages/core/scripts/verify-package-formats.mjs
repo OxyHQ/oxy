@@ -17,7 +17,7 @@ try {
     runner,
     [
       "const assert = require('node:assert/strict');",
-      "for (const id of ['@oxy.so/core', '@oxy.so/core/logger', '@oxy.so/core/server']) {",
+      "for (const id of ['@oxy.so/core', '@oxy.so/core/logger', '@oxy.so/core/server', '@oxy.so/core/host']) {",
       '  const loaded = require(id);',
       "  assert.equal(typeof loaded, 'object', `${id} must load through require()`);",
       '}',
@@ -33,7 +33,7 @@ try {
     importRunner,
     [
       "import assert from 'node:assert/strict';",
-      "for (const id of ['@oxy.so/core', '@oxy.so/core/logger', '@oxy.so/core/server']) {",
+      "for (const id of ['@oxy.so/core', '@oxy.so/core/logger', '@oxy.so/core/server', '@oxy.so/core/host']) {",
       '  const loaded = await import(id);',
       "  assert.equal(typeof loaded, 'object', `${id} must load through import()`);",
       '}',

@@ -1,5 +1,18 @@
 # Changelog
 
+## 14.11.0
+
+### Added
+
+- **Host mode (ADR 0058 decision 1).** When a platform has registered a session host (`@oxy.so/core/host`) before the app runs, `OxyProvider` with `sessionMode: 'account'` takes its session from it: the host's token through `setAccessTokenProvider` and the refresh handler (`preflight`, `response-401`), the account from its snapshot, a revision change as one transition (token dropped and epoch bumped, the new account's token awaited, then the account published), offline signed in with no token. Nothing is persisted and there is no cold boot, OAuth return lane, identity pin, `SessionClient`, device directory, switcher, bridge, background credential or `/session/device/*` call. `useAuth().signIn()`, `openAccountDialog()`, a switch and `logout()` call `host.request(...)` only (`logout()` resolves `{ status: 'requested' }`); the user socket authenticates with the app token. A host with an unknown contract runs the app signed out. `'identity'` is never hosted. App assertions are not attempted in host mode until the server's `oxyos`/`astro` assertion lane exists.
+- **`OxyProvider authStateStore`**, the seam for a platform's setup client (OxyOS's login screen): every credential write goes through the given store and nowhere else (no platform store, no shared device slot, no background credential). A registered host wins over it.
+- `HostedSessionError`, thrown by what a hosted provider leaves to the platform (`handleWebSession`, `getDeviceSessions`, `updateDeviceName`, `switchSession`).
+- `LogoutResult` gains `{ status: 'requested' }` (host mode only).
+
+### Changed
+
+- Needs `@oxy.so/core` `^7.34.0`.
+
 ## 14.10.1
 
 ### Changed

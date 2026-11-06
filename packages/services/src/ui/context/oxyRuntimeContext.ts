@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { OxyHostRequest } from '@oxy.so/core/host';
 import type { OxyContextState } from './oxyContextTypes';
 
 export const OxyRuntimeContext = createContext<OxyContextState | null>(null);
@@ -55,7 +56,14 @@ export type OxyAuthActionsContextState = Pick<
   | 'showBottomSheet'
   | 'openAvatarPicker'
   | 'openAccountDialog'
-> & { ensureDeviceSessionLane: () => void | Promise<void> };
+> & {
+  ensureDeviceSessionLane: () => void | Promise<void>;
+  /**
+   * Present only on a session host (ADR 0058): hands an action to the
+   * platform's own UI. `useAuth().signIn()` uses it instead of the dialog.
+   */
+  hostRequest?: (action: OxyHostRequest) => Promise<void>;
+};
 
 export const OxyAuthActionsContext = createContext<OxyAuthActionsContextState | null>(null);
 

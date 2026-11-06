@@ -81,6 +81,9 @@ export type { OxyProductEvent, ProductAnalytics } from './ui/analytics/productAn
 // `sessionMode="identity"` — an identity-bound app authenticates as the owner of
 // the local identity key and cannot switch accounts.
 export { IdentityBoundSessionError } from './ui/session/identityBinding';
+// Thrown by an operation that a platform holding the session (a session host,
+// ADR 0058) does itself: a sign-in this app would commit, device management.
+export { HostedSessionError } from './ui/session/hostSession';
 
 // ---------------------------------------------------------------------------
 // Zustand stores

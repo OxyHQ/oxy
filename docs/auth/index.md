@@ -46,6 +46,7 @@ the five distinct meanings of "sign out":
 | The account switcher on the directory | [principals-and-account-contexts.md](./principals-and-account-contexts.md) | shipped |
 | Application roles: app-declared permissions, held by org role (Oxy's own apps, ADR 0056) or granted in Oxy (third-party), read by the app's backend | [application-roles.md](./application-roles.md) | built, not deployed |
 | App assertions: which Oxy app a request comes from (ADR 0045) | [app-assertions.md](./app-assertions.md) | built, not deployed; needs the operator inputs listed there |
+| The SDK's session host: a platform (OxyOS, Astro) holds the session, apps take its token (ADR 0058 decision 1) | [../SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § Session host | SDK built (core 7.34.0, services 14.11.0); the server mint is ADR 0058 decision 2 |
 
 ## Why it is shaped this way
 

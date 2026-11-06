@@ -17,6 +17,7 @@ import type {
 import type {
   AccountDialogController,
   AccountDialogView,
+  AuthStateStore,
   SessionClient,
   SessionMode,
 } from '@oxy.so/core/session';
@@ -39,8 +40,14 @@ import type { AccountQueriesConfig } from '../hooks/accountQueryPersistence';
  *    The session is still installed on this device, and nothing about the
  *    outcome may be presented as revoked. The error is also reported through
  *    the provider's `onError`, as before.
+ *  - `requested` — a platform holds the session (a session host, ADR 0058): the
+ *    sign-out was handed to the platform, which decides whether to ask. The
+ *    outcome arrives as the session changes; nothing is signed out yet.
  */
-export type LogoutResult = { status: 'signed-out' } | { status: 'failed'; error: unknown };
+export type LogoutResult =
+  | { status: 'signed-out' }
+  | { status: 'failed'; error: unknown }
+  | { status: 'requested' };
 
 export interface OxyContextState {
   user: User | null;
@@ -169,8 +176,18 @@ export interface OxyContextState {
   storageKeyPrefix: string;
   clientId: string | null;
   oxyServices: OxyServices;
-  /** Server-authoritative device session client. `null` before an `OxyProvider` is mounted. */
+  /**
+   * Server-authoritative device session client. `null` before an `OxyProvider`
+   * is mounted, and on a session host (ADR 0058), where the device is the
+   * platform's.
+   */
   sessionClient: SessionClient | null;
+  /**
+   * Subscribe to a named server-pushed socket event when the provider's socket
+   * is not `sessionClient`'s (a session host's user socket). `useOxyEvent`
+   * reads it; apps use `useOxyEvent`.
+   */
+  onServerEvent?: (event: string, listener: (payload: unknown) => void) => () => void;
   useFollow?: UseFollowHook;
   showBottomSheet?: (
     screenOrConfig: RouteName | { screen: RouteName; props?: Record<string, unknown> },
@@ -241,6 +258,8 @@ export interface OxyRuntimeProviderProps {
   onError?: (error: ApiError) => void;
   /** Storage instance owned by the public provider; internal composition seam. */
   platformStorage?: StorageInterface | null;
+  /** See `OxyProviderProps.authStateStore`. Read once, at mount. */
+  authStateStore?: AuthStateStore;
   /** See `OxyProviderProps.accountQueries`. Read once, at mount. */
   accountQueries?: AccountQueriesConfig;
 }

@@ -84,6 +84,9 @@ export interface AuthActions {
    * Sign in
    * - Web + native: opens the in-app Oxy account dialog (`openAccountDialog('signin')`).
    *   Never navigates to auth.oxy.so — that origin is third-party OAuth only.
+   * - On a platform that holds the session (a session host, ADR 0058): asks
+   *   the platform's own sign-in and resolves `dialog-opened`; the account
+   *   arrives as the session changes.
    *
    * @param publicKey - Native: identity public key. Ignored on web.
    */
@@ -183,6 +186,7 @@ export function useAuth(): UseAuthReturn {
     openAvatarPicker,
     openAccountDialog,
     ensureDeviceSessionLane,
+    hostRequest,
   } = useOxyAuthActions();
 
   const bearerSubject = useKnownBearerSubject(oxyServices);
@@ -190,6 +194,12 @@ export function useAuth(): UseAuthReturn {
 
   const signIn = useCallback(
     async (publicKey?: string): Promise<SignInOutcome> => {
+      // A platform holds the session (ADR 0058): its own sign-in UI, never this
+      // app's, and never a key of this app's.
+      if (hostRequest) {
+        await hostRequest('sign_in');
+        return { status: 'dialog-opened' };
+      }
       const classification = ensureDeviceSessionLane();
       if (classification) await classification;
       // Native: sign in directly with the cryptographic identity when a public key
@@ -215,10 +225,12 @@ export function useAuth(): UseAuthReturn {
       openAccountDialog('signin');
       return { status: 'dialog-opened' };
     },
-    [oxySignIn, hasIdentity, getPublicKey, openAccountDialog, ensureDeviceSessionLane],
+    [oxySignIn, hasIdentity, getPublicKey, openAccountDialog, ensureDeviceSessionLane, hostRequest],
   );
 
   const signOut = useCallback(async (): Promise<void> => {
+    // `requested` (a session host) resolves: the platform decides, and its
+    // answer arrives as the session changes.
     const result = await logout();
     if (result.status === 'failed') throw result.error;
   }, [logout]);

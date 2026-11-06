@@ -456,6 +456,58 @@ function Home() {
 - **`OxyConsentScreen`** — the IdP's OAuth consent surface, exported from
   `@oxy.so/services` and mounted by auth.oxy.so.
 
+### Session host: a platform holds the session (ADR 0058)
+
+On OxyOS and in Astro the PLATFORM holds the person's Oxy session; an application
+holds no credential. The runtime registers a session host before the
+application's bundle first imports `@oxy.so/services`:
+
+```ts
+import { registerOxySessionHost } from '@oxy.so/core/host'; // core >= 7.34.0
+
+registerOxySessionHost({
+  contract: 1,
+  platform: 'oxyos',
+  snapshot: () => ({ status: 'signed_in', revision: 7, account: { id, handle }, online: true }),
+  subscribe: (listener) => unsubscribe,
+  getAccessToken: async ({ reason }) => ({ accessToken, expiresAt }), // or null
+  request: async (action) => {}, // 'sign_in' | 'switch_account' | 'sign_out' | 'manage_account'
+});
+```
+
+It lives on `globalThis[Symbol.for('oxy.so/session-host')]` (the runtime and the
+bundle each carry their own copy of core), registers once (a second call throws),
+and `getOxySessionHost()` answers `{ host }`, `{ unknownContract: true }` or `null`.
+
+`OxyProvider` (services >= 14.11.0) reads it ONCE at mount. With a host and
+`sessionMode: 'account'` it mounts `OxyHostedRuntimeProvider`
+(`ui/context/OxyHostedContext.tsx`, driven by `ui/session/hostSession.ts`); the app
+changes no code and the same build signs in by itself where there is no host.
+
+| | Host mode |
+|---|---|
+| Token | `http.setAccessTokenProvider` answers the host's last token from memory; `setAuthRefreshHandler` asks `host.getAccessToken` with the seam's reason (`preflight`, `response-401`); the first token of an account is asked with `boot`. Linked clients follow. |
+| Account change | A snapshot whose `revision` (or status, or account) changes is one transition, ADR 0002's order: drop the token and bump the session epoch, await a token for the new account (10 s at most, then the account shows without one until it comes), publish the account. A token whose subject is another account is dropped. |
+| State | `user` / `isAuthenticated` from the snapshot (the full profile is read with `users.me()` once a token is held); `canUsePrivateApi` only while a token is held; `activeSessionId` from the token's `sessionId`. `unavailable`, `signed_out` and an unreadable snapshot are signed out. |
+| Offline | `signed_in`, `online: false`, token null: the account is shown, `canUsePrivateApi` is false, the app shows its account cache (keyed by the account id). Going online asks for a token; a token lost to a 401 is asked again with backoff. |
+| Requests | `useAuth().signIn()` and `openAccountDialog()` signed out → `request('sign_in')`; `openAccountDialog()` signed in, `switchToAccount`, `switchSession` → `request('switch_account')`; `logout()` / `signOut()` → `request('sign_out')`, resolving `{ status: 'requested' }`; `logoutAll`, `revokeSuspiciousSignIn`, `logoutAllDeviceSessions` → `request('manage_account')`. None changes the session itself; the answer comes back as a snapshot. |
+| Socket | `createUserEventSocket` (core): the app token, the `user:<id>` room, reconnected on an account change; `useOxyEvent` reads it. No `session_state`. |
+| Skipped | The auth-state store (nothing persisted), every cold-boot lane, the OAuth return lane, the identity pin, `SessionClient` and the device directory, the switcher, `setDeviceCredentialProvider`, the browser bridge, the background credential, the dialog's sign-in screens (`accountDialogController` is `null`). No `/session/device/*` call. `handleWebSession`, `getDeviceSessions` and `updateDeviceName` reject with `HostedSessionError`; the OAuth starts answer `unsupported`. |
+| Still works | Every API namespace, `createLinkedClient`, the account-management bottom sheets (API calls with the host's token), `accounts` (read through the API). App assertions wait for the server's `oxyos`/`astro` lane: none is attempted in host mode yet. |
+
+A host with a contract this SDK does not know runs the app **signed out** — never its
+own sign-in. `sessionMode: 'identity'` is never hosted.
+
+#### A platform's setup client: `authStateStore`
+
+The one place a platform runs the SDK's OWN sign-in is its setup (OxyOS's login
+screen). There `OxyProvider authStateStore={store}` makes `store` the only place a
+credential is written: `save()` receives `{ deviceId, deviceSecret, userId, … }` the
+moment a sign-in commits (email code, password, authenticator, sign-up; the "add a
+password" flow is an API call on that session), and no platform store is built, the
+device-wide shared slot is never read or published, and the background credential is
+off. A registered host wins over it (it is ignored, with a dev warning).
+
 ### IdP exception
 
 auth.oxy.so is the OAuth authorize/consent surface, **not** a relying party. It mounts

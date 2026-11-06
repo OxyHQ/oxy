@@ -4,7 +4,7 @@ import type { AccountQueriesConfig } from '../hooks/accountQueryPersistence';
 import type { RouteName } from '../navigation/routes';
 import type { User } from '@oxy.so/core';
 import type { ClientSession } from '@oxy.so/core';
-import type { SessionMode } from '@oxy.so/core/session';
+import type { AuthStateStore, SessionMode } from '@oxy.so/core/session';
 import type { WebAuthMode } from '../oauth/types';
 import type { ProductAnalytics } from '../analytics/productAnalytics';
 
@@ -119,6 +119,13 @@ export interface OxyProviderProps {
    * skipped — it commits whichever account the IdP resolves, which is not
    * necessarily the local key's owner.
    *
+   * On a platform that holds the Oxy session — OxyOS, Astro — the platform
+   * registers a session host (`@oxy.so/core/host`, ADR 0058) before the app
+   * runs, and an `'account'` provider takes its session from it: the
+   * platform's token and account, nothing persisted, and `signIn()`,
+   * `openAccountDialog()`, a switch and `logout()` handed to the platform's
+   * own UI. The app does not choose. `'identity'` is never hosted.
+   *
    * Read once at mount, like `baseURL` / `oxyServices`: changing it on a
    * mounted provider does not re-bind the session.
    * @default 'account'
@@ -184,6 +191,22 @@ export interface OxyProviderProps {
   language?: OxyLanguageConfig;
   /** Persist bounded first-touch link labels and attach them only to a new account. */
   campaignAttribution?: boolean;
+  /**
+   * The seam for a PLATFORM'S SETUP CLIENT (OxyOS's login screen): where this
+   * provider persists the session credential instead of the platform's own
+   * storage. Every credential write — `{ deviceId, deviceSecret }`, the warm
+   * token, the sign-out marker — goes through it and nowhere else: no secure
+   * store, no `localStorage`, no shared device slot (the sibling-app lane is
+   * off) and no background credential (`backgroundSession` is ignored). The
+   * email-code, password and authenticator sign-ins and the "add a password"
+   * flow (ADR 0030) run as usual; `save()` receives the credential the moment
+   * a sign-in commits, so the platform can take it over.
+   *
+   * Ordinary apps never pass it. Never combined with a session host: when a
+   * platform has registered one (`@oxy.so/core/host`), the host wins and this
+   * is ignored. Read once, at mount.
+   */
+  authStateStore?: AuthStateStore;
 }
 
 export interface OxyLanguageConfig {
