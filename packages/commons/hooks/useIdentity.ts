@@ -23,6 +23,7 @@ import {
   persistRecoveryPhraseAcknowledged,
 } from './identity/identityStore';
 import { useNetworkReconnect } from './identity/useNetworkReconnect';
+import { bindQuarantinedOrganizationKeys } from '@/lib/organization-wallet/bindQuarantined';
 import { useSyncIdentity, type UseSyncIdentityResult } from './identity/useSyncIdentity';
 import { isIdentityPreflightRefusal, IdentityMayExistError } from './identity/identityErrors';
 import {
@@ -568,6 +569,14 @@ export const useIdentity = (): UseIdentityResult => {
     if (!ownerAccountId) return;
     retiredRingChecked = true;
     void (async () => {
+      // Organization keys the iOS access-group migration kept quarantined: bound
+      // (and the current one made live again) only when the organization's own
+      // key history names them (R5-7).
+      try {
+        await bindQuarantinedOrganizationKeys(oxyServices);
+      } catch (error) {
+        console.warn('[useIdentity] Could not bind kept organization keys', error);
+      }
       try {
         const history = await oxyServices.identity.keyHistory();
         const named = [

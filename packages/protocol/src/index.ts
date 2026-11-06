@@ -101,6 +101,7 @@ export {
   loadCommonsIdentityBridge,
   loadKeychainDefaultAccessGroup,
   loadKeychainApplicationAccessGroup,
+  loadKeychainReadWithoutInteraction,
 } from './platform/crypto';
 
 // ---------------------------------------------------------------------------
@@ -119,4 +120,5 @@ export type {
   ExpoSecureStoreLike,
   KeychainApplicationAccessGroup,
   KeychainDefaultAccessGroup,
+  KeychainReadWithoutInteraction,
 } from './platform/expoTypes';

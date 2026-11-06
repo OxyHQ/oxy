@@ -82,7 +82,7 @@ describe('identityStore — onboarding milestone (marker mirror + self-heal)', (
 
     // The self-heal write is fire-and-forget — let it flush, then assert.
     await flush();
-    expect(setItemAsync).toHaveBeenCalledWith(ONBOARDING_COMPLETE_STORAGE_KEY, 'true');
+    expect(setItemAsync).toHaveBeenCalledWith(ONBOARDING_COMPLETE_STORAGE_KEY, 'true', {});
   });
 
   it('returns false when the flag is absent and the marker does NOT record completion', async () => {

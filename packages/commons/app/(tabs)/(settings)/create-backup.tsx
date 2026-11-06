@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { readPastedPhrase, WRONG_WORD_COUNT_KEY } from '@/lib/recovery-phrase/paste';
 import { AppIcon } from '@/constants/icons';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
+import { useQueryClient } from '@tanstack/react-query';
+import { BACKUP_OWED_QUERY_KEY } from '@/hooks/identity/useBackupOwed';
 import { KeyManager, RecoveryPhraseService } from '@oxy.so/core/crypto';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
@@ -43,6 +45,7 @@ export default function CreateBackupScreen() {
   const colors = useColors();
   const { t } = useTranslation();
   const { oxyServices } = useOxy();
+  const queryClient = useQueryClient();
   const formatRelative = useRelativeTime();
 
   const [identityStatus, setIdentityStatus] = useState<IdentityStatus>('checking');
@@ -155,13 +158,15 @@ export default function CreateBackupScreen() {
       const status = await oxyServices.identity.backup.create(phrase);
       setBackupStatus(status);
       setPhraseWords(new Array(RECOVERY_PHRASE_LENGTH).fill(''));
+      // A rotation's owed backup is now sealed (R5-9).
+      void queryClient.invalidateQueries({ queryKey: BACKUP_OWED_QUERY_KEY });
       toast.success(t('backup.createSuccess'));
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : t('backup.createFailed'));
     } finally {
       setIsSubmitting(false);
     }
-  }, [oxyServices, phraseWords, t]);
+  }, [oxyServices, phraseWords, queryClient, t]);
 
   const handleDelete = useCallback(() => {
     if (!oxyServices) return;

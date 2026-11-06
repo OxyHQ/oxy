@@ -116,6 +116,11 @@ describe('OxyServices.rotateKey', () => {
     mockRetire.mockReset();
     mockRetire.mockResolvedValue(undefined);
     jest.spyOn(KeyManager, 'getPrivateKey').mockResolvedValue(oldKeyPair.privateKey);
+    // No backup to carry over and no other key in the slots, unless a test says so.
+    jest
+      .spyOn(oxy.identity.backup, 'readBeforeRotation')
+      .mockResolvedValue({ existed: false, carried: [] });
+    jest.spyOn(KeyManager, 'heldIdentityPrivateKeys').mockResolvedValue([oldKeyPair.privateKey]);
   });
 
   afterEach(() => {
@@ -136,7 +141,7 @@ describe('OxyServices.rotateKey', () => {
       // The rotation deleted the encrypted backup; it is sealed again under the
       // NEW phrase, carrying the retired ring (R4-4).
       const backupSpy = jest
-        .spyOn(oxy.identity.backup, 'create')
+        .spyOn(oxy.identity.backup, 'seal')
         .mockResolvedValue({ exists: true } as never);
       makeRequestSpy
         .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
@@ -150,7 +155,7 @@ describe('OxyServices.rotateKey', () => {
         words: pendingFixture.words,
         backupRefreshed: true,
       });
-      expect(backupSpy).toHaveBeenCalledWith(pendingFixture.phrase);
+      expect(backupSpy).toHaveBeenCalledWith(pendingFixture.phrase, []);
 
       // The OLD-key signed message MUST match the server's reconstruction byte-for-byte.
       const expectedMessage = JSON.stringify({
@@ -486,6 +491,111 @@ describe('OxyServices.rotateKey', () => {
 
       await oxy.identity.rotateKey({ proof: 'device' });
       expect(mockRetire).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('round 5: no key is dropped by a rotation', () => {
+    function arrange() {
+      jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+      jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
+      jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+      makeRequestSpy
+        .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
+        .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
+    }
+
+    it('keeps an older key a slot still holds before overwriting it (R4-12)', async () => {
+      arrange();
+      const older = generateSecp256k1KeyPair();
+      jest
+        .spyOn(KeyManager, 'heldIdentityPrivateKeys')
+        .mockResolvedValue([oldKeyPair.privateKey, older.privateKey]);
+      const order: string[] = [];
+      mockRetire.mockImplementation(async (key) => {
+        order.push(`retire:${key.publicKey === OLD_PUBLIC ? 'old' : 'older'}`);
+      });
+      jest.spyOn(KeyManager, 'importKeyPair').mockImplementation(async () => {
+        order.push('overwrite');
+        return NEW_PUBLIC;
+      });
+      jest.spyOn(oxy.identity.backup, 'seal').mockResolvedValue({ exists: true } as never);
+
+      await oxy.identity.rotateKey({ proof: 'device' });
+      expect(order).toEqual(['retire:old', 'retire:older', 'overwrite']);
+      expect(mockRetire).toHaveBeenLastCalledWith({
+        privateKey: older.privateKey,
+        publicKey: KeyManager.derivePublicKey(older.privateKey).toLowerCase(),
+      });
+    });
+
+    it('overwrites nothing when that older key cannot be kept, and returns the new phrase (R4-12)', async () => {
+      arrange();
+      const older = generateSecp256k1KeyPair();
+      jest.spyOn(KeyManager, 'heldIdentityPrivateKeys').mockResolvedValue([older.privateKey]);
+      mockRetire
+        .mockResolvedValueOnce(undefined) // the replaced key, before the swap
+        .mockRejectedValueOnce(new Error('keychain refused'));
+      const importSpy = jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue(NEW_PUBLIC);
+      const sealSpy = jest.spyOn(oxy.identity.backup, 'seal');
+
+      const result = await oxy.identity.rotateKey({ proof: 'device' });
+      expect(result.localPersistFailed).toBe(true);
+      expect(result.newPhrase).toBe(pendingFixture.phrase);
+      expect(importSpy).not.toHaveBeenCalled();
+      expect(sealSpy).not.toHaveBeenCalled();
+    });
+
+    it('carries what the previous backup carried into the new one (R5-6)', async () => {
+      arrange();
+      const carried = [{ privateKey: 'aa'.repeat(32), publicKey: '04ab', retiredAt: 1 }];
+      jest
+        .spyOn(oxy.identity.backup, 'readBeforeRotation')
+        .mockResolvedValue({ existed: true, carried });
+      jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue(NEW_PUBLIC);
+      const sealSpy = jest
+        .spyOn(oxy.identity.backup, 'seal')
+        .mockResolvedValue({ exists: true } as never);
+
+      await oxy.identity.rotateKey({ proof: 'device' });
+      expect(sealSpy).toHaveBeenCalledWith(pendingFixture.phrase, carried);
+    });
+
+    it('does not rotate (no challenge) when the backup exists but cannot be read (R5-6)', async () => {
+      arrange();
+      makeRequestSpy.mockReset();
+      (oxy.identity.backup.readBeforeRotation as jest.Mock).mockRestore?.();
+      jest.spyOn(oxy.identity.backup, 'status').mockResolvedValue({ exists: true });
+      jest.spyOn(KeyManager, 'getRecoveryMnemonicForCurrentIdentity').mockResolvedValue(null);
+
+      await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow('Nothing changed');
+      expect(makeRequestSpy).not.toHaveBeenCalled();
+    });
+
+    it('marks the backup owed before the swap; clears it when the swap did not happen (R5-9)', async () => {
+      const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+      const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
+      jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+      jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
+      jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+      const order: string[] = [];
+      mark.mockImplementation(async () => {
+        order.push('owed');
+      });
+      makeRequestSpy.mockImplementation(async (_m: string, path: string) => {
+        order.push(path);
+        if (path.endsWith('/challenge')) {
+          return { challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' };
+        }
+        if (path.endsWith('/complete')) throw Object.assign(new Error('refused'), { status: 400 });
+        return didDocWithKey(OLD_PUBLIC);
+      });
+
+      await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow('refused');
+      expect(order.slice(0, 2)).toEqual(['owed', '/auth/rotate/challenge']);
+      expect(mark).toHaveBeenCalledWith('user-123');
+      expect(clear).toHaveBeenCalledTimes(1);
     });
   });
 

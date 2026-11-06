@@ -231,3 +231,22 @@ export type KeychainApplicationAccessGroup =
   | { state: 'resolved'; accessGroup: string }
   | { state: 'unsupported' }
   | { state: 'unavailable'; cause: unknown };
+
+/**
+ * iOS: read one `expo-secure-store` item WITHOUT ever asking the user
+ * (round-5 review R5-9). `expo-secure-store`'s own read tries the item's
+ * `<service>:no-auth` copy, then its `<service>:auth` copy (an item stored
+ * with `requireAuthentication`, which shows a Face ID / passcode prompt),
+ * then the legacy `<service>` copy. Any app in a shared access group can plant
+ * an `:auth` copy, so a read of that group could stall Commons behind prompts.
+ * This reader tries `<service>:no-auth` then `<service>`, both with an
+ * `LAContext` whose `interactionNotAllowed` is set, and never the `:auth`
+ * copy: an item that needs the user answers `null`. `service` defaults to
+ * expo-secure-store's `app`. A keychain error other than "not found" or
+ * "interaction not allowed" throws.
+ */
+export type KeychainReadWithoutInteraction = (
+  key: string,
+  service: string | undefined,
+  accessGroup: string,
+) => Promise<string | null>;

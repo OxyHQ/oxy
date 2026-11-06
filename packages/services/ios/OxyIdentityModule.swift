@@ -1,4 +1,7 @@
 import ExpoModulesCore
+#if !os(tvOS)
+import LocalAuthentication
+#endif
 import Security
 
 /**
@@ -134,6 +137,51 @@ public class OxyIdentityModule: Module {
       return group
     }
 
+    /// Read one `expo-secure-store` item WITHOUT user interaction (round-5
+    /// review R5-9). expo-secure-store's own read tries `<service>:no-auth`,
+    /// then `<service>:auth` (an item stored with `requireAuthentication`,
+    /// which prompts for Face ID or the passcode), then the legacy `<service>`.
+    /// Any app in a shared access group can plant an `:auth` copy there, so
+    /// `@oxy.so/core` reads the shared group through this instead: the
+    /// `:no-auth` and legacy copies only, with an `LAContext` that refuses
+    /// interaction, so an item that needs the user answers `nil` and no prompt
+    /// is ever shown. The query matches expo-secure-store's (service, generic
+    /// and account attributes). "Not found" and "interaction not allowed"
+    /// answer `nil`; any other status throws.
+    AsyncFunction("readKeychainItemWithoutInteraction") {
+      (_ key: String, _ service: String?, _ accessGroup: String) throws -> String? in
+      let base = service ?? "app"
+      let encodedKey = Data(key.utf8)
+      for itemService in ["\(base):no-auth", base] {
+        var query: [String: Any] = [
+          kSecClass as String: kSecClassGenericPassword,
+          kSecAttrService as String: itemService,
+          kSecAttrGeneric as String: encodedKey,
+          kSecAttrAccount as String: encodedKey,
+          kSecAttrAccessGroup as String: accessGroup,
+          kSecMatchLimit as String: kSecMatchLimitOne,
+          kSecReturnData as String: true,
+        ]
+        #if !os(tvOS)
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        query[kSecUseAuthenticationContext as String] = context
+        #endif
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        switch status {
+        case errSecSuccess:
+          guard let data = item as? Data else { return nil }
+          return String(data: data, encoding: .utf8)
+        case errSecItemNotFound, errSecInteractionNotAllowed, errSecAuthFailed:
+          continue
+        default:
+          throw KeychainProbeException(status)
+        }
+      }
+      return nil
+    }
+
     // Retired keys (Commons protocol 4): iOS reads them from the wallet group
     // directly, like the current key.
     AsyncFunction("listRetiredKeys") { (_ accountId: String?) -> [String: Any]? in
@@ -152,6 +200,6 @@ public class OxyIdentityModule: Module {
 
 internal final class KeychainProbeException: GenericException<OSStatus> {
   override var reason: String {
-    "The keychain refused the access-group probe (OSStatus \(param))"
+    "The keychain refused the request (OSStatus \(param))"
   }
 }

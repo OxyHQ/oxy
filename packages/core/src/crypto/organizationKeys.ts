@@ -48,7 +48,7 @@ import {
 import { isAndroid, isIOS, isWeb } from '../utils/platform';
 import { registeredIdentitySignerStore } from './identitySigner';
 import { prepareKeychainAccess } from './keychainGroupMigration';
-import { retireIdentityKey } from './retiredKeys';
+import { getRetiredPrivateKey, retireIdentityKey } from './retiredKeys';
 import {
   ORGANIZATION_ANDROID_KEYCHAIN_SERVICE as ANDROID_KEYCHAIN_SERVICE,
   ORGANIZATION_INDEX_KEYCHAIN_SERVICE as INDEX_KEYCHAIN_SERVICE,
@@ -58,6 +58,7 @@ import {
   organizationMnemonicName as mnemonicName,
   organizationPrivateKeyName as privateKeyName,
   organizationPublicKeyName as publicKeyName,
+  parseOrganizationIndexStrict,
   serializeOrganizationIndex,
 } from './keychainItems';
 import type { OxySecureStoreOptions as SecureStoreOptions } from './secureStoreOptions';
@@ -167,23 +168,18 @@ const pairStore = () => secureStore('spending-key');
 const phraseStore = () => secureStore('identity-secret');
 const indexStore = () => secureStore('identity-secret');
 
+/**
+ * Commons' organization index, STRICT (R5-9): an index that cannot be read as
+ * one throws (`OrganizationKeyIndexUnreadableError`, or the keychain's own
+ * error) instead of reading as empty, so no writer overwrites it and drops the
+ * organizations it names.
+ */
 async function readIndex(store: ExpoSecureStoreLike): Promise<string[]> {
-  const raw = await store.getItemAsync(INDEX_STORAGE_KEY, {
-    keychainService: INDEX_KEYCHAIN_SERVICE,
-  } satisfies SecureStoreOptions);
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter((id): id is string => typeof id === 'string' && isOrganizationAccountId(id))
-      : [];
-  } catch (error) {
-    logger.warn('Organization key index unreadable; treating as empty', {
-      component: 'OrganizationKeys',
-      error: error instanceof Error ? error.name : 'unknown',
-    });
-    return [];
-  }
+  return parseOrganizationIndexStrict(
+    await store.getItemAsync(INDEX_STORAGE_KEY, {
+      keychainService: INDEX_KEYCHAIN_SERVICE,
+    } satisfies SecureStoreOptions),
+  );
 }
 
 async function writeIndex(store: ExpoSecureStoreLike, ids: string[]): Promise<void> {
@@ -280,6 +276,9 @@ export async function storeOrganizationKey(
       'On Android only Commons holds organization keys; this app has no identity signer store for them.',
     );
   }
+  // Strict, and first: an unreadable index stops the write before anything changes.
+  const index = await indexStore();
+  await readIndex(index);
   const store = await pairStore();
   const previous = await heldPrivateKey(store, accountId);
   if (previous) {
@@ -315,7 +314,6 @@ export async function storeOrganizationKey(
       keychainService: MNEMONIC_KEYCHAIN_SERVICE,
     } satisfies SecureStoreOptions);
   }
-  const index = await indexStore();
   await writeIndex(index, [...(await readIndex(index)), accountId]);
 }
 
@@ -394,10 +392,41 @@ async function heldPrivateKey(
     : null;
 }
 
+/**
+ * Commons (R5-7): make the organization's CURRENT key, `currentPublicKey` as
+ * Oxy publishes it (`oxy.accounts.identityKey.get(accountId).publicKey`), the
+ * live pair again from the organization's retired ring, when this device holds
+ * no pair for it. The access-group migration keeps an organization key it
+ * cannot vouch for quarantined in the ring instead of adopting it; once
+ * {@link claimRetiredOrganizationKeys} has bound it against that history, this
+ * puts it back where the wallet derives from. Never replaces a held pair.
+ * Resolves whether it adopted one.
+ */
+export async function adoptOrganizationKeyFromRing(
+  accountId: string,
+  currentPublicKey: string,
+): Promise<boolean> {
+  assertAccountId(accountId);
+  if (isWeb()) return false;
+  if (await readLocalPair(accountId)) return false;
+  let publicKey: string;
+  try {
+    publicKey = normalizeSecp256k1PublicKey(currentPublicKey.trim());
+  } catch {
+    return false;
+  }
+  const privateKey = await getRetiredPrivateKey(publicKey, { accountId });
+  if (!privateKey) return false;
+  await storeOrganizationKey(accountId, { privateKey, publicKey });
+  return true;
+}
+
 /** Forget an organization key on this device: its pair, its phrase, its signer copy and its index entry. */
 export async function deleteOrganizationKey(accountId: string): Promise<void> {
   assertAccountId(accountId);
   if (isWeb()) return;
+  const index = await indexStore();
+  const ids = await readIndex(index);
   const store = await pairStore();
   const options = pairOptions(store, false);
   await store.deleteItemAsync(privateKeyName(accountId), options);
@@ -407,10 +436,9 @@ export async function deleteOrganizationKey(accountId: string): Promise<void> {
   } satisfies SecureStoreOptions);
   const signer = isAndroid() ? registeredIdentitySignerStore() : null;
   await signer?.clearOrganization?.(accountId);
-  const index = await indexStore();
   await writeIndex(
     index,
-    (await readIndex(index)).filter((id) => id !== accountId),
+    ids.filter((id) => id !== accountId),
   );
 }
 

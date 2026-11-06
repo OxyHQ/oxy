@@ -1,5 +1,30 @@
 # Changelog — `@oxy.so/core`
 
+## 7.35.0
+
+Round-5 security review of the Peable mainnet identity receive: R5-3, R5-5, R5-6, R5-7, R5-9 and the R4-12 remainder.
+
+### Security
+
+- **Nothing in the shared keychain group is lost (R5-3).** With no identity marker, the iOS access-group migration still adopts nothing, but it no longer leaves the shared copies behind: every valid key and phrase there (the personal slots, the shared slot, the personal phrase, every organization pair and phrase either index names) is kept in the retired ring QUARANTINED, read back, and only then deleted. A Commons secret write or delete that finds a different copy of the item in the shared group keeps it the same way first (`setSharedCopyKeeper`), and fails without writing when it cannot; a copy equal to the value written is simply deleted.
+- **Development builds never touch the shared group (R5-5).** With `variant: '.dev'` the migration reads, moves and deletes nothing there (it only writes its own completion record), the read and delete plans of identity secrets and spending keys exclude it, and a write never deletes a copy there.
+- **The encrypted backup never drops a key (R5-6).** `oxy.identity.backup.create(phrase)` first opens the backup that phrase already has (404: none; any other failure throws and nothing is uploaded), keeps its carried retired keys in the ring (owner: the signed-in account) and in the new payload, reads the ring strictly (`holdsRetiredRing()` tells "no ring in this app" from "a ring that cannot be read"), and refuses to seal when a key the previous backup carried would be missing. `rotateKey` reads the current backup with the current phrase BEFORE the server swap (which deletes it) and carries its retired keys and its key into the backup sealed under the new phrase; a backup that exists but cannot be read (no phrase on the device, or a failure other than 404) stops the rotation with nothing changed. On web the backup is re-sealed after a rotation when the account had one.
+- **Organization keys are adopted only on the device's own word (R5-7).** The migration adopts a shared organization pair only when it equals the pair this device already keeps for that organization in the wallet group; anything else is kept quarantined in the organization's ring, and the live index gains only organizations this device holds. Commons binds quarantined organization entries with `claimRetiredOrganizationKeys(accountId, publicKeys)` against the organization's key history (`oxy.accounts.identityKey.get`) and makes the current one the live pair again with `adoptOrganizationKeyFromRing(accountId, currentPublicKey)`.
+- **No slot write in a rotation drops a key (R4-12).** Before `rotateKey` overwrites the personal slots, every key they hold that is neither the key being replaced nor the new one (`KeyManager.heldIdentityPrivateKeys()`) is kept in the ring; when that cannot be confirmed nothing is overwritten (`localPersistFailed`).
+- **R5-9.** The shared group is read without user interaction (the `OxyIdentity` native read of `@oxy.so/services` 14.12.0, `@oxy.so/protocol` 1.11.0), so an item another app planted there with `requireAuthentication` cannot stall Commons behind Face ID prompts; an older native module reads as before. A failed (`incomplete`) migration opens the shared-group fallback only for the proven items that could not move, per (service, key), and `ensureKeychainGroupsMigrated` retries it on a later access (30 s, doubling, five times per process) as well as on the next launch. The organization index is read strictly (`OrganizationKeyIndexUnreadableError`): never overwritten, surfaced by `listOrganizationKeys`, `storeOrganizationKey` and `deleteOrganizationKey`. The backup envelope is version 2 and the API refuses (409) an upload of a lower version than the stored one. A rotation marks the backup OWED before the swap and `backup.create` clears it once sealed: `oxy.identity.backup.isOwed()`.
+
+### Added
+
+- `holdsRetiredRing`, `claimRetiredOrganizationKeys`, `listQuarantinedOrganizationKeys`, `adoptOrganizationKeyFromRing`, `OrganizationKeyIndexUnreadableError`; `oxy.identity.backup.isOwed()`; `KeyManager.heldIdentityPrivateKeys`, `markBackupOwed`, `clearBackupOwed`, `backupOwedFor`; `readSharedWithoutInteraction` and the `name` argument of `keychainReadPlan`.
+
+### Changed
+
+- `setHolderSharedSecretFallback` takes the item names to open (empty closes it) instead of a boolean.
+
+### Consumers
+
+The Peable wallet: nothing to change for the wallet's own reads; organization keys of an upgraded phone reappear once Commons 1.10.0 has bound them. Commons 1.10.0 binds quarantined organization keys at launch, shows the owed-backup banner, and keeps its own flags out of the shared group.
+
 ## 7.34.0
 
 ### Added
