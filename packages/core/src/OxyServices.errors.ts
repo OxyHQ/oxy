@@ -209,6 +209,25 @@ export class OxyApiError extends Error {
 }
 
 /**
+ * How long Oxy asked the caller to wait before trying again, in seconds — the
+ * `Retry-After` of a 429 (`details.retryAfterSeconds` of its body) — or
+ * `undefined` when the error is no such refusal or names no wait.
+ */
+export function retryAfterSecondsOf(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const candidates = [
+    (error as { details?: { retryAfterSeconds?: unknown } }).details,
+    (error as { response?: { data?: { details?: { retryAfterSeconds?: unknown } } } }).response
+      ?.data?.details,
+  ];
+  for (const details of candidates) {
+    const seconds = details?.retryAfterSeconds;
+    if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) return seconds;
+  }
+  return undefined;
+}
+
+/**
  * Normalise anything a request rejected with into an `OxyApiError`. An error
  * that already is one (or a typed SDK error such as `OxyAuthenticationError`)
  * passes through unchanged.

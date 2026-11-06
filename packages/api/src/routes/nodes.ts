@@ -87,7 +87,7 @@ const router = Router();
  * on and `hashedIpKey` is all there is.
  */
 function userScopedKeying(scope: string) {
-  const keyGenerator = (req: AuthRequest): string => {
+  const keyGenerator = (req: AuthRequest<Request['params']>): string => {
     const userId = req.user?.id;
     return userId ? `${scope}:${userId}` : '';
   };
@@ -100,7 +100,7 @@ function userScopedKeying(scope: string) {
      * a principal cannot leave the two disagreeing and a request bucketed under
      * the empty string.
      */
-    skip: (req: AuthRequest): boolean => keyGenerator(req) === '',
+    skip: (req: AuthRequest<Request['params']>): boolean => keyGenerator(req) === '',
   };
 }
 
@@ -267,7 +267,7 @@ router.post(
 router.post(
   '/ingest/notify/:userId',
   nodeIngestNotifyLimiter,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const [node] = await getDb()
       .select({ userId: userNodes.userId })

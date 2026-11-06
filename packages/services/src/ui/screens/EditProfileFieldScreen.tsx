@@ -12,7 +12,6 @@ import { DatePicker } from '@oxy.so/bloom/date-picker';
 import { Field } from '@oxy.so/bloom/field';
 import { USERNAME_MAX_LENGTH, stripDisallowedUsernameCharacters } from '@oxy.so/contracts/client';
 import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
-import { checkUsernameDraft } from '../utils/usernamePolicy';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { User } from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';
@@ -260,10 +259,8 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
               key: 'username',
               label: t('editProfile.items.username.label') || 'Username',
               placeholder: t('editProfile.items.username.placeholder') || 'Choose a username',
-              validation: (value) => {
-                const checked = checkUsernameDraft(value, t, kind);
-                return checked.ok ? undefined : checked.error;
-              },
+              // `useUsernameAvailability` holds the draft to the policy and
+              // blocks saving; a second check here could only disagree.
               inputProps: {
                 autoCapitalize: 'none',
                 autoCorrect: false,

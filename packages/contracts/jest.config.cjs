@@ -10,7 +10,7 @@ module.exports = {
         diagnostics: false,
         tsconfig: {
           module: 'commonjs',
-          moduleResolution: 'node',
+          moduleResolution: 'bundler',
           esModuleInterop: true,
           allowSyntheticDefaultImports: true,
           target: 'es2020',

@@ -28,7 +28,7 @@ WORKDIR /app
 # stages, so dependency resolution is reproducible without building the apps.
 COPY package.json bun.lock ./
 COPY patches/ patches/
-COPY vendor/expo-native/oxy.so-expo-cli-native-58.1.15+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz ./vendor/expo-native/
+COPY vendor/expo-native/oxy.so-expo-cli-native-58.1.19+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz ./vendor/expo-native/
 COPY packages/ packages/
 RUN find packages -type f ! -name package.json -delete
 
@@ -47,19 +47,20 @@ RUN node -e 'const fs=require("node:fs"),path=require("node:path"); function sca
 
 # The install above is UNLOCKED, so this asserts the one property the lockfile
 # would otherwise have guaranteed: that the express types resolve to exactly one
-# copy. `@types/express-slow-down` and `@types/express-rate-limit` both request
-# `@types/express: "*"`, which resolves to `latest` (v5) here and lands BESIDE
-# the v4 the runtime actually uses; tsc then sees two express type identities
-# and fails 200 lines later in `routes/assets.ts`, `routes/email.ts` and
-# `server.ts` — files nobody touched — which reads like an application bug and
-# is not one. The root `overrides` entry is what holds it to v4; this fails the
-# build AT the cause if that entry is ever dropped or defeated.
+# copy. Several `@types/*` packages for express middleware (`@types/multer`,
+# `@types/compression`, `@types/swagger-ui-express`) request `@types/express: "*"`,
+# which resolves to `latest` and can land BESIDE the v5 the runtime actually
+# uses; tsc then sees two express type identities and fails 200 lines later in
+# `routes/assets.ts`, `routes/email.ts` and `server.ts` — files nobody touched —
+# which reads like an application bug and is not one. The root `overrides` entry
+# is what holds it to one copy; this fails the build AT the cause if that entry
+# is ever dropped or defeated.
 RUN set -eu; \
     found=$(ls -d node_modules/.bun/@types+express@* 2>/dev/null | wc -l); \
     if [ "$found" -ne 1 ]; then \
       echo "FATAL: expected exactly 1 @types/express resolution in the image, found ${found}:" >&2; \
       ls -d node_modules/.bun/@types+express@* 2>/dev/null >&2 || true; \
-      echo "The root package.json 'overrides' entry pinning @types/express to ^4 is missing or defeated." >&2; \
+      echo "The root package.json 'overrides' entry pinning @types/express to the catalog range is missing or defeated." >&2; \
       exit 1; \
     fi; \
     echo "express types: exactly one resolution ($(ls -d node_modules/.bun/@types+express@*))"

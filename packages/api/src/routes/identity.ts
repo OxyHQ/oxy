@@ -260,7 +260,7 @@ router.post(
  */
 router.get(
   '/records/:userId/chain/head',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const head = await getHead(userId);
     const payload: ChainHeadResponse = head
@@ -284,7 +284,7 @@ router.get(
 router.get(
   '/log/:userId',
   nodeLogLimiter,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
 
     let sinceSeq = -1;
@@ -325,7 +325,7 @@ router.get(
 router.get(
   '/head/:userId',
   nodeHeadLimiter,
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const head = await getHead(userId);
     const payload: ChainHeadResponse = head
@@ -340,7 +340,7 @@ router.get(
 /** GET /identity/records/:userId/:type — the latest published record (public). */
 router.get(
   '/records/:userId/:type',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId, type } = req.params;
     if (type !== 'identity' && type !== 'profile') {
       throw new BadRequestError('type must be "identity" or "profile"');
@@ -358,7 +358,7 @@ router.get(
 /** GET /identity/records/:userId/:type/verify — re-verify the latest record (public). */
 router.get(
   '/records/:userId/:type/verify',
-  asyncHandler(async (req: Request, res: Response) => {
+  asyncHandler(async (req, res) => {
     const { userId, type } = req.params;
     if (type !== 'identity' && type !== 'profile') {
       throw new BadRequestError('type must be "identity" or "profile"');

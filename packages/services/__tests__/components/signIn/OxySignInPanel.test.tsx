@@ -639,6 +639,17 @@ describe('in the dialog, the step outlives a remount of the screen', () => {
   // card from `md`: crossing the breakpoint remounts the screen inside. The
   // person must stay on their step — the e2e found them back at "Sign in" with
   // their emailed code already spent.
+  it('takes no spaces in the identifier: neither a username nor an email holds one', async () => {
+    renderPanel();
+    type('signin-identifier', ' ada lovelace@example.com ');
+    expect((screen.getByTestId('signin-identifier') as HTMLInputElement).value).toBe(
+      'adalovelace@example.com',
+    );
+    press('signin-identifier-continue');
+    await screen.findByTestId('signin-code');
+    expect(oxyServices.auth.email.start).toHaveBeenCalledWith('adalovelace@example.com');
+  });
+
   it('never sends a partly typed authenticator code', async () => {
     oxyServices.auth.email.confirm.mockResolvedValueOnce(CHALLENGE);
     renderPanel();

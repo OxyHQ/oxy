@@ -10,15 +10,18 @@
  */
 
 import type { AccountKind } from '@oxy.so/core';
+import { ErrorCodes } from '@oxy.so/core';
 import {
   BOT_USERNAME_INVALID_MESSAGE,
   NUMERIC_USERNAME_MESSAGE,
   RESERVED_USERNAME_MESSAGE,
+  USERNAME_INVALID_MESSAGE,
   USERNAME_MAX_LENGTH,
   USERNAME_MIN_LENGTH,
   usernameCheckForAccountKind,
 } from '@oxy.so/contracts/client';
 import type { Translate } from '../hooks/useI18n';
+import { errorCode } from './apiErrorMessage';
 
 export type UsernameDraftResult = { ok: true; username: string } | { ok: false; error: string };
 
@@ -42,20 +45,17 @@ export function checkUsernameDraft(
 /**
  * The server's refusal of `username` (a 400 naming the `username` field, whose
  * message is the policy's), in the same words as {@link checkUsernameDraft};
- * `null` when `reason` is something else. The backstop for a rule this client
- * does not know yet: the person still reads which rule, in their language.
+ * `null` when `reason` is something else. A message this client does not know
+ * reads as "something you entered isn't valid", never as a rule it did not break.
  */
 export function describeUsernameRefusal(
   reason: unknown,
   username: string,
   t: Translate,
 ): string | null {
-  const error = reason as {
-    code?: unknown;
-    message?: unknown;
-    details?: { field?: unknown };
-  } | null;
-  if (error?.code !== 'BAD_REQUEST' || error.details?.field !== 'username') return null;
+  const error = reason as { message?: unknown; details?: { field?: unknown } } | null;
+  if (errorCode(reason) !== ErrorCodes.BAD_REQUEST || error?.details?.field !== 'username')
+    return null;
   const message = typeof error.message === 'string' ? error.message : '';
   return describeUsernameIssue(username.trim(), message, t);
 }
@@ -68,14 +68,16 @@ function describeUsernameIssue(username: string, message: string, t: Translate):
       return t('usernamePolicy.reserved');
     case BOT_USERNAME_INVALID_MESSAGE:
       return t('usernamePolicy.mustEndInBot');
-    default:
-      // `USERNAME_INVALID_MESSAGE` covers length and shape alike; the length is
-      // read here so the reason names the rule that actually failed.
+    case USERNAME_INVALID_MESSAGE:
+      // One message covers length and shape alike; the length is read here so
+      // the reason names the rule that actually failed.
       if (username.length < USERNAME_MIN_LENGTH)
         return t('usernamePolicy.tooShort', { min: USERNAME_MIN_LENGTH });
       if (username.length > USERNAME_MAX_LENGTH)
         return t('usernamePolicy.tooLong', { max: USERNAME_MAX_LENGTH });
       if (/\s/.test(username)) return t('usernamePolicy.noSpaces');
       return t('usernamePolicy.characters');
+    default:
+      return t('signin.errors.invalidInput');
   }
 }

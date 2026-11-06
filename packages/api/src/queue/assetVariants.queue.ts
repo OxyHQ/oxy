@@ -255,10 +255,9 @@ function isAssetVariantQueueEnabled(): boolean {
 
 /** Jobs the queue holds that are not yet running: what bounds its memory. */
 async function queueDepth(q: Queue<AssetVariantsJobData>): Promise<number> {
-  const counts = await q.getJobCounts('waiting', 'prioritized', 'delayed', 'paused');
-  return (
-    (counts.waiting ?? 0) + (counts.prioritized ?? 0) + (counts.delayed ?? 0) + (counts.paused ?? 0)
-  );
+  // A paused queue's jobs count as `waiting` (BullMQ 6 has no `paused` state).
+  const counts = await q.getJobCounts('waiting', 'prioritized', 'delayed');
+  return (counts.waiting ?? 0) + (counts.prioritized ?? 0) + (counts.delayed ?? 0);
 }
 
 /**
@@ -357,7 +356,7 @@ export function backOffOnWorkerErrors(
     void w.pause(true).catch((pauseErr: unknown) => errors.note(pauseErr, { step: 'pause' }));
     resumeTimer = setTimeout(() => {
       resumeTimer = null;
-      w.resume();
+      void w.resume().catch((resumeErr: unknown) => errors.note(resumeErr, { step: 'resume' }));
     }, wait);
     resumeTimer.unref();
   });

@@ -7,6 +7,7 @@ import type {
 } from './middleware';
 import type { AccountActorChain } from '@oxy.so/contracts';
 import type { OxyAppPermissions } from './appPermissions';
+import type { OxyAccountAccess, OxyApplicationAccess } from './callerAccess';
 import { logger } from '../logger';
 import {
   OXY_SERVICE_ENVIRONMENTS,
@@ -56,6 +57,10 @@ export interface OxyAuthRequest extends Request {
    * request. Its `operatorId` is the human to record as the actor.
    */
   oxyAppPermissions?: OxyAppPermissions;
+  /** Set by `middleware.requireAccountAccess` once it admits the request. */
+  oxyAccountAccess?: OxyAccountAccess;
+  /** Set by `middleware.requireApplicationAccess` once it admits the request. */
+  oxyApplicationAccess?: OxyApplicationAccess;
 }
 
 export interface OxyAuthenticatedRequest extends OxyAuthRequest {

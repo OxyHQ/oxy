@@ -23,21 +23,28 @@
 // The crypto shim MUST stay the first import. The root itself ships no crypto
 // library (`__tests__/rootEntryGraph.test.ts`), but `@oxy.so/protocol`'s root
 // entry (reached by the OAuth/PKCE and device helpers) does, and Metro does not
-// tree-shake: on Hermes, `@noble/hashes` would capture an absent
-// `globalThis.crypto` at evaluation. See the note in `./crypto/polyfill`.
+// tree-shake: on Hermes, the shim has to exist before any of it evaluates. See
+// the note in `./crypto/polyfill`.
 import './crypto/polyfill';
 
 // ---------------------------------------------------------------------------
 // API client
 // ---------------------------------------------------------------------------
 export { OxyServices, OXY_API_URL, OXY_CLOUD_URL } from './OxyServices';
-export type { OxyConfig, LinkedHttpClient } from './OxyServices';
+export type {
+  OxyConfig,
+  LinkedHttpClient,
+  OxyCallScope,
+  OxyCallScopeNamespace,
+} from './OxyServices';
+export type { CallOptions } from './client/callOptions';
 export {
   OxyApiError,
   OxyAuthenticationError,
   OxyAuthenticationTimeoutError,
   AssetUrlResolutionError,
   ServiceAssetMetadataError,
+  retryAfterSecondsOf,
 } from './OxyServices.errors';
 export type { HttpMethod } from './client/context';
 export type {
@@ -159,6 +166,7 @@ export type {
   AppsApi,
   AppAssertionsApi,
   Application,
+  ApplicationCallerMembership,
   ApplicationType,
   ApplicationStatus,
   ApplicationCredential,
@@ -406,6 +414,10 @@ export type {
   ServiceReferenceInventoryItem,
   ServiceReferenceReconcileResult,
   ServiceUserMediaFile,
+  ServiceMediaCacheUpload,
+  ServiceFederatedMediaUpload,
+  ServiceFederatedMediaDeleteResult,
+  ServiceFederatedMediaDeletion,
   FileImportOutcome,
   FileImportSource,
   FileImportOptions,

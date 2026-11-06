@@ -136,24 +136,22 @@ See [Application roles](./application-roles.mdx).
 
 ### Service tokens
 
-For backend-to-backend calls inside the Oxy ecosystem, register an `Application` with an `ApplicationCredential` of `type: 'service'` and use the OAuth2 client-credentials flow. The credential's `publicKey` (`oxy_dk_…`) is the client id; the secret is shown once at create/rotate time:
+An Oxy-owned backend authenticates as its workload — the infrastructure it runs on vouches for it (ADR 0026/0049) — so it holds no key pair; a third-party customer backend uses its `ApplicationCredential` through `serviceAuth`. Either way `OxyServer` mints, caches and refreshes the token:
 
 ```ts
 import { OxyServer } from '@oxy.so/core/server';
 
 const oxy = new OxyServer({
   baseURL: 'https://api.oxy.so',
-  serviceAuth: { apiKey: 'oxy_dk_…', apiSecret: 'secret…' },
+  applicationId: process.env.OXY_APPLICATION_ID,
+  serviceIdentity: 'when-anonymous',
 });
 
-// Auto-cached, auto-refreshed service JWT.
-const token = await oxy.serviceToken();
-
-// Or act as a specific user with one call:
-const result = await oxy.serviceRequest('POST', '/some/endpoint', body, { actAs: userId });
+const people = await oxy.users.lookupMany(ids);                              // as this service
+const accounts = await oxy.withUser(req, (user) => user.accounts.list());    // as the person
 ```
 
-The API recognises service tokens (`type: 'service'` in the JWT payload) statelessly — no session lookup, no DB round-trip. Wrap protected endpoints with `oxy.middleware.service()`. See [Service Tokens](../../../docs/SERVICE_TOKENS.md).
+Wrap service-only endpoints with `oxy.middleware.service()`. See [Service tokens](./service-tokens.mdx) and [Building a backend](./backend.mdx).
 
 ### HTTP service
 

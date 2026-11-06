@@ -3,6 +3,7 @@ import {
   resolveExternalMcpMediaRequest,
   type ExternalMcpMediaOperation,
 } from '../services/externalMcpMediaRequester.service';
+import type { NamedRouteParams } from '../types/routeParams';
 import { ForbiddenError } from '../utils/error';
 import { resolveServiceRequester } from '../services/serviceRequester.service';
 import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
@@ -51,7 +52,12 @@ import { decodeToken, type TokenDecoded } from './authUtils';
  * what `sessionService.validateSession` returns and there is no cast, so every
  * `req.user.<field>` read is checked against the real document.
  */
-export interface AuthRequest extends Request {
+/**
+ * `P` is the request's params: a route's named segments by default. A callback
+ * that a library invokes with a plain `Request` (an `express-rate-limit`
+ * `keyGenerator`) declares `AuthRequest<Request['params']>`.
+ */
+export interface AuthRequest<P = NamedRouteParams> extends Request<P> {
   user?: AccountDocument;
   /**
    * The VERIFIED session this request authenticated with.
@@ -79,7 +85,7 @@ export interface AuthRequest extends Request {
 /**
  * Interface for requests with just user ID
  */
-export interface SimpleAuthRequest extends Request {
+export interface SimpleAuthRequest extends Request<NamedRouteParams> {
   user?: {
     id: string;
   };
@@ -302,7 +308,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
  * principal. Routes use verified authority and resource ownership to gate sensitive
  * actions.
  */
-export interface ServiceAuthRequest extends Request {
+export interface ServiceAuthRequest extends Request<NamedRouteParams> {
   serviceApp?: ServiceTokenPayload;
   serviceRequester?: ForegroundRequesterBinding;
   serviceExternalMedia?: ExternalMcpMediaOperation;

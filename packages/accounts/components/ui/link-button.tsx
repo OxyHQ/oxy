@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import type { MaterialCommunityIconName } from '@/types/icons';
 
 interface LinkButtonProps {
@@ -15,7 +15,7 @@ interface LinkButtonProps {
 export function LinkButton({ text, onPress, icon, count }: LinkButtonProps) {
   const colors = useColors();
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
 
   return (
     <TouchableOpacity

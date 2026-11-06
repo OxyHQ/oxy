@@ -6753,7 +6753,7 @@
           "Developer"
         ],
         "summary": "Grant a declared key to a person (by `userId` or `username`). A grant to",
-        "description": "yourself is refused unless the application is owned by your own personal\naccount (`SELF_GRANT_FORBIDDEN`).",
+        "description": "yourself is refused unless the application is owned by your own personal\naccount (`SELF_GRANT_FORBIDDEN`). One of Oxy's own applications has no\nper-person grants — its keys are held by role (ADR 0056): `409\nFIRST_PARTY_ROLES_IN_CODE`.",
         "parameters": [
           {
             "name": "appId",
@@ -7132,7 +7132,7 @@
           "Developer"
         ],
         "summary": "The application permissions the HUMAN behind this bearer holds.",
-        "description": "The one roles read open to every signed-in person, about themselves only:\nno membership of the owning account is needed, because the answer is the\ncaller's own grants. The person is the operator (`resolveOperatorId`), so\nsomeone acting as their organization is answered for themselves.\n\nA bearer whose session belongs to ONE application (a third-party OAuth\nsession) may ask only about that application; the shared first-party session\nmay ask about any. Never cached: a revocation is visible to the next read.",
+        "description": "The one roles read open to every signed-in person, about themselves only:\nno membership of the owning account is needed, because the answer is the\ncaller's own grants plus, on one of Oxy's own applications, the keys their\nrole in the owning account holds (ADR 0056). The person is the operator (`resolveOperatorId`), so\nsomeone acting as their organization is answered for themselves.\n\nA bearer whose session belongs to ONE application (a third-party OAuth\nsession) may ask only about that application; the shared first-party session\nmay ask about any. Never cached: a revocation is visible to the next read.",
         "parameters": [
           {
             "name": "appId",
@@ -7280,6 +7280,12 @@
                           "description": {
                             "type": "string"
                           },
+                          "heldByAccountRoles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
                           "declaredAt": {
                             "type": "string",
                             "minLength": 1
@@ -7311,6 +7317,7 @@
                         "required": [
                           "key",
                           "description",
+                          "heldByAccountRoles",
                           "declaredAt",
                           "declaredByUserId",
                           "retiredAt",
@@ -7379,7 +7386,7 @@
           "Developer"
         ],
         "summary": "Declare the application's WHOLE permission vocabulary. New keys are added,",
-        "description": "kept keys take the new description, missing keys are retired and every live\ngrant of them is revoked, in one transaction. Idempotent.",
+        "description": "kept keys take the new description, missing keys are retired and every live\ngrant of them is revoked, in one transaction. Idempotent. One of Oxy's own\napplications declares its keys in code instead (ADR 0056): `409\nFIRST_PARTY_ROLES_IN_CODE`.",
         "parameters": [
           {
             "name": "appId",
@@ -7412,6 +7419,12 @@
                           "description": {
                             "type": "string"
                           },
+                          "heldByAccountRoles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
                           "declaredAt": {
                             "type": "string",
                             "minLength": 1
@@ -7443,6 +7456,7 @@
                         "required": [
                           "key",
                           "description",
+                          "heldByAccountRoles",
                           "declaredAt",
                           "declaredByUserId",
                           "retiredAt",
@@ -55487,6 +55501,35 @@
         "operationId": "patchPrivacyIdPrivacy"
       }
     },
+    "/profiles/newest": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "The newest people on Oxy, in sign-up order (most recent first): local,",
+        "description": "personal accounts that are public, discoverable and not flagged sensitive.\nUnlike recommendations there is no profile-quality gate — a fresh account\nhas not filled in its profile yet, and showing it is the point.\n\nThe page's ids are chosen first and hydrated (with their follow counts)\nsecond, so the correlated counts run for the page alone.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/profiles.ts`, naming a Zod schema the file imports."
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getProfilesNewest"
+      }
+    },
     "/profiles/recommendations": {
       "get": {
         "tags": [
@@ -60136,6 +60179,338 @@
           }
         },
         "operationId": "postSafetyServiceMessagingSessions"
+      }
+    },
+    "/safety/service/notification-access-batch": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Decide whether each actor may notify each recipient — blocks in either",
+        "description": "direction, availability, supervised contact approval — for background\ndelivery with no human proof. Discloses one decision per resource, nothing else.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Per-resource decisions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "resourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "decision": {
+                            "type": "object",
+                            "properties": {
+                              "allowed": {
+                                "type": "boolean"
+                              },
+                              "reason": {
+                                "type": "string",
+                                "enum": [
+                                  "allowed",
+                                  "owner",
+                                  "public",
+                                  "private",
+                                  "blocked",
+                                  "unavailable",
+                                  "unsupported_consumer",
+                                  "contact_not_approved",
+                                  "mature_content",
+                                  "unrated_content",
+                                  "approval_required"
+                                ]
+                              },
+                              "policyVersion": {
+                                "type": "string",
+                                "enum": [
+                                  "2"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "allowed",
+                              "reason",
+                              "policyVersion"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "resourceId",
+                          "decision"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 100
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Consumer required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Consumer refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid batch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authority unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "resourceId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "actorAccountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "recipientAccountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "required": [
+                        "resourceId",
+                        "actorAccountId",
+                        "recipientAccountId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "operationId": "postSafetyServiceNotificationAccessBatch"
       }
     },
     "/safety/service/profile-access": {

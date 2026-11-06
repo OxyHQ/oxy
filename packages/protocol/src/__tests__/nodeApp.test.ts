@@ -432,11 +432,10 @@ describe('createNodeApp', () => {
       prev = id;
     }
 
-    // `?since[]=<id1>&since[]=<id2>` arrives as a string[] — the handler must
-    // take the FIRST value (a tampered array can never cause type confusion).
-    const res = await request(app)
-      .get('/oxy/log')
-      .query({ 'since[]': [ids[0], ids[2]] });
+    // A repeated `?since=<id1>&since=<id2>` arrives as a string[] under every
+    // Express query parser — the handler must take the FIRST value (a tampered
+    // array can never cause type confusion).
+    const res = await request(app).get('/oxy/log').query(`since=${ids[0]}&since=${ids[2]}`);
     expect(res.status).toBe(200);
     // Cursor resolves off ids[0] → records strictly after seq 0 → [1, 2].
     expect(res.body.records.map((entry: { seq: number }) => entry.seq)).toEqual([1, 2]);
@@ -456,9 +455,7 @@ describe('createNodeApp', () => {
       prev = await computeRecordId(envelope);
     }
 
-    const res = await request(app)
-      .get('/oxy/log')
-      .query({ 'limit[]': ['2', '99'] });
+    const res = await request(app).get('/oxy/log').query('limit=2&limit=99');
     expect(res.status).toBe(200);
     expect(res.body.records.map((entry: { seq: number }) => entry.seq)).toEqual([0, 1]);
   });

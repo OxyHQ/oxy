@@ -29,11 +29,28 @@ export interface CapabilityTicketVerificationOptions {
   maximumTtlSeconds?: number;
 }
 
+/**
+ * A signing-key lookup that may be asynchronous — `createOxyJwksKeyResolver`
+ * is — for the verifiers that already run asynchronously (the middleware and
+ * `createLiveCapabilityTicketVerifier`). The ticket's own `kid` is passed; no
+ * caller needs to decode the header first.
+ */
+export type CapabilityTicketKeyResolver = (
+  keyId: string,
+) => KeyObject | undefined | Promise<KeyObject | undefined>;
+
+/** {@link CapabilityTicketVerificationOptions} with a key lookup that may be asynchronous. */
+export interface AsyncCapabilityTicketVerificationOptions
+  extends Omit<CapabilityTicketVerificationOptions, 'resolvePublicKey'> {
+  resolvePublicKey: CapabilityTicketKeyResolver;
+}
+
 export interface CapabilityTicketRequest extends Request {
   capabilityTicket?: CapabilityTicketClaims;
 }
 
-export interface CapabilityTicketMiddlewareOptions extends CapabilityTicketVerificationOptions {
+export interface CapabilityTicketMiddlewareOptions
+  extends AsyncCapabilityTicketVerificationOptions {
   authorize: (claims: CapabilityTicketClaims) => Promise<PolicyDecision>;
 }
 
@@ -99,10 +116,15 @@ export function issueCapabilityTicket(
   return `${signingInput}.${base64UrlEncode(signBytes(null, Buffer.from(signingInput), options.privateKey))}`;
 }
 
-export function verifyCapabilityTicket(
-  token: string,
-  options: CapabilityTicketVerificationOptions,
-): CapabilityTicketClaims {
+/** A ticket split and its header checked, before any key is looked up. */
+interface ParsedCapabilityTicket {
+  readonly keyId: string;
+  readonly signingInput: string;
+  readonly encodedPayload: string;
+  readonly encodedSignature: string;
+}
+
+function parseCapabilityTicket(token: string): ParsedCapabilityTicket {
   const segments = token.split('.');
   if (segments.length !== 3) {
     throw new CapabilityTicketError('malformed', 'Capability ticket must have three segments');
@@ -126,28 +148,34 @@ export function verifyCapabilityTicket(
   ) {
     throw new CapabilityTicketError('malformed', 'Capability ticket header is not supported');
   }
-  const publicKey = options.resolvePublicKey(headerRecord.kid);
+  return {
+    keyId: headerRecord.kid,
+    signingInput: `${encodedHeader}.${encodedPayload}`,
+    encodedPayload,
+    encodedSignature,
+  };
+}
+
+/** Signature and claims of a parsed ticket against the key its `kid` resolved to. */
+function checkCapabilityTicket(
+  ticket: ParsedCapabilityTicket,
+  publicKey: KeyObject | undefined,
+  options: Omit<CapabilityTicketVerificationOptions, 'resolvePublicKey'>,
+): CapabilityTicketClaims {
   if (!publicKey || publicKey.asymmetricKeyType !== 'ed25519') {
     throw new CapabilityTicketError('unknown_key', 'Capability ticket signing key is not trusted');
   }
   let providedSignature: Buffer;
   try {
-    providedSignature = Buffer.from(encodedSignature, 'base64url');
+    providedSignature = Buffer.from(ticket.encodedSignature, 'base64url');
   } catch {
     throw new CapabilityTicketError('malformed', 'Capability ticket signature is malformed');
   }
-  if (
-    !verifyBytes(
-      null,
-      Buffer.from(`${encodedHeader}.${encodedPayload}`),
-      publicKey,
-      providedSignature,
-    )
-  ) {
+  if (!verifyBytes(null, Buffer.from(ticket.signingInput), publicKey, providedSignature)) {
     throw new CapabilityTicketError('invalid_signature', 'Capability ticket signature is invalid');
   }
 
-  const parsed = capabilityTicketClaimsSchema.safeParse(decodeJsonSegment(encodedPayload));
+  const parsed = capabilityTicketClaimsSchema.safeParse(decodeJsonSegment(ticket.encodedPayload));
   if (!parsed.success) {
     throw new CapabilityTicketError('invalid_claims', 'Capability ticket claims are invalid');
   }
@@ -179,6 +207,37 @@ export function verifyCapabilityTicket(
   return claims;
 }
 
+export function verifyCapabilityTicket(
+  token: string,
+  options: CapabilityTicketVerificationOptions,
+): CapabilityTicketClaims {
+  const ticket = parseCapabilityTicket(token);
+  return checkCapabilityTicket(ticket, options.resolvePublicKey(ticket.keyId), options);
+}
+
+/**
+ * A verifier for one ticket whose key lookup may be asynchronous: the key is
+ * resolved once, and the returned `check` re-verifies signature and claims
+ * against it (the live verifier checks again after introspection, so a slow
+ * authority answer cannot outlive the ticket).
+ *
+ * @internal Shared by the middleware and `createLiveCapabilityTicketVerifier`.
+ */
+export async function resolveCapabilityTicketKey(
+  token: string,
+  options: AsyncCapabilityTicketVerificationOptions,
+): Promise<{ check: () => CapabilityTicketClaims }> {
+  const ticket = parseCapabilityTicket(token);
+  let publicKey: KeyObject | undefined;
+  try {
+    publicKey = await options.resolvePublicKey(ticket.keyId);
+  } catch {
+    // A key set that cannot be read trusts no key; never a different error class.
+    publicKey = undefined;
+  }
+  return { check: () => checkCapabilityTicket(ticket, publicKey, options) };
+}
+
 export function readCapabilityAuthorization(authorization: string | undefined): string | null {
   if (!authorization) return null;
   const [scheme, token, extra] = authorization.trim().split(/\s+/);
@@ -203,7 +262,7 @@ export function createCapabilityTicketMiddleware(
 
     let claims: CapabilityTicketClaims;
     try {
-      claims = verifyCapabilityTicket(token, options);
+      claims = (await resolveCapabilityTicketKey(token, options)).check();
     } catch (error) {
       const code = error instanceof CapabilityTicketError ? error.code : 'invalid_claims';
       response.status(401).json({ error: 'invalid_capability_ticket', code });

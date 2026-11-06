@@ -1,6 +1,7 @@
 import { type output, type ZodSchema, type ZodTypeAny, ZodError } from 'zod';
 import type { Request, Response, NextFunction } from 'express';
 import { BadRequestError } from '../utils/error';
+import type { NamedRouteParams } from '../types/routeParams';
 
 interface ValidationSchemas {
   body?: ZodSchema;
@@ -39,7 +40,7 @@ export function parseValidatedRequestValue<Schema extends ZodTypeAny>(
  * which the global errorHandler middleware serialises into a 400 JSON response.
  */
 export function validate(schemas: ValidationSchemas) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+  return (req: Request<NamedRouteParams>, _res: Response, next: NextFunction): void => {
     if (schemas.body) {
       req.body = parseValidatedRequestValue(schemas.body, req.body);
     }
@@ -48,7 +49,15 @@ export function validate(schemas: ValidationSchemas) {
       Object.assign(req, { params: parseValidatedRequestValue(schemas.params, req.params) });
     }
     if (schemas.query) {
-      Object.assign(req, { query: parseValidatedRequestValue(schemas.query, req.query) });
+      // Express 5 serves `req.query` from a getter on the request prototype,
+      // so an assignment throws; the parsed value is defined on the request
+      // itself, which shadows the getter for every handler after this one.
+      Object.defineProperty(req, 'query', {
+        value: parseValidatedRequestValue(schemas.query, req.query),
+        configurable: true,
+        enumerable: true,
+        writable: true,
+      });
     }
     next();
   };

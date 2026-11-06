@@ -1,30 +1,26 @@
 /**
- * The crypto polyfill must be installed before ANY `@noble/*` module evaluates.
+ * The crypto polyfill must be installed before ANY module evaluates.
  *
- * `@noble/hashes` 1.x's `crypto.js` captures `globalThis.crypto` once, at module
- * evaluation, and `randomBytes` uses that captured binding forever. Hermes has
- * no `globalThis.crypto` at startup, so if noble is evaluated before
- * `./polyfill` installs the shim, every random draw throws
- * `crypto.getRandomValues must be defined` — which is exactly how identity
- * creation broke on Android: the polyfill imported `@oxy.so/protocol`'s root
- * entry, whose envelope signer reaches `@noble/curves` → `@noble/hashes`, and
- * imports are evaluated before the polyfill body.
+ * Hermes has no `globalThis.crypto` at startup, and without the shim every
+ * random draw throws `crypto.getRandomValues must be defined` — which is how
+ * identity creation once broke on Android: the polyfill imported
+ * `@oxy.so/protocol`'s root entry, whose envelope signer reached
+ * `@noble/curves` → `@noble/hashes`, and `@noble/hashes` 1.x captured the
+ * absent global when it evaluated, before the polyfill body ran. Noble 2.x
+ * reads `globalThis.crypto` on every call instead, so that capture is gone; the
+ * order is kept so the shim (and `Buffer`) exist before any module body that
+ * reads them runs.
  *
- * Node's resolver picks noble's `cryptoNode.js` (the `node` export condition),
- * which never captures the global, so a plain Node run cannot see the bug. The
- * suites below substitute the REAL `crypto.js` that Metro resolves for React
- * Native, remove `globalThis.crypto`, and load core in a fresh module registry.
+ * The suites below remove `globalThis.crypto` the way a Hermes host starts and
+ * load core in a fresh module registry.
  */
 
 import { readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 type RandomBytes = (length?: number) => Uint8Array;
 
 const ORIGINAL_CRYPTO_DESCRIPTOR = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
-
-/** noble's browser / React Native `crypto.js`: the variant that captures the global. */
-const NOBLE_CAPTURING_CRYPTO = join(dirname(require.resolve('@noble/hashes/utils')), 'crypto.js');
 
 /** Remove `globalThis.crypto` the way a Hermes host starts: no property at all. */
 function removeHostCrypto(): void {
@@ -44,15 +40,11 @@ function restoreHostCrypto(): void {
   }
 }
 
-/**
- * Run `body` in a fresh module registry that resolves `@noble/hashes/crypto` as
- * a React Native bundle does, with no host `globalThis.crypto`.
- */
-function withReactNativeNobleAndNoHostCrypto(body: () => void): void {
+/** Run `body` in a fresh module registry with no host `globalThis.crypto`. */
+function withNoHostCrypto(body: () => void): void {
   removeHostCrypto();
   try {
     jest.isolateModules(() => {
-      jest.doMock('@noble/hashes/crypto', () => jest.requireActual(NOBLE_CAPTURING_CRYPTO));
       // expo-crypto, as the RN variant of `@oxy.so/protocol/random` reaches it.
       jest.doMock('@oxy.so/protocol/random', () => ({
         ...jest.requireActual('@oxy.so/protocol/random'),
@@ -67,20 +59,10 @@ function withReactNativeNobleAndNoHostCrypto(body: () => void): void {
 }
 
 describe('crypto polyfill evaluation order', () => {
-  it('reproduces the capture: noble evaluated before the polyfill has no randomness', () => {
-    // Guards the harness itself — if this ever stops throwing, the substitution
-    // no longer models the capturing variant and the suites below prove nothing.
-    withReactNativeNobleAndNoHostCrypto(() => {
-      const { randomBytes } = require('@noble/hashes/utils') as { randomBytes: RandomBytes };
-      require('../polyfill');
-      expect(() => randomBytes(32)).toThrow('crypto.getRandomValues must be defined');
-    });
-  });
-
-  it('importing @oxy.so/core installs the shim before noble captures the global', () => {
-    withReactNativeNobleAndNoHostCrypto(() => {
+  it('importing @oxy.so/core installs the shim noble draws randomness through', () => {
+    withNoHostCrypto(() => {
       require('../../index');
-      const { randomBytes } = require('@noble/hashes/utils') as { randomBytes: RandomBytes };
+      const { randomBytes } = require('@noble/hashes/utils.js') as { randomBytes: RandomBytes };
 
       const bytes = randomBytes(32);
       expect(bytes).toHaveLength(32);
@@ -89,10 +71,10 @@ describe('crypto polyfill evaluation order', () => {
   });
 
   it('generates an identity (key pair + recovery mnemonic) through @oxy.so/core/crypto', () => {
-    withReactNativeNobleAndNoHostCrypto(() => {
+    withNoHostCrypto(() => {
       const core = require('../index') as typeof import('../index');
       const { generateMnemonic } = require('@scure/bip39') as typeof import('@scure/bip39');
-      const { wordlist } = require('@scure/bip39/wordlists/english') as {
+      const { wordlist } = require('@scure/bip39/wordlists/english.js') as {
         wordlist: string[];
       };
 

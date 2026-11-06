@@ -1,4 +1,5 @@
 import { utf16MinLength } from '@oxy.so/contracts';
+import type { NamedRouteParams } from '../types/routeParams';
 import {
   assertExternalDocumentUpload,
   assertExternalDocumentContinuation,
@@ -190,7 +191,7 @@ import { resolveVideoHlsReadiness } from '../utils/videoHlsReadiness';
 import { singleQueryValue } from '../utils/queryString';
 import type { ApplicationScope } from '../utils/applicationScopes';
 
-interface AuthenticatedRequest extends express.Request {
+interface AuthenticatedRequest extends express.Request<NamedRouteParams> {
   user?: {
     _id: string;
     [key: string]: any;
@@ -228,7 +229,7 @@ const singleMultipartFile: express.RequestHandler = (req, res, next) => {
   });
 };
 /** Reviewed own-file operations: authentication still proves the original bearer. */
-const ownAssetAuth: express.RequestHandler = (req, res, next) => {
+const ownAssetAuth: express.RequestHandler<NamedRouteParams> = (req, res, next) => {
   res.locals.supervisedSelfOperation = true;
   return authMiddleware(req, res, next);
 };
@@ -4258,7 +4259,7 @@ router.get(
   streamObjectAddressLimiter,
   validate({ params: streamObjectParams }),
   streamObjectSessionLimiter,
-  asyncHandler(async (req: express.Request, res: express.Response) => {
+  asyncHandler(async (req, res) => {
     // The URL is the credential: any origin may play it, and no cookie or
     // bearer is ever involved.
     res.setHeader('Access-Control-Allow-Origin', '*');

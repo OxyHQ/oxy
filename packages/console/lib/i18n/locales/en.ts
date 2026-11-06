@@ -304,6 +304,11 @@ const en: LocaleDict = {
     },
     roles: {
       noPermission: 'You do not have permission to view roles.',
+      heldBy: 'Held by',
+      ownPermissionsBody:
+        "One of Oxy's own applications: its permissions and the roles that hold them are declared in code (Oxy ADR 0056). To make someone an operator, give them that role in the owning organization.",
+      ownPeopleBody:
+        "Per-person grants left from before. Oxy's own applications are operated by role in the owning organization; revoke these.",
       holders: 'Holders',
       person: 'Person',
       sinceColumn: 'Since',
@@ -1264,6 +1269,8 @@ const en: LocaleDict = {
       refresh: 'Refresh',
       meta_one: '{{count}} source · {{date}}',
       meta_other: '{{count}} sources · {{date}}',
+      sources_one: '{{count}} source',
+      sources_other: '{{count}} sources',
       noSummary: 'No summary available.',
       none: 'No stories yet.',
     },

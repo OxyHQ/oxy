@@ -10,7 +10,7 @@ import { and, eq } from 'drizzle-orm';
 import { reconcileProductAccessFinancialState } from './productAccessPersistence.service';
 import { z } from 'zod';
 import { oxyAccountIdSchema } from '@oxy.so/contracts';
-import type { Peable, BillingPaidInvoice, BillingInvoiceState } from '@peable.to/sdk';
+import type { Peable, BillingPaidInvoice, BillingInvoiceState, WebhookEvent } from '@peable.to/sdk';
 import {
   recordProductProviderPeriod,
   revokeProductProviderPaidPeriod,
@@ -437,11 +437,12 @@ export async function reconcilePeablePersonalInvoiceState(
   });
 }
 
-/** Secrets supplied only by approved server composition. Updated SDK HMAC/timestamp
- * verification is mandatory; verified bytes still carry no payer/plan authority. */
+/** Secrets supplied only by approved server composition. The SDK verifies the
+ * HMAC, the timestamp window and the event's shape (a `billing.observation.updated`
+ * payload field by field); verified bytes still carry no payer/plan authority. */
 export function createPeableObservationVerifier(client: Pick<Peable, 'webhooks'>, secret: string) {
   if (!secret) throw new Error('Peable observation signing is unconfigured');
-  return (rawBody: string, signature: string): unknown =>
+  return (rawBody: string, signature: string): WebhookEvent =>
     client.webhooks.constructEvent(rawBody, signature, secret);
 }
 export const peablePersonalObservationSchema = z
@@ -487,7 +488,7 @@ export async function handlePeablePersonalObservation(
   context: PeablePersonalPaidContext,
   rawBody: string,
   signature: string,
-  verify: (body: string, signature: string) => unknown | Promise<unknown>,
+  verify: (body: string, signature: string) => WebhookEvent | Promise<WebhookEvent>,
   clock: () => Date = () => new Date(),
 ) {
   if (Buffer.byteLength(rawBody) > 1_048_576) throw new Error('Peable observation body too large');

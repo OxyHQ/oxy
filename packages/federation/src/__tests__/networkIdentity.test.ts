@@ -10,6 +10,8 @@
 
 import {
   FEDERATION_NETWORKS,
+  atprotoIdentityHandle,
+  blueskyHandleFromUsername,
   blueskyUsernameFromHandle,
   createBridgeRelabeller,
   parseUpstreamProfileUrl,
@@ -390,6 +392,16 @@ describe('bsky.social is one network, whichever protocol an account arrives by',
     expect(blueskyUsernameFromHandle('jay.bsky.team')).toBe('jay.bsky.team');
     expect(blueskyUsernameFromHandle('bsky.social')).toBe('bsky.social');
   });
+
+  it('maps a stored username back to its handle', () => {
+    for (const handle of ['skylee1.bsky.social', 'gothamist.com', 'bsky.social'])
+      expect(blueskyHandleFromUsername(blueskyUsernameFromHandle(handle))).toBe(handle);
+  });
+
+  it("identifies an account whose handle does not verify by its DID, never Bluesky's sentinel", () => {
+    expect(atprotoIdentityHandle('alice.example', 'did:plc:abc')).toBe('alice.example');
+    expect(atprotoIdentityHandle(' Handle.Invalid ', 'did:plc:abc')).toBe('did:plc:abc');
+  });
 });
 
 describe('federatedUsernameFromUpstreamUrl — the search direction', () => {
@@ -505,9 +517,11 @@ describe('FEP-fffd proxyOf', () => {
       ).toEqual([]);
     });
 
-    it('reads a missing or non-array proxyOf as none', () => {
+    it('reads a missing proxyOf as none and a single declaration as one', () => {
       expect(readProxyDeclarations(undefined)).toEqual([]);
-      expect(readProxyDeclarations({ protocol: 'p', proxied: 'q' })).toEqual([]);
+      expect(readProxyDeclarations({ protocol: 'p', proxied: 'q' })).toEqual([
+        { protocol: 'p', proxied: 'q', authoritative: false },
+      ]);
     });
   });
 

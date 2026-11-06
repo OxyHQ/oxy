@@ -1,5 +1,5 @@
 import { SettingsGeneralPage } from '@oxy.so/bloom/settings-modal';
-import { SettingsSelect } from '@/components/settings/SettingsSelect';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { LOCALE_LABELS, SUPPORTED_LOCALES, useTranslation } from '@/lib/i18n';
 
 export function LanguagePage() {

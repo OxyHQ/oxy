@@ -245,7 +245,7 @@ async function pendingCheckoutFixture(observationsEnabled = false) {
   const periodStart = unix(account.period.start),
     periodEnd = unix(account.period.end);
   const quote: BillingTaxQuote = {
-    schema_version: 2,
+    schema_version: 3,
     source: {
       merchant_id: 'merch_fixture',
       app_id: account.app.id,
@@ -257,9 +257,9 @@ async function pendingCheckoutFixture(observationsEnabled = false) {
     quote: {
       id: `quote_${intentId}`,
       currency: 'USD',
-      gross_minor_units: 2999,
-      net_minor_units: 2500,
-      tax_minor_units: 499,
+      gross_minor_units: '2999',
+      net_minor_units: '2500',
+      tax_minor_units: '499',
       tax_treatment: 'inclusive',
       seller_id: 'seller_fixture',
       invoice_issuer_id: 'issuer_fixture',
@@ -364,10 +364,10 @@ async function pendingCheckoutFixture(observationsEnabled = false) {
   const final = {
     platform: 'peable',
     currency: 'USD',
-    gross_minor_units: 2999,
-    net_minor_units: 2500,
-    tax_minor_units: 499,
-    merchant_fee_minor_units: 0,
+    gross_minor_units: '2999',
+    net_minor_units: '2500',
+    tax_minor_units: '499',
+    merchant_fee_minor_units: '0',
     tax_treatment: 'inclusive',
     seller_id: 'seller_fixture',
     invoice_issuer_id: 'issuer_fixture',
@@ -577,7 +577,7 @@ it.each([false, true])(
   'uses packed SDK signed authority and refuses tampering=%s before fulfillment',
   async (hasTampering) => {
     const test = await pendingCheckoutFixture();
-    const authorityValue = { schema_version: 2, ...(await test.retrieveFinalInvoiceAuthority()) };
+    const authorityValue = { schema_version: 3, ...(await test.retrieveFinalInvoiceAuthority()) };
     function canonical(value: unknown): string {
       if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
       if (value !== null && typeof value === 'object') {

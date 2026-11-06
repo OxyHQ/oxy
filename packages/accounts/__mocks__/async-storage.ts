@@ -18,9 +18,6 @@ const AsyncStorage = {
     store.clear();
   }),
   getAllKeys: jest.fn(async (): Promise<string[]> => Array.from(store.keys())),
-  multiGet: jest.fn(async (keys: string[]) =>
-    keys.map((k) => [k, store.get(k) ?? null] as [string, string | null]),
-  ),
 };
 
 /** Helper for tests that need to seed AsyncStorage before mount. */

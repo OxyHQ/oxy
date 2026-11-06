@@ -21,7 +21,7 @@ import { formatDate } from '@/utils/date-utils';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useTranslation } from '@/lib/i18n';
 import { getDeviceIcon, getDeviceDisplayName, type DeviceRecord } from '@/utils/device-utils';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 // 20% alpha suffix applied to the success token for the current-device icon
@@ -64,7 +64,7 @@ export default function DeviceDetailScreen() {
     return null;
   }, [queryError, loading, oxyLoading, device, t]);
 
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
   const formatRelativeTime = useRelativeTime();
 
   // Handle device removal via the shared mutation (optimistic toast +

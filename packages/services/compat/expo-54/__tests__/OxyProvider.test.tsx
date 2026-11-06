@@ -67,6 +67,7 @@ it(`mounts OxyProvider on ${Platform.OS} and cold boot settles signed out`, asyn
 
 if (Platform.OS === 'macos') {
   it('runs on react-native-macos without the modules macOS lacks', () => {
+    // biome-ignore lint/suspicious/noReactNativeDeepImports: reads the installed manifest, not a private module
     expect(require('react-native/package.json').name).toBe('react-native-macos');
     const requested = (globalThis as { __absentNativeModulesRequested?: Set<string> })
       .__absentNativeModulesRequested;

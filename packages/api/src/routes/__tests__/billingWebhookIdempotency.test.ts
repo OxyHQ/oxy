@@ -82,7 +82,7 @@ jest.mock('../../utils/stripeClient', () => ({
         return structuredClone(price);
       },
     },
-    accounts: { retrieve: async () => ({ id: 'acct_synthetic_billing' }) },
+    accounts: { retrieveCurrent: async () => ({ id: 'acct_synthetic_billing' }) },
     charges: {
       retrieve: async (id: string) =>
         structuredClone(currentCharges.get(id) ?? { id, livemode: false, payment_intent: null }),

@@ -1,5 +1,6 @@
 /** Account-bound internal resource operations, without manufacturing a user session. */
 import type { Request, Response, NextFunction } from 'express';
+import type { NamedRouteParams } from '../types/routeParams';
 import {
   authMiddleware,
   serviceAuthMiddleware,
@@ -18,7 +19,11 @@ export function authenticatedRequesterAccountId(request: Request): string | unde
   return user?.id ?? user?._id;
 }
 
-export async function requesterAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function requesterAuthMiddleware(
+  req: Request<NamedRouteParams>,
+  res: Response,
+  next: NextFunction,
+) {
   const token = req.headers.authorization?.startsWith('Bearer ')
     ? req.headers.authorization.slice(7)
     : undefined;

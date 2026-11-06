@@ -11,8 +11,8 @@ export function useUsernameAvailability(value: string, enabled: boolean) {
   const { t } = useI18n();
   const candidate = value.trim();
   // The policy of the signed-in account's kind: a bot's handle ends in `bot`.
-  const checked = checkUsernameDraft(candidate, t, user?.kind);
-  const invalid = checked.ok ? undefined : checked.error;
+  const checked = enabled ? checkUsernameDraft(candidate, t, user?.kind) : null;
+  const invalid = checked && !checked.ok ? checked.error : undefined;
   const unchanged = candidate.toLowerCase() === user?.username?.toLowerCase();
   const [result, setResult] = useState<CheckResult>();
   const [attempt, setAttempt] = useState(0);

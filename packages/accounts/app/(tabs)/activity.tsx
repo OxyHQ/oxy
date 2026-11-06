@@ -6,7 +6,7 @@ import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 import { ScreenHeader, AccountCard } from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useHapticPress } from '@/hooks/use-haptic-press';
+import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useTranslation } from '@/lib/i18n';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useActivityGroups } from '@/hooks/activity/useActivityGroups';
@@ -18,7 +18,7 @@ export default function ActivityScreen() {
   const { t } = useTranslation();
   // Auth is enforced by the `(tabs)` layout — we can assume a session here.
   const { isLoading: oxyLoading } = useOxy();
-  const handlePressIn = useHapticPress();
+  const { tap: handlePressIn } = useHapticFeedback();
   const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 

@@ -218,12 +218,16 @@ const ingestTargetLimiter = rateLimit({
 });
 
 router.all(
-  '/:bucket/*',
+  '/:bucket{/*objectName}',
   ingestAddressLimiter,
   ingestTargetLimiter,
-  async (req: express.Request, res: express.Response) => {
+  async (
+    req: express.Request<{ bucket: string; objectName?: string[] }>,
+    res: express.Response,
+  ) => {
     const bucket = req.params.bucket;
-    const objectName = (req.params as Record<string, string>)[0] ?? '';
+    // A wildcard yields the key's decoded path segments.
+    const objectName = req.params.objectName?.join('/') ?? '';
     const resource = `/${bucket}/${objectName}`;
     try {
       const auth = parseSigV4Authorization(header(req, 'authorization'));

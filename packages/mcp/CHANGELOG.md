@@ -1,5 +1,11 @@
 # Changelog: `@oxy.so/mcp`
 
+## 1.4.1
+
+### Changed
+
+- Depends on `@modelcontextprotocol/sdk` ^1.32.2 (was ^1.32.1). No code change.
+
 ## 1.4.0
 
 ### Added

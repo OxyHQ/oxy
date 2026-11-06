@@ -48,6 +48,7 @@
  *   means neither can be edited into the other by accident.
  */
 
+import { apList } from './apValue';
 import { canonicalFederationHost } from './apUri';
 
 /**
@@ -217,9 +218,8 @@ export interface ProxyDeclaration {
  * copy of it", and only the former could ever justify moving an identity.
  */
 export function readProxyDeclarations(value: unknown): ProxyDeclaration[] {
-  if (!Array.isArray(value)) return [];
   const declarations: ProxyDeclaration[] = [];
-  for (const raw of value) {
+  for (const raw of apList(value)) {
     if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) continue;
     const entry = raw as Record<string, unknown>;
     const protocol = typeof entry.protocol === 'string' ? entry.protocol.trim() : '';
@@ -644,6 +644,48 @@ export function blueskyUsernameFromHandle(handle: string): string {
   return handle !== FEDERATION_NETWORKS.bluesky.domain && handle.endsWith(suffix)
     ? handle.slice(0, -suffix.length)
     : handle;
+}
+
+/**
+ * The inverse of {@link blueskyUsernameFromHandle}: the atproto handle a stored
+ * Bluesky username names. A username without a dot was a default
+ * `.bsky.social` handle; one with a dot is a custom domain, kept whole.
+ */
+export function blueskyHandleFromUsername(username: string): string {
+  return username.includes('.') ? username : `${username}.${FEDERATION_NETWORKS.bluesky.domain}`;
+}
+
+/**
+ * The literal handle a Bluesky AppView serves when a handle's bidirectional
+ * DNS/DID verification FAILS.
+ *
+ * It is an ERROR STRING, not an identity: every account whose handle cannot be
+ * verified gets the same one, so it is the single value in the atproto namespace
+ * guaranteed NOT to be unique. Keying an account on it collapses every such
+ * account onto one identity. Use {@link atprotoIdentityHandle}.
+ */
+export const UNRESOLVED_ATPROTO_HANDLE = 'handle.invalid';
+
+/**
+ * True when a handle is the unresolved-handle sentinel rather than a real one.
+ * Compared case-insensitively on the trimmed value: a handle is a DNS name.
+ */
+export function isUnresolvedAtprotoHandle(handle: string): boolean {
+  return handle.trim().toLowerCase() === UNRESOLVED_ATPROTO_HANDLE;
+}
+
+/**
+ * The handle an atproto account is IDENTIFIED by: its real handle, or its DID
+ * when the AppView could not verify one ({@link UNRESOLVED_ATPROTO_HANDLE}).
+ *
+ * The DID is the identifier atproto guarantees stable and unique. It contains a
+ * `:`, which no DNS handle may, so the substituted identity never collides with
+ * a real one, and `did:plc:…@bsky.social` splits on its `@` like any other
+ * acct. Nothing is stored under the sentinel, so the next refresh after the
+ * account fixes its DNS re-derives the real handle through the ordinary path.
+ */
+export function atprotoIdentityHandle(handle: string, did: string): string {
+  return isUnresolvedAtprotoHandle(handle) ? did : handle;
 }
 
 /** A reviewed bridge registry, and the readers an app drives it with. */

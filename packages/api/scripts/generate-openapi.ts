@@ -1497,7 +1497,7 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
   const paramsSchema = validate?.params ? resolveRouteSchema(route, validate.params) : undefined;
   const paramsOpenApi = paramsSchema ? zodToOpenApi(paramsSchema) : undefined;
   const paramsProps = (paramsOpenApi?.properties ?? {}) as Record<string, Record<string, unknown>>;
-  const paramsRequired = new Set<string>(((paramsOpenApi?.required ?? []) as string[]) ?? []);
+  const paramsRequired = new Set<string>((paramsOpenApi?.required ?? []) as string[]);
 
   for (const name of pathParamNames) {
     const schema = paramsProps[name] ?? { type: 'string' };
@@ -1514,7 +1514,7 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
   if (querySchema) {
     const queryOpenApi = zodToOpenApi(querySchema);
     const queryProps = (queryOpenApi.properties ?? {}) as Record<string, Record<string, unknown>>;
-    const queryRequired = new Set<string>(((queryOpenApi.required ?? []) as string[]) ?? []);
+    const queryRequired = new Set<string>((queryOpenApi.required ?? []) as string[]);
     for (const [name, schema] of Object.entries(queryProps)) {
       parameters.push({
         name,

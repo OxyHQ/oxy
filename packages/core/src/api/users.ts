@@ -12,7 +12,11 @@ import type { OxyContext } from '../client/context';
 import type { PaginationInfo, SearchProfilesResponse, User } from '../models/interfaces';
 import { buildQueryParams, type PaginationParams } from '../utils/apiUtils';
 import { normalizeUserIdentity, normalizeUserIdentityOrNull } from '../utils/userIdentity';
-import { OXY_IDENTITY_CACHE_PREFIXES, oxyUserByIdCacheKey } from '../utils/identityCacheSweep';
+import {
+  OXY_IDENTITY_CACHE_PREFIXES,
+  oxyUserByIdCacheKey,
+  oxyUserByIdPath,
+} from '../utils/identityCacheSweep';
 import {
   OXY_ACCOUNT_LIST_CACHE_KEY,
   OXY_ACCOUNT_LIST_CACHE_QUERY_PREFIX,
@@ -67,7 +71,7 @@ export class UsersApi {
    * registry-fresh read that neither serves nor overwrites a cached entry.
    */
   async get(userId: string, options?: { cache?: boolean }): Promise<User> {
-    const user = await this.ctx.request<User>('GET', `/users/${enc(userId)}`, undefined, {
+    const user = await this.ctx.request<User>('GET', oxyUserByIdPath(userId), undefined, {
       cache: options?.cache ?? true,
       cacheTTL: PROFILE_TTL,
     });

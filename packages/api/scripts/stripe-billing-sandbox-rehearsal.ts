@@ -261,7 +261,7 @@ async function main() {
     maxNetworkRetries: 0,
     timeout: 30000,
   });
-  assert.equal((await stripe.accounts.retrieve()).id, ACCOUNT, 'Unreviewed Stripe account');
+  assert.equal((await stripe.accounts.retrieveCurrent()).id, ACCOUNT, 'Unreviewed Stripe account');
   await connectPostgres();
   await assertBillingDatabaseNamespace(getDb());
   const db = getDb();

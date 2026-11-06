@@ -40,6 +40,7 @@ import {
   EmailCodeStep,
 } from './accountFlowParts';
 import { describeApiError, errorCode, isTicketExpired } from '../../utils/apiErrorMessage';
+import { withoutWhitespace } from '../../utils/withoutWhitespace';
 
 /** Commons' own identity-creation deep link. */
 const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
@@ -231,7 +232,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
             label={t('signup.email.label')}
             value={email}
             onChange={(value) => {
-              setEmail(value);
+              setEmail(withoutWhitespace(value));
               if (error) setError(null);
             }}
             onSubmit={submitEmail}

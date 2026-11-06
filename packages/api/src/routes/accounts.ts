@@ -1,4 +1,4 @@
-import type { OrganizationType } from '@oxy.so/contracts';
+import type { AccountAccessGrant, OrganizationType } from '@oxy.so/contracts';
 import { accountInvitationService } from '../services/accountInvitation.service';
 import express from 'express';
 import type { Request } from 'express';
@@ -240,6 +240,30 @@ function serializeAccountNode(node: AccountNode) {
       ? serializeMember(node.callerMembership, node.callerMembershipSource ?? 'direct')
       : null,
     childCount: node.childCount,
+  };
+}
+
+/**
+ * A single account read: the node plus `callerAccess`, the caller's EFFECTIVE
+ * access — the answer `requireAccountPermission` gates on — in the
+ * `AccountAccessGrant` contract shape. `callerMembership` alone cannot carry
+ * it: it is `null` for `self` (a personal account, or an autonomous account
+ * operating itself), whose permissions no row records.
+ */
+function serializeAccountNodeWithAccess(
+  account: AccountRow,
+  access: EffectiveAccess,
+  childCount: number,
+) {
+  const callerAccess: AccountAccessGrant = {
+    role: access.role,
+    permissions: [...access.permissions],
+    status: 'active',
+    source: access.source,
+  };
+  return {
+    ...serializeAccountNode(accountNodeFromAccess(account, access, childCount)),
+    callerAccess,
   };
 }
 
@@ -599,7 +623,7 @@ router.get(
       throw new NotFoundError('Account not found');
     }
     const childCount = await countChildren(account.id);
-    res.json({ account: serializeAccountNode(accountNodeFromAccess(account, access, childCount)) });
+    res.json({ account: serializeAccountNodeWithAccess(account, access, childCount) });
   }),
 );
 
@@ -718,7 +742,7 @@ router.patch(
       throw new NotFoundError('Account not found');
     }
     const childCount = await countChildren(updated.id);
-    res.json({ account: serializeAccountNode(accountNodeFromAccess(updated, access, childCount)) });
+    res.json({ account: serializeAccountNodeWithAccess(updated, access, childCount) });
   }),
 );
 
@@ -792,7 +816,7 @@ router.post(
       throw new NotFoundError('Account not found');
     }
     const childCount = await countChildren(moved.id);
-    res.json({ account: serializeAccountNode(accountNodeFromAccess(moved, access, childCount)) });
+    res.json({ account: serializeAccountNodeWithAccess(moved, access, childCount) });
   }),
 );
 
