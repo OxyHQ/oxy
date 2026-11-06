@@ -129,6 +129,23 @@ describe('oxy.identity.backup carries retired keys', () => {
     await expect(oxy.identity.backup.restoreRetiredKeys(PHRASE)).resolves.toBe(0);
   });
 
+  it('does not attach a delayed backup to the next signed-in account', async () => {
+    const envelope = await createAndCapture();
+    let release = () => {};
+    const delayed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    fetchMock.mockImplementationOnce(async () => {
+      await delayed;
+      return json(envelope);
+    });
+    const restoration = oxy.identity.backup.restoreRetiredKeys(PHRASE);
+    oxy.session.setAccessToken(makeJwt({ userId: 'someone-else' }));
+    release();
+    await expect(restoration).rejects.toThrow('signed-in account changed');
+    expect(mockRing.kept).toEqual([]);
+  });
+
   it('a ring that cannot be checked against the key history fails the backup', async () => {
     mockRing.held = [
       { privateKey: RETIRED, publicKey: KeyManager.derivePublicKey(RETIRED), retiredAt: 1 },
