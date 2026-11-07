@@ -262,7 +262,11 @@ is refused `403 third_party_device_sign_in_denied` at creation, and the registry
 is asked again at every approval (bearer, by code, key-signed) and at the claim,
 which ends the minted session rather than hand it over. A third party gets the
 QR through OAuth instead: the same request WITH an OAuth binding finalizes into
-a scoped authorization code and an isolated session.
+a scoped authorization code and an isolated session. The device sign-ins a
+non-official application claimed before that refusal (#2215) are ended by an
+owner step, `packages/api/scripts/revoke-third-party-device-signins.ts` (dry
+run unless `--apply`, counts only): it signs every account out of each such
+claim-only device and revokes its restore secrets.
 
 ## The v1 window
 

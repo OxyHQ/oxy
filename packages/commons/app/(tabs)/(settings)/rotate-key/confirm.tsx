@@ -38,7 +38,9 @@ type ConfirmState = 'form' | 'rotating' | 'success' | 'localPersistFailed';
  * A person with no backup on record (never made one, or deleted it before
  * deletions were recorded) sees the same notice and choice, ticked: the
  * rotation creates one unless they untick it, and never without their seeing
- * it.
+ * it. When this screen cannot read the backup status, it does not rotate:
+ * core refuses a rotation without the person's choice for an account with
+ * none on record, so a failed read here is a retry, never a silent "create".
  *
  * `localPersistFailed` is NOT a failure: the server rotated and the user already
  * saw the new phrase, but the new key couldn't be written to this device. We
@@ -70,6 +72,9 @@ export default function RotateKeyConfirmScreen() {
     staleTime: 0,
     retry: false,
   });
+  // Unknown is not "has a backup": the choice could not be shown, so the
+  // rotation waits for a status read that succeeds.
+  const backupStatusFailed = backupStatus.isError || (backupStatus.isSuccess && !backupStatus.data);
   const backupDeleted = backupStatus.data?.optedOut === true;
   const noBackupOnRecord =
     backupStatus.data != null &&
@@ -97,7 +102,7 @@ export default function RotateKeyConfirmScreen() {
   const handleRotate = useCallback(async () => {
     if (!oxyServices || !proof) return;
     const pending = pendingIdentityRef.current;
-    if (!pending || !fundsAcknowledged) return;
+    if (!pending || !fundsAcknowledged || backupStatusFailed) return;
 
     // Biometric/passcode gate BEFORE the identity-key signature.
     const auth = await authenticate(t('rotateKey.confirm.biometricReason'));
@@ -147,6 +152,7 @@ export default function RotateKeyConfirmScreen() {
     pendingIdentityRef,
     signOutEverywhere,
     fundsAcknowledged,
+    backupStatusFailed,
     askAboutBackup,
     createBackup,
     queryClient,
@@ -218,6 +224,22 @@ export default function RotateKeyConfirmScreen() {
         testID="rotate-key-funds-ack"
       />
 
+      {backupStatusFailed ? (
+        <View testID="rotate-key-backup-status-failed">
+          <ImportantBanner title={t('rotateKey.confirm.backupStatusFailedTitle')}>
+            {t('rotateKey.confirm.backupStatusFailedBody')}
+          </ImportantBanner>
+          <Button
+            appearance="outline"
+            onPress={() => void backupStatus.refetch()}
+            disabled={backupStatus.isFetching}
+            testID="rotate-key-backup-status-retry"
+          >
+            {t('common.retry')}
+          </Button>
+        </View>
+      ) : null}
+
       {askAboutBackup ? (
         <View testID="rotate-key-no-backup">
           <ImportantBanner title={t('rotateKey.confirm.noBackupTitle')}>
@@ -255,7 +277,7 @@ export default function RotateKeyConfirmScreen() {
         onPress={handleRotate}
         loading={rotating}
         // Not before the person can see whether they have a backup.
-        disabled={rotating || !fundsAcknowledged || backupStatus.isLoading}
+        disabled={rotating || !fundsAcknowledged || backupStatus.isLoading || backupStatusFailed}
         testID="rotate-key-commit"
       >
         {rotating ? t('rotateKey.confirm.rotating') : t('rotateKey.confirm.cta')}

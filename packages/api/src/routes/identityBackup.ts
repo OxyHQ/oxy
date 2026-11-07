@@ -28,8 +28,11 @@
  * `DELETE` records the choice on the account (`identity_backup_opt_outs`), so
  * every device reads it in `/status` (`optedOut: true`), and `POST` refuses an
  * upload that is not the person's explicit choice to create one again
- * (`optIn`; 409 `IDENTITY_BACKUP_OPTED_OUT`). A key rotation therefore never
- * re-uploads silently, whichever Commons makes it.
+ * (`optIn`; 409 `IDENTITY_BACKUP_OPTED_OUT`). Deletions made before that
+ * record existed left nothing behind, so the same holds for an account with
+ * NO backup row at all (409 `IDENTITY_BACKUP_OPT_IN_REQUIRED`): only
+ * re-sealing a backup the account has needs no opt-in. A key rotation
+ * therefore never re-uploads silently, whichever Commons makes it.
  */
 import { Router, type Request, type Response } from 'express';
 import crypto from 'node:crypto';
@@ -238,6 +241,17 @@ async function assertSealedUnderCurrentRoot(userId: string, publicKeyHint: strin
  * an upload without `optIn: true` is refused, 409 `IDENTITY_BACKUP_OPTED_OUT`,
  * storing nothing; one with it is stored and the deletion record removed, in
  * one transaction under the account's backup lock.
+ *
+ * Never CREATED without their choice either: an account with no backup row
+ * (never made one, or deleted it before the deletion was recorded, which
+ * looks the same) gets one only with `optIn: true`, else 409
+ * `IDENTITY_BACKUP_OPT_IN_REQUIRED`. Re-sealing a backup the account HAS
+ * (current, or superseded under the rules above) needs no opt-in: a rotation
+ * supersedes the backup rather than deleting it, so its re-seal finds the row.
+ * Commons 1.12 and older never send `optIn`, so their "Create backup" is
+ * refused too, with a message asking the person to update: an old client's
+ * explicit create and its silent post-rotation re-seal are the same request,
+ * and the refusal is the side that never uploads without the person.
  */
 router.post(
   '/',
@@ -278,8 +292,21 @@ router.post(
         if (optedOut && body.optIn !== true) {
           throw new ApiError(
             409,
-            'You deleted your encrypted backup. Create one again from Backup & recovery if you want one.',
+            'You deleted your encrypted backup, so a new one was not created. To create one again, open Backup & recovery in an up-to-date Commons.',
             IDENTITY_ERROR_CODES.backupOptedOut,
+          );
+        }
+        // No backup row at all: creating one is the person's choice only.
+        const [existing] = await tx
+          .select({ id: identityBackups.id })
+          .from(identityBackups)
+          .where(eq(identityBackups.userId, userId))
+          .limit(1);
+        if (!existing && body.optIn !== true) {
+          throw new ApiError(
+            409,
+            'Your encrypted backup was not created: this version of Commons cannot ask for your choice. Update Commons, then create it in Backup & recovery.',
+            IDENTITY_ERROR_CODES.backupOptInRequired,
           );
         }
         const [written] = await tx

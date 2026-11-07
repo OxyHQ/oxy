@@ -26,7 +26,7 @@
  */
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { and, eq, gt, gte, lt, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, ne, sql } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth.js';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess.js';
 import { getDb } from '../config/postgres.js';
@@ -84,9 +84,6 @@ const ROTATE_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 /** Max age accepted for the client rotation signature (5 minutes). */
 const ROTATE_SIGNATURE_MAX_AGE_MS = 5 * 60 * 1000;
-
-/** The first backup envelope version that carries the person's retired keys. */
-const RETIRED_KEYS_BACKUP_VERSION = 2;
 
 /** Per-authenticated-user rate-limit key (falls back to a hashed IP pre-auth). */
 function rotateKey(scope: string) {
@@ -477,30 +474,21 @@ router.post(
           .values({ userId, publicKey: canonicalOldPublicKey })
           .onConflictDoNothing({ target: personalIdentityKeyRetirements.publicKey });
 
-        // The backup was sealed under the replaced phrase. One that carries
-        // retired keys (envelope version >= 2) is KEPT and marked superseded
-        // (security review R6-8): an older client cannot replace it (a lower
-        // version is refused), and deleting it would leave those keys with no
-        // off-device copy; the previous phrase still recovers them. Anything
-        // older carries no retired key and is deleted, as before: restoring
-        // it would only import a retired root.
+        // The backup was sealed under the replaced phrase. It is KEPT and
+        // marked superseded, whatever its envelope version (security review
+        // R6-8; version 1 too since 2026-11-07): deleting it would leave the
+        // replaced key (and any retired key it carries) with no off-device
+        // copy until the re-seal, and a client restores a superseded backup's
+        // keys only as retired keys, never as the identity; the previous
+        // phrase still recovers them. Keeping the row is also what lets the
+        // re-seal under the new phrase replace it (with its
+        // `replacesLookupId`) without an opt-in: an upload where the account
+        // has NO backup row needs the person's explicit `optIn`
+        // (`routes/identityBackup.ts`, owner's decision 2026-11-07).
         await tx
           .update(identityBackups)
           .set({ supersededAt: new Date() })
-          .where(
-            and(
-              eq(identityBackups.userId, userId),
-              gte(identityBackups.version, RETIRED_KEYS_BACKUP_VERSION),
-            ),
-          );
-        await tx
-          .delete(identityBackups)
-          .where(
-            and(
-              eq(identityBackups.userId, userId),
-              lt(identityBackups.version, RETIRED_KEYS_BACKUP_VERSION),
-            ),
-          );
+          .where(eq(identityBackups.userId, userId));
       });
     } catch (error) {
       // The read-then-check in step 5 is not atomic with this write; the unique

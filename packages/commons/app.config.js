@@ -86,8 +86,12 @@ module.exports = {
     // choose "Create an encrypted backup", tells them before the swap that a
     // previous key is then recoverable only with its phrase (shown, ticked, to
     // a person with no backup on record), and the owed banner never nags them
-    // (core 7.41.0, owner's decision 2026-11-07).
-    version: '1.13.0',
+    // (core 7.41.0, owner's decision 2026-11-07); 1.14.0 never rotates
+    // without that choice for a person with no backup on record (a failed
+    // status read is a retry, not "create"), and sends the tick as their
+    // opt-in, which Oxy now requires to create a backup the account has none
+    // of (core 7.42.0).
+    version: '1.14.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /

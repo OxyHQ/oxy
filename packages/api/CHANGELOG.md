@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Device sign-ins handed to third parties before #2215 are ended (owner step)
+
+- `scripts/revoke-third-party-device-signins.ts` (dry run unless `--apply`; `--auth-sessions-only` for the precise record alone; prints counts only) finds every device (QR) sign-in a non-official application received before #2215 (claimed `auth_sessions`, and, since those are swept an hour after their deadline, the `"<application> App"` session and `device_added` trail entry every approval wrote; a label an official application also produces is skipped) and ends its claim-only device: every account signed out of it, its restore secrets, join codes and background secret revoked, its sessions ended and announced, one `device_removed` entry on each affected account's security trail. Idempotent. Run as a one-off task from the API image.
+
+### No backup on record means no upload without the person (owner's decision, 2026-11-07)
+
+- `POST /identity/backup` where the account has NO backup row (never made, or deleted before deletions were recorded) stores nothing without `optIn: true` (409 `IDENTITY_BACKUP_OPT_IN_REQUIRED`, asking an older Commons to update). Re-sealing a backup the account has, current or superseded, needs no opt-in.
+- `POST /auth/rotate/complete` supersedes the backup whatever its envelope version (a version 1 backup was deleted), so the rotation's re-seal still finds the row and the replaced key keeps an off-device copy until it lands.
+
 ### Security (device sign-in is an official application's only)
 
 - **A third party never claims the shared session.** `POST /auth/session/create` without an `oauth` binding answers `403 third_party_device_sign_in_denied` for an application that is not official (`isTrustedApplication`); every approval (`/session/authorize/:token`, `/session/authorize-code/:code`, the key-signed Commons approval) re-reads the registry and mints nothing for one, and `POST /auth/session/claim` refuses an application demoted since approval and ends the session it minted. A third party gets the QR only through the OAuth-bound request, which finalizes into a scoped code. Before this, its approved device sign-in was claimed as an unbound session plus a device restore secret, which passed `requireFirstPartyDeviceAccess` (identity backup, key history, the device lane).

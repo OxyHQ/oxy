@@ -1143,6 +1143,8 @@
       "noBackupTitle": "You have no encrypted backup",
       "noBackupBody": "You deleted your encrypted backup, so this rotation won't create one. This phone keeps your current key as a previous key, for spending. If you lose this phone, the FairCoin received under that key can be recovered only with its recovery phrase (your current one), so keep it.",
       "noBackupOnRecordBody": "You have no encrypted backup. This rotation creates one of your new key and your previous keys unless you untick it below. Without one, this phone keeps your current key as a previous key, for spending, and if you lose this phone the FairCoin received under that key can be recovered only with its recovery phrase (your current one), so keep it.",
+      "backupStatusFailedTitle": "Could not check your encrypted backup",
+      "backupStatusFailedBody": "Your key is not rotated until Commons knows whether you have an encrypted backup, so it can ask you whether to create one. Check your connection and try again.",
       "createBackup": "Create an encrypted backup",
       "createBackupHint": "Optional. Oxy stores an encrypted copy of your new key and your previous keys that only your new recovery phrase can open.",
       "successNoBackup": "Your previous key is on this phone only. If you lose it, the FairCoin received under that key can be recovered only with its recovery phrase. Keep that phrase."
