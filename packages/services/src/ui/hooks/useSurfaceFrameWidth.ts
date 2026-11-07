@@ -7,6 +7,9 @@ import { createContext, useContext, useLayoutEffect } from 'react';
  * a screen whose views need different widths (the account dialog: the 420 menu,
  * the sign-in's 880 split card) hands its width to that host rather than
  * declaring a second frame. A change morphs the centered card to it.
+ *
+ * A platform that shows the account chooser on a card of its own (OxyOS's
+ * login screen, `OxySurfaceFrame`) provides it too: that card is the surface.
  */
 export const SurfaceFrameWidthContext = createContext<((maxWidth: number | null) => void) | null>(
   null,

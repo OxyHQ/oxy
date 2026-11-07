@@ -86,8 +86,11 @@ export interface OxyAuthChooserProps {
 
 /**
  * The account switcher + sign-in/sign-up chooser. Mounted by `OxyAccountDialogScreen`
- * (wrapped in Bloom's `<Dialog>`) today; mountable bare by any future host that
- * supplies its own `onComplete`.
+ * (wrapped in Bloom's `<Dialog>`), and bare by a platform's own card
+ * (`OxySurfaceFrame`, OxyOS's login screen). `onComplete` reports what the
+ * chooser itself completes (a password or code sign-in, a sign-up, a switch); a
+ * sign-in the controller runs (the QR, "Continue with Oxy") completes through
+ * the provider, so a bare host follows the signed-in account.
  */
 const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   const {

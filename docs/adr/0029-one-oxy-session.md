@@ -40,6 +40,15 @@ services screen on a page, and is the common point for third parties (OAuth),
 MCP and the CLI.
 
 - Native: the dialog is the whole screen (Commons, the QR, "Get Commons").
+  (Amended 2026-11-07: "native" here is a phone or tablet, iOS and Android,
+  where Commons lives. A native app on a computer — OxyOS, react-native-macos —
+  has no Commons to continue with and no camera to scan with, so it shows the
+  web's split card: the Commons QR a phone scans beside the form from `md`.
+  The SDK decides by the device (`resolveSignInDevice`), never by "web or not":
+  a computer's Commons delivery is `desktop`, never the same-device deep link.
+  OxyOS's login screen shows this chooser, the account dialog's
+  `OxyAuthChooser`, bare on a card of its own that it sizes through
+  `OxySurfaceFrame`, as the dialog grows to the split card.)
 - Web, on every domain including `*.oxy.so`: sign-in happens IN the dialog.
   It is the split card — the Commons QR on the right (below `md`, "Continue
   with Oxy"), the passkey and "Create account" on the left. The passkey belongs

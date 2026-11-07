@@ -8,8 +8,10 @@
  *                 Continue. On the web, from `md`, the screen is Bloom `AuthCard`'s
  *                 split card and the Commons way in is the embedded QR over its
  *                 photo carousel, in the right column (the account dialog grows to
- *                 that card); below `md` it is "Continue with Oxy" at the top. On
- *                 native it is "Continue with Oxy" ("Get Commons" without Commons).
+ *                 that card); below `md` it is "Continue with Oxy" at the top. A
+ *                 native app on a computer (OxyOS, macOS) is the same as the web:
+ *                 it shows the QR a phone scans. On a phone it is "Continue with
+ *                 Oxy" ("Get Commons" without Commons).
  *   check-email   one email carries a code and a link. The code is typed here: 6
  *                 digits, or — "Does your code have letters?" — the 10-character
  *                 long code an account past its daily guessing ceiling is sent
@@ -59,7 +61,7 @@ import { useDeviceSwitcher } from '../../hooks/useDeviceSwitcher';
 import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceFrameWidth } from '../../hooks/useSurfaceFrameWidth';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
-import { isWebBrowser } from '../../utils/isWebBrowser';
+import { resolveSignInDevice } from '../../utils/signInDevice';
 import { SubtleLink } from '../authChooser/primitives';
 import { SIGN_IN_SLIDES } from './artwork';
 import { InlineCommonsQr } from './InlineCommonsQr';
@@ -150,8 +152,9 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   const snapshot = useAccountDialogSnapshot(controller);
   const { principals, activeContext } = useDeviceSwitcher();
 
+  const device = resolveSignInDevice();
   const methods = resolveSignInMethods({
-    web: isWebBrowser(),
+    device,
     commonsAvailability: snapshot.commonsAvailability,
   });
 
@@ -826,7 +829,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               autoComplete="username"
               keyboardType="email-address"
               maxLength={SIGN_IN_IDENTIFIER_MAX_LENGTH}
-              autoFocus={Platform.OS === 'web'}
+              autoFocus={device !== 'phone'}
               testID="signin-identifier"
             />
             <Text style={[styles.note, styles.noAccount, { color: theme.colors.textSecondary }]}>

@@ -1,28 +1,40 @@
 /**
- * `resolveSignInMethods` — which Commons way in a surface offers. Every surface
- * also takes an email or username; that part does not depend on the platform.
+ * `resolveSignInMethods` — which Commons way in a surface offers, from the
+ * device it runs on. Every surface also takes an email or username; that part
+ * does not depend on the device.
  */
 
 import { resolveSignInMethods } from '../../../src/ui/components/signIn/signInMethods';
 
 describe('resolveSignInMethods', () => {
-  it('on the web: the embedded QR (with "Continue with Oxy" below `md`)', () => {
-    expect(resolveSignInMethods({ web: true, commonsAvailability: 'unknown' })).toEqual({
+  it('in a browser: the embedded QR (with "Continue with Oxy" below `md`)', () => {
+    expect(resolveSignInMethods({ device: 'browser', commonsAvailability: 'unknown' })).toEqual({
       commons: 'qr',
     });
-    expect(resolveSignInMethods({ web: true, commonsAvailability: 'unavailable' })).toEqual({
-      commons: 'qr',
-    });
+    expect(resolveSignInMethods({ device: 'browser', commonsAvailability: 'unavailable' })).toEqual(
+      { commons: 'qr' },
+    );
   });
 
-  it('on native: "Continue with Oxy", or "Get Commons" without Commons', () => {
-    expect(resolveSignInMethods({ web: false, commonsAvailability: 'available' })).toEqual({
+  it('on a computer (OxyOS, macOS): the embedded QR a phone scans, as in a browser', () => {
+    expect(resolveSignInMethods({ device: 'computer', commonsAvailability: 'unknown' })).toEqual({
+      commons: 'qr',
+    });
+    // A computer is never asked whether Commons is installed; whatever the
+    // controller holds, the QR stays.
+    expect(
+      resolveSignInMethods({ device: 'computer', commonsAvailability: 'unavailable' }),
+    ).toEqual({ commons: 'qr' });
+  });
+
+  it('on a phone: "Continue with Oxy", or "Get Commons" without Commons', () => {
+    expect(resolveSignInMethods({ device: 'phone', commonsAvailability: 'available' })).toEqual({
       commons: 'continue',
     });
-    expect(resolveSignInMethods({ web: false, commonsAvailability: 'unknown' })).toEqual({
+    expect(resolveSignInMethods({ device: 'phone', commonsAvailability: 'unknown' })).toEqual({
       commons: 'continue',
     });
-    expect(resolveSignInMethods({ web: false, commonsAvailability: 'unavailable' })).toEqual({
+    expect(resolveSignInMethods({ device: 'phone', commonsAvailability: 'unavailable' })).toEqual({
       commons: 'get-commons',
     });
   });

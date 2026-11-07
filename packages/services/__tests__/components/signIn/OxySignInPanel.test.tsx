@@ -11,7 +11,7 @@
  */
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import type { DeviceDirectory, LoginSessionResult } from '@oxy.so/contracts';
 import type { AccountDialogSnapshot, SignInFlowState } from '@oxy.so/core/session';
 import { resolveActiveContext } from '@oxy.so/core/session';
@@ -185,6 +185,12 @@ jest.mock('react-native-qrcode-svg', () => ({
     require('react').createElement('span', { 'data-testid': 'qrcode' }, value),
 }));
 
+const originalOS = Platform.OS;
+const setOS = (os: string): void => {
+  Object.defineProperty(Platform, 'OS', { value: os, configurable: true, writable: true });
+};
+afterEach(() => setOS(originalOS));
+
 const isWebBrowserMock = jest.fn(() => true);
 jest.mock('../../../src/ui/utils/isWebBrowser', () => ({
   __esModule: true,
@@ -196,6 +202,7 @@ import {
   EMAIL_SIGNIN_POLL_MS,
   OxySignInPanel,
 } from '../../../src/ui/components/signIn/OxySignInPanel';
+import { OxySurfaceFrame } from '../../../src/ui/components/OxySurfaceFrame';
 import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
 import { InlineCommonsQr } from '../../../src/ui/components/signIn/InlineCommonsQr';
 
@@ -256,8 +263,9 @@ describe('the entry — an email or username, and the Commons way in', () => {
     expect(openAccountDialog).not.toHaveBeenCalled();
   });
 
-  it('on native: "Continue with Oxy", then the email field — no QR', () => {
+  it('on a phone: "Continue with Oxy", then the email field — no QR', () => {
     isWebBrowserMock.mockReturnValue(false);
+    setOS('ios');
     renderPanel({ host: 'dialog' });
 
     expect(screen.queryByTestId('inline-commons-qr')).toBeNull();
@@ -267,8 +275,9 @@ describe('the entry — an email or username, and the Commons way in', () => {
     expect(controller.signInWithOxy).toHaveBeenCalledTimes(1);
   });
 
-  it('on native without Commons: "Get Commons", and still the email field', async () => {
+  it('on a phone without Commons: "Get Commons", and still the email field', async () => {
     isWebBrowserMock.mockReturnValue(false);
+    setOS('android');
     const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
     snapshot = makeSnapshot({ commonsAvailability: 'unavailable' });
     renderPanel({ host: 'dialog' });
@@ -278,6 +287,41 @@ describe('the entry — an email or username, and the Commons way in', () => {
     fireEvent.click(screen.getByTestId('get-commons-button'));
     await waitFor(() => expect(openURL).toHaveBeenCalledTimes(1));
     openURL.mockRestore();
+  });
+
+  it('on a computer (OxyOS, macOS): the QR a phone scans, as on the web', () => {
+    isWebBrowserMock.mockReturnValue(false);
+    setOS('oxyos');
+    renderPanel({ host: 'dialog' });
+
+    expect(screen.getByTestId('inline-commons-qr')).toBeTruthy();
+    expect(screen.queryByTestId('get-commons-button')).toBeNull();
+  });
+
+  it("asks a platform's own card (OxySurfaceFrame) for the split card's width, as it asks the dialog", () => {
+    isWebBrowserMock.mockReturnValue(false);
+    setOS('oxyos');
+    const onMaxWidthChange = jest.fn();
+    const { unmount } = render(
+      <OxySurfaceFrame onMaxWidthChange={onMaxWidthChange}>
+        <OxySignInPanel host="dialog" onSignedIn={onSignedIn} onCreateAccount={onCreateAccount} />
+      </OxySurfaceFrame>,
+    );
+    expect(onMaxWidthChange).toHaveBeenLastCalledWith(880);
+    unmount();
+    expect(onMaxWidthChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it('on a phone asks the card for no width of its own: there is no split', () => {
+    isWebBrowserMock.mockReturnValue(false);
+    setOS('ios');
+    const onMaxWidthChange = jest.fn();
+    render(
+      <OxySurfaceFrame onMaxWidthChange={onMaxWidthChange}>
+        <OxySignInPanel host="dialog" onSignedIn={onSignedIn} onCreateAccount={onCreateAccount} />
+      </OxySurfaceFrame>,
+    );
+    expect(onMaxWidthChange).not.toHaveBeenCalledWith(880);
   });
 
   it('asks for an email or username instead of sending nothing', () => {
