@@ -455,7 +455,7 @@ function opsOf(entries: ParsedEntry[]): string {
 
 /**
  * A member could not be bound: its device context is already a live member's
- * (or, until migration 0244 drops it, its device session is).
+ * (or, until migration 0245 drops it, its device session is).
  */
 function rethrowBinding(error: unknown): never {
   if (

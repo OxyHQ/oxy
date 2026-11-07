@@ -1706,8 +1706,15 @@
     {
       "idx": 244,
       "version": "7",
-      "when": 1794081773684,
-      "tag": "0244_keychain_drop_member_session_key",
+      "when": 1794082943070,
+      "tag": "0244_keychain_validate_member_device_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1794082958547,
+      "tag": "0245_keychain_drop_member_session_key",
       "breakpoints": true
     }
   ]

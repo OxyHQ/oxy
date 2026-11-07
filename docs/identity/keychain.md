@@ -44,7 +44,8 @@ Code: `packages/api/src/routes/keychain.ts`, `services/keychain.service.ts`
 
 Every closed set is `text` + CHECK, every binary column CHECKs its base64url
 shape. Migrations `0242_keychain`, `0243_keychain_member_device_context`
-(pre) and `0244_keychain_drop_member_session_key` (post, drops the old
+(pre, its foreign keys NOT VALID), `0244_keychain_validate_member_device_context` (pre) and
+`0245_keychain_drop_member_session_key` (post, drops the old
 one-member-per-device-session index).
 
 Limits (`KEYCHAIN_LIMITS`, refused `409 KEYCHAIN_LIMIT_REACHED`): 10 000 live
