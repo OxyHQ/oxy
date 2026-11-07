@@ -47,7 +47,7 @@ signatures 64, nonces of enrollment 32, commitments 32).
 |---|---|---|
 | `GET /keychain` | → `{ vault: null }` or `{ vault: { id, genesisHash, rosterSeq, rosterHead, generation, revision }, roster: Entry[], members: [{ id, orphaned, removed }], self: memberId \| null }` | `self` is the live member bound to the caller's device session |
 | `POST /keychain` | `{ genesis: Entry, wraps: [Wrap(member), Wrap(recovery)] }` → the `GET` answer | No vault yet (`409 KEYCHAIN_EXISTS`); `genesis` valid (seq 0, prev null, two signatures: the member's and the recovery key's); both wraps generation 1, signed by the member; the member bound to the caller's device session |
-| `POST /keychain/roster` | `{ entries: Entry[], wraps: Wrap[] }` → the `GET` answer | Caller is a live, non-orphaned member, or every entry is an `add` signed by the recovery key (recovery). Entries continue the head (`409 KEYCHAIN_ROSTER_CONFLICT` otherwise); each signature valid and its signer a current member (or the current recovery key where allowed); `remove` must be followed by `generation` = current + 1 and wraps at that generation for every remaining member and `recovery`; `recovery` must come with a recovery wrap; an `add` by recovery must come with the new member's wrap, signed by the recovery key, and binds the new member to the caller's device session |
+| `POST /keychain/roster` | `{ entries: Entry[], wraps: Wrap[] }` → the `GET` answer | Caller is a live, non-orphaned member, or every entry is an `add` signed by the recovery key (recovery). Entries continue the head (`409 KEYCHAIN_ROSTER_CONFLICT` otherwise); each signature valid and its signer a current member (or the current recovery key where allowed); `remove` must be followed by `generation` = current + 1 and wraps at that generation for every remaining member and `recovery`; `recovery` must likewise be followed by `generation` = current + 1 and wraps at that generation for every member and the new `recovery` (ADR 0063 D6 as amended); an `add` by recovery must come with the new member's wrap, signed by the recovery key, and binds the new member to the caller's device session |
 | `GET /keychain/wrap` | → `{ wrap }` for the caller's own member | `404` when the caller is no live member |
 | `GET /keychain/recovery` | → `{ wrap }` the recovery wrap | Any device of the account (it opens only with the recovery key) |
 | `POST /keychain/enrollments` | `{ member, commitment }` → `{ enrollment }` | Vault exists; caller not already a live member; at most 4 pending; 10-minute life |
@@ -105,7 +105,8 @@ implementation. None of it changes D8; every point is in the test vectors.
 - **Roster bodies.** Every body is `{ v: 1, vaultId, seq, prev, createdAt, op }`
   plus, by op: `genesis` `member`, `recovery`; `add` `member`; `remove`
   `memberId`; `generation` `generation` (an integer ≥ 2, the current + 1);
-  `recovery` `recovery`. `recovery` is `{ signingKey, boxKey }`. A member's
+  `recovery` `recovery`. `recovery` is `{ signingKey, boxKey }`. A `remove`
+  and a `recovery` must each be followed by a `generation` entry. A member's
   `name` is 1 to 256 bytes of UTF-8 (any characters; the UI sanitizes for
   display). The schema is closed at every level.
 - **Roster signatures.** `genesis` carries exactly two (its member and
@@ -159,7 +160,7 @@ Binary values are base64url without padding, hashes lowercase hex, and text
 | `sealRejectedBoxKeys[]` | X25519 public keys | sealing to any of them is refused (low order, including non-canonical spellings) |
 | `keyrings[]` | `{ generations: { "<g>": key }, plaintext }` | JCS of the generations (one has 11, for the string order) |
 | `wraps[]` | `{ vaultId, recipient, recipientBoxSecretKey, signer, signerSigningSecretKey, ephemeralSecretKey, nonce, keyringPlaintext, aad, signingInput, wrap }` | `aad`, `signingInput`, the deterministic `wrap` (ciphertext and Ed25519 signature) and its opening; one recipient is `recovery`, one signer is `recovery` |
-| `roster.entries[]` | `{ op, body, signingInput, hash, signatures: [{ signer, signature }] }` | genesis → add (by a member) → add (by recovery) → remove → generation 2 → recovery; each signature reproduced and verified |
+| `roster.entries[]` | `{ op, body, signingInput, hash, signatures: [{ signer, signature }] }` | genesis → add (by a member) → add (by recovery) → remove → generation 2 → recovery → generation 3; each signature reproduced and verified |
 | `roster.expected` | `{ vaultId, genesisHash, head: { seq, hash }, members[], recovery, generation, removedMemberIds[] }` | the verifier's result |
 | `rosterRejections[]` | `{ name, reason, entries[], knownHead?, genesisHash? }` | the verifier refuses each with that `reason` (`not_extension`, `genesis_mismatch`, `signer`, `signature`, `incomplete`, `generation`, `continuity`, `format`, `membership`) |
 | `enrollment[]` | `{ vaultId, member, deviceNonce, approverNonce, commitInput, commitment, codeInput, codeHash, code }` | commitment and code; one code starts with `0` |

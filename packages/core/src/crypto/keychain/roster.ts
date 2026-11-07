@@ -15,7 +15,9 @@
  *
  * `prev` is the previous entry's hash (`null` at seq 0); the hash of an entry
  * is `hex(SHA-256("oxy.keychain.roster.v1\n" ‖ body))`, the same bytes its
- * signatures cover. A `remove` must be followed by a `generation` entry.
+ * signatures cover. A `remove` and a `recovery` must each be followed by a
+ * `generation` entry: the vault key moves on whenever a key that could open it
+ * (a removed member's, a replaced recovery key's) stops being trusted.
  */
 
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -380,8 +382,8 @@ function parseEntryShape(
  * Refuses (`KeychainRosterError`) anything that breaks D3: a non-canonical or
  * unknown body, a broken `seq`/`prev` chain, another vault's entry, a bad
  * signature, a signer that is not a current member at that point (or the
- * recovery key where it may not sign), an id reused, a `remove` not followed by
- * a `generation`, a generation that is not current + 1; and, with `options`,
+ * recovery key where it may not sign), an id reused, a `remove` or `recovery`
+ * not followed by a `generation`, a generation that is not current + 1; and, with `options`,
  * a roster whose genesis is not the pinned one or that does not extend the
  * head this device already verified (a fork, a rewrite, a shorter history).
  */
@@ -427,7 +429,7 @@ export function verifyRoster(
     if (pendingGeneration && body.op !== 'generation') {
       throw new KeychainRosterError(
         'incomplete',
-        'a remove must be followed by a generation entry',
+        'a remove or recovery must be followed by a generation entry',
         seq,
       );
     }
@@ -511,6 +513,9 @@ export function verifyRoster(
       case 'recovery': {
         checkSignatures(1, false);
         recovery = body.recovery;
+        // The replaced recovery key may have leaked, and the old recovery wrap
+        // still opens with it: the vault key must move on (ADR 0063 D6).
+        pendingGeneration = true;
         break;
       }
     }
@@ -520,7 +525,7 @@ export function verifyRoster(
   if (pendingGeneration) {
     throw new KeychainRosterError(
       'incomplete',
-      'a remove must be followed by a generation entry',
+      'a remove or recovery must be followed by a generation entry',
       entries.length - 1,
     );
   }

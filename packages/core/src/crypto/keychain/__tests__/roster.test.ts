@@ -135,12 +135,19 @@ describe('roster', () => {
         [{ signer: a.id, signingSecretKey: a.keys.signingSecretKey }],
       ),
     );
+    // A replaced recovery key must move the vault key on, like a removal.
+    expect(reasonOf(() => verifyRoster(entries))).toBe('incomplete');
+    entries.push(
+      signRosterBody(generationBody({ vaultId: VAULT, head: head(), generation: 3 }), [
+        { signer: a.id, signingSecretKey: a.keys.signingSecretKey },
+      ]),
+    );
     const roster = verifyRoster(entries, { vaultId: VAULT });
     expect(roster.members.map((m) => m.id)).toEqual([a.id, c.id]);
-    expect(roster.generation).toBe(2);
+    expect(roster.generation).toBe(3);
     expect(roster.recovery).toEqual(exportPublicKeys(recovery2));
     expect(roster.removedMemberIds).toEqual([b.id]);
-    expect(roster.head.seq).toBe(5);
+    expect(roster.head.seq).toBe(6);
     // The old recovery key no longer signs.
     const late = forge(
       nextBodyText(entries, { op: 'add', member: newDevice().member }),

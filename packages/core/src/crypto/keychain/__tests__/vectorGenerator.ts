@@ -236,7 +236,7 @@ function head(chain: Chain) {
   return rosterHeadOf(chain.entries[chain.entries.length - 1]);
 }
 
-/** genesis(a) → add(b, by a) → add(c, by recovery) → remove(b, by a) → generation 2 (by c) → recovery (by a). */
+/** genesis(a) → add(b, by a) → add(c, by recovery) → remove(b, by a) → generation 2 (by c) → recovery (by a) → generation 3 (by a). */
 function buildChain(): { chain: Chain; recovery: KeychainKeyPairs[] } {
   const recovery = RECOVERY_KEYS.map((r) => deriveRecoveryKeys(r));
   const { a, b, c } = DEVICES;
@@ -282,6 +282,11 @@ function buildChain(): { chain: Chain; recovery: KeychainKeyPairs[] } {
       head: head(chain),
       recovery: exportPublicKeys(recovery[1]),
     }),
+    [[a.id, a.keys.signingSecretKey]],
+  );
+  append(
+    chain,
+    generationBody({ vaultId: VAULT_ID, createdAt: at(4), head: head(chain), generation: 3 }),
     [[a.id, a.keys.signingSecretKey]],
   );
   return { chain, recovery };
@@ -345,7 +350,7 @@ function buildRosterRejections(chain: Chain, recovery: KeychainKeyPairs[]) {
       name: 'rewrite: a shorter history than the head this device verified',
       reason: 'not_extension',
       knownHead: headAt(e.length),
-      entries: after(e.length - 1),
+      entries: after(e.length - 2),
     },
     {
       name: 'pinned genesis differs',
@@ -396,6 +401,11 @@ function buildRosterRejections(chain: Chain, recovery: KeychainKeyPairs[]) {
           [RECOVERY, recovery[1].signingSecretKey],
         ]),
       ],
+    },
+    {
+      name: 'missing generation: the roster ends on a recovery (a replaced recovery key)',
+      reason: 'incomplete',
+      entries: after(6),
     },
     {
       name: 'missing generation: the roster ends on a remove',
@@ -465,7 +475,7 @@ function buildRosterRejections(chain: Chain, recovery: KeychainKeyPairs[]) {
 }
 
 function buildWraps(recovery: KeychainKeyPairs[]) {
-  const keyring = keyringOf(2);
+  const keyring = keyringOf(3);
   const { a, c } = DEVICES;
   const cases: Array<{
     label: string;

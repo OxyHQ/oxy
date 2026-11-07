@@ -198,17 +198,17 @@
       "signerSigningSecretKey": "pTWXNuU9F9SAOLwpqb8BZoTrvq6-mIyDpFcNR5pg60c",
       "ephemeralSecretKey": "BpX0iUvAtZe0w0zmGOPohitM6FIMuRJg33T85nDLZy8",
       "nonce": "0RBOhRLnWu0fcaH2Ny6Au7hxAaiYSXl5",
-      "keyringPlaintext": "{\"generations\":{\"1\":\"SP-yncZB1p18vP6prV4-yppYMP1xRkP4k4izCLjs97U\",\"2\":\"B8A3XhPvu1oWhr4_hGjwu551fYKCqIR8aHimDFD1_7I\"}}",
-      "aad": "b3h5LmtleWNoYWluLndyYXAudjEAMDE5M2E1ZjItN2MxZS03YjNhLTlkNGUtMmY2YThiMWMzZDVlADNmMmI4YzFlLTVkNDctNGE5MC1iNmUyLTdjMTlkMGE0Zjg1MQAy",
-      "signingInput": "oxy.keychain.wrap.v1\n{\"ciphertext\":\"Jc-NNRdu_vU1DS5GfxlJqBIfffHodz3ElnTXR7F_UgahIjvMu-QGWaFcqumYKnMrWCuHvT_152imtId14uIOP4aoZASQeWIBtSiXDN7xs64cW0_MKW2-773Z2jiz9aji_4qyiaivEU4Jj1g9mVHN4gn5s35iD5Dp4aiXlJUf3BuFWas4vQ\",\"epk\":\"rLNhCWDzj4vAHlRUyQNu53Xl03un0S8XyMB7rDZlvhA\",\"generation\":2,\"nonce\":\"0RBOhRLnWu0fcaH2Ny6Au7hxAaiYSXl5\",\"recipient\":\"3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851\",\"signer\":\"c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64\",\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+      "keyringPlaintext": "{\"generations\":{\"1\":\"SP-yncZB1p18vP6prV4-yppYMP1xRkP4k4izCLjs97U\",\"2\":\"B8A3XhPvu1oWhr4_hGjwu551fYKCqIR8aHimDFD1_7I\",\"3\":\"aUMaeloXEvWNDIH0-kC6pkMoZh7gQMB3QJ3GnkL6Cag\"}}",
+      "aad": "b3h5LmtleWNoYWluLndyYXAudjEAMDE5M2E1ZjItN2MxZS03YjNhLTlkNGUtMmY2YThiMWMzZDVlADNmMmI4YzFlLTVkNDctNGE5MC1iNmUyLTdjMTlkMGE0Zjg1MQAz",
+      "signingInput": "oxy.keychain.wrap.v1\n{\"ciphertext\":\"Jc-NNRdu_vU1DS5GfxlJqBIfffHodz3ElnTXR7F_UgahIjvMu-QGWaFcqumYKnMrWCuHvT_152imtId14uIOP4aoZASQeWIBtSiXDN7xs64cW0_MKW2-773Z2jiz9aji_4qyiaivEU4Jj1g9mVHN4gn5sy89Piqx5wFdnpXn758TNkheDCYokiRAPocr0qqZymEsta7gm0mtGQfqI_-Sp5NM8vdwLUBzfE9hT0ryxSyHTILl6qFR\",\"epk\":\"rLNhCWDzj4vAHlRUyQNu53Xl03un0S8XyMB7rDZlvhA\",\"generation\":3,\"nonce\":\"0RBOhRLnWu0fcaH2Ny6Au7hxAaiYSXl5\",\"recipient\":\"3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851\",\"signer\":\"c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64\",\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
       "wrap": {
         "recipient": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
-        "generation": 2,
+        "generation": 3,
         "epk": "rLNhCWDzj4vAHlRUyQNu53Xl03un0S8XyMB7rDZlvhA",
         "nonce": "0RBOhRLnWu0fcaH2Ny6Au7hxAaiYSXl5",
-        "ciphertext": "Jc-NNRdu_vU1DS5GfxlJqBIfffHodz3ElnTXR7F_UgahIjvMu-QGWaFcqumYKnMrWCuHvT_152imtId14uIOP4aoZASQeWIBtSiXDN7xs64cW0_MKW2-773Z2jiz9aji_4qyiaivEU4Jj1g9mVHN4gn5s35iD5Dp4aiXlJUf3BuFWas4vQ",
+        "ciphertext": "Jc-NNRdu_vU1DS5GfxlJqBIfffHodz3ElnTXR7F_UgahIjvMu-QGWaFcqumYKnMrWCuHvT_152imtId14uIOP4aoZASQeWIBtSiXDN7xs64cW0_MKW2-773Z2jiz9aji_4qyiaivEU4Jj1g9mVHN4gn5sy89Piqx5wFdnpXn758TNkheDCYokiRAPocr0qqZymEsta7gm0mtGQfqI_-Sp5NM8vdwLUBzfE9hT0ryxSyHTILl6qFR",
         "signer": "c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64",
-        "signature": "d1brsxhjNIuRNtCzVdj67u0kN8rtx-IoQ5XWkwaTGNp01Wk7MZ6_Km-PE4poGTKJ9HXS13veUreT62WD8rTJBw"
+        "signature": "duAGkbQRE17PkVPN7I_lKrtKYvhFK0gYkFjuWeHfl7-wTfTNvwt7aviGgqUIfYfsgMZRl1MU0X4Kpr2XK06NBA"
       }
     },
     {
@@ -219,17 +219,17 @@
       "signerSigningSecretKey": "JSTYKXL8HLdSxcWLEncJ-TtFjwUCsBtALba72A0PdaQ",
       "ephemeralSecretKey": "KE6wo_RcUMKUp3S6O6ewI5zvWLZc1OL0GfOlaL4ghy4",
       "nonce": "L787PVFsdX1boRTFur17mevAHIj4rrPX",
-      "keyringPlaintext": "{\"generations\":{\"1\":\"SP-yncZB1p18vP6prV4-yppYMP1xRkP4k4izCLjs97U\",\"2\":\"B8A3XhPvu1oWhr4_hGjwu551fYKCqIR8aHimDFD1_7I\"}}",
-      "aad": "b3h5LmtleWNoYWluLndyYXAudjEAMDE5M2E1ZjItN2MxZS03YjNhLTlkNGUtMmY2YThiMWMzZDVlAGM0MWE5ZTcyLTZmMGQtNGI4My1hNWMyLTkxZTdkM2IwOGY2NAAy",
-      "signingInput": "oxy.keychain.wrap.v1\n{\"ciphertext\":\"5WgB6fJBtPwqPvUYW9BAlLhAZkHWGBzgrIkU6VNRTpsI9bAPLcdnL9pEwEZEkiJj8B_p11m0UnlsQFFQpCMXX5Yt5KDCAzQ5d4h1aggX_YQRiYgZZgKvBo2bhlB-kp0ROBQzV9T_UsvkTSgn_7Sle40wnDJ4liGnz2A-lH5wX1sN1dZiiQ\",\"epk\":\"8-SwwtnF1MWru8xCcm9lYdTGp2g9D_b78W2FmrPakns\",\"generation\":2,\"nonce\":\"L787PVFsdX1boRTFur17mevAHIj4rrPX\",\"recipient\":\"c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64\",\"signer\":\"recovery\",\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+      "keyringPlaintext": "{\"generations\":{\"1\":\"SP-yncZB1p18vP6prV4-yppYMP1xRkP4k4izCLjs97U\",\"2\":\"B8A3XhPvu1oWhr4_hGjwu551fYKCqIR8aHimDFD1_7I\",\"3\":\"aUMaeloXEvWNDIH0-kC6pkMoZh7gQMB3QJ3GnkL6Cag\"}}",
+      "aad": "b3h5LmtleWNoYWluLndyYXAudjEAMDE5M2E1ZjItN2MxZS03YjNhLTlkNGUtMmY2YThiMWMzZDVlAGM0MWE5ZTcyLTZmMGQtNGI4My1hNWMyLTkxZTdkM2IwOGY2NAAz",
+      "signingInput": "oxy.keychain.wrap.v1\n{\"ciphertext\":\"5WgB6fJBtPwqPvUYW9BAlLhAZkHWGBzgrIkU6VNRTpsI9bAPLcdnL9pEwEZEkiJj8B_p11m0UnlsQFFQpCMXX5Yt5KDCAzQ5d4h1aggX_YQRiYgZZgKvBo2bhlB-kp0ROBQzV9T_UsvkTSgn_7Sle40wnGMnESxyC2d-4hh_pQOufQa5_cOKnWD26kc0p1hsZ1V-w1bnUhC1c1bjCd7JrYHpb58s9Q2JB5biYNh6KsAiCf0XTpyI\",\"epk\":\"8-SwwtnF1MWru8xCcm9lYdTGp2g9D_b78W2FmrPakns\",\"generation\":3,\"nonce\":\"L787PVFsdX1boRTFur17mevAHIj4rrPX\",\"recipient\":\"c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64\",\"signer\":\"recovery\",\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
       "wrap": {
         "recipient": "c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64",
-        "generation": 2,
+        "generation": 3,
         "epk": "8-SwwtnF1MWru8xCcm9lYdTGp2g9D_b78W2FmrPakns",
         "nonce": "L787PVFsdX1boRTFur17mevAHIj4rrPX",
-        "ciphertext": "5WgB6fJBtPwqPvUYW9BAlLhAZkHWGBzgrIkU6VNRTpsI9bAPLcdnL9pEwEZEkiJj8B_p11m0UnlsQFFQpCMXX5Yt5KDCAzQ5d4h1aggX_YQRiYgZZgKvBo2bhlB-kp0ROBQzV9T_UsvkTSgn_7Sle40wnDJ4liGnz2A-lH5wX1sN1dZiiQ",
+        "ciphertext": "5WgB6fJBtPwqPvUYW9BAlLhAZkHWGBzgrIkU6VNRTpsI9bAPLcdnL9pEwEZEkiJj8B_p11m0UnlsQFFQpCMXX5Yt5KDCAzQ5d4h1aggX_YQRiYgZZgKvBo2bhlB-kp0ROBQzV9T_UsvkTSgn_7Sle40wnGMnESxyC2d-4hh_pQOufQa5_cOKnWD26kc0p1hsZ1V-w1bnUhC1c1bjCd7JrYHpb58s9Q2JB5biYNh6KsAiCf0XTpyI",
         "signer": "recovery",
-        "signature": "uqCeQ57YfP-hidBnPFAIyuLvbBB-5-ZNNHx1mF2O4TDMQdvqCfIacMAVqEDkhzbJeE6-nSe8sRpAn1aE3H5sAA"
+        "signature": "f23q-0lh3jRVRZg1EMOWt7YRHughUzq2j9uanX_wEcPL0rIaVRK1Y9mwKif7LjxGqcredGSuerbyxVpSV3fpDA"
       }
     },
     {
@@ -240,17 +240,17 @@
       "signerSigningSecretKey": "Ycd0r4CScPnnBrhkmCjBt8ay8gVYmp1MdQxKAZnweJw",
       "ephemeralSecretKey": "R626bTknCpGUGa3Et_P25BupPp8XDl42yf-ksKR-3_U",
       "nonce": "89qgilyzzr6WwliWTKCNBR3FeH73Oar4",
-      "keyringPlaintext": "{\"generations\":{\"1\":\"SP-yncZB1p18vP6prV4-yppYMP1xRkP4k4izCLjs97U\",\"2\":\"B8A3XhPvu1oWhr4_hGjwu551fYKCqIR8aHimDFD1_7I\"}}",
-      "aad": "b3h5LmtleWNoYWluLndyYXAudjEAMDE5M2E1ZjItN2MxZS03YjNhLTlkNGUtMmY2YThiMWMzZDVlAHJlY292ZXJ5ADI",
-      "signingInput": "oxy.keychain.wrap.v1\n{\"ciphertext\":\"xzeloexDIKVTjs0h0u1AtMHUBUYFoi_5VC6wAl3fPNDD_i-lxo2DfkyBph_QaXgze5WDZSN6VhvszB3M2HO_jaOmUNzbbJ2y95pPkG5v6amFof2pLByl7rsLA71XJU3kG5ADLKIbm8mJrDw4G7uSSXidCe6QPOE6_Nkn-mCcJVMwyhNUiA\",\"epk\":\"hwQMKJyfduwxPb5OM_pZ2MILLrjQUbKJ7qRwLgxsAgQ\",\"generation\":2,\"nonce\":\"89qgilyzzr6WwliWTKCNBR3FeH73Oar4\",\"recipient\":\"recovery\",\"signer\":\"3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851\",\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+      "keyringPlaintext": "{\"generations\":{\"1\":\"SP-yncZB1p18vP6prV4-yppYMP1xRkP4k4izCLjs97U\",\"2\":\"B8A3XhPvu1oWhr4_hGjwu551fYKCqIR8aHimDFD1_7I\",\"3\":\"aUMaeloXEvWNDIH0-kC6pkMoZh7gQMB3QJ3GnkL6Cag\"}}",
+      "aad": "b3h5LmtleWNoYWluLndyYXAudjEAMDE5M2E1ZjItN2MxZS03YjNhLTlkNGUtMmY2YThiMWMzZDVlAHJlY292ZXJ5ADM",
+      "signingInput": "oxy.keychain.wrap.v1\n{\"ciphertext\":\"xzeloexDIKVTjs0h0u1AtMHUBUYFoi_5VC6wAl3fPNDD_i-lxo2DfkyBph_QaXgze5WDZSN6VhvszB3M2HO_jaOmUNzbbJ2y95pPkG5v6amFof2pLByl7rsLA71XJU3kG5ADLKIbm8mJrDw4G7uSSXidCb_P5warmNfESTiANm1bnF7x_uPwHGc5z7_5M0zD4mH3cthIs2sEfVDJNuFwIMXp1-5_MLS205A-PVafAAt6l0vIJUDG\",\"epk\":\"hwQMKJyfduwxPb5OM_pZ2MILLrjQUbKJ7qRwLgxsAgQ\",\"generation\":3,\"nonce\":\"89qgilyzzr6WwliWTKCNBR3FeH73Oar4\",\"recipient\":\"recovery\",\"signer\":\"3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851\",\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
       "wrap": {
         "recipient": "recovery",
-        "generation": 2,
+        "generation": 3,
         "epk": "hwQMKJyfduwxPb5OM_pZ2MILLrjQUbKJ7qRwLgxsAgQ",
         "nonce": "89qgilyzzr6WwliWTKCNBR3FeH73Oar4",
-        "ciphertext": "xzeloexDIKVTjs0h0u1AtMHUBUYFoi_5VC6wAl3fPNDD_i-lxo2DfkyBph_QaXgze5WDZSN6VhvszB3M2HO_jaOmUNzbbJ2y95pPkG5v6amFof2pLByl7rsLA71XJU3kG5ADLKIbm8mJrDw4G7uSSXidCe6QPOE6_Nkn-mCcJVMwyhNUiA",
+        "ciphertext": "xzeloexDIKVTjs0h0u1AtMHUBUYFoi_5VC6wAl3fPNDD_i-lxo2DfkyBph_QaXgze5WDZSN6VhvszB3M2HO_jaOmUNzbbJ2y95pPkG5v6amFof2pLByl7rsLA71XJU3kG5ADLKIbm8mJrDw4G7uSSXidCb_P5warmNfESTiANm1bnF7x_uPwHGc5z7_5M0zD4mH3cthIs2sEfVDJNuFwIMXp1-5_MLS205A-PVafAAt6l0vIJUDG",
         "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
-        "signature": "MZ3oX5f9j-K1BUu633NIeG7DN3Ds1Jv5Ew19N-XOqw-Ie37bNwAWfe1GiHT6oQGPug9EULwjMCfv_2x1FXdeBA"
+        "signature": "cInmhdHJuoi8eXYSiDkph2hOFjT4aA8ZmToJC9J4wSxoqVJu5OAH14JQA-AmFeFCtoEd1uoSssRGBCGWdZDqDQ"
       }
     }
   ],
@@ -331,14 +331,26 @@
             "signature": "z2ssCfqzSif-wvPyEzN8_LV-od7L7PnBIuvdYjz2jOTByivMaVNFphuWbWj1vDPIWoKL1tEWT_xs8CdjQ2nhDw"
           }
         ]
+      },
+      {
+        "op": "generation",
+        "body": "{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"generation\":3,\"op\":\"generation\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+        "signingInput": "oxy.keychain.roster.v1\n{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"generation\":3,\"op\":\"generation\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+        "hash": "0550ac1cc6f96cd13c3c36c99da1ae60ad0dc3c8f1aac4c5268ff91f5d18bd1f",
+        "signatures": [
+          {
+            "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+            "signature": "F4y3DzxCKF4W6P6zKRmHSLMr_pCibcx0fvtG14jDrFahjV9KXIbkQ5FG4Fxkloc_DdTqYYWAGaw8OJaGQtM-DQ"
+          }
+        ]
       }
     ],
     "expected": {
       "vaultId": "0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e",
       "genesisHash": "9d5149fe180b00f58fc66b09f8983bbe5f02f6810d58cbd23ea69ed3282a7f79",
       "head": {
-        "seq": 5,
-        "hash": "9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0"
+        "seq": 6,
+        "hash": "0550ac1cc6f96cd13c3c36c99da1ae60ad0dc3c8f1aac4c5268ff91f5d18bd1f"
       },
       "members": [
         {
@@ -360,7 +372,7 @@
         "signingKey": "AToYTLvgzsKo3gxVmdukFnezejrbX-ktSrfs-8epX9Q",
         "boxKey": "yH3qHxrMKjz-REgi9jcAIoZb6Y_twtvnUrfmue4vLCQ"
       },
-      "generation": 2,
+      "generation": 3,
       "removedMemberIds": [
         "8e6d2a40-1b3c-4f5e-9a7d-0c2e4b6f8a1d"
       ]
@@ -412,8 +424,8 @@
       "name": "rewrite: a shorter history than the head this device verified",
       "reason": "not_extension",
       "knownHead": {
-        "seq": 5,
-        "hash": "9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0"
+        "seq": 6,
+        "hash": "0550ac1cc6f96cd13c3c36c99da1ae60ad0dc3c8f1aac4c5268ff91f5d18bd1f"
       },
       "entries": [
         {
@@ -529,6 +541,15 @@
               "signature": "z2ssCfqzSif-wvPyEzN8_LV-od7L7PnBIuvdYjz2jOTByivMaVNFphuWbWj1vDPIWoKL1tEWT_xs8CdjQ2nhDw"
             }
           ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"generation\":3,\"op\":\"generation\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "F4y3DzxCKF4W6P6zKRmHSLMr_pCibcx0fvtG14jDrFahjV9KXIbkQ5FG4Fxkloc_DdTqYYWAGaw8OJaGQtM-DQ"
+            }
+          ]
         }
       ]
     },
@@ -595,11 +616,20 @@
           ]
         },
         {
-          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"zr547J8h0-njGDUrFFXVANzMKPjPRqGTEE9AloAMd1A\",\"id\":\"5a0c7e93-2d18-4f6b-8e41-b3d9f2a7c605\",\"name\":\"Work PC\\u0007\",\"platform\":\"windows\",\"signingKey\":\"vL0VBClUWdIVxHgtMQ8OReNKb_G5yPEZbPF49P5BB7A\"},\"op\":\"add\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "body": "{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"generation\":3,\"op\":\"generation\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "F4y3DzxCKF4W6P6zKRmHSLMr_pCibcx0fvtG14jDrFahjV9KXIbkQ5FG4Fxkloc_DdTqYYWAGaw8OJaGQtM-DQ"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"zr547J8h0-njGDUrFFXVANzMKPjPRqGTEE9AloAMd1A\",\"id\":\"5a0c7e93-2d18-4f6b-8e41-b3d9f2a7c605\",\"name\":\"Work PC\\u0007\",\"platform\":\"windows\",\"signingKey\":\"vL0VBClUWdIVxHgtMQ8OReNKb_G5yPEZbPF49P5BB7A\"},\"op\":\"add\",\"prev\":\"0550ac1cc6f96cd13c3c36c99da1ae60ad0dc3c8f1aac4c5268ff91f5d18bd1f\",\"seq\":7,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
           "signatures": [
             {
               "signer": "5a0c7e93-2d18-4f6b-8e41-b3d9f2a7c605",
-              "signature": "ek2rr3k3sn9Z_SE29KP200WYlqPqWnn6Pnzn1KXaKHFUTNLpjPClWRZjfPh3e9xvGPsmyR3JG7R5jzxfbyYECw"
+              "signature": "ZqEGs4ObwunvvUGFN1PRg9jdgmxk1znzRZIEqDLzeFwaDcYxoxxSlXfcLE7r68aJgceMY_CeBLzV5V3OwQtzBA"
             }
           ]
         }
@@ -668,11 +698,20 @@
           ]
         },
         {
-          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"zr547J8h0-njGDUrFFXVANzMKPjPRqGTEE9AloAMd1A\",\"id\":\"5a0c7e93-2d18-4f6b-8e41-b3d9f2a7c605\",\"name\":\"Work PC\\u0007\",\"platform\":\"windows\",\"signingKey\":\"vL0VBClUWdIVxHgtMQ8OReNKb_G5yPEZbPF49P5BB7A\"},\"op\":\"add\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "body": "{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"generation\":3,\"op\":\"generation\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
           "signatures": [
             {
               "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
-              "signature": "ek2rr3k3sn9Z_SE29KP200WYlqPqWnn6Pnzn1KXaKHFUTNLpjPClWRZjfPh3e9xvGPsmyR3JG7R5jzxfbyYECw"
+              "signature": "F4y3DzxCKF4W6P6zKRmHSLMr_pCibcx0fvtG14jDrFahjV9KXIbkQ5FG4Fxkloc_DdTqYYWAGaw8OJaGQtM-DQ"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"zr547J8h0-njGDUrFFXVANzMKPjPRqGTEE9AloAMd1A\",\"id\":\"5a0c7e93-2d18-4f6b-8e41-b3d9f2a7c605\",\"name\":\"Work PC\\u0007\",\"platform\":\"windows\",\"signingKey\":\"vL0VBClUWdIVxHgtMQ8OReNKb_G5yPEZbPF49P5BB7A\"},\"op\":\"add\",\"prev\":\"0550ac1cc6f96cd13c3c36c99da1ae60ad0dc3c8f1aac4c5268ff91f5d18bd1f\",\"seq\":7,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "ZqEGs4ObwunvvUGFN1PRg9jdgmxk1znzRZIEqDLzeFwaDcYxoxxSlXfcLE7r68aJgceMY_CeBLzV5V3OwQtzBA"
             }
           ]
         }
@@ -741,11 +780,20 @@
           ]
         },
         {
-          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"zr547J8h0-njGDUrFFXVANzMKPjPRqGTEE9AloAMd1A\",\"id\":\"5a0c7e93-2d18-4f6b-8e41-b3d9f2a7c605\",\"name\":\"Work PC\\u0007\",\"platform\":\"windows\",\"signingKey\":\"vL0VBClUWdIVxHgtMQ8OReNKb_G5yPEZbPF49P5BB7A\"},\"op\":\"add\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "body": "{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"generation\":3,\"op\":\"generation\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "F4y3DzxCKF4W6P6zKRmHSLMr_pCibcx0fvtG14jDrFahjV9KXIbkQ5FG4Fxkloc_DdTqYYWAGaw8OJaGQtM-DQ"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"zr547J8h0-njGDUrFFXVANzMKPjPRqGTEE9AloAMd1A\",\"id\":\"5a0c7e93-2d18-4f6b-8e41-b3d9f2a7c605\",\"name\":\"Work PC\\u0007\",\"platform\":\"windows\",\"signingKey\":\"vL0VBClUWdIVxHgtMQ8OReNKb_G5yPEZbPF49P5BB7A\"},\"op\":\"add\",\"prev\":\"0550ac1cc6f96cd13c3c36c99da1ae60ad0dc3c8f1aac4c5268ff91f5d18bd1f\",\"seq\":7,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
           "signatures": [
             {
               "signer": "8e6d2a40-1b3c-4f5e-9a7d-0c2e4b6f8a1d",
-              "signature": "QOFRu04GNN3WwdxvbZzVAmYRRD2XW4QSREJlMx68FPUpy0lVUjAGFGlLvW2yu0YXxF6L6et92eGOd6Rf4WnoDw"
+              "signature": "V1pgIbIrun9CYAHJiiXgSL1iuqVJTwmnFRWSLJsGEcA-7YDzrNAvatfjSmIiuKPS5lea75iN2xgqfq-kmkfmBg"
             }
           ]
         }
@@ -814,11 +862,20 @@
           ]
         },
         {
-          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"zr547J8h0-njGDUrFFXVANzMKPjPRqGTEE9AloAMd1A\",\"id\":\"5a0c7e93-2d18-4f6b-8e41-b3d9f2a7c605\",\"name\":\"Work PC\\u0007\",\"platform\":\"windows\",\"signingKey\":\"vL0VBClUWdIVxHgtMQ8OReNKb_G5yPEZbPF49P5BB7A\"},\"op\":\"add\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "body": "{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"generation\":3,\"op\":\"generation\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "F4y3DzxCKF4W6P6zKRmHSLMr_pCibcx0fvtG14jDrFahjV9KXIbkQ5FG4Fxkloc_DdTqYYWAGaw8OJaGQtM-DQ"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"zr547J8h0-njGDUrFFXVANzMKPjPRqGTEE9AloAMd1A\",\"id\":\"5a0c7e93-2d18-4f6b-8e41-b3d9f2a7c605\",\"name\":\"Work PC\\u0007\",\"platform\":\"windows\",\"signingKey\":\"vL0VBClUWdIVxHgtMQ8OReNKb_G5yPEZbPF49P5BB7A\"},\"op\":\"add\",\"prev\":\"0550ac1cc6f96cd13c3c36c99da1ae60ad0dc3c8f1aac4c5268ff91f5d18bd1f\",\"seq\":7,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
           "signatures": [
             {
               "signer": "recovery",
-              "signature": "QoFO-pJHHy5PFrYtSDkNtwS-JhjKhY1us5Sbs_ZWMPbGxIXPF-mXrIJkMNCVJPnNEzqviltFLBqaCOPpsnXGBQ"
+              "signature": "k2sBbF2zMaNoq3LosVt7XFxn643pISdYv6UkuhWSK0onnFsAq4H5Hr5-SZHebjiLjf02Qgw9hmfSzHTFvtcuBQ"
             }
           ]
         }
@@ -887,11 +944,84 @@
           ]
         },
         {
-          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"memberId\":\"c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64\",\"op\":\"remove\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "body": "{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"generation\":3,\"op\":\"generation\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "F4y3DzxCKF4W6P6zKRmHSLMr_pCibcx0fvtG14jDrFahjV9KXIbkQ5FG4Fxkloc_DdTqYYWAGaw8OJaGQtM-DQ"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"memberId\":\"c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64\",\"op\":\"remove\",\"prev\":\"0550ac1cc6f96cd13c3c36c99da1ae60ad0dc3c8f1aac4c5268ff91f5d18bd1f\",\"seq\":7,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
           "signatures": [
             {
               "signer": "recovery",
-              "signature": "rnalP1dsnKc6xJJUNWe5cGf0jUnyN82Y15ghOja4ArEGcL-cID1hJKYi0kGtoFZ7Nh8qqlZpxO9rSm0LfhKeCA"
+              "signature": "JCt6USxxH1qKC5eQ0y312enmepk7gtiLemdHGlCqocMdkgNmmwRh12vwNqmbZoQ8lHU6DcSijQuYFRYSYAkmDA"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "missing generation: the roster ends on a recovery (a replaced recovery key)",
+      "reason": "incomplete",
+      "entries": [
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:00:00.000Z\",\"member\":{\"boxKey\":\"jqSUsocb9dISYqtJ6ejSUQC7wkqRfnstHoOZupwunHk\",\"id\":\"3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851\",\"name\":\"Ana's \\\"OxyOS\\\" \\\\ laptop / ñ 😀  \",\"platform\":\"oxyos\",\"signingKey\":\"c7SiNUfqOSDY6wMYPl9JsKSHFUdhpC3YFRlcEOZrazE\"},\"op\":\"genesis\",\"prev\":null,\"recovery\":{\"boxKey\":\"FB9hbi6LTZ1pUtFIDTbsMotzFhPXHZAMHIdVBJOso1I\",\"signingKey\":\"BjGK3Cm7DciW3uDWfjXNkXeEpdgsOSlHujgd8TMacDM\"},\"seq\":0,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "0VuBZ6LtQoeGRzhhYi3WmHh1JmXElBgMACAfBhFsx9zo2OJpGfgYhvwxjcxSE9qEFPoK2XoGBbq2evlMRtiyAw"
+            },
+            {
+              "signer": "recovery",
+              "signature": "ChlI204oD7Y3G4hsUPGAr5Ng84L2qw6agmCDAwMILLImyd0jpJ38k9Ap9xoMze1ylLptE8_Usdikz1vGWUNnAQ"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:01:00.000Z\",\"member\":{\"boxKey\":\"-zO3v2TF7qSOP4oEuQgt6K6siIYsuQHCfq5Fqf9l7Bk\",\"id\":\"8e6d2a40-1b3c-4f5e-9a7d-0c2e4b6f8a1d\",\"name\":\"Teléfono\\u0000\\u0001\\u001f\\b\\f\\n\\r\\t\",\"platform\":\"android\",\"signingKey\":\"QvP400xLj-mgfsGkMiYppm-DIQbriHE49AmgUHiGhbA\"},\"op\":\"add\",\"prev\":\"9d5149fe180b00f58fc66b09f8983bbe5f02f6810d58cbd23ea69ed3282a7f79\",\"seq\":1,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "Stln8zg9uzIupryjujvpOLLTbUo6BI2dwm9ucgLCwXXEd_N55ZlSZiA8fIRVExfDtftdGcifVgJF9o5T1FYXCg"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:02:00.000Z\",\"member\":{\"boxKey\":\"Unnszvvxgk3_b09bamNBosQUsQTaNkxZ8NRbYRrswRo\",\"id\":\"c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64\",\"name\":\"日本語のiPad 𝄞 </script>\",\"platform\":\"ios\",\"signingKey\":\"5rNlq0s_dbZu3nZpcSL3N8VDd9iaryS2M32-cq7KqiM\"},\"op\":\"add\",\"prev\":\"99f6c4eca117b46594001e4a6d8f7dab8996463d732a037bb5e9e7400822f1d8\",\"seq\":2,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "recovery",
+              "signature": "wwdjp1l18rYNPS_vPeeVR_xm3OCAwMnM9VQAXoFfbaK-aTp8DPn-yxaZI9gDcMA3QmUr2i3KogbEMs1enT5HCg"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:03:00.000Z\",\"memberId\":\"8e6d2a40-1b3c-4f5e-9a7d-0c2e4b6f8a1d\",\"op\":\"remove\",\"prev\":\"f74c2b9dcab111289a10adfdb056e6e63d3d484676c703939ef31ec9f34b207b\",\"seq\":3,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "4BXa2hDDFE7DnDeyGIk2ofagdmb7CqKfVILWm0xpbZYsjJm5KliZKzEc3p4AkeKGPfQA_sX2ky7FMfhXDgy2DQ"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:03:00.000Z\",\"generation\":2,\"op\":\"generation\",\"prev\":\"e91c2e5a2d3584126620af1d82e019c459115a21fae5fe61025846591e69e4b4\",\"seq\":4,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "c41a9e72-6f0d-4b83-a5c2-91e7d3b08f64",
+              "signature": "ykTw5gME3x_MKjSJ713zIklctJmomDOaIPVzsui7Rw6DEtH1lvLUjJ9v52mXxJ5p8RF3TdoK03Kq1Yx5l6GbAA"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"op\":\"recovery\",\"prev\":\"67ff38011f053d923c528b36978c20f7968833cb1e930303816d144f5ae95eeb\",\"recovery\":{\"boxKey\":\"yH3qHxrMKjz-REgi9jcAIoZb6Y_twtvnUrfmue4vLCQ\",\"signingKey\":\"AToYTLvgzsKo3gxVmdukFnezejrbX-ktSrfs-8epX9Q\"},\"seq\":5,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "z2ssCfqzSif-wvPyEzN8_LV-od7L7PnBIuvdYjz2jOTByivMaVNFphuWbWj1vDPIWoKL1tEWT_xs8CdjQ2nhDw"
             }
           ]
         }
@@ -1224,11 +1354,20 @@
           ]
         },
         {
-          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"-zO3v2TF7qSOP4oEuQgt6K6siIYsuQHCfq5Fqf9l7Bk\",\"id\":\"8e6d2a40-1b3c-4f5e-9a7d-0c2e4b6f8a1d\",\"name\":\"Teléfono\\u0000\\u0001\\u001f\\b\\f\\n\\r\\t\",\"platform\":\"android\",\"signingKey\":\"QvP400xLj-mgfsGkMiYppm-DIQbriHE49AmgUHiGhbA\"},\"op\":\"add\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "body": "{\"createdAt\":\"2026-11-07T12:04:00.000Z\",\"generation\":3,\"op\":\"generation\",\"prev\":\"9a1466ce3c9f8f4a99880f8d06d63cac7f0873631ae5d108a4767b3db540a8d0\",\"seq\":6,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
           "signatures": [
             {
               "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
-              "signature": "PYeOHc7dGTGenwFq7Qy-kLtg3z6dsUAWG0WgZqmEG0nO27kDHWXa1zAl6Ii5JfBuU2377TwrOuwMuCMJ_HnSBA"
+              "signature": "F4y3DzxCKF4W6P6zKRmHSLMr_pCibcx0fvtG14jDrFahjV9KXIbkQ5FG4Fxkloc_DdTqYYWAGaw8OJaGQtM-DQ"
+            }
+          ]
+        },
+        {
+          "body": "{\"createdAt\":\"2026-11-07T12:05:00.000Z\",\"member\":{\"boxKey\":\"-zO3v2TF7qSOP4oEuQgt6K6siIYsuQHCfq5Fqf9l7Bk\",\"id\":\"8e6d2a40-1b3c-4f5e-9a7d-0c2e4b6f8a1d\",\"name\":\"Teléfono\\u0000\\u0001\\u001f\\b\\f\\n\\r\\t\",\"platform\":\"android\",\"signingKey\":\"QvP400xLj-mgfsGkMiYppm-DIQbriHE49AmgUHiGhbA\"},\"op\":\"add\",\"prev\":\"0550ac1cc6f96cd13c3c36c99da1ae60ad0dc3c8f1aac4c5268ff91f5d18bd1f\",\"seq\":7,\"v\":1,\"vaultId\":\"0193a5f2-7c1e-7b3a-9d4e-2f6a8b1c3d5e\"}",
+          "signatures": [
+            {
+              "signer": "3f2b8c1e-5d47-4a90-b6e2-7c19d0a4f851",
+              "signature": "ozTikIIxmynms1B65XgeoZQ-Zm6r1MItZepB0_QfLhCqRshWM0v6ChJLq_Ds1-qW4Yx3VOIuyjSnTB6a_HKWBQ"
             }
           ]
         }

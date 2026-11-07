@@ -146,6 +146,7 @@ describe('vectors.json', () => {
       'remove',
       'generation',
       'recovery',
+      'generation',
     ]);
     expect(new Set(vectors.items.map((i: { item: KeychainItem }) => i.item.type))).toEqual(
       new Set(['login', 'passkey', 'totp', 'note', 'wifi']),
