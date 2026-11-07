@@ -4,7 +4,8 @@
  * Mounted at `/identity/backup`:
  *  - `POST   /identity/backup`            (bearer) upsert the encrypted backup
  *  - `GET    /identity/backup/status`     (bearer) does the caller have a backup?
- *  - `DELETE /identity/backup`            (bearer) delete the caller's backup
+ *  - `DELETE /identity/backup`            (bearer) delete the caller's backup,
+ *                                          recording that the person deleted it
  *  - `GET    /identity/backup/:lookupId`  (PUBLIC) fetch the envelope by locator
  *
  * Zero-knowledge: the server persists ONLY ciphertext + `sha256(lookupId)`. It
@@ -22,10 +23,17 @@
  * only off-device copy of the person's retired keys, so a third-party
  * application's session or an application token (ADR 0058) may neither replace
  * nor delete it (`requireFirstPartyDeviceAccess`, as `/identity/key-history`).
+ *
+ * A backup the PERSON deleted stays deleted (owner's decision, 2026-11-07):
+ * `DELETE` records the choice on the account (`identity_backup_opt_outs`), so
+ * every device reads it in `/status` (`optedOut: true`), and `POST` refuses an
+ * upload that is not the person's explicit choice to create one again
+ * (`optIn`; 409 `IDENTITY_BACKUP_OPTED_OUT`). A key rotation therefore never
+ * re-uploads silently, whichever Commons makes it.
  */
 import { Router, type Request, type Response } from 'express';
 import crypto from 'node:crypto';
-import { and, eq, gt, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
 import { isValidSecp256k1PublicKey, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
@@ -49,8 +57,9 @@ import {
   type BackupStatusResponse,
   type EncryptedBackupEnvelope,
 } from '@oxy.so/contracts';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { identityBackups } from '../db/schema/identityBackups';
+import { identityBackupOptOuts } from '../db/schema/identityBackupOptOuts';
 import { users } from '../db/schema/users';
 import { isUniqueViolation } from '@oxy.so/db';
 
@@ -151,6 +160,18 @@ const backupDeleteLimiter = rateLimit({
   },
 });
 
+/**
+ * Serialise the account's backup writes: an upload reads whether the person
+ * deleted their backup and then writes, and a deletion writes both rows, so an
+ * upload racing a deletion could otherwise store a backup beside the record
+ * that the person deleted it. Taken first in each writer's transaction.
+ */
+async function lockBackupChoice(tx: DatabaseOrTransaction, userId: string): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`oxy:identity-backup:${userId}`}, 0))`,
+  );
+}
+
 /** The shortest `publicKeyHint` the root check accepts (clients send 16 hex characters). */
 const MIN_PUBLIC_KEY_HINT_LENGTH = 16;
 
@@ -210,6 +231,12 @@ async function assertSealedUnderCurrentRoot(userId: string, publicKeyHint: strin
  * the stored hash), which only a client that opened it (or carried its keys at
  * the rotation) holds. Otherwise 409 `IDENTITY_BACKUP_SUPERSEDED`, with the
  * stored backup kept. Part of the same upsert statement.
+ *
+ * Never over the person's deletion without their choice (owner's decision,
+ * 2026-11-07): when the person deleted their backup (`identity_backup_opt_outs`),
+ * an upload without `optIn: true` is refused, 409 `IDENTITY_BACKUP_OPTED_OUT`,
+ * storing nothing; one with it is stored and the deletion record removed, in
+ * one transaction under the account's backup lock.
  */
 router.post(
   '/',
@@ -239,29 +266,49 @@ router.post(
     };
 
     try {
-      const [row] = await getDb()
-        .insert(identityBackups)
-        .values({ userId, ...stored })
-        .onConflictDoUpdate({
-          target: identityBackups.userId,
-          set: stored,
-          setWhere: and(
-            or(
-              lte(identityBackups.version, body.version),
-              gt(identityBackups.version, IDENTITY_BACKUP_MAX_VERSION),
+      const row = await getDb().transaction(async (tx) => {
+        await lockBackupChoice(tx, userId);
+        const [optedOut] = await tx
+          .select({ id: identityBackupOptOuts.id })
+          .from(identityBackupOptOuts)
+          .where(eq(identityBackupOptOuts.userId, userId))
+          .limit(1);
+        if (optedOut && body.optIn !== true) {
+          throw new ApiError(
+            409,
+            'You deleted your encrypted backup. Create one again from Backup & recovery if you want one.',
+            IDENTITY_ERROR_CODES.backupOptedOut,
+          );
+        }
+        const [written] = await tx
+          .insert(identityBackups)
+          .values({ userId, ...stored })
+          .onConflictDoUpdate({
+            target: identityBackups.userId,
+            set: stored,
+            setWhere: and(
+              or(
+                lte(identityBackups.version, body.version),
+                gt(identityBackups.version, IDENTITY_BACKUP_MAX_VERSION),
+              ),
+              body.replacesLookupId === undefined
+                ? isNull(identityBackups.supersededAt)
+                : or(
+                    isNull(identityBackups.supersededAt),
+                    eq(identityBackups.lookupIdHash, lookupIdHashOf(body.replacesLookupId)),
+                  ),
             ),
-            body.replacesLookupId === undefined
-              ? isNull(identityBackups.supersededAt)
-              : or(
-                  isNull(identityBackups.supersededAt),
-                  eq(identityBackups.lookupIdHash, lookupIdHashOf(body.replacesLookupId)),
-                ),
-          ),
-        })
-        .returning({
-          publicKeyHint: identityBackups.publicKeyHint,
-          clientCreatedAt: identityBackups.clientCreatedAt,
-        });
+          })
+          .returning({
+            publicKeyHint: identityBackups.publicKeyHint,
+            clientCreatedAt: identityBackups.clientCreatedAt,
+          });
+        // The person's explicit choice to have a backup again ends the deletion.
+        if (written && optedOut) {
+          await tx.delete(identityBackupOptOuts).where(eq(identityBackupOptOuts.userId, userId));
+        }
+        return written;
+      });
       if (!row) {
         // The caller's row exists and the guard kept it: superseded without
         // its acknowledgement, or a NEWER envelope version.
@@ -333,8 +380,22 @@ router.get(
     // A superseded backup (R6-8) holds a retired root: the account's CURRENT
     // key has no backup, so the client is asked to create one, acknowledging
     // the superseded one (R7-2).
+    // No backup: whether the PERSON deleted it (owner's decision, 2026-11-07),
+    // so no device re-uploads one without their choice.
+    const optedOut =
+      !row &&
+      (
+        await getDb()
+          .select({ id: identityBackupOptOuts.id })
+          .from(identityBackupOptOuts)
+          .where(eq(identityBackupOptOuts.userId, userId))
+          .limit(1)
+      ).length > 0;
+
     const payload: BackupStatusResponse = !row
-      ? { exists: false }
+      ? optedOut
+        ? { exists: false, optedOut: true }
+        : { exists: false }
       : row.supersededAt
         ? {
             exists: false,
@@ -350,6 +411,12 @@ router.get(
 /**
  * DELETE /identity/backup — remove the caller's backup. Idempotent (deleting a
  * non-existent backup still returns success). First-party only (R7-1).
+ *
+ * The person's deletion is recorded on the account in the same transaction
+ * (owner's decision, 2026-11-07): `/status` answers `optedOut: true` on every
+ * device, and no upload replaces it without the person's `optIn`. A superseded
+ * backup is deleted the same way: its retired keys are then recoverable only
+ * with their own recovery phrases.
  */
 router.delete(
   '/',
@@ -362,7 +429,14 @@ router.delete(
       throw new UnauthorizedError('Authentication required');
     }
 
-    await getDb().delete(identityBackups).where(eq(identityBackups.userId, userId));
+    await getDb().transaction(async (tx) => {
+      await lockBackupChoice(tx, userId);
+      await tx.delete(identityBackups).where(eq(identityBackups.userId, userId));
+      await tx
+        .insert(identityBackupOptOuts)
+        .values({ userId })
+        .onConflictDoNothing({ target: identityBackupOptOuts.userId });
+    });
     res.status(200).json({ success: true });
   }),
 );

@@ -1,5 +1,15 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.18.0
+
+A backup the person deleted stays deleted (owner's decision, 2026-11-07).
+
+### Added
+
+- `backupStatusResponseSchema.optedOut` (optional boolean): the person deleted their encrypted backup and has not created one since; `exists` is `false`. Told apart from "never had one" (absent) and from `superseded`.
+- `backupUploadRequestSchema.optIn` (optional boolean): the person's explicit choice to have a backup. Over a deletion, an upload without it is refused.
+- `IDENTITY_ERROR_CODES.backupOptedOut` (`IDENTITY_BACKUP_OPTED_OUT`, also in the `client` entry).
+
 ## 6.17.0
 
 Round-7 security review (R7-2).

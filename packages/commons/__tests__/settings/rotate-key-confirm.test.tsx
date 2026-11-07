@@ -86,12 +86,117 @@ describe.each(['device', 'phrase'] as const)('rotating with proof %s', (proof) =
     expect(rotateKey).not.toHaveBeenCalled();
 
     fireEvent.click(getByTestId('rotate-key-funds-ack'));
-    expect((getByTestId('rotate-key-commit') as HTMLButtonElement).disabled).toBe(false);
+    await waitFor(() =>
+      expect((getByTestId('rotate-key-commit') as HTMLButtonElement).disabled).toBe(false),
+    );
     fireEvent.click(getByTestId('rotate-key-commit'));
 
     await waitFor(() => expect(rotateKey).toHaveBeenCalledTimes(1));
     expect(rotateKey).toHaveBeenCalledWith(
       expect.objectContaining({ proof, pendingIdentity: PENDING }),
+    );
+  });
+});
+
+describe("a person who DELETED their encrypted backup (owner's decision, 2026-11-07)", () => {
+  const backupStatus = jest.fn();
+
+  beforeEach(() => {
+    mockFlow.proof = 'device';
+    backupStatus.mockResolvedValue({ exists: false, optedOut: true });
+    __setOxyState({ oxyServices: { rotateKey, backupStatus } });
+  });
+
+  it('is told before the swap that there is no backup and only the phrase recovers the previous key', async () => {
+    const { findByTestId, getByTestId, container } = renderScreen();
+    await findByTestId('rotate-key-no-backup');
+    expect(container.textContent).toContain('You have no encrypted backup');
+    expect(container.textContent).toContain(
+      'can be recovered only with its recovery phrase (your current one), so keep it',
+    );
+    // The opt-in choice, unticked.
+    expect(getByTestId('rotate-key-create-backup')).toBeTruthy();
+  });
+
+  it('rotates without a backup unless they choose one', async () => {
+    const { findByTestId, getByTestId } = renderScreen();
+    await findByTestId('rotate-key-create-backup');
+    fireEvent.click(getByTestId('rotate-key-funds-ack'));
+    await waitFor(() =>
+      expect((getByTestId('rotate-key-commit') as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(getByTestId('rotate-key-commit'));
+    await waitFor(() => expect(rotateKey).toHaveBeenCalledTimes(1));
+    expect(rotateKey).toHaveBeenCalledWith(expect.objectContaining({ createBackup: false }));
+  });
+
+  it('their explicit choice is passed to the rotation', async () => {
+    const { findByTestId, getByTestId } = renderScreen();
+    fireEvent.click(await findByTestId('rotate-key-create-backup'));
+    fireEvent.click(getByTestId('rotate-key-funds-ack'));
+    await waitFor(() =>
+      expect((getByTestId('rotate-key-commit') as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(getByTestId('rotate-key-commit'));
+    await waitFor(() => expect(rotateKey).toHaveBeenCalledTimes(1));
+    expect(rotateKey).toHaveBeenCalledWith(expect.objectContaining({ createBackup: true }));
+  });
+
+  it('after the rotation, says again that the previous key is on this phone only', async () => {
+    rotateKey.mockResolvedValueOnce({ localPersistFailed: false, backupOptedOut: true } as never);
+    const { findByTestId, getByTestId, container } = renderScreen();
+    await findByTestId('rotate-key-no-backup');
+    fireEvent.click(getByTestId('rotate-key-funds-ack'));
+    await waitFor(() =>
+      expect((getByTestId('rotate-key-commit') as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(getByTestId('rotate-key-commit'));
+    await waitFor(() =>
+      expect(container.textContent).toContain('Your previous key is on this phone only'),
+    );
+  });
+
+  it('a person with none on record is shown the choice, ticked, and can decline it', async () => {
+    backupStatus.mockResolvedValue({ exists: false });
+    const { findByTestId, getByTestId, container } = renderScreen();
+    await findByTestId('rotate-key-no-backup');
+    expect(container.textContent).toContain('unless you untick it below');
+    fireEvent.click(getByTestId('rotate-key-funds-ack'));
+    await waitFor(() =>
+      expect((getByTestId('rotate-key-commit') as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(getByTestId('rotate-key-commit'));
+    await waitFor(() => expect(rotateKey).toHaveBeenCalledTimes(1));
+    expect(rotateKey).toHaveBeenLastCalledWith(expect.objectContaining({ createBackup: true }));
+  });
+
+  it('declining it (unticking) is passed to the rotation', async () => {
+    backupStatus.mockResolvedValue({ exists: false });
+    const { findByTestId, getByTestId } = renderScreen();
+    fireEvent.click(await findByTestId('rotate-key-create-backup'));
+    fireEvent.click(getByTestId('rotate-key-funds-ack'));
+    await waitFor(() =>
+      expect((getByTestId('rotate-key-commit') as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(getByTestId('rotate-key-commit'));
+    await waitFor(() => expect(rotateKey).toHaveBeenCalledTimes(1));
+    expect(rotateKey).toHaveBeenLastCalledWith(expect.objectContaining({ createBackup: false }));
+  });
+
+  it('a person who has a backup sees neither the notice nor the choice', async () => {
+    backupStatus.mockResolvedValue({ exists: true });
+    const { queryByTestId, getByTestId } = renderScreen();
+    await waitFor(() => expect(backupStatus).toHaveBeenCalled());
+    expect(queryByTestId('rotate-key-no-backup')).toBeNull();
+    expect(queryByTestId('rotate-key-create-backup')).toBeNull();
+    fireEvent.click(getByTestId('rotate-key-funds-ack'));
+    await waitFor(() =>
+      expect((getByTestId('rotate-key-commit') as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(getByTestId('rotate-key-commit'));
+    await waitFor(() => expect(rotateKey).toHaveBeenCalledTimes(1));
+    expect(rotateKey).toHaveBeenCalledWith(
+      expect.not.objectContaining({ createBackup: expect.anything() }),
     );
   });
 });
@@ -110,6 +215,22 @@ describe('rotation copy', () => {
     const es = load('es.json');
     expect(es.rotateKey.warning).not.toMatch(/dejan de funcionar/i);
     expect(es.rotateKey.warning).toMatch(/Peable/);
+  });
+
+  it('says, in every locale, that without a backup only the phrase recovers a previous key', () => {
+    for (const file of ['en.json', 'es.json']) {
+      const { confirm } = load(file).rotateKey;
+      for (const key of [
+        'noBackupTitle',
+        'noBackupBody',
+        'noBackupOnRecordBody',
+        'createBackup',
+        'successNoBackup',
+      ]) {
+        expect(confirm[key]).toBeTruthy();
+      }
+      expect(confirm.noBackupBody).toMatch(/FairCoin/);
+    }
   });
 
   it('says what is stranded and what to keep in every locale', () => {

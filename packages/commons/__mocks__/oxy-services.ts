@@ -54,6 +54,7 @@ const NAMESPACED: Record<string, string> = {
   notifyNodeIngest: 'nodes.notifyIngest',
   deleteAccount: 'users.deleteMe',
   rotateKey: 'identity.rotateKey',
+  backupStatus: 'identity.backup.status',
 };
 
 /** A flat record of doubles, keyed by the names in {@link NAMESPACED}. */

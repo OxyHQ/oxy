@@ -356,4 +356,18 @@ describe('the owed backup is one entry per account (R7-10)', () => {
     await expect(KeyManager.backupOwedEntry(OTHER)).resolves.toEqual({});
     await expect(KeyManager.backupOwedFor()).resolves.toBe(OTHER);
   });
+  it("keeps the person's opt-in with the entry until it is cleared (2026-11-07)", async () => {
+    await KeyManager.markBackupOwed(ME, { optIn: true });
+    await expect(KeyManager.backupOwedEntry(ME)).resolves.toEqual({ optIn: true });
+    // A later mark (a locator, no choice) keeps the choice.
+    await KeyManager.markBackupOwed(ME, { supersededLookupId: ACK });
+    await expect(KeyManager.backupOwedEntry(ME)).resolves.toEqual({
+      supersededLookupId: ACK,
+      optIn: true,
+    });
+    await KeyManager.clearBackupOwed(ME);
+    await expect(KeyManager.backupOwedEntry(ME)).resolves.toBeNull();
+    await KeyManager.markBackupOwed(ME, { optIn: false });
+    await expect(KeyManager.backupOwedEntry(ME)).resolves.toEqual({});
+  });
 });

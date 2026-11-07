@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
 import { toast } from '@oxy.so/bloom/toast';
@@ -43,6 +43,11 @@ import { readPastedPhrase, WRONG_WORD_COUNT_KEY } from '@/lib/recovery-phrase/pa
  * A previous identity imported as a raw PRIVATE KEY has no phrase: it is added
  * from that key the same way (R4-4). Once added, the encrypted backup (when
  * the person has one) is sealed again so it carries the key too.
+ *
+ * Without a backup of the current key (never made, or deleted by the person:
+ * owner's decision, 2026-11-07, nothing re-uploads one without their choice),
+ * the screen says so: off this phone, a previous key is recoverable only with
+ * its own recovery phrase.
  */
 export default function PreviousKeysScreen() {
   const router = useRouter();
@@ -58,6 +63,23 @@ export default function PreviousKeysScreen() {
   const [working, setWorking] = useState(false);
 
   const ownerAccountId = oxyServices?.session.userId ?? null;
+
+  const backupStatus = useQuery({
+    queryKey: ['identity', 'backup-status'],
+    queryFn: async () => {
+      if (!oxyServices) return null;
+      return oxyServices.identity.backup.status();
+    },
+    enabled: Boolean(oxyServices),
+    staleTime: 0,
+    retry: false,
+  });
+  // Known to have no backup of the current key (a rotation's superseded one
+  // still holds the previous keys, behind their phrase).
+  const noBackup =
+    backupStatus.data != null &&
+    backupStatus.data.exists !== true &&
+    backupStatus.data.superseded !== true;
 
   const refresh = useCallback(async () => {
     if (!ownerAccountId) return;
@@ -172,6 +194,20 @@ export default function PreviousKeysScreen() {
       />
 
       <Admonition type="info">{t('previousKeys.explainer')}</Admonition>
+
+      {noBackup ? (
+        <View testID="previous-keys-no-backup">
+          <ImportantBanner
+            title={
+              backupStatus.data?.optedOut === true
+                ? t('backup.optedOutTitle')
+                : t('previousKeys.noBackupTitle')
+            }
+          >
+            {t('previousKeys.noBackup')}
+          </ImportantBanner>
+        </View>
+      ) : null}
 
       {held && held.length > 0 ? (
         <SettingsListGroup title={t('previousKeys.heldTitle')}>

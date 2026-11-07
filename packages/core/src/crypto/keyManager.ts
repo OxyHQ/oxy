@@ -245,6 +245,14 @@ const BACKUP_OWED_KEY = 'oxy_identity_backup_owed_v1';
  */
 export interface BackupOwedEntry {
   supersededLookupId?: string;
+  /**
+   * The person CHOSE a backup (the rotation's "Create a backup" after they had
+   * deleted theirs; owner's decision, 2026-11-07): the next seal sends
+   * `optIn`, and the entry stays owed even while the server still records the
+   * deletion. Without it, an entry for a person who deleted their backup is
+   * not owed.
+   */
+  optIn?: true;
 }
 
 /**
@@ -1491,11 +1499,14 @@ export class KeyManager {
       if (typeof owed !== 'object' || owed === null) return {};
       const out: Record<string, BackupOwedEntry> = {};
       for (const [userId, value] of Object.entries(owed as Record<string, unknown>)) {
-        const lookupId = (value as { supersededLookupId?: unknown } | null)?.supersededLookupId;
-        out[userId] =
-          typeof lookupId === 'string' && /^[0-9a-f]{64}$/.test(lookupId)
+        const entry = value as { supersededLookupId?: unknown; optIn?: unknown } | null;
+        const lookupId = entry?.supersededLookupId;
+        out[userId] = {
+          ...(typeof lookupId === 'string' && /^[0-9a-f]{64}$/.test(lookupId)
             ? { supersededLookupId: lookupId }
-            : {};
+            : {}),
+          ...(entry?.optIn === true ? { optIn: true as const } : {}),
+        };
       }
       return out;
     } catch {
@@ -1516,20 +1527,25 @@ export class KeyManager {
    * rotation's server swap, which supersedes or deletes the old backup.
    * `supersededLookupId` is the previous backup's locator, kept so the next
    * seal may replace the superseded backup once its keys are in the ring
-   * (R7-2); an entry that already holds one keeps it when none is given. Other
+   * (R7-2); an entry that already holds one keeps it when none is given.
+   * `optIn` records the person's explicit choice of a backup after they had
+   * deleted theirs (kept once set, until the entry is cleared). Other
    * accounts' entries are untouched (R7-10). Best-effort where there is no app
    * storage (web).
    */
   static async markBackupOwed(
     userId: string,
-    options?: { supersededLookupId?: string },
+    options?: { supersededLookupId?: string; optIn?: boolean },
   ): Promise<void> {
     const owed = await KeyManager._readBackupOwed();
     const lookupId = options?.supersededLookupId?.toLowerCase();
-    owed[userId] =
-      lookupId && /^[0-9a-f]{64}$/.test(lookupId)
-        ? { supersededLookupId: lookupId }
-        : (owed[userId] ?? {});
+    const before = owed[userId] ?? {};
+    const supersededLookupId =
+      lookupId && /^[0-9a-f]{64}$/.test(lookupId) ? lookupId : before.supersededLookupId;
+    owed[userId] = {
+      ...(supersededLookupId ? { supersededLookupId } : {}),
+      ...(options?.optIn === true || before.optIn ? { optIn: true as const } : {}),
+    };
     await KeyManager._writeBackupOwed(owed);
   }
 

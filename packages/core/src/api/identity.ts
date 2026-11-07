@@ -114,6 +114,19 @@ export interface RotateKeyOptions {
    * its phrase is returned in the result.
    */
   pendingIdentity?: PendingIdentityResult;
+  /**
+   * The person's choice, in the rotation flow, about an encrypted backup when
+   * they have none of the current key (owner's decision, 2026-11-07):
+   *  - they DELETED theirs (`backup.status().optedOut`): only `true` creates
+   *    one (sent as their `optIn`); absent or `false`, nothing is uploaded and
+   *    nothing is owed;
+   *  - they have none on record (never made, or deleted before deletions were
+   *    recorded): `false` declines it the same way; absent or `true`, one is
+   *    created as before (R4-4). Show them the choice before the swap.
+   * Ignored when they have a backup (current or superseded): it is re-sealed
+   * so it keeps every key (points 5 and 8 of ADR 0061 D7).
+   */
+  createBackup?: boolean;
 }
 
 /** Result of a successful key rotation. */
@@ -141,9 +154,18 @@ export interface RotateKeyResult {
    * the rotation's transaction; `false` (the upload failed) means the caller
    * should offer "Create backup" again — `oxy.identity.backup.isOwed()` stays
    * `true` until one is sealed — or the replaced key lives only on this phone.
-   * Absent on web when the account had no backup.
+   * Absent on web when the account had no backup, and when the person had
+   * deleted theirs and did not choose one (`backupOptedOut`).
    */
   backupRefreshed?: boolean;
+  /**
+   * `true` when the person has no encrypted backup by their own choice (they
+   * deleted it, or declined one in this rotation; owner's decision,
+   * 2026-11-07): nothing was uploaded and no backup is owed. The replaced key
+   * is kept on this phone for spending; off this phone it is recoverable only
+   * with its own recovery phrase, which the person must keep.
+   */
+  backupOptedOut?: true;
 }
 
 /**
@@ -404,7 +426,23 @@ export class IdentityApi {
       async () =>
         proofPhrase ?? (isWeb() ? null : await KeyManager.getRecoveryMnemonicForCurrentIdentity()),
     );
-    const resealBackup = !isWeb() || previousBackup.existed;
+    // The person DELETED their backup (owner's decision, 2026-11-07): never
+    // re-upload one silently. Only their explicit choice in this flow
+    // (`createBackup`) seals one, and sends their opt-in with it. Otherwise
+    // nothing is uploaded and nothing is owed: the replaced key stays on this
+    // phone (2b) and, off it, only its own phrase recovers it.
+    // A person with no backup on record (never made, or deleted before
+    // deletions were recorded) is shown the same choice; declining it is
+    // respected the same way.
+    const optedOut = previousBackup.optedOut === true;
+    const optIn = optedOut && options.createBackup === true;
+    const declined =
+      !optedOut &&
+      !previousBackup.existed &&
+      previousBackup.superseded !== true &&
+      options.createBackup === false;
+    const noBackupByChoice = (optedOut && !optIn) || declined;
+    const resealBackup = noBackupByChoice ? false : optIn || !isWeb() || previousBackup.existed;
 
     // 2d. The keys that backup carries go into this device's ring NOW, before
     //     the server swap supersedes it (security review R7-2): the new
@@ -485,11 +523,15 @@ export class IdentityApi {
     //     attempt is snapshotted, and put back when the server refuses (R7-10).
     const owedBefore = isWeb() ? null : await KeyManager.backupOwedEntry(userId);
     if (resealBackup && !isWeb()) {
+      const owedWith = {
+        ...(previousBackup.replacesLookupId
+          ? { supersededLookupId: previousBackup.replacesLookupId }
+          : {}),
+        ...(optIn ? { optIn: true } : {}),
+      };
       await KeyManager.markBackupOwed(
         userId,
-        previousBackup.replacesLookupId
-          ? { supersededLookupId: previousBackup.replacesLookupId }
-          : undefined,
+        Object.keys(owedWith).length > 0 ? owedWith : undefined,
       );
     }
 
@@ -654,6 +696,7 @@ export class IdentityApi {
       try {
         await this.backup.seal(pending.phrase, previousBackup.carried, {
           replacesLookupId: previousBackup.replacesLookupId,
+          ...(optIn ? { optIn: true } : {}),
         });
         backupRefreshed = true;
       } catch (backupError) {
@@ -674,6 +717,7 @@ export class IdentityApi {
       words: pending.words,
       ...(localPersistFailed ? { localPersistFailed: true as const } : {}),
       ...(backupRefreshed === undefined ? {} : { backupRefreshed }),
+      ...(noBackupByChoice ? { backupOptedOut: true as const } : {}),
     };
   }
 
@@ -991,6 +1035,26 @@ export class IdentityDomainsApi {
 
 // ── Encrypted backup ───────────────────────────────────────────────────────
 
+/** The server's code for an upload over the person's deletion without their opt-in. */
+const IDENTITY_BACKUP_OPTED_OUT_CODE = IDENTITY_ERROR_CODES.backupOptedOut;
+
+/**
+ * `backup.create` (or a rotation's re-seal) was refused because the person
+ * DELETED their encrypted backup and this upload is not their explicit choice
+ * to create one again (owner's decision, 2026-11-07). Nothing was stored.
+ * Create it from a control the person pressed, with `{ optIn: true }`.
+ */
+export class IdentityBackupOptedOutError extends Error {
+  readonly code = IDENTITY_BACKUP_OPTED_OUT_CODE;
+
+  constructor() {
+    super(
+      'You deleted your encrypted backup, so a new one was not created. Create one in Backup & recovery if you want one.',
+    );
+    this.name = 'IdentityBackupOptedOutError';
+  }
+}
+
 /** The server's code for an unacknowledged upload over a superseded backup (R7-2). */
 const IDENTITY_BACKUP_SUPERSEDED_CODE = IDENTITY_ERROR_CODES.backupSuperseded;
 
@@ -1153,14 +1217,21 @@ export class IdentityBackupApi {
    *   when this device's ring cannot be read, or when a key the previous
    *   backup carried would be missing from the new one — nothing is uploaded.
    *   {@link IdentityBackupSupersededError} when a superseded backup was not
-   *   acknowledged.
+   *   acknowledged. {@link IdentityBackupOptedOutError} when the person
+   *   deleted their backup and `optIn` was not given.
+   *
+   * `optIn`: the person pressed "Create backup" (owner's decision,
+   * 2026-11-07). A person who DELETED their backup gets a new one only with
+   * it; pass it only from a control the person pressed, never from an
+   * automatic re-seal.
    */
   async create(
     phrase: string,
-    options?: { previousPhrase?: string },
+    options?: { previousPhrase?: string; optIn?: boolean },
   ): Promise<BackupStatusResponse> {
     const previousPhrase = options?.previousPhrase?.trim();
-    if (!previousPhrase) return this.seal(phrase, []);
+    const optIn = options?.optIn === true ? { optIn: true } : {};
+    if (!previousPhrase) return this.seal(phrase, [], optIn);
     const { RecoveryPhraseService } = await import('../crypto/index');
     const ownerAccountId = this.ctx.oxy.session.userId;
     this.assertRestoreOwner(ownerAccountId);
@@ -1185,19 +1256,20 @@ export class IdentityBackupApi {
       null,
     );
     const { lookupId } = await RecoveryPhraseService.deriveBackupMaterial(previousPhrase);
-    return this.seal(phrase, carried, { replacesLookupId: lookupId });
+    return this.seal(phrase, carried, { replacesLookupId: lookupId, ...optIn });
   }
 
   /**
    * {@link create}, also carrying `carried` (a rotation's previous backup,
    * sealed under the replaced phrase, which the server supersedes), and
    * acknowledging a superseded backup with `replacesLookupId` (else the owed
-   * entry's, R7-2). @internal
+   * entry's, R7-2), and sending the person's `optIn` (else the owed entry's)
+   * over a backup they deleted. @internal
    */
   async seal(
     phrase: string,
     carried: readonly BackupRetiredKey[],
-    options?: { replacesLookupId?: string },
+    options?: { replacesLookupId?: string; optIn?: boolean },
   ): Promise<BackupStatusResponse> {
     const { KeyManager, RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO, encryptAead } =
       await import('../crypto/index');
@@ -1251,6 +1323,9 @@ export class IdentityBackupApi {
     // one this device kept when it carried that backup's keys into the ring.
     const owed = isWeb() ? null : await KeyManager.backupOwedEntry(userId);
     const replacesLookupId = options?.replacesLookupId ?? owed?.supersededLookupId;
+    // The person's choice to have a backup again (2026-11-07): this call's,
+    // else the one the rotation flow recorded in the owed entry.
+    const optIn = options?.optIn === true || owed?.optIn === true;
     const body: BackupUploadRequest = {
       version: BACKUP_ENVELOPE_VERSION,
       algorithm: BACKUP_ALGORITHM,
@@ -1261,6 +1336,7 @@ export class IdentityBackupApi {
       createdAt,
       lookupId,
       ...(replacesLookupId ? { replacesLookupId } : {}),
+      ...(optIn ? { optIn: true } : {}),
     };
 
     let status: BackupStatusResponse;
@@ -1274,6 +1350,15 @@ export class IdentityBackupApi {
         (error as { code?: unknown } | null)?.code === IDENTITY_BACKUP_SUPERSEDED_CODE
       ) {
         throw new IdentityBackupSupersededError();
+      }
+      if (
+        extractErrorStatus(error) === 409 &&
+        (error as { code?: unknown } | null)?.code === IDENTITY_BACKUP_OPTED_OUT_CODE
+      ) {
+        // The person deleted their backup (from any device) and did not
+        // choose one: nothing is owed any more, so nothing nags them.
+        if (owed !== null && !optIn) await KeyManager.clearBackupOwed(userId);
+        throw new IdentityBackupOptedOutError();
       }
       throw error;
     }
@@ -1351,13 +1436,31 @@ export class IdentityBackupApi {
    * sealed yet (an upload that failed, a crash or a closed app after the
    * swap). Commons asks the person to create it until this is `false`. Always
    * `false` on web. Never throws.
+   *
+   * Never for a person who DELETED their backup (owner's decision,
+   * 2026-11-07), on any device: an entry this device holds is checked against
+   * the account's `status().optedOut`, and dropped when the person deleted it
+   * and did not choose one here since (`optIn`). When the status cannot be
+   * read, the entry stands.
    */
   async isOwed(): Promise<boolean> {
     if (isWeb()) return false;
     const userId = this.ctx.oxy.session.userId;
     if (!userId) return false;
     const { KeyManager } = await import('../crypto/index');
-    return (await KeyManager.backupOwedEntry(userId)) !== null;
+    const entry = await KeyManager.backupOwedEntry(userId);
+    if (entry === null) return false;
+    if (entry.optIn) return true;
+    try {
+      const status = await this.status();
+      if (status.optedOut === true && this.ctx.oxy.session.userId === userId) {
+        await KeyManager.clearBackupOwed(userId);
+        return false;
+      }
+    } catch {
+      // Unknown now: still owed as far as this device can tell.
+    }
+    return true;
   }
 
   /**
@@ -1367,11 +1470,16 @@ export class IdentityBackupApi {
    * whether the account has a backup. THROWS (nothing has changed yet) when a
    * backup exists but cannot be read: no phrase on this device, or a failure
    * other than "no backup for this phrase". `currentPhrase` is asked only
-   * when a backup exists. @internal
+   * when a backup exists. `optedOut`: the person deleted their backup
+   * (owner's decision, 2026-11-07). @internal
    */
-  async readBeforeRotation(
-    currentPhrase: () => Promise<string | null>,
-  ): Promise<{ existed: boolean; carried: BackupRetiredKey[]; replacesLookupId?: string }> {
+  async readBeforeRotation(currentPhrase: () => Promise<string | null>): Promise<{
+    existed: boolean;
+    carried: BackupRetiredKey[];
+    replacesLookupId?: string;
+    optedOut?: boolean;
+    superseded?: boolean;
+  }> {
     let status: BackupStatusResponse;
     try {
       status = await this.status();
@@ -1381,17 +1489,26 @@ export class IdentityBackupApi {
       );
     }
     const existed = status.exists;
+    // The person deleted their backup: nothing to carry, and nothing is
+    // re-uploaded without their choice.
+    if (!existed && status.optedOut === true) return { existed, carried: [], optedOut: true };
     if (!existed) {
       // A backup an EARLIER rotation superseded (R7-2) stays superseded: its
       // keys are in this device's ring when this device made that rotation,
       // and the owed entry kept its acknowledgement for the next seal.
-      if (status.superseded !== true || isWeb()) return { existed, carried: [] };
+      if (status.superseded !== true) return { existed, carried: [] };
+      if (isWeb()) return { existed, carried: [], superseded: true };
       const userId = this.ctx.oxy.session.userId;
       const { KeyManager } = await import('../crypto/index');
       const owed = userId ? await KeyManager.backupOwedEntry(userId) : null;
       return owed?.supersededLookupId
-        ? { existed, carried: [], replacesLookupId: owed.supersededLookupId }
-        : { existed, carried: [] };
+        ? {
+            existed,
+            carried: [],
+            superseded: true,
+            replacesLookupId: owed.supersededLookupId,
+          }
+        : { existed, carried: [], superseded: true };
     }
     let phrase: string | null;
     try {
@@ -1659,11 +1776,28 @@ export class IdentityBackupApi {
     });
   }
 
-  /** Delete the signed-in user's stored backup. Idempotent. */
+  /**
+   * Delete the signed-in user's stored backup. Idempotent. The PERSON's act:
+   * Oxy records it on the account (`status().optedOut`), and from then on no
+   * device uploads a backup without their explicit `optIn` (owner's
+   * decision, 2026-11-07): a key rotation does not, and this device's owed
+   * backup (a rotation's re-seal that had not finished) is dropped. Keys a
+   * rotation retired are then recoverable off this phone only with their own
+   * recovery phrases.
+   */
   async delete(): Promise<{ success: boolean }> {
-    return this.ctx.request<{ success: boolean }>('DELETE', '/identity/backup', undefined, {
-      cache: false,
-    });
+    const userId = this.ctx.oxy.session.userId;
+    const result = await this.ctx.request<{ success: boolean }>(
+      'DELETE',
+      '/identity/backup',
+      undefined,
+      { cache: false },
+    );
+    if (!isWeb() && userId && result?.success === true) {
+      const { KeyManager } = await import('../crypto/index');
+      await KeyManager.clearBackupOwed(userId);
+    }
+    return result;
   }
 
   /**

@@ -1023,13 +1023,16 @@
     "delete": "Delete backup",
     "deleting": "Deleting…",
     "deleteConfirmTitle": "Delete encrypted backup?",
-    "deleteConfirmBody": "You'll no longer be able to recover this identity from Oxy using just your recovery phrase. You can create a new backup anytime.",
+    "deleteConfirmBody": "You'll no longer be able to recover this identity from Oxy using just your recovery phrase, and your previous keys will be recoverable only with their own recovery phrases. Commons won't create a backup again unless you do. You can create a new one anytime.",
     "deleteSuccess": "Encrypted backup deleted.",
     "deleteFailed": "We couldn't delete your backup. Please try again.",
     "biometricReason": "Verify it's you to create an encrypted backup",
     "biometricFailed": "Verify with your device biometrics or passcode to continue.",
     "identityUnavailable": "We couldn't read your identity from secure storage. Unlock your device and try again.",
-    "unavailableSubtitle": "Secure storage is temporarily unavailable"
+    "unavailableSubtitle": "Secure storage is temporarily unavailable",
+    "optedOutTitle": "You deleted your encrypted backup",
+    "optedOutBody": "Commons won't create one again unless you do it here, not even when you rotate your key.",
+    "noBackupPreviousKeys": "Without a backup, your previous keys are only on this phone. If you lose it, the FairCoin received under a previous key can be recovered only with that key's recovery phrase, so keep each one."
   },
   "restoreBackup": {
     "entry": "Restore from encrypted backup",
@@ -1136,7 +1139,13 @@
       "errorGeneric": "We couldn't complete the rotation. Your previous key is unchanged.",
       "biometricReason": "Verify it's you to rotate your identity key",
       "biometricFailed": "Verify with your device biometrics or passcode to rotate your key.",
-      "backupNotRefreshed": "Your key was rotated, but your encrypted backup couldn't be sealed under the new phrase. Create it in Backup, so your previous key is also kept off this phone."
+      "backupNotRefreshed": "Your key was rotated, but your encrypted backup couldn't be sealed under the new phrase. Create it in Backup, so your previous key is also kept off this phone.",
+      "noBackupTitle": "You have no encrypted backup",
+      "noBackupBody": "You deleted your encrypted backup, so this rotation won't create one. This phone keeps your current key as a previous key, for spending. If you lose this phone, the FairCoin received under that key can be recovered only with its recovery phrase (your current one), so keep it.",
+      "noBackupOnRecordBody": "You have no encrypted backup. This rotation creates one of your new key and your previous keys unless you untick it below. Without one, this phone keeps your current key as a previous key, for spending, and if you lose this phone the FairCoin received under that key can be recovered only with its recovery phrase (your current one), so keep it.",
+      "createBackup": "Create an encrypted backup",
+      "createBackupHint": "Optional. Oxy stores an encrypted copy of your new key and your previous keys that only your new recovery phrase can open.",
+      "successNoBackup": "Your previous key is on this phone only. If you lose it, the FairCoin received under that key can be recovered only with its recovery phrase. Keep that phrase."
     },
     "backBlockedTitle": "Save your new phrase first",
     "backBlockedMessage": "Write down your new recovery phrase before continuing. It's the only way to recover your rotated key."
@@ -2072,6 +2081,8 @@
     "invalidPrivateKey": "That isn't a valid private key. It is 64 hexadecimal characters.",
     "isCurrentKey": "That's your current key, not a previous one.",
     "notYoursKey": "That key isn't one of this account's previous keys.",
-    "backupNotUpdated": "The key was added, but your encrypted backup couldn't be updated. Create it again in Backup so it carries this key too."
+    "backupNotUpdated": "The key was added, but your encrypted backup couldn't be updated. Create it again in Backup so it carries this key too.",
+    "noBackupTitle": "You have no encrypted backup",
+    "noBackup": "Your previous keys are only on this phone. If you lose it, the FairCoin received under a previous key can be recovered only with that key's recovery phrase. Keep those phrases."
   }
 }

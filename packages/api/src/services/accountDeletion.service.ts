@@ -24,6 +24,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { identityBackups } from '../db/schema/identityBackups';
+import { identityBackupOptOuts } from '../db/schema/identityBackupOptOuts';
 import { users } from '../db/schema/users';
 import { ConflictError } from '../utils/error';
 import { logger } from '../utils/logger';
@@ -123,6 +124,8 @@ export async function deleteAccount(
   await emailService.deleteAllUserData(userId);
   // Any encrypted off-device identity backup.
   await getDb().delete(identityBackups).where(eq(identityBackups.userId, userId));
+  // And the record that the person had deleted it (an archived account keeps its row).
+  await getDb().delete(identityBackupOptOuts).where(eq(identityBackupOptOuts.userId, userId));
   // Every session and every device-session holding, so a deleted account
   // cannot keep minting tokens from a retained secret.
   await sessionService.deactivateAllUserSessions(userId);

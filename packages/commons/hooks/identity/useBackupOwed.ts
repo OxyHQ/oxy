@@ -10,7 +10,9 @@ import { useOxy } from '@oxy.so/services';
  * backup carried live only on this phone, so Commons keeps asking.
  *
  * `oxy.identity.backup.isOwed()` reads a flag core sets before the swap and
- * clears once `backup.create` succeeds. Invalidate
+ * clears once `backup.create` succeeds. Never for a person who deleted their
+ * backup and did not choose one again (owner's decision, 2026-11-07): core
+ * drops that entry against the account's status. Invalidate
  * {@link BACKUP_OWED_QUERY_KEY} after creating a backup or rotating.
  */
 export const BACKUP_OWED_QUERY_KEY = ['identity', 'backup-owed'] as const;

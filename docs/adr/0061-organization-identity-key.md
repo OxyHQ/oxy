@@ -3,7 +3,8 @@
 - Status: accepted; D7 amended 2026-11-06 twice: first, before any key existed, to keep Peable
   ADR 0002's "no second address tree" (Commons held only the current key); then, the same day,
   by the owner's decision ("Fix F5, F1 and D9", mainnet gate finding F1), to keep every replaced
-  key in a retired key ring for spending only — this text. D6's iOS clause changed by
+  key in a retired key ring for spending only — this text; then 2026-11-07 by the owner's
+  decision that a backup the person deleted stays deleted (D7 point 11). D6's iOS clause changed by
   [0062](0062-ios-keychain-access-group-split.md)
 - Date: 2026-11-06
 - Decision: the owner (2026-11-06): organization accounts get a Peable wallet.
@@ -238,7 +239,7 @@ the phone.**
    (also on a phrase import and, once per launch, when the ring is empty and
    the phone holds the current phrase). A rotation deletes the old backup in
    its transaction, so `rotateKey` seals a new one under the new phrase at
-   once. Losing the phone then costs the person no more than losing the
+   once — unless the person deleted their backup (point 11). Losing the phone then costs the person no more than losing the
    current phrase would. A key imported as a raw private key (no phrase) is
    added back from that key, checked against the history the same way.
 6. **"Start over" keeps the ring.** Deleting the identity from the device,
@@ -268,9 +269,39 @@ the phone.**
     the organization's key history; the current key then becomes the live pair
     again (ADR 0062 D4 as amended).
 
+**Amended 2026-11-07 (owner's decision): a backup the person deleted stays
+deleted.** The security review listed as a risk that rotating uploads a new
+encrypted backup, with the retired keys, even for a person who had deleted
+theirs. The owner rejected that behaviour:
+
+11. **Deleting is the person's choice, and nothing undoes it silently.**
+    `DELETE /identity/backup` records the deletion on the ACCOUNT
+    (`identity_backup_opt_outs`), so every device reads it:
+    `GET /identity/backup/status` answers `optedOut: true`, told apart from
+    "never had one" and from a rotation's `superseded`. `POST
+    /identity/backup` then stores nothing without the person's explicit
+    `optIn` (409 `IDENTITY_BACKUP_OPTED_OUT`), whichever client sends it; an
+    accepted opt-in removes the record in the same transaction. A rotation by
+    such a person uploads nothing and marks nothing owed (`backupOptedOut` in
+    the result), unless they tick "Create an encrypted backup" in the rotation
+    flow (`createBackup`, sent as `optIn`). Before the swap, Commons tells them
+    they have no backup, that the current key stays on this phone for
+    spending, and that if they lose the phone the coins under it are
+    recoverable only with its recovery phrase, so they must keep it; the owed
+    banner never asks them again, on any device. Backup & recovery and
+    Previous keys say the same whenever there is no backup. Deletions made
+    before 2026-11-07 left no record, so a person with no backup on record
+    (never made one, or deleted it then) is shown the same notice and the
+    same choice, ticked: the rotation creates one unless they untick it
+    (`createBackup: false`), and never without their seeing it. A rotation
+    by a person who has a backup (current or superseded) re-seals it as
+    before (points 5 and 8). The key is still kept in this device's ring
+    (point 1): the deletion removes only the off-device copy.
+
 Organization rings are not in the personal backup: an organization's key has
 its own phrase, and a phone that loses an organization's previous key needs that
-key's phrase (point 3), as before.
+key's phrase (point 3), as before. Replacing an organization's key uploads no
+backup, so point 11 needs nothing there.
 
 ### D8 — A keyless organization
 
