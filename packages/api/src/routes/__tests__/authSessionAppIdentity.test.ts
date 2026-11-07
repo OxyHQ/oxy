@@ -141,15 +141,41 @@ async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise
   return row.id;
 }
 
+/**
+ * An application. `first_party` unless the test says otherwise: a device
+ * sign-in is an official application's only, and a third party's is refused
+ * (pinned in its own test below).
+ */
 async function application(
   fields: Partial<typeof applications.$inferInsert> = {},
 ): Promise<typeof applications.$inferSelect> {
   const ownerAccountId = fields.ownerAccountId ?? (await account());
   const [row] = await getDb()
     .insert(applications)
-    .values({ name: `App ${randomUUID()}`, ...fields, ownerAccountId })
+    .values({ name: `App ${randomUUID()}`, type: 'first_party', ...fields, ownerAccountId })
     .returning();
   return row;
+}
+
+/**
+ * A pending device-sign-in row written straight to Postgres, for an application
+ * the route itself would refuse to start one for (a third party): what a row
+ * created before that refusal looks like, and what the status read must still
+ * describe.
+ */
+async function seededRequest(applicationId: string): Promise<string> {
+  const sessionToken = token();
+  await getDb()
+    .insert(authSessions)
+    .values({
+      sessionToken,
+      applicationId,
+      authorizeCode: randomUUID().replace(/-/g, ''),
+      status: 'pending',
+      purpose: 'device_sign_in',
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    });
+  return sessionToken;
 }
 
 /** An `oxy_dk_…` client id, unique per call. */
@@ -374,23 +400,33 @@ describe('POST /auth/session/create — browser origin gate', () => {
     expect(row.originVerified).toBe(false);
   });
 
-  it('leaves originVerified false for a third-party app even on a present Origin', async () => {
-    const app = await application({
-      type: 'third_party',
-      redirectUris: [`${registered}/callback`],
-    });
-    const sessionToken = token();
+  // A device sign-in ends in the shared device session (no application
+  // binding, a device restore secret at the claim), so a third party may not
+  // start one at all — from its own registered origin, a native caller, or by
+  // client id. It signs in with OAuth instead.
+  it.each([
+    ['from its own registered origin', { origin: registered }],
+    ['as a native caller', {}],
+  ] as const)(
+    'refuses a third-party device sign-in %s, writing nothing',
+    async (_label, headers) => {
+      const app = await application({
+        type: 'third_party',
+        redirectUris: [`${registered}/callback`],
+      });
+      const clientId = await credential(app.id);
+      const sessionToken = token();
 
-    const res = await request('POST', '/auth/session/create', {
-      body: { sessionToken, applicationId: app.id },
-      headers: { origin: registered },
-    });
+      const res = await request('POST', '/auth/session/create', {
+        body: { sessionToken, clientId },
+        headers,
+      });
 
-    expect(res.status).toBe(200);
-    const row = await storedSession(sessionToken);
-    expect(row.boundOrigin).toBe(registered);
-    expect(row.originVerified).toBe(false);
-  });
+      expect(res.status).toBe(403);
+      expect(res.body).toMatchObject({ error: 'third_party_device_sign_in_denied' });
+      expect(await storedSession(sessionToken)).toBeUndefined();
+    },
+  );
 
   it('lets a trusted app START the flow from a LOOPBACK origin, still unverified', async () => {
     const app = await application({
@@ -591,10 +627,7 @@ describe('GET /auth/session/status/:sessionToken — embedded application', () =
       scopes: ['files:read'],
       createdByUserId: owner,
     });
-    const sessionToken = token();
-    await request('POST', '/auth/session/create', {
-      body: { sessionToken, applicationId: app.id },
-    });
+    const sessionToken = await seededRequest(app.id);
 
     const res = await request('GET', `/auth/session/status/${sessionToken}`);
 
@@ -607,10 +640,7 @@ describe('GET /auth/session/status/:sessionToken — embedded application', () =
     const username = `handle${randomUUID().slice(0, 8)}`;
     const owner = await account({ username });
     const app = await application({ type: 'third_party', createdByUserId: owner });
-    const sessionToken = token();
-    await request('POST', '/auth/session/create', {
-      body: { sessionToken, applicationId: app.id },
-    });
+    const sessionToken = await seededRequest(app.id);
 
     const res = await request('GET', `/auth/session/status/${sessionToken}`);
 

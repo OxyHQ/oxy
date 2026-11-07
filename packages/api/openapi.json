@@ -18071,7 +18071,7 @@
             "description": "Missing/invalid application reference or token already in use."
           },
           "403": {
-            "description": "Application is not available (suspended/deleted/pending review)."
+            "description": "Application is not available (suspended/deleted/pending review), or a device sign-in (no `oauth` binding) was asked for by an application that is not an official Oxy app (`third_party_device_sign_in_denied`; third parties sign in with OAuth).\n"
           }
         },
         "operationId": "postAuthSessionCreate"

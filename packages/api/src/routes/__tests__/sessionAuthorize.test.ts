@@ -153,7 +153,9 @@ async function application(
   const ownerAccountId = fields.ownerAccountId ?? (await account());
   const [row] = await getDb()
     .insert(applications)
-    .values({ name: `App ${randomUUID()}`, ...fields, ownerAccountId })
+    // An official application unless the test says otherwise: a device
+    // sign-in is approved for nobody else.
+    .values({ name: `App ${randomUUID()}`, type: 'first_party', ...fields, ownerAccountId })
     .returning({ id: applications.id });
   return row.id;
 }
@@ -301,6 +303,29 @@ describe('POST /auth/session/authorize/:sessionToken — the bearer is the princ
     const createdDeviceId = mockCreateSession.mock.calls[0]?.[2]?.deviceId;
     expect(createdDeviceId).toEqual(expect.any(String));
     expect(createdDeviceId).not.toBe('dev-abc');
+  });
+
+  // The device sign-in mints the SHARED session (no application binding), so
+  // the registry is asked again at approval: a third party's request (one made
+  // before `/session/create` refused them) and an app demoted since its request
+  // mint nothing and stay pending.
+  it.each([
+    ['a third-party application', { type: 'third_party' as const }],
+    ['an official application suspended since', { status: 'suspended' as const }],
+  ])('refuses to approve a device sign-in for %s, minting nothing', async (_label, fields) => {
+    await signInAs({ _id: await account() });
+    const applicationId = await application(fields);
+    const sessionToken = await pendingRequest({ applicationId });
+
+    const res = await post(`/auth/session/authorize/${sessionToken}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'third_party_device_sign_in_denied' });
+    expect(mockCreateSession).not.toHaveBeenCalled();
+    const row = await stored(sessionToken);
+    expect(row.status).toBe('pending');
+    expect(row.authorizedUserId).toBeNull();
+    expect(row.authorizedSessionId).toBeNull();
   });
 
   it('404s a request that is not pending, without minting anything', async () => {

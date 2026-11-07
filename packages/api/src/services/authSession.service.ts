@@ -255,6 +255,50 @@ export function approvalMintsSession(authSession: Pick<PublicAuthSession, 'purpo
   return authSession.purpose !== 'oauth_authorization';
 }
 
+/**
+ * The error code a DEVICE sign-in (a QR or Commons request without an OAuth
+ * binding) answers when the application that started it is not an official Oxy
+ * application: at `POST /auth/session/create`, at every approval, and at the
+ * claim.
+ */
+export const THIRD_PARTY_DEVICE_SIGN_IN_DENIED = 'third_party_device_sign_in_denied';
+
+/** The message that goes with {@link THIRD_PARTY_DEVICE_SIGN_IN_DENIED}. */
+export const THIRD_PARTY_DEVICE_SIGN_IN_MESSAGE =
+  'Device sign-in is for official Oxy apps. Other applications sign in with OAuth ("Sign in with Oxy").';
+
+/**
+ * Whether the application that started a DEVICE sign-in may receive the session
+ * its approval mints.
+ *
+ * That session is the SHARED device session: `application_id` NULL, a device
+ * restore secret at the claim, and so every account control behind
+ * `requireFirstPartyDeviceAccess` (identity backup, key history, the device
+ * lane). NULL means "an official Oxy app's device" only because this predicate
+ * held for the application that asked. A third party signs in through OAuth
+ * (the redirect, or a Commons request with an OAuth binding), which gives it an
+ * isolated, scoped session and no device secret
+ * (`docs/auth/integration-guide.md`, ADR 0029 D1/D2), so its device sign-in is
+ * refused rather than bound.
+ *
+ * Re-read from the registry at every step, never frozen at creation: an
+ * application demoted or suspended while a request is pending must not receive
+ * the session (registry trust can revoke, never promote).
+ */
+export async function deviceSignInApplicationIsTrusted(applicationId: string): Promise<boolean> {
+  const [app] = await getDb()
+    .select({
+      status: applications.status,
+      type: applications.type,
+      isOfficial: applications.isOfficial,
+      isInternal: applications.isInternal,
+    })
+    .from(applications)
+    .where(eq(applications.id, applicationId))
+    .limit(1);
+  return Boolean(app && app.status === 'active' && isTrustedApplication(app));
+}
+
 export type ApprovalOperatorOutcome =
   | { ok: true; operatedByUserId: string | null; authMethod?: AgentKeyBinding }
   | { ok: false; reason: 'approving_session_unreadable' | 'seat_not_assumable' };
@@ -434,7 +478,7 @@ export type AuthorizeSignedOutcome =
       username?: string;
       publicKey: string;
     }
-  | { ok: false; status: 400 | 401 | 403 | 404; message: string };
+  | { ok: false; status: 400 | 401 | 403 | 404; message: string; code?: string };
 
 /**
  * Key-signed approval of a pending cross-app auth session (the "Sign in with
@@ -559,6 +603,18 @@ export async function authorizeSessionWithSignedChallenge(
   //    authorization request mints nothing here — see `approvalMintsSession`.
   let sessionId: string | undefined;
   if (approvalMintsSession(authSession)) {
+    if (!(await deviceSignInApplicationIsTrusted(authSession.applicationId))) {
+      logger.warn('[AuthSession] Device sign-in approval refused: not an official application', {
+        authorizeCode: authorizeCode.substring(0, 8) + '...',
+        applicationId: authSession.applicationId,
+      });
+      return {
+        ok: false,
+        status: 403,
+        message: THIRD_PARTY_DEVICE_SIGN_IN_MESSAGE,
+        code: THIRD_PARTY_DEVICE_SIGN_IN_DENIED,
+      };
+    }
     const [app] = await db
       .select({ name: applications.name })
       .from(applications)
@@ -622,7 +678,7 @@ export type AuthorizeBearerOutcome =
       /** Absent for an OAuth authorization request — those mint no session. */
       sessionId?: string;
     }
-  | { ok: false; status: 400 | 403 | 404; message: string };
+  | { ok: false; status: 400 | 403 | 404; message: string; code?: string };
 
 /**
  * Bearer approval of a pending cross-app auth session, keyed on the PUBLIC
@@ -677,6 +733,21 @@ export async function authorizeSessionWithBearer(
   // OAuth preserves the verified actor independently from the effective
   // account. A bot may be represented, but never becomes an autonomous seat.
   const oauthApproval = !approvalMintsSession(existing);
+  // A device sign-in mints the shared device session, so only an official
+  // application's request may be approved (`deviceSignInApplicationIsTrusted`).
+  // Checked before the claim below, so a refusal writes nothing.
+  if (!oauthApproval && !(await deviceSignInApplicationIsTrusted(existing.applicationId))) {
+    logger.warn('[AuthSession] Device sign-in approval refused: not an official application', {
+      authorizeCode: authorizeCode.substring(0, 8) + '...',
+      applicationId: existing.applicationId,
+    });
+    return {
+      ok: false,
+      status: 403,
+      message: THIRD_PARTY_DEVICE_SIGN_IN_MESSAGE,
+      code: THIRD_PARTY_DEVICE_SIGN_IN_DENIED,
+    };
+  }
   const operator = await resolveApprovalOperator(approvingSessionId, authenticatedUserId, {
     delegatedOAuth: oauthApproval,
   });

@@ -73,6 +73,8 @@ import {
   claimAuthSession,
   finalizeOAuthAuthorization,
   resolveOAuthContext,
+  THIRD_PARTY_DEVICE_SIGN_IN_DENIED,
+  THIRD_PARTY_DEVICE_SIGN_IN_MESSAGE,
   verifyDelegatedSubject,
 } from '../authSession.service';
 
@@ -109,7 +111,11 @@ async function application(over: Partial<typeof applications.$inferInsert> = {})
 async function authSession(over: Partial<typeof authSessions.$inferInsert> = {}) {
   const sessionToken = `st-${randomUUID()}`;
   const authorizeCode = `ac-${randomUUID()}`;
-  const applicationId = over.applicationId ?? (await application());
+  // A device sign-in is an official application's only (an OAuth-bound one is
+  // anybody's), so an unnamed application is official unless the row is bound.
+  const applicationId =
+    over.applicationId ??
+    (await application(over.purpose === 'oauth_authorization' ? {} : { type: 'first_party' }));
   const [row] = await getDb()
     .insert(authSessions)
     .values({
@@ -715,7 +721,7 @@ describe('authorizeSessionWithSignedChallenge', () => {
 
   it('labels the minted device with the bound application name', async () => {
     const { publicKey, challenge: value } = await signer();
-    const applicationId = await application({ name: 'Acme Widgets' });
+    const applicationId = await application({ name: 'Acme Widgets', type: 'first_party' });
     const { authorizeCode } = await authSession({ applicationId });
 
     await authorizeSessionWithSignedChallenge(
@@ -727,6 +733,28 @@ describe('authorizeSessionWithSignedChallenge', () => {
       expect.anything(),
       expect.objectContaining({ deviceName: 'Acme Widgets App' }),
     );
+  });
+
+  it('refuses (403) a device sign-in a non-official application started, minting nothing', async () => {
+    const { publicKey, challenge: value } = await signer();
+    const { id, authorizeCode } = await authSession({
+      applicationId: await application({ type: 'third_party' }),
+    });
+
+    expect(
+      await authorizeSessionWithSignedChallenge(
+        input({ authorizeCode, publicKey, challenge: value }),
+      ),
+    ).toEqual({
+      ok: false,
+      status: 403,
+      message: THIRD_PARTY_DEVICE_SIGN_IN_MESSAGE,
+      code: THIRD_PARTY_DEVICE_SIGN_IN_DENIED,
+    });
+    expect(mockCreateSession).not.toHaveBeenCalled();
+    const row = await stored(id);
+    expect(row.status).toBe('pending');
+    expect(row.authorizedUserId).toBeNull();
   });
 
   it('approves an OAuth request WITHOUT minting a session', async () => {
@@ -904,6 +932,33 @@ describe('authorizeSessionWithBearer', () => {
       message: 'Not authorized to act as the requested account',
     });
     expect((await stored(id)).status).toBe('pending');
+  });
+
+  it.each([
+    ['a third-party application', { type: 'third_party' as const }],
+    [
+      'an official application suspended since',
+      { type: 'first_party' as const, status: 'suspended' as const },
+    ],
+  ])('refuses (403) a device sign-in for %s, before claiming', async (_label, fields) => {
+    const userId = await account();
+    const approvingSessionId = await insertBearerSession(userId);
+    const { id, authorizeCode } = await authSession({ applicationId: await application(fields) });
+
+    expect(
+      await authorizeSessionWithBearer(
+        input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }),
+      ),
+    ).toEqual({
+      ok: false,
+      status: 403,
+      message: THIRD_PARTY_DEVICE_SIGN_IN_MESSAGE,
+      code: THIRD_PARTY_DEVICE_SIGN_IN_DENIED,
+    });
+    expect(mockCreateSession).not.toHaveBeenCalled();
+    const row = await stored(id);
+    expect(row.status).toBe('pending');
+    expect(row.authorizedUserId).toBeNull();
   });
 
   it('isolates the claimant from a requester-supplied deviceId', async () => {

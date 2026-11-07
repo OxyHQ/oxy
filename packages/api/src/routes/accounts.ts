@@ -10,7 +10,7 @@ import {
   type ChildAccountKind,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
-import { refuseApplicationToken } from '../middleware/firstPartyDeviceAccess';
+import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
@@ -407,8 +407,12 @@ router.get(
  */
 router.post(
   '/:id/switch',
-  // The device's active account is the platform's (ADR 0058).
-  refuseApplicationToken,
+  // The device's active account is the platform's (ADR 0058), and the session
+  // this mints is a SHARED one (no application binding): a third-party OAuth
+  // bearer switching here would leave with an unscoped session that passes every
+  // first-party device check. A third party acts as an account through its OAuth
+  // grant's delegated subject instead.
+  requireFirstPartyDeviceAccess,
   writeLimiter,
   validate({ params: accountIdRouteParams }),
   asyncHandler(async (req: AuthRequest, res) => {

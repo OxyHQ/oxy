@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Security (device sign-in is an official application's only)
+
+- **A third party never claims the shared session.** `POST /auth/session/create` without an `oauth` binding answers `403 third_party_device_sign_in_denied` for an application that is not official (`isTrustedApplication`); every approval (`/session/authorize/:token`, `/session/authorize-code/:code`, the key-signed Commons approval) re-reads the registry and mints nothing for one, and `POST /auth/session/claim` refuses an application demoted since approval and ends the session it minted. A third party gets the QR only through the OAuth-bound request, which finalizes into a scoped code. Before this, its approved device sign-in was claimed as an unbound session plus a device restore secret, which passed `requireFirstPartyDeviceAccess` (identity backup, key history, the device lane).
+- **`POST /accounts/:id/switch` refuses a third-party bearer** (`requireFirstPartyDeviceAccess`, was `refuseApplicationToken`): the switch mints a shared session for the managed account.
+- **The identity backup's writes are audited.** `POST`/`DELETE /identity/backup` log `identity.backup.write` on every attempt, refusals included (action, status, account, session prefix, the bearer's application; no locator, ciphertext, hint or IP), and a write that succeeded is on the account's security trail (`backup_created`, or `security_settings_changed` on `identity_backup`).
+
 ### A backup the person deleted stays deleted (owner's decision, 2026-11-07)
 
 - `DELETE /identity/backup` records the deletion on the account (`identity_backup_opt_outs`, migration 0241, pre-deploy, additive) in the transaction that deletes the backup. `GET /identity/backup/status` answers `{ exists: false, optedOut: true }` until the person creates one again, on every device.

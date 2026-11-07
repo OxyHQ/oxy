@@ -37,6 +37,7 @@ import { and, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
 import { isValidSecp256k1PublicKey, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
+import { auditIdentityBackupWrite } from '../middleware/identityBackupAudit';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
   ApiError,
@@ -241,6 +242,7 @@ async function assertSealedUnderCurrentRoot(userId: string, publicKeyHint: strin
 router.post(
   '/',
   authMiddleware,
+  auditIdentityBackupWrite('upload'),
   requireFirstPartyDeviceAccess,
   backupWriteLimiter,
   validate({ body: backupUploadRequestSchema }),
@@ -421,6 +423,7 @@ router.get(
 router.delete(
   '/',
   authMiddleware,
+  auditIdentityBackupWrite('delete'),
   requireFirstPartyDeviceAccess,
   backupDeleteLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {

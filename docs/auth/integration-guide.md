@@ -239,7 +239,7 @@ export function App() {
 
 A native third-party sign-in **without** an `onOAuthResult` handler cannot complete — the `state` and `code_verifier` would be lost — and the SDK logs a warning.
 
-Native third-party apps do **not** use the Commons QR flow; that is the first-party sign-in surface for official Oxy apps. Your flow is the standard OAuth redirect above.
+Native third-party apps do **not** use the Commons QR flow; that is the first-party sign-in surface for official Oxy apps. Your flow is the standard OAuth redirect above. The server enforces it: `POST /auth/session/create` without an OAuth binding answers `403 third_party_device_sign_in_denied` for any application that is not an official Oxy app.
 
 ---
 
