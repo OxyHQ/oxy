@@ -124,10 +124,12 @@ describe('OxyServices.rotateKey', () => {
     mockQuarantine.mockReset();
     mockQuarantine.mockResolvedValue(undefined);
     jest.spyOn(KeyManager, 'getPrivateKey').mockResolvedValue(oldKeyPair.privateKey);
-    // No backup to carry over and no other key in the slots, unless a test says so.
+    // A backup with nothing to carry over and no other key in the slots,
+    // unless a test says so. (With NO backup on record, a rotation needs the
+    // person's explicit `createBackup`; that is its own describe below.)
     jest
       .spyOn(oxy.identity.backup, 'readBeforeRotation')
-      .mockResolvedValue({ existed: false, carried: [] });
+      .mockResolvedValue({ existed: true, carried: [] });
     jest.spyOn(KeyManager, 'heldIdentityPrivateKeys').mockResolvedValue([oldKeyPair.privateKey]);
     // The account's key history (R6-10): the key being replaced is its current root.
     historySpy = jest.spyOn(oxy.identity, 'keyHistory').mockResolvedValue({
@@ -820,20 +822,45 @@ describe('OxyServices.rotateKey', () => {
         expect(result.backupOptedOut).toBe(true);
       });
 
-      it('accepting it (or not being asked) creates one as before (R4-4), without an opt-in', async () => {
-        for (const createBackup of [true, undefined]) {
+      it("accepting it creates one, sent as the person's opt-in, and is owed until sealed", async () => {
+        noneOnRecord();
+        const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+        const seal = jest
+          .spyOn(oxy.identity.backup, 'seal')
+          .mockResolvedValue({ exists: true } as never);
+        const result = await oxy.identity.rotateKey({ proof: 'device', createBackup: true });
+        // Oxy refuses an upload where the account has no backup row unless it
+        // carries the person's opt-in, so their tick is sent as one.
+        expect(seal).toHaveBeenCalledWith(pendingFixture.phrase, [], {
+          replacesLookupId: undefined,
+          optIn: true,
+        });
+        expect(mark).toHaveBeenCalledWith('user-123', { optIn: true });
+        expect(result.backupRefreshed).toBe(true);
+        expect(result.backupOptedOut).toBeUndefined();
+      });
+
+      it('without a choice it does not rotate: nothing is asked of the server, nothing is owed', async () => {
+        // The screen could not show the choice (its own status read failed
+        // while this one succeeded): never taken as "create".
+        for (const platform of ['ios', 'web'] as const) {
+          setPlatformOS(platform);
           noneOnRecord();
-          jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
-          const seal = jest
-            .spyOn(oxy.identity.backup, 'seal')
-            .mockResolvedValue({ exists: true } as never);
-          const result = await oxy.identity.rotateKey({ proof: 'device', createBackup });
-          expect(seal).toHaveBeenCalledWith(pendingFixture.phrase, [], {
-            replacesLookupId: undefined,
-          });
-          expect(result.backupOptedOut).toBeUndefined();
+          const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+          const seal = jest.spyOn(oxy.identity.backup, 'seal');
+          await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow(
+            'Choose whether to create an encrypted backup',
+          );
+          const paths = makeRequestSpy.mock.calls.map(([method, path]) => `${method} ${path}`);
+          expect(paths).not.toContain('POST /auth/rotate/challenge');
+          expect(paths).not.toContain('POST /auth/rotate/complete');
+          expect(paths).not.toContain('POST /identity/backup');
+          expect(seal).not.toHaveBeenCalled();
+          expect(mark).not.toHaveBeenCalled();
+          mark.mockRestore();
           seal.mockRestore();
         }
+        setPlatformOS('ios');
       });
     });
 

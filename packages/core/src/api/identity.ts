@@ -116,13 +116,15 @@ export interface RotateKeyOptions {
   pendingIdentity?: PendingIdentityResult;
   /**
    * The person's choice, in the rotation flow, about an encrypted backup when
-   * they have none of the current key (owner's decision, 2026-11-07):
-   *  - they DELETED theirs (`backup.status().optedOut`): only `true` creates
-   *    one (sent as their `optIn`); absent or `false`, nothing is uploaded and
-   *    nothing is owed;
-   *  - they have none on record (never made, or deleted before deletions were
-   *    recorded): `false` declines it the same way; absent or `true`, one is
-   *    created as before (R4-4). Show them the choice before the swap.
+   * they have none of the current key (owner's decision, 2026-11-07). Only
+   * `true` creates one, sent as their `optIn`; `false` uploads nothing and
+   * marks nothing owed:
+   *  - they DELETED theirs (`backup.status().optedOut`): absent is `false`;
+   *  - they have none on record (never made one, or deleted it before
+   *    deletions were recorded, which look the same): REQUIRED. Absent, the
+   *    rotation is refused before anything changes: a choice the person was
+   *    never shown (a screen whose own status read failed) is never taken as
+   *    "create". Show them the choice before the swap.
    * Ignored when they have a backup (current or superseded): it is re-sealed
    * so it keeps every key (points 5 and 8 of ADR 0061 D7).
    */
@@ -154,8 +156,8 @@ export interface RotateKeyResult {
    * the rotation's transaction; `false` (the upload failed) means the caller
    * should offer "Create backup" again — `oxy.identity.backup.isOwed()` stays
    * `true` until one is sealed — or the replaced key lives only on this phone.
-   * Absent on web when the account had no backup, and when the person had
-   * deleted theirs and did not choose one (`backupOptedOut`).
+   * Absent when the person had no backup and did not choose one
+   * (`backupOptedOut`).
    */
   backupRefreshed?: boolean;
   /**
@@ -432,15 +434,19 @@ export class IdentityApi {
     // nothing is uploaded and nothing is owed: the replaced key stays on this
     // phone (2b) and, off it, only its own phrase recovers it.
     // A person with no backup on record (never made, or deleted before
-    // deletions were recorded) is shown the same choice; declining it is
-    // respected the same way.
+    // deletions were recorded) is shown the same choice, and must have made
+    // it: without one the rotation stops here, before the challenge, so a
+    // screen that could not show it never rotates as "create". Oxy refuses an
+    // upload without `optIn` where the account has no backup row anyway.
     const optedOut = previousBackup.optedOut === true;
-    const optIn = optedOut && options.createBackup === true;
-    const declined =
-      !optedOut &&
-      !previousBackup.existed &&
-      previousBackup.superseded !== true &&
-      options.createBackup === false;
+    const noneOnRecord = !optedOut && !previousBackup.existed && previousBackup.superseded !== true;
+    if (noneOnRecord && options.createBackup === undefined) {
+      throw new Error(
+        'Choose whether to create an encrypted backup before rotating: you have none. Your key was not rotated. Nothing changed.',
+      );
+    }
+    const optIn = (optedOut || noneOnRecord) && options.createBackup === true;
+    const declined = noneOnRecord && options.createBackup === false;
     const noBackupByChoice = (optedOut && !optIn) || declined;
     const resealBackup = noBackupByChoice ? false : optIn || !isWeb() || previousBackup.existed;
 
@@ -1055,6 +1061,27 @@ export class IdentityBackupOptedOutError extends Error {
   }
 }
 
+/** The server's code for an upload creating a backup the account has none of, without an opt-in. */
+const IDENTITY_BACKUP_OPT_IN_REQUIRED_CODE = IDENTITY_ERROR_CODES.backupOptInRequired;
+
+/**
+ * `backup.create` (or a rotation's re-seal) was refused because the account
+ * has NO backup on record and this upload is not the person's explicit
+ * choice to create one (owner's decision, 2026-11-07). Nothing was stored.
+ * Create it from a control the person pressed, with `{ optIn: true }`. An
+ * owed backup stays owed, so the person is asked.
+ */
+export class IdentityBackupOptInRequiredError extends Error {
+  readonly code = IDENTITY_BACKUP_OPT_IN_REQUIRED_CODE;
+
+  constructor() {
+    super(
+      'You have no encrypted backup, so one was not created without your choice. Create one in Backup & recovery if you want one.',
+    );
+    this.name = 'IdentityBackupOptInRequiredError';
+  }
+}
+
 /** The server's code for an unacknowledged upload over a superseded backup (R7-2). */
 const IDENTITY_BACKUP_SUPERSEDED_CODE = IDENTITY_ERROR_CODES.backupSuperseded;
 
@@ -1218,12 +1245,14 @@ export class IdentityBackupApi {
    *   backup carried would be missing from the new one — nothing is uploaded.
    *   {@link IdentityBackupSupersededError} when a superseded backup was not
    *   acknowledged. {@link IdentityBackupOptedOutError} when the person
-   *   deleted their backup and `optIn` was not given.
+   *   deleted their backup and `optIn` was not given;
+   *   {@link IdentityBackupOptInRequiredError} when the account has no
+   *   backup on record and `optIn` was not given.
    *
    * `optIn`: the person pressed "Create backup" (owner's decision,
-   * 2026-11-07). A person who DELETED their backup gets a new one only with
-   * it; pass it only from a control the person pressed, never from an
-   * automatic re-seal.
+   * 2026-11-07). An account with no backup (deleted, or none on record) gets
+   * one only with it; replacing a backup it has needs none. Pass it only from
+   * a control the person pressed, never from an automatic re-seal.
    */
   async create(
     phrase: string,
@@ -1359,6 +1388,12 @@ export class IdentityBackupApi {
         // choose one: nothing is owed any more, so nothing nags them.
         if (owed !== null && !optIn) await KeyManager.clearBackupOwed(userId);
         throw new IdentityBackupOptedOutError();
+      }
+      if (
+        extractErrorStatus(error) === 409 &&
+        (error as { code?: unknown } | null)?.code === IDENTITY_BACKUP_OPT_IN_REQUIRED_CODE
+      ) {
+        throw new IdentityBackupOptInRequiredError();
       }
       throw error;
     }

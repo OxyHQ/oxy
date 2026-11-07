@@ -7,7 +7,11 @@ import type { BackupUploadRequest, EncryptedBackupEnvelope } from '@oxy.so/contr
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { RecoveryPhraseService } from '../../crypto/recoveryPhrase';
-import { IdentityBackupOptedOutError, IdentityBackupSupersededError } from '../identity';
+import {
+  IdentityBackupOptedOutError,
+  IdentityBackupOptInRequiredError,
+  IdentityBackupSupersededError,
+} from '../identity';
 import { setPlatformOS } from '../../utils/platform';
 
 const mockRing = {
@@ -473,6 +477,21 @@ describe('oxy.identity.backup carries retired keys', () => {
       );
       expect(lastPost().optIn).toBeUndefined();
       expect(clear).toHaveBeenCalledWith('me');
+    });
+
+    it('with no backup on record, an upload without optIn is refused, typed, and stays owed (the person is asked)', async () => {
+      jest.spyOn(KeyManager, 'backupOwedEntry').mockResolvedValue({});
+      const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
+      fetchMock
+        .mockResolvedValueOnce(json({ error: 'not found' }, 404))
+        .mockResolvedValueOnce(
+          json({ error: 'IDENTITY_BACKUP_OPT_IN_REQUIRED', message: 'update Commons' }, 409),
+        );
+      await expect(oxy.identity.backup.create(PHRASE)).rejects.toBeInstanceOf(
+        IdentityBackupOptInRequiredError,
+      );
+      expect(lastPost().optIn).toBeUndefined();
+      expect(clear).not.toHaveBeenCalled();
     });
 
     it("create with optIn sends the person's choice", async () => {

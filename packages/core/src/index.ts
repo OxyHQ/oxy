@@ -132,6 +132,7 @@ export type {
 export {
   buildUserDid,
   IdentityBackupOptedOutError,
+  IdentityBackupOptInRequiredError,
   IdentityBackupSupersededError,
 } from './api/identity';
 export type {

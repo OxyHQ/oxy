@@ -1143,6 +1143,8 @@
       "noBackupTitle": "No tienes copia de seguridad cifrada",
       "noBackupBody": "Eliminaste tu copia de seguridad cifrada, así que esta rotación no creará una. Este teléfono conserva tu clave actual como clave anterior, solo para gastar. Si pierdes este teléfono, los FairCoin recibidos con esa clave solo se podrán recuperar con su frase de recuperación (la actual), así que guárdala.",
       "noBackupOnRecordBody": "No tienes copia de seguridad cifrada. Esta rotación crea una de tu nueva clave y de tus claves anteriores, salvo que la desmarques abajo. Sin ella, este teléfono conserva tu clave actual como clave anterior, solo para gastar, y si lo pierdes los FairCoin recibidos con esa clave solo se podrán recuperar con su frase de recuperación (la actual), así que guárdala.",
+      "backupStatusFailedTitle": "No se pudo comprobar tu copia de seguridad cifrada",
+      "backupStatusFailedBody": "Tu clave no se rota hasta que Commons sepa si tienes una copia de seguridad cifrada, para preguntarte si quieres crear una. Revisa tu conexión e inténtalo de nuevo.",
       "createBackup": "Crear una copia de seguridad cifrada",
       "createBackupHint": "Opcional. Oxy guarda una copia cifrada de tu nueva clave y de tus claves anteriores que solo tu nueva frase de recuperación puede abrir.",
       "successNoBackup": "Tu clave anterior solo está en este teléfono. Si lo pierdes, los FairCoin recibidos con esa clave solo se podrán recuperar con su frase de recuperación. Guarda esa frase."

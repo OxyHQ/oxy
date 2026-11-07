@@ -125,8 +125,14 @@ function freshLookupId(): string {
   return `${process.pid.toString(16)}${lookupCounter.toString(16)}`.padStart(64, 'e');
 }
 
+/**
+ * An upload. By default the person's own "Create backup" (`optIn: true`): an
+ * account with no backup row gets one only with it (owner's decision,
+ * 2026-11-07). A re-seal, which needs none, passes `optIn: undefined`.
+ */
 function uploadBody(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
+    optIn: true,
     version: 1,
     algorithm: 'xchacha20poly1305',
     kdfInfo: 'oxy-backup-encryption-key',
@@ -694,7 +700,11 @@ describe("a backup the PERSON deleted stays deleted (owner's decision, 2026-11-0
     // of the same account): no `optIn`, so nothing is stored.
     for (const token of [undefined, { applicationId: await insertApplication() }]) {
       currentToken = token;
-      const refused = await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+      const refused = await request(
+        'POST',
+        '/identity/backup',
+        uploadBody({ version: 2, optIn: undefined }),
+      );
       expect(refused.status).toBe(409);
       expect(refused.body).toMatchObject({ error: 'IDENTITY_BACKUP_OPTED_OUT' });
       const explicitNo = await request(
@@ -722,9 +732,10 @@ describe("a backup the PERSON deleted stays deleted (owner's decision, 2026-11-0
       exists: true,
     });
     // Later uploads (a rotation's re-seal) need no opt-in again.
-    expect((await request('POST', '/identity/backup', uploadBody({ version: 2 }))).status).toBe(
-      200,
-    );
+    expect(
+      (await request('POST', '/identity/backup', uploadBody({ version: 2, optIn: undefined })))
+        .status,
+    ).toBe(200);
   });
 
   it('an opt-in the upload guard refuses keeps the deletion', async () => {
@@ -758,5 +769,89 @@ describe("a backup the PERSON deleted stays deleted (owner's decision, 2026-11-0
     await request('DELETE', '/identity/backup');
     await getDb().delete(users).where(eq(users.id, OWNER));
     expect(await optOutRows(OWNER)).toHaveLength(0);
+  });
+});
+
+describe("no backup on record: creating one is the person's choice only (owner's decision, 2026-11-07)", () => {
+  /** Mark OWNER's stored backup superseded, as `POST /auth/rotate/complete` does. */
+  async function supersede(): Promise<void> {
+    await getDb()
+      .update(identityBackups)
+      .set({ supersededAt: new Date() })
+      .where(eq(identityBackups.userId, OWNER));
+  }
+
+  it("an old client's rotation re-seal (no optIn) for a person with no backup on record is refused, storing nothing", async () => {
+    // Commons 1.12 or older after a rotation, for a person who never had a
+    // backup or deleted it before deletions were recorded (they look the
+    // same): the upload carries no `optIn` and must not create one.
+    for (const version of [1, 2]) {
+      const refused = await request(
+        'POST',
+        '/identity/backup',
+        uploadBody({ version, optIn: undefined }),
+      );
+      expect(refused.status).toBe(409);
+      expect(refused.body).toMatchObject({ error: 'IDENTITY_BACKUP_OPT_IN_REQUIRED' });
+      // The message tells an old client's person what to do.
+      expect(String(refused.body.message)).toContain('Update Commons');
+    }
+    const explicitNo = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, optIn: false }),
+    );
+    expect(explicitNo.status).toBe(409);
+    expect(await storedRows(OWNER)).toHaveLength(0);
+    expect((await request('GET', '/identity/backup/status')).body).toEqual({ exists: false });
+  });
+
+  it("the person's explicit create (optIn) works", async () => {
+    const created = await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+    expect(created.status).toBe(200);
+    expect(await storedRows(OWNER)).toHaveLength(1);
+    expect((await request('GET', '/identity/backup/status')).body).toMatchObject({
+      exists: true,
+    });
+  });
+
+  it('re-sealing an existing backup needs no opt-in', async () => {
+    await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+    const resealed = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, ciphertext: 'feed', optIn: undefined }),
+    );
+    expect(resealed.status).toBe(200);
+    const [row] = await storedRows(OWNER);
+    expect(row.ciphertext).toBe('feed');
+  });
+
+  it('re-sealing a SUPERSEDED backup needs no opt-in, only its acknowledgement (R7-2)', async () => {
+    const superseded = freshLookupId();
+    await request('POST', '/identity/backup', uploadBody({ version: 1, lookupId: superseded }));
+    await supersede();
+    const resealed = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, replacesLookupId: superseded, optIn: undefined }),
+    );
+    expect(resealed.status).toBe(200);
+    const [row] = await storedRows(OWNER);
+    expect(row.supersededAt).toBeNull();
+    expect(row.version).toBe(2);
+  });
+
+  it("another account's backup is not this account's record", async () => {
+    currentUserId = STRANGER;
+    await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+    currentUserId = OWNER;
+    const refused = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, optIn: undefined }),
+    );
+    expect(refused.status).toBe(409);
+    expect(refused.body).toMatchObject({ error: 'IDENTITY_BACKUP_OPT_IN_REQUIRED' });
   });
 });

@@ -4,7 +4,8 @@
   ADR 0002's "no second address tree" (Commons held only the current key); then, the same day,
   by the owner's decision ("Fix F5, F1 and D9", mainnet gate finding F1), to keep every replaced
   key in a retired key ring for spending only — this text; then 2026-11-07 by the owner's
-  decision that a backup the person deleted stays deleted (D7 point 11). D6's iOS clause changed by
+  decision that a backup the person deleted stays deleted (D7 point 11), completed the same day for
+  deletions made before they were recorded and for older Commons (point 11, last paragraph). D6's iOS clause changed by
   [0062](0062-ios-keychain-access-group-split.md)
 - Date: 2026-11-06
 - Decision: the owner (2026-11-06): organization accounts get a Peable wallet.
@@ -297,6 +298,28 @@ theirs. The owner rejected that behaviour:
     by a person who has a backup (current or superseded) re-seals it as
     before (points 5 and 8). The key is still kept in this device's ring
     (point 1): the deletion removes only the off-device copy.
+
+    **Completed 2026-11-07, server-side, so old clients are covered.** A
+    deletion made before the record existed looks like "no backup on record",
+    and Commons 1.12 or older re-uploaded one after a rotation without asking.
+    So Oxy accepts an upload where the account has NO backup row (none,
+    deleted, or deleted before the record) only with the person's `optIn`
+    (409 `IDENTITY_BACKUP_OPT_IN_REQUIRED` otherwise, or
+    `IDENTITY_BACKUP_OPTED_OUT` after a recorded deletion); re-sealing a backup
+    the account has (current, or superseded with its `replacesLookupId`, R7-2)
+    needs none. A rotation therefore supersedes every backup, whatever its
+    envelope version, instead of deleting a version 1 one, so its re-seal still
+    finds the row. `oxy.identity.rotateKey` requires an explicit `createBackup`
+    whenever no backup is on record and refuses to rotate without one, before
+    anything changes, so a confirm screen whose own status read failed never
+    rotates as "create" (Commons 1.14 does not offer the rotation until that
+    read succeeds); `createBackup: true` is sent as the person's `optIn`.
+    Old clients: an older Commons sends no `optIn`, so its "Create backup" and
+    its post-rotation re-seal are the same request and nothing on the wire
+    tells them apart. Both are refused, with a message asking the person to
+    update Commons. That is the side that never uploads without the person; a
+    person on Commons 1.12 or older who never had a backup cannot create one
+    until they update (Commons 1.13's "Create backup" already sends `optIn`).
 
 Organization rings are not in the personal backup: an organization's key has
 its own phrase, and a phone that loses an organization's previous key needs that

@@ -121,13 +121,17 @@ export const backupUploadRequestSchema = backupEnvelopeFields.extend({
   replacesLookupId: backupLookupIdSchema.optional(),
   /**
    * The person's explicit choice to have a backup (owner's decision,
-   * 2026-11-07). A person who deleted their backup (`status.optedOut`) gets a
-   * new one only with it: an upload without it is refused (409
-   * `IDENTITY_BACKUP_OPTED_OUT`), so a key rotation, a re-seal or another
-   * device never re-uploads silently. An accepted upload with it clears the
-   * deletion in the same transaction. Ignored when the person never deleted
-   * one. Clients send it only from a control the person pressed ("Create
-   * backup", or the rotation's "Create a backup" choice).
+   * 2026-11-07). Required whenever the account has NO backup row: a person
+   * who deleted theirs (`status.optedOut`; refused without it, 409
+   * `IDENTITY_BACKUP_OPTED_OUT`) and a person with none on record (never
+   * made one, or deleted it before deletions were recorded; 409
+   * `IDENTITY_BACKUP_OPT_IN_REQUIRED`), so a key rotation, a re-seal, another
+   * device or an older client never creates one silently. An accepted upload
+   * with it clears a recorded deletion in the same transaction. Not needed to
+   * re-seal a backup the account has (current, or superseded with
+   * `replacesLookupId`). Clients send it only from a control the person
+   * pressed ("Create backup", or the rotation's "Create an encrypted backup"
+   * choice).
    */
   optIn: z.boolean().optional(),
 });

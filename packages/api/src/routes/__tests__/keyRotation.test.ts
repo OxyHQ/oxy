@@ -341,7 +341,7 @@ describe('POST /auth/rotate/challenge', () => {
 });
 
 describe('POST /auth/rotate/complete — happy path', () => {
-  it('replaces the identity key IN PLACE: same row, new key, challenge spent, backup gone', async () => {
+  it('replaces the identity key IN PLACE: same row, new key, challenge spent, backup superseded', async () => {
     const newKeyPair = generateSecp256k1KeyPair();
     const newPublicKey = newKeyPair.publicKey;
     const [identityBefore] = (await storedAuthMethods(currentUserId)).filter(
@@ -387,13 +387,16 @@ describe('POST /auth/rotate/complete — happy path', () => {
     expect((await storedChallenge(challenge)).used).toBe(true);
     // Cache invalidated.
     expect(mockInvalidate).toHaveBeenCalledWith(currentUserId);
-    // The stale encrypted backup — which still held the OLD key under the OLD
-    // phrase's locator — is gone.
+    // The encrypted backup, which still holds the OLD key under the OLD
+    // phrase's locator, is kept and marked superseded even at version 1
+    // (2026-11-07): it is the replaced key's off-device copy until the re-seal,
+    // and the row is what lets that re-seal replace it without an opt-in.
     const backups = await getDb()
-      .select({ id: identityBackups.id })
+      .select({ supersededAt: identityBackups.supersededAt })
       .from(identityBackups)
       .where(eq(identityBackups.userId, currentUserId));
-    expect(backups).toHaveLength(0);
+    expect(backups).toHaveLength(1);
+    expect(backups[0].supersededAt).toBeInstanceOf(Date);
 
     // The derived DID reflects the new key IMMEDIATELY.
     const vms = (await storedDidDocument(currentUserId)).verificationMethod as Array<{

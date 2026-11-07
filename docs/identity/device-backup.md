@@ -74,7 +74,8 @@ silently: the key it needs is the phrase the user no longer has on the device.
 It also requires the network. It stays the backup for a lost device, and the
 device backup is built to work with it. It is the person's to delete: once they
 do, no device and no key rotation uploads it again without their explicit
-choice, and keys a rotation retired are then recoverable off the phone only
+choice (Oxy refuses any upload creating one the account has none of without
+the person's `optIn`, so an older Commons cannot either), and keys a rotation retired are then recoverable off the phone only
 with their own recovery phrases (ADR 0061 D7 point 11, 2026-11-07). The Block
 Store device copy below is a different thing (this phone's current key only) and
 is unaffected: the device backup record carries the

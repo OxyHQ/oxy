@@ -171,6 +171,16 @@ export const IDENTITY_ERROR_CODES = {
    * person deleted (owner's decision, 2026-11-07).
    */
   backupOptedOut: 'IDENTITY_BACKUP_OPTED_OUT',
+  /**
+   * `POST /identity/backup`: the account has no backup on record (never made
+   * one, or deleted it before deletions were recorded) and the upload is not
+   * the person's explicit choice to create one (`optIn`). Only re-sealing a
+   * backup the account HAS (current or superseded) needs no opt-in, so a
+   * client too old to send it (Commons 1.12 or older) never creates one
+   * silently after a key rotation; the message asks the person to update
+   * Commons (owner's decision, 2026-11-07).
+   */
+  backupOptInRequired: 'IDENTITY_BACKUP_OPT_IN_REQUIRED',
 } as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[keyof typeof IDENTITY_ERROR_CODES];

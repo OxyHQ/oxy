@@ -67,7 +67,10 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockFlow.pendingIdentityRef.current = PENDING;
   mockFlow.currentPhraseRef.current = null;
-  __setOxyState({ oxyServices: { rotateKey } });
+  // A person with a backup, unless a test says otherwise.
+  __setOxyState({
+    oxyServices: { rotateKey, backupStatus: jest.fn(async () => ({ exists: true })) },
+  });
 });
 
 describe.each(['device', 'phrase'] as const)('rotating with proof %s', (proof) => {
@@ -252,5 +255,41 @@ describe('rotation copy', () => {
       expect(`${warning} ${confirm.fundsBody}`).not.toMatch(/outside (this wallet|Peable)/i);
       expect(`${warning} ${confirm.fundsBody}`).not.toMatch(/keeps only the new key/i);
     }
+  });
+});
+
+describe('the backup status cannot be read', () => {
+  const backupStatus = jest.fn();
+
+  beforeEach(() => {
+    mockFlow.proof = 'device';
+    __setOxyState({ oxyServices: { rotateKey, backupStatus } });
+  });
+
+  it('does not rotate: the choice could not be shown, so it is never taken as "create"', async () => {
+    backupStatus.mockRejectedValue(new Error('offline'));
+    const { findByTestId, getByTestId, container } = renderScreen();
+    await findByTestId('rotate-key-backup-status-failed');
+    expect(container.textContent).toContain('Could not check your encrypted backup');
+    fireEvent.click(getByTestId('rotate-key-funds-ack'));
+    const commit = getByTestId('rotate-key-commit') as HTMLButtonElement;
+    expect(commit.disabled).toBe(true);
+    fireEvent.click(commit);
+    expect(rotateKey).not.toHaveBeenCalled();
+  });
+
+  it('a retry that reads it shows the choice and rotates with it', async () => {
+    backupStatus.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ exists: false });
+    const { findByTestId, getByTestId, queryByTestId } = renderScreen();
+    fireEvent.click(await findByTestId('rotate-key-backup-status-retry'));
+    await findByTestId('rotate-key-no-backup');
+    expect(queryByTestId('rotate-key-backup-status-failed')).toBeNull();
+    fireEvent.click(getByTestId('rotate-key-funds-ack'));
+    await waitFor(() =>
+      expect((getByTestId('rotate-key-commit') as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(getByTestId('rotate-key-commit'));
+    await waitFor(() => expect(rotateKey).toHaveBeenCalledTimes(1));
+    expect(rotateKey).toHaveBeenLastCalledWith(expect.objectContaining({ createBackup: true }));
   });
 });
