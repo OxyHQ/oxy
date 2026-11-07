@@ -38,6 +38,7 @@
       "!**/__fixtures__",
       "!**/*.golden.json",
       "!packages/commons/modules/oxy-identity-host/vectors.json",
+      "!packages/core/src/crypto/keychain/__tests__/vectors.json",
       // Exported Lottie animations.
       "!**/assets/lottie"
     ]

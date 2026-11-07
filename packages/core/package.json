@@ -195,6 +195,7 @@
   },
   "dependencies": {
     "@noble/ciphers": "^2.4.0",
+    "@noble/curves": "catalog:",
     "@noble/hashes": "^2.4.0",
     "@oxy.so/contracts": "workspace:^",
     "@oxy.so/protocol": "workspace:^",
