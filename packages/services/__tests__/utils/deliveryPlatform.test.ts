@@ -14,7 +14,13 @@ jest.mock('../../src/ui/utils/isWebBrowser', () => ({
   isWebBrowser: () => isWebBrowserMock(),
 }));
 
+import { Platform } from 'react-native';
 import { resolveDeliveryPlatform } from '../../src/ui/utils/deliveryPlatform';
+
+const originalOS = Platform.OS;
+const setOS = (os: string): void => {
+  Object.defineProperty(Platform, 'OS', { value: os, configurable: true, writable: true });
+};
 
 /** Install a `navigator.userAgentData.mobile` bit, or remove it entirely. */
 const setUserAgentData = (mobile: boolean | undefined): void => {
@@ -53,15 +59,28 @@ describe('resolveDeliveryPlatform', () => {
     setMaxTouchPoints(0);
   });
 
+  afterEach(() => setOS(originalOS));
+
   afterAll(() => {
     setUserAgentData(undefined);
     setPrimaryPointerCoarse(undefined);
     setMaxTouchPoints(0);
   });
 
-  it('classifies native as mobile — an Oxy app on the device Commons lives on', () => {
+  it('classifies a native phone as mobile — an Oxy app on the device Commons lives on', () => {
     isWebBrowserMock.mockReturnValue(false);
+    setOS('ios');
     expect(resolveDeliveryPlatform()).toBe('mobile');
+    setOS('android');
+    expect(resolveDeliveryPlatform()).toBe('mobile');
+  });
+
+  it('classifies a native computer (OxyOS, macOS) as desktop — Commons never runs there', () => {
+    isWebBrowserMock.mockReturnValue(false);
+    setOS('oxyos');
+    expect(resolveDeliveryPlatform()).toBe('desktop');
+    setOS('macos');
+    expect(resolveDeliveryPlatform()).toBe('desktop');
   });
 
   it('believes the User-Agent Client Hints bit in both directions', () => {

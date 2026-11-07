@@ -62,6 +62,7 @@ import {
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { loadIdentityCrypto } from '../utils/identityCrypto';
 import { resolveDeliveryPlatform } from '../utils/deliveryPlatform';
+import { resolveSignInDevice } from '../utils/signInDevice';
 import { runProviderColdBoot } from '../boot/runProviderColdBoot';
 import { resolveApplicationSessionLane } from '../oauth/applicationSessionLane';
 import { handleAuthError } from '../utils/errorHandlers';
@@ -1095,12 +1096,12 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         }
         void Linking.openURL(url);
       },
-      // Native-only probe so the controller can detect an installed Commons and
+      // A phone's probe so the controller can detect an installed Commons and
       // deep-link straight into its approve screen (keeping the QR/polling live
       // as fallback). `undefined` on web mirrors the `openUrl` split — the
       // controller short-circuits, so `redirectToAuthorize` never runs for the
-      // `oxycommons://` payload.
-      canOpenApp: isWebBrowser() ? undefined : (url) => Linking.canOpenURL(url),
+      // `oxycommons://` payload — and on a computer, which Commons never runs on.
+      canOpenApp: resolveSignInDevice() === 'phone' ? (url) => Linking.canOpenURL(url) : undefined,
       // Which surface a sign-in starts from — a FACT only this consumer can
       // supply (headless core never touches a platform global). It decides
       // whether automatic delivery may take the same-device Commons deep link;

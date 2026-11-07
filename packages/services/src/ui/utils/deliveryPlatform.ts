@@ -20,7 +20,7 @@
  */
 
 import type { CommonsDeliveryPlatform } from '@oxy.so/core';
-import { isWebBrowser } from './isWebBrowser';
+import { resolveSignInDevice } from './signInDevice';
 
 /**
  * The `navigator.userAgentData` slice this module reads. Declared locally
@@ -39,15 +39,19 @@ type NavigatorWithUserAgentData = Navigator & {
 /**
  * Which surface this app is running on, as `selectCommonsDelivery` models it.
  *
- *  - Native (Expo/RN) is always `'mobile'`: it is an Oxy app installed on a
- *    phone/tablet, exactly the case where a verified Commons link can resolve
+ *  - A native app on a phone or tablet (`resolveSignInDevice`: iOS, Android)
+ *    is `'mobile'`: exactly the case where a verified Commons link can resolve
  *    on this very device.
+ *  - A native app on a computer (react-native-macos, OxyOS) is `'desktop'`:
+ *    Commons is a phone's, so no link to it resolves here.
  *  - A web browser is classified from the signals above.
  *  - Anything else — a browser-like environment with neither signal — is
  *    `'unknown'`, a first-class value that never opts into the deep link.
  */
 export function resolveDeliveryPlatform(): CommonsDeliveryPlatform {
-  if (!isWebBrowser()) return 'mobile';
+  const device = resolveSignInDevice();
+  if (device === 'phone') return 'mobile';
+  if (device === 'computer') return 'desktop';
 
   const nav: NavigatorWithUserAgentData | undefined =
     typeof navigator === 'undefined' ? undefined : navigator;

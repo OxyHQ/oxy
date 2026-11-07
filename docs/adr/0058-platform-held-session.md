@@ -492,6 +492,11 @@ completing it, accept an optional `platformClient: { platform, clientId }`.
   setup client's JavaScript saw dies; the only live secret is the one the
   platform service alone received. A platform signing in again with its
   platform credential rotates it the same way.
+  The setup client's credential may come from any of the SDK's ways in: the
+  email's code or link, a password, or the Commons QR approved on a phone (a
+  claim, `POST /auth/session/claim`, issues the claiming device's holder
+  credential like any other sign-in). Whichever it was, the platform's
+  password sign-in then proves it and retires it (2026-11-07).
 - **One session per account.** A platform sign-in never reuses a session
   (`freshSession`): the new session replaces the account's session on the
   device (`addAccount` deactivates the one it displaces, through the one

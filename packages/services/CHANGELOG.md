@@ -1,5 +1,20 @@
 # Changelog
 
+## 14.15.0
+
+### Changed
+
+- **A computer shows the QR.** The sign-in decides by the device it runs on (`resolveSignInDevice`: a browser, a phone, or a computer), not by "web or not". A native app on a computer (OxyOS, react-native-macos) now shows the web's split card, the Commons QR a phone scans beside the form from `md`, with the email or username field focused, instead of a phone's "Continue with Oxy" or "Get Commons". Its Commons delivery is `desktop` (never the same-device deep link) and it never probes for an installed Commons. Phones (iOS, Android) and browsers are unchanged (ADR 0029 D1, amended).
+
+### Added
+
+- **`OxyAuthChooser`** is exported: the account dialog's chooser (sign-in with the QR, sign-up, the request view) without the dialog, for a platform that shows it on a card of its own (OxyOS's login screen). What it completes itself is reported through `onComplete`; a sign-in the controller runs (the QR) completes through the provider, so a bare host follows the signed-in account.
+- **`OxySurfaceFrame`**: that card's seam. The chooser's screens ask it for the width their views need exactly as they ask the account dialog (the split card asks for 880), through `onMaxWidthChange`.
+
+### Consumers
+
+No API removed. OxyOS bumps to show the QR at its login screen.
+
 ## 14.14.0
 
 ### Security

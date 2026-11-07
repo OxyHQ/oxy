@@ -390,6 +390,15 @@ export type {
   AccountDialogMenuSection,
 } from './ui/navigation/accountDialogManager';
 
+// The account dialog's chooser without the dialog: the same sign-in (with the
+// Commons QR from `md` on a browser or a computer), sign-up and request views,
+// for a platform that shows it on a card of its own (OxyOS's login screen), its
+// card sized by the chooser through `OxySurfaceFrame`.
+export { default as OxyAuthChooser } from './ui/components/OxyAuthChooser';
+export type { OxyAuthChooserProps } from './ui/components/OxyAuthChooser';
+export { OxySurfaceFrame } from './ui/components/OxySurfaceFrame';
+export type { OxySurfaceFrameProps } from './ui/components/OxySurfaceFrame';
+
 // THE sign-in screens. The account dialog renders them, and so does every page
 // of the auth.oxy.so IdP: one implementation of what a person sees when they
 // sign in, create an account, or choose which account continues.
