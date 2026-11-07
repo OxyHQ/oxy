@@ -1,4 +1,5 @@
 import {
+  IDENTITY_BACKUP_MAX_VERSION,
   backupLookupIdSchema,
   encryptedBackupEnvelopeSchema,
   backupUploadRequestSchema,
@@ -48,6 +49,20 @@ describe('backupUploadRequestSchema', () => {
   it('round-trips envelope plus lookupId', () => {
     const payload = { ...validEnvelope, lookupId: VALID_LOOKUP_ID };
     expect(safeParseContract(backupUploadRequestSchema, payload)).toEqual(payload);
+  });
+
+  it('caps the envelope version at the highest one a client writes (R7-1)', () => {
+    const at = (version: number) =>
+      safeParseContract(backupUploadRequestSchema, {
+        ...validEnvelope,
+        version,
+        lookupId: VALID_LOOKUP_ID,
+      });
+    expect(IDENTITY_BACKUP_MAX_VERSION).toBe(2);
+    expect(at(IDENTITY_BACKUP_MAX_VERSION)).not.toBeNull();
+    expect(at(IDENTITY_BACKUP_MAX_VERSION + 1)).toBeNull();
+    expect(at(2 ** 31 - 1)).toBeNull();
+    expect(at(0)).toBeNull();
   });
 
   it('rejects upload without a valid lookupId', () => {

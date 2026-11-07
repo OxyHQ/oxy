@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.16.0
+
+Round-7 security review (R7-1).
+
+### Added
+
+- `IDENTITY_BACKUP_MAX_VERSION` (2): the highest identity-backup envelope version a client writes.
+
+### Changed
+
+- `backupUploadRequestSchema.version` is at most `IDENTITY_BACKUP_MAX_VERSION`. The server keeps the higher of two versions, so an upload with a version no client writes would refuse every later legitimate upload. `encryptedBackupEnvelopeSchema` (what the restore lookup serves) is unchanged.
+
 ## 6.15.0
 
 Round-6 security review of Peable's FairCoin mainnet identity receive (R6-5, R6-8).

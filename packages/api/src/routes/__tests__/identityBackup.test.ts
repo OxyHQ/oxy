@@ -42,10 +42,23 @@ import { eq } from 'drizzle-orm';
 
 /** The account each request authenticates as. Set per test. */
 let currentUserId = '';
+/**
+ * The bearer's `oxyToken` claims: `applicationId` for an application's user
+ * session, `host` for an application token a platform minted (ADR 0058).
+ * `undefined` is a shared device session. Set per test.
+ */
+let currentToken:
+  | { applicationId?: string; host?: { platform: string; applicationId: string } }
+  | undefined;
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: { _id: string } }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: { _id: string }; oxyToken?: unknown },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.user = { _id: currentUserId };
+    if (currentToken) req.oxyToken = currentToken;
     next();
   },
 }));
@@ -56,7 +69,9 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
+import { IDENTITY_BACKUP_MAX_VERSION } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { applications } from '../../db/schema/applications';
 import { identityBackups } from '../../db/schema/identityBackups';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -145,6 +160,7 @@ beforeEach(async () => {
   OWNER = await insertUser();
   STRANGER = await insertUser();
   currentUserId = OWNER;
+  currentToken = undefined;
 });
 
 // Deliberately NO cleanup — see `freshLookupId`. Every account and every
@@ -201,11 +217,10 @@ describe('POST /identity/backup', () => {
       uploadBody({ version: 2, ciphertext: 'beef' }),
     );
     expect(same.status).toBe(200);
-    const upgraded = await request('POST', '/identity/backup', uploadBody({ version: 3 }));
-    expect(upgraded.status).toBe(200);
     const rows = await storedRows(OWNER);
     expect(rows).toHaveLength(1);
-    expect(rows[0].version).toBe(3);
+    expect(rows[0].version).toBe(2);
+    expect(rows[0].ciphertext).toBe('beef');
   });
 
   it('stores the client ISO timestamp verbatim, in its own column', async () => {
@@ -458,5 +473,120 @@ describe('POST /identity/backup only under the current root (R6-9)', () => {
       uploadBody({ publicKeyHint: '0479be667ef9dcbb' }),
     );
     expect(res.status).toBe(200);
+  });
+});
+
+describe('only first-party sessions write the backup, and only a version a client writes (R7-1)', () => {
+  async function insertApplication(type: 'first_party' | 'third_party'): Promise<string> {
+    const [app] = await getDb()
+      .insert(applications)
+      .values({
+        name: `${type} ${crypto.randomUUID()}`,
+        ownerAccountId: STRANGER,
+        status: 'active',
+        type,
+        scopes: ['user:read'],
+      })
+      .returning({ id: applications.id });
+    return app.id;
+  }
+
+  /** OWNER's backup, written by Commons (a shared device session). */
+  async function seedBackup(): Promise<void> {
+    currentToken = undefined;
+    const seeded = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, ciphertext: 'c0ffee' }),
+    );
+    expect(seeded.status).toBe(200);
+  }
+
+  const refusals: Array<[string, () => Promise<void>, Record<string, unknown>]> = [
+    [
+      'an application token a platform minted',
+      async () => {
+        currentToken = {
+          host: { platform: 'oxyos', applicationId: await insertApplication('first_party') },
+        };
+      },
+      { error: 'app_token_device_access_denied' },
+    ],
+    [
+      "a third-party application's session",
+      async () => {
+        currentToken = { applicationId: await insertApplication('third_party') };
+      },
+      { error: 'third_party_device_access_denied' },
+    ],
+    [
+      'an application the registry does not hold',
+      async () => {
+        currentToken = { applicationId: `app-${crypto.randomUUID()}` };
+      },
+      { error: 'third_party_device_access_denied' },
+    ],
+  ];
+
+  it.each(refusals)('refuses an upload from %s, keeping the stored backup', async (_, as, body) => {
+    await seedBackup();
+    await as();
+    const res = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: IDENTITY_BACKUP_MAX_VERSION, ciphertext: 'junk' }),
+    );
+    expect(res).toEqual({ status: 403, body });
+    const [kept] = await storedRows(OWNER);
+    expect(kept.ciphertext).toBe('c0ffee');
+  });
+
+  it.each(refusals)('refuses a delete from %s, keeping the stored backup', async (_, as, body) => {
+    await seedBackup();
+    await as();
+    expect(await request('DELETE', '/identity/backup')).toEqual({ status: 403, body });
+    expect(await storedRows(OWNER)).toHaveLength(1);
+  });
+
+  it("a first-party application's session (Accounts) still writes and deletes it", async () => {
+    currentToken = { applicationId: await insertApplication('first_party') };
+    expect((await request('POST', '/identity/backup', uploadBody({ version: 2 }))).status).toBe(
+      200,
+    );
+    expect((await request('DELETE', '/identity/backup')).status).toBe(200);
+    expect(await storedRows(OWNER)).toHaveLength(0);
+  });
+
+  it('refuses a version above the highest a client writes (400), storing nothing', async () => {
+    for (const version of [IDENTITY_BACKUP_MAX_VERSION + 1, 2 ** 31 - 1]) {
+      const res = await request('POST', '/identity/backup', uploadBody({ version }));
+      expect(res.status).toBe(400);
+    }
+    expect(await storedRows(OWNER)).toHaveLength(0);
+  });
+
+  it('a stored version above the maximum (planted before the bound) never blocks a legitimate upload', async () => {
+    await getDb()
+      .insert(identityBackups)
+      .values({
+        userId: OWNER,
+        lookupIdHash: sha256Hex(freshLookupId()),
+        publicKeyHint: '04abcdef01234567',
+        ciphertext: 'junk',
+        nonce: '00'.repeat(24),
+        algorithm: 'xchacha20poly1305',
+        kdfInfo: 'oxy-backup-encryption-key',
+        version: 2 ** 31 - 1,
+        clientCreatedAt: '2026-07-16T00:00:00.000Z',
+      });
+    const res = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, ciphertext: 'c0ffee' }),
+    );
+    expect(res.status).toBe(200);
+    const [row] = await storedRows(OWNER);
+    expect(row.version).toBe(2);
+    expect(row.ciphertext).toBe('c0ffee');
   });
 });
