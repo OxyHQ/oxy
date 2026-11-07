@@ -99,7 +99,8 @@ device from its first entry.
   - `generation`: the new vault-key generation number. Signed by a current
     member.
   - `recovery`: new recovery public keys (a replaced recovery key). Signed by
-    a current member.
+    a current member. Like `remove`, always followed in the same request by
+    `generation` (amended 2026-11-07, see D6).
 - A member is `{ id, name, platform, signingKey, boxKey }`; `id` is a uuid the
   device chooses, `platform` one of `oxyos`, `ios`, `android`, `macos`,
   `windows`, `linux`, `web` (a closed set for display only).
@@ -166,6 +167,13 @@ code; there is no automatic approval. Either side may cancel.
   choice to print or write it down; the person must type it back before the
   vault exists. It can be replaced later from a member device (`recovery`
   entry, a new recovery wrap); the old one then opens nothing new.
+  *Amended 2026-11-07 (security review of the SDK, PR #2219):* a replaced
+  recovery key may be the reason for the replacement, and the previous
+  recovery wrap, which Oxy or anyone who copied it may keep, still opens with
+  it. So a `recovery` entry, like a `remove`, is always followed in the same
+  request by a `generation` entry and new wraps at that generation for every
+  member and for the new recovery key; items written afterwards use the new
+  generation, which nothing sealed to the old key holds.
 - A device with the recovery key and no member to approve it: reads the
   recovery wrap (`GET /keychain/recovery`), derives the recovery keys, opens
   the keyring, checks the wrap's signer against the roster, appends `add`
@@ -247,6 +255,11 @@ no signature or ciphertext can be replayed as another kind.
   to 0.
 - `vaultId`, `itemId` and member ids are lowercase uuids; `g` is decimal ASCII.
 - Randomness: the platform CSPRNG (`crypto.getRandomValues`, `getrandom`).
+- What this text leaves to the implementation (the roster bodies' fields,
+  timestamps, strict Ed25519 verification, the item schemas' exact shape, the
+  JCS subset) is fixed in
+  [docs/identity/keychain.md#formats-in-detail](../identity/keychain.md#formats-in-detail)
+  and in the test vectors.
 
 ### D9. Not in this decision
 

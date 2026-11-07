@@ -1,5 +1,21 @@
 # Changelog — `@oxy.so/core`
 
+## 7.43.0
+
+The Oxy Keychain's cryptography (ADR 0063 D8), under `@oxy.so/core/crypto`. Formats only: the `oxy.keychain` routes come with the server's contracts.
+
+### Added
+
+- **Seal** (`keychainSeal`, `keychainOpenSealed`): age's X25519 recipient construction, HKDF-SHA256 (salt `E ‖ R`, info `oxy.keychain.seal.v1`), XChaCha20-Poly1305 with AAD; an all-zero shared secret (a low-order key) is refused.
+- **Keys**: `generateDeviceKeys`, `deviceKeysFromSecrets`, `exportPublicKeys`, `zeroizeKeyPairs`; the recovery key (`generateRecoveryKey`, `formatRecoveryKey`, `parseRecoveryKey`, `deriveRecoveryKeys`, `recoveryKeyMatches`).
+- **Keyring and wraps**: `createKeyring`, `rotateKeyring`, `encodeKeyring`/`decodeKeyring` (JCS), `wrapAad`, `wrapSigningInput`, `createWrap`, `verifyWrap`, `openWrap`.
+- **Roster**: entry builders (`genesisBody`, `addBody`, `removeBody`, `generationBody`, `recoveryBody`), `signRosterBody`, `rosterSigningInput`, `rosterEntryHash`, and `verifyRoster`, which verifies from genesis (pinned genesis hash, extension of the known head, signer membership at each point, the recovery key only where it may sign, `remove` and `recovery` each followed by `generation` (ADR 0063 D6 as amended here: a replaced recovery key opens nothing written after it), closed schemas) and returns the members, recovery keys and generation; `KeychainRosterError.reason` says why a roster was refused.
+- **Enrollment**: `enrollmentCommitment`, `verifyEnrollmentCommitment`, `enrollmentComparisonCode` (six digits).
+- **Items**: strict schemas for `login`, `passkey`, `totp`, `note`, `wifi` (`validateItem`), JCS padded with spaces to a multiple of 256, `encryptItem`/`decryptItem` under a keyring generation, `isItemCounterAcceptable`/`nextItemCounter`.
+- **`generateStrongPassword`** (four groups of five from `[a-zA-Z0-9]`, every class, unbiased) and RFC 6238 TOTP (`totpCode`, `hotpCode`, `parseOtpauthUri`; SHA-1/256/512).
+- `src/crypto/keychain/__tests__/vectors.json`: the cross-implementation test vectors the OxyOS keychain service reproduces (shape in docs/identity/keychain.md#test-vectors).
+- Dependency: `@noble/curves` (catalog), for Ed25519 and X25519.
+
 ## 7.41.0
 
 A backup the person deleted stays deleted (owner's decision, 2026-11-07): rotating a key never silently re-uploads the encrypted identity backup of a person who deleted theirs.

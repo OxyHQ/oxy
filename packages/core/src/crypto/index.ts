@@ -155,3 +155,7 @@ export { createContentHasher } from './contentHash';
 export type { ContentHasher } from './contentHash';
 export { canonicalize, loadCommonsIdentityBridge } from '@oxy.so/protocol';
 export { signMessage, verifySignature } from '@oxy.so/protocol/sign';
+
+// The Oxy Keychain's cryptography: seal, wraps, the roster, items, the
+// recovery key, enrollment codes, TOTP (docs/adr/0063-end-to-end-encrypted-keychain.md D8)
+export * from './keychain/index';
