@@ -140,18 +140,32 @@ async function ringStore(gate = true): Promise<ExpoSecureStoreLike> {
 }
 
 /**
- * How many QUARANTINED entries the ring keeps at most, personal and
- * organization ones together (R6-14). Every Oxy app can write the shared
- * group, and every valid key found there is kept quarantined (R5-3), so
- * without a bound a planted shared group grows the ring (and the work of
- * every reader and of Commons' launch-time claims) without end. A real phone
- * holds a handful. Past the bound a new quarantined key is refused
+ * How many QUARANTINED entries ONE ring (the personal one, or one
+ * organization's) keeps at most from the shared keychain group (R6-14, per
+ * ring since R7-5). Every Oxy app can write that group, and every valid key
+ * found there is kept quarantined (R5-3), so without a bound a planted shared
+ * group grows the ring (and the work of every reader and of Commons'
+ * launch-time claims) without end. A real phone holds a handful. Past the
+ * bound a new quarantined key from the shared group is refused
  * ({@link RetiredKeyQuarantineFullError}) and its shared copy is LEFT where it
  * is: never lost, never trusted.
+ *
+ * Per ring, so a flood planted into one ring never refuses another's; and
+ * only the shared-group copy is bounded: a key this device held itself (a
+ * rotation keeping an older slot key, an organization pair that re-validation
+ * takes out of use) or one a phrase-opened backup carried is kept whatever
+ * the quarantine holds (`exempt`), so a planted flood cannot make those fail.
  */
 export const MAX_QUARANTINED_RING_ENTRIES = 64;
 
-/** Thrown when the ring already holds {@link MAX_QUARANTINED_RING_ENTRIES} quarantined entries. */
+/**
+ * How many quarantined entries from the shared group the rings keep at most
+ * together (R7-5): the per-ring bound alone would let a flood spread over
+ * invented organization ids grow the index without end.
+ */
+export const MAX_QUARANTINED_RING_ENTRIES_TOTAL = 256;
+
+/** Thrown when a ring (or all of them) already holds the most quarantined entries from the shared group. */
 export class RetiredKeyQuarantineFullError extends Error {
   constructor() {
     super('retired key ring: the quarantine is full');
@@ -406,17 +420,20 @@ export async function retireIdentityKeyDuringMigration(
  * slot, one a backup carried that the history does not name, or an
  * organization pair the organization does not publish. A key the ring already
  * holds keeps its binding. Throws {@link RetiredKeyQuarantineFullError} past
- * the bound.
+ * the bound, unless `exempt`: a key this device held itself or a phrase-opened
+ * backup carried, never one found in the shared group (R7-5).
  */
 export async function quarantineRetiredIdentityKey(
   key: RetiredKeyPair,
   selector?: Pick<RetiredKeySelector, 'accountId'>,
+  options?: { exempt?: boolean },
 ): Promise<void> {
   await keepRetired(
     key,
     selector?.accountId === undefined ? {} : { accountId: selector.accountId },
     true,
     true,
+    options?.exempt === true,
   );
 }
 
@@ -425,6 +442,7 @@ async function keepRetired(
   selector: RetiredKeySelector | undefined,
   gate: boolean,
   quarantine = false,
+  exempt = false,
 ): Promise<void> {
   const scope = retiredKeyScope(selector);
   if (!scope) throw new Error('retired key: accountId must be a 24-hex or uuid account id');
@@ -445,15 +463,14 @@ async function keepRetired(
   if (existing?.owner !== undefined && owner !== null && existing.owner !== owner) {
     throw new Error('retired key: this key is kept for a different account');
   }
-  // A NEW quarantined entry counts against the bound (R6-14); binding or
-  // re-keeping an entry the ring already has never does.
+  // A NEW quarantined entry from the shared group counts against the bounds
+  // (R6-14, R7-5); binding or re-keeping an entry the ring already has never
+  // does, and neither does an exempt one.
   const entersQuarantine = scope === PERSONAL_SCOPE ? owner === null : orgQuarantine;
-  if (
-    !existing &&
-    entersQuarantine &&
-    before.filter(isQuarantined).length >= MAX_QUARANTINED_RING_ENTRIES
-  ) {
-    throw new RetiredKeyQuarantineFullError();
+  if (!existing && entersQuarantine && !exempt && quarantineIsFull(before, scope)) {
+    // Entries whose private half is gone hold nothing and are dropped first.
+    const purged = await purgeEmptyQuarantinedEntries(store, before);
+    if (quarantineIsFull(purged, scope)) throw new RetiredKeyQuarantineFullError();
   }
   await store.setItemAsync(
     privateKeyName(scope, publicKey),
@@ -505,6 +522,48 @@ async function keepRetired(
   ) {
     throw new Error(`The identity signer store (${signer.name}) did not confirm the retired key.`);
   }
+}
+
+/** Whether a new shared-group quarantined entry of `scope` is past either bound (R7-5). */
+function quarantineIsFull(index: readonly IndexEntry[], scope: string): boolean {
+  const quarantined = index.filter(isQuarantined);
+  return (
+    quarantined.length >= MAX_QUARANTINED_RING_ENTRIES_TOTAL ||
+    quarantined.filter((entry) => entry.scope === scope).length >= MAX_QUARANTINED_RING_ENTRIES
+  );
+}
+
+/**
+ * Drop the quarantined index entries whose private half this device no longer
+ * holds (R7-5): nothing reaches them, they are no money, and they only count
+ * against the bound. An entry whose half is there (or cannot be read now) is
+ * kept: it may be money. Resolves the index as written.
+ */
+async function purgeEmptyQuarantinedEntries(
+  store: ExpoSecureStoreLike,
+  index: IndexEntry[],
+): Promise<IndexEntry[]> {
+  const signer = isAndroid() ? registeredIdentitySignerStore() : null;
+  const empty = new Set<IndexEntry>();
+  for (const entry of index) {
+    if (!isQuarantined(entry)) continue;
+    try {
+      const local = await store.getItemAsync(
+        privateKeyName(entry.scope, entry.publicKey),
+        privateOptions(store, false),
+      );
+      if (local && isHealthyPair(local, entry.publicKey)) continue;
+      const mirrored = (await signer?.readRetired?.(entry.scope, entry.publicKey)) ?? null;
+      if (mirrored && isHealthyPair(mirrored.privateKey, entry.publicKey)) continue;
+      empty.add(entry);
+    } catch {
+      // Unreadable now: kept.
+    }
+  }
+  if (empty.size === 0) return index;
+  const next = index.filter((entry) => !empty.has(entry));
+  await writeIndex(store, next);
+  return next;
 }
 
 /**
@@ -654,7 +713,8 @@ export async function countQuarantinedRetiredKeys(): Promise<number> {
  * retired, and check every entry against the account's key history.
  *
  * STRICT (R5-6): a ring that cannot be read throws (the keychain's error, or
- * {@link RetiredKeyRingUnreadableError}); it never reads as empty.
+ * {@link RetiredKeyRingUnreadableError}); it never reads as empty. On Android
+ * outside Commons that includes an identity host that did not answer (R7-4).
  */
 export async function listRetiredIdentityKeys(
   selector?: RetiredKeySelector,
@@ -665,8 +725,15 @@ export async function listRetiredIdentityKeys(
   if (scope === PERSONAL_SCOPE && owner === null) return [];
   if (isAndroid() && !registeredIdentitySignerStore()) {
     const bridge = await loadCommonsIdentityBridge();
-    const keys = (await bridge?.listRetiredKeys?.(selector?.accountId)) ?? null;
-    return (keys ?? []).map((publicKey) =>
+    // No identity module in this app: it reaches no key at all.
+    if (!bridge) return [];
+    const keys = (await bridge.listRetiredKeys?.(selector?.accountId)) ?? null;
+    // Commons did not answer (busy, not installed, an older protocol, an
+    // answer this side cannot read): never "holds none" (R7-4).
+    if (keys === null) {
+      throw new RetiredKeyRingUnreadableError("Commons' identity host did not answer");
+    }
+    return keys.map((publicKey) =>
       scope === PERSONAL_SCOPE
         ? { publicKey, retiredAt: 0 }
         : { publicKey, accountId: scope, retiredAt: 0 },
@@ -688,50 +755,8 @@ export async function getRetiredPrivateKey(
   publicKey: string,
   selector?: RetiredKeySelector,
 ): Promise<string | null> {
-  const scope = retiredKeyScope(selector);
-  const canonical = canonicalPublicKey(publicKey);
-  if (!scope || !canonical || isWeb()) return null;
-  const owner = ownerOf(selector?.ownerAccountId);
-  if (scope === PERSONAL_SCOPE && owner === null) return null;
   try {
-    if (isAndroid()) {
-      const signer = registeredIdentitySignerStore();
-      if (!signer) return null;
-      const store = await ringStore();
-      if (
-        !(await readIndex(store)).some(
-          (entry) => isVisible(entry, scope, owner) && entry.publicKey === canonical,
-        )
-      ) {
-        return null;
-      }
-      const local = await store.getItemAsync(
-        privateKeyName(scope, canonical),
-        privateOptions(store, false),
-      );
-      if (local && isHealthyPair(local, canonical)) return normalizeSecp256k1PrivateKey(local);
-      // The signer store is a rung: a wiped expo-secure-store slot still has it.
-      const mirrored = (await signer.readRetired?.(scope, canonical)) ?? null;
-      return mirrored && isHealthyPair(mirrored.privateKey, canonical)
-        ? normalizeSecp256k1PrivateKey(mirrored.privateKey)
-        : null;
-    }
-    if (!isIOS()) return null;
-    const store = await ringStore();
-    // The index decides who may reach a key (R5-2); a key it does not list for
-    // this reader is not theirs, whatever item exists.
-    if (
-      !(await readIndex(store)).some(
-        (entry) => isVisible(entry, scope, owner) && entry.publicKey === canonical,
-      )
-    ) {
-      return null;
-    }
-    const value = await store.getItemAsync(
-      privateKeyName(scope, canonical),
-      privateOptions(store, false),
-    );
-    return value && isHealthyPair(value, canonical) ? normalizeSecp256k1PrivateKey(value) : null;
+    return await getRetiredPrivateKeyStrict(publicKey, selector);
   } catch (error) {
     logger.warn('Failed to read a retired key', {
       component: 'RetiredKeys',
@@ -739,6 +764,66 @@ export async function getRetiredPrivateKey(
     });
     return null;
   }
+}
+
+/**
+ * {@link getRetiredPrivateKey} that never turns a failure into "not held"
+ * (security review R7-4): `null` only when the ring DEFINITIVELY does not hold
+ * the key for this reader (its index, read, does not list it; or this app holds
+ * no ring). A keychain that cannot be read now, an unreadable index, or a key
+ * the index lists whose private half cannot be read THROWS
+ * ({@link RetiredKeyRingUnreadableError} or the keychain's error): the key may
+ * well be held. @internal — `KeyManager`'s `publicKey` selector.
+ */
+export async function getRetiredPrivateKeyStrict(
+  publicKey: string,
+  selector?: RetiredKeySelector,
+): Promise<string | null> {
+  const scope = retiredKeyScope(selector);
+  const canonical = canonicalPublicKey(publicKey);
+  if (!scope || !canonical || isWeb()) return null;
+  const owner = ownerOf(selector?.ownerAccountId);
+  if (scope === PERSONAL_SCOPE && owner === null) return null;
+  if (isAndroid()) {
+    const signer = registeredIdentitySignerStore();
+    if (!signer) return null;
+    const store = await ringStore();
+    if (
+      !(await readIndex(store)).some(
+        (entry) => isVisible(entry, scope, owner) && entry.publicKey === canonical,
+      )
+    ) {
+      return null;
+    }
+    const local = await store.getItemAsync(
+      privateKeyName(scope, canonical),
+      privateOptions(store, false),
+    );
+    if (local && isHealthyPair(local, canonical)) return normalizeSecp256k1PrivateKey(local);
+    // The signer store is a rung: a wiped expo-secure-store slot still has it.
+    const mirrored = (await signer.readRetired?.(scope, canonical)) ?? null;
+    if (mirrored && isHealthyPair(mirrored.privateKey, canonical)) {
+      return normalizeSecp256k1PrivateKey(mirrored.privateKey);
+    }
+    throw new RetiredKeyRingUnreadableError('a listed key has no readable private half');
+  }
+  if (!isIOS()) return null;
+  const store = await ringStore();
+  // The index decides who may reach a key (R5-2); a key it does not list for
+  // this reader is not theirs, whatever item exists.
+  if (
+    !(await readIndex(store)).some(
+      (entry) => isVisible(entry, scope, owner) && entry.publicKey === canonical,
+    )
+  ) {
+    return null;
+  }
+  const value = await store.getItemAsync(
+    privateKeyName(scope, canonical),
+    privateOptions(store, false),
+  );
+  if (value && isHealthyPair(value, canonical)) return normalizeSecp256k1PrivateKey(value);
+  throw new RetiredKeyRingUnreadableError('a listed key has no readable private half');
 }
 
 /**

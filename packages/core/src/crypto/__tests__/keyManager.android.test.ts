@@ -320,3 +320,40 @@ describe('every other app (no signer store, no key)', () => {
     await expect(KeyManager.syncSharedIdentity()).resolves.toBe(false);
   });
 });
+
+describe('the owed backup is one entry per account (R7-10)', () => {
+  const ME = 'aaaaaaaaaaaaaaaaaaaaaaaa';
+  const OTHER = 'bbbbbbbbbbbbbbbbbbbbbbbb';
+  const ACK = 'cd'.repeat(32);
+
+  it("one account's mark or clear never touches another's", async () => {
+    await KeyManager.markBackupOwed(ME, { supersededLookupId: ACK });
+    await KeyManager.markBackupOwed(OTHER);
+    await expect(KeyManager.backupOwedEntry(ME)).resolves.toEqual({ supersededLookupId: ACK });
+    await expect(KeyManager.backupOwedEntry(OTHER)).resolves.toEqual({});
+    await KeyManager.clearBackupOwed(OTHER);
+    await expect(KeyManager.backupOwedEntry(OTHER)).resolves.toBeNull();
+    await expect(KeyManager.backupOwedEntry(ME)).resolves.toEqual({ supersededLookupId: ACK });
+    // A later mark without a locator keeps the one it has.
+    await KeyManager.markBackupOwed(ME);
+    await expect(KeyManager.backupOwedEntry(ME)).resolves.toEqual({ supersededLookupId: ACK });
+  });
+
+  it('a snapshot is put back as it was, and the pre-R7 value reads as its account', async () => {
+    const before = await KeyManager.backupOwedEntry(ME);
+    expect(before).toBeNull();
+    await KeyManager.markBackupOwed(ME, { supersededLookupId: ACK });
+    await KeyManager.restoreBackupOwed(ME, before);
+    await expect(KeyManager.backupOwedEntry(ME)).resolves.toBeNull();
+
+    await KeyManager.markBackupOwed(ME, { supersededLookupId: ACK });
+    const owed = await KeyManager.backupOwedEntry(ME);
+    await KeyManager.markBackupOwed(ME, { supersededLookupId: 'ef'.repeat(32) });
+    await KeyManager.restoreBackupOwed(ME, owed);
+    await expect(KeyManager.backupOwedEntry(ME)).resolves.toEqual({ supersededLookupId: ACK });
+
+    await mockAsyncStorage.setItem('oxy_identity_backup_owed_v1', OTHER);
+    await expect(KeyManager.backupOwedEntry(OTHER)).resolves.toEqual({});
+    await expect(KeyManager.backupOwedFor()).resolves.toBe(OTHER);
+  });
+});

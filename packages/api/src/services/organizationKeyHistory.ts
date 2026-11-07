@@ -9,7 +9,7 @@
  * as the same one's) and hands over that address tree.
  */
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { isValidSecp256k1PublicKey, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import type { DatabaseOrTransaction } from '../config/postgres';
 import { organizationIdentityKeys } from '../db/schema/organizationIdentityKeys';
@@ -26,6 +26,27 @@ function storedForm(publicKey: string): string {
   return isValidSecp256k1PublicKey(trimmed)
     ? normalizeSecp256k1PublicKey(trimmed)
     : trimmed.toLowerCase();
+}
+
+/**
+ * Serialize, until the end of `tx`, every writer that decides what `publicKey`
+ * IS: a personal root (sign-up, link, rotation in), an organization's key, or a
+ * person's retired root (rotation out, the key-history claim and its backfill).
+ * Each reads that the key is none of the others and then writes, so two of them
+ * in flight on one key would both pass their reads (security review R7, info):
+ * a key claimed as a retired root while a re-link made it live. Every such
+ * writer takes this lock in its transaction BEFORE its reads. A transaction
+ * that locks two keys (a rotation) locks them sorted, so two never deadlock.
+ */
+export async function lockIdentityKeys(
+  tx: DatabaseOrTransaction,
+  ...publicKeys: string[]
+): Promise<void> {
+  for (const key of [...new Set(publicKeys.map(storedForm))].sort()) {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`oxy:identity-key:${key}`}, 0))`,
+    );
+  }
 }
 
 /** True when `publicKey` (any case or encoding) is or was an organization's key. */

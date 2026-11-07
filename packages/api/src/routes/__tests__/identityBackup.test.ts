@@ -377,12 +377,17 @@ describe('a backup a key rotation superseded (R6-8)', () => {
       .where(eq(identityBackups.userId, OWNER));
   }
 
-  it('reads as no backup of the current key in /status', async () => {
+  it('reads as no backup of the current key in /status, told apart from none (R7-2)', async () => {
     await request('POST', '/identity/backup', uploadBody({ version: 2 }));
     await supersede();
     const res = await request('GET', '/identity/backup/status');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ exists: false });
+    expect(res.body).toEqual({
+      exists: false,
+      superseded: true,
+      publicKeyHint: '04abcdef01234567',
+      createdAt: '2026-07-16T00:00:00.000Z',
+    });
   });
 
   it('is still served by its locator, marked superseded', async () => {
@@ -394,7 +399,7 @@ describe('a backup a key rotation superseded (R6-8)', () => {
     expect(res.body).toMatchObject({ version: 2, superseded: true });
   });
 
-  it('an older client cannot replace it (v1 refused); a v2 upload replaces it and clears the mark', async () => {
+  it('an older client cannot replace it (v1 refused)', async () => {
     await request('POST', '/identity/backup', uploadBody({ version: 2, ciphertext: 'c0ffee' }));
     await supersede();
 
@@ -403,12 +408,61 @@ describe('a backup a key rotation superseded (R6-8)', () => {
     const [kept] = await storedRows(OWNER);
     expect(kept.ciphertext).toBe('c0ffee');
     expect(kept.supersededAt).toBeInstanceOf(Date);
+  });
 
-    const replaced = await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+  it('an upload never replaces it without its acknowledgement (R7-2)', async () => {
+    const superseded = freshLookupId();
+    await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, ciphertext: 'c0ffee', lookupId: superseded }),
+    );
+    await supersede();
+
+    // No acknowledgement, or another backup's locator: refused, kept.
+    for (const replacesLookupId of [undefined, freshLookupId()]) {
+      const refused = await request(
+        'POST',
+        '/identity/backup',
+        uploadBody({ version: 2, ...(replacesLookupId ? { replacesLookupId } : {}) }),
+      );
+      expect(refused.status).toBe(409);
+      expect(refused.body).toMatchObject({ error: 'IDENTITY_BACKUP_SUPERSEDED' });
+      const [kept] = await storedRows(OWNER);
+      expect(kept.ciphertext).toBe('c0ffee');
+      expect(kept.supersededAt).toBeInstanceOf(Date);
+    }
+    // Still served by its own locator, so its phrase still reaches its keys.
+    expect((await request('GET', `/identity/backup/${superseded}`)).status).toBe(200);
+  });
+
+  it('its own locator acknowledges it: the upload replaces it and clears the mark', async () => {
+    const superseded = freshLookupId();
+    await request('POST', '/identity/backup', uploadBody({ version: 2, lookupId: superseded }));
+    await supersede();
+
+    const replaced = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, replacesLookupId: superseded }),
+    );
     expect(replaced.status).toBe(200);
     const [row] = await storedRows(OWNER);
     expect(row.supersededAt).toBeNull();
+    expect(row.lookupIdHash).not.toBe(sha256Hex(superseded));
     expect((await request('GET', '/identity/backup/status')).body).toMatchObject({ exists: true });
+  });
+
+  it('an acknowledgement over a CURRENT backup changes nothing about the rules', async () => {
+    await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+    const again = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, ciphertext: 'feed', replacesLookupId: freshLookupId() }),
+    );
+    expect(again.status).toBe(200);
+    const [row] = await storedRows(OWNER);
+    expect(row.ciphertext).toBe('feed');
   });
 
   it('DELETE removes it', async () => {

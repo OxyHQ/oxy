@@ -161,7 +161,8 @@ for spending only (ADR 0061 D7 as amended 2026-11-06):
 - Peable reaches it with `deriveScopedSeed` / `signSocialReceive` and the
   `publicKey` selector (Android: the identity host's `keyPublicKey` extra and
   `listRetiredKeys`, wallet only), shows the coins as spendable and offers to
-  move them to the current key;
+  move them to the current key; a key it cannot read now throws
+  `IdentityUnavailableError` (never `null`, R7-4);
 - a retired key never signs anyone in, never takes a new reservation and is
   never the current key again;
 - when a holder leaves or the phrase may be exposed, replace the key and move the

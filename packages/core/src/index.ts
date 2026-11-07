@@ -129,7 +129,7 @@ export type {
   LargeUploadProgress,
   LargeUploadResult,
 } from './api/assets';
-export { buildUserDid } from './api/identity';
+export { buildUserDid, IdentityBackupSupersededError } from './api/identity';
 export type {
   IdentityApi,
   VerifyDomainResult,

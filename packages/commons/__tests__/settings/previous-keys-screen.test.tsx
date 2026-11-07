@@ -6,6 +6,7 @@
  */
 import type React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(),
@@ -56,9 +57,11 @@ const PREVIOUS = { privateKey: '33'.repeat(32), publicKey: `04${'cc'.repeat(64)}
 const mockFromPhrase = jest.fn(async () => PREVIOUS);
 const mockRetire = jest.fn(async () => undefined);
 const mockList = jest.fn(async () => [] as { publicKey: string; retiredAt: number }[]);
+const mockCurrentPhrase = jest.fn(async (): Promise<string | null> => null);
 jest.mock('@oxy.so/core/crypto', () => ({
   KeyManager: {
     getPublicKey: jest.fn(async () => `04${'dd'.repeat(64)}`),
+    getRecoveryMnemonic: (...args: unknown[]) => mockCurrentPhrase(...(args as [])),
     canonicalPublicKey: (key: string) => key.toLowerCase(),
     shortenPublicKey: (key: string) => key.slice(0, 8),
   },
@@ -77,9 +80,11 @@ const keyHistory = jest.fn();
 
 function renderScreen() {
   return render(
-    <LocaleProvider>
-      <PreviousKeysScreen />
-    </LocaleProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <LocaleProvider>
+        <PreviousKeysScreen />
+      </LocaleProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -129,4 +134,26 @@ it("refuses a phrase that was never this account's", async () => {
   await enterAndSubmit(getByTestId);
   await waitFor(() => expect(container.textContent).toContain("isn't one of this account's"));
   expect(mockRetire).not.toHaveBeenCalled();
+});
+
+it('re-seals a backup a rotation superseded with the previous phrase just added (R7-2)', async () => {
+  keyHistory.mockResolvedValue({
+    publicKey: `04${'dd'.repeat(64)}`,
+    retired: [{ publicKey: PREVIOUS.publicKey, retiredAt: '2026-11-01T00:00:00.000Z' }],
+  });
+  const CURRENT_PHRASE = Array.from({ length: 12 }, () => 'zoo').join(' ');
+  mockCurrentPhrase.mockResolvedValue(CURRENT_PHRASE);
+  const status = jest.fn(async () => ({ exists: false, superseded: true }));
+  const create = jest.fn(async () => ({ exists: true }));
+  __setOxyState({
+    oxyServices: {
+      identity: { keyHistory, backup: { status, create } },
+      session: { userId: 'aaaaaaaaaaaaaaaaaaaaaaaa' },
+    },
+  });
+  const { getByTestId } = renderScreen();
+  await enterAndSubmit(getByTestId);
+  await waitFor(() =>
+    expect(create).toHaveBeenCalledWith(CURRENT_PHRASE, { previousPhrase: PHRASE }),
+  );
 });

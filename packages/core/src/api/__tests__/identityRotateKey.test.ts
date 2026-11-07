@@ -168,7 +168,9 @@ describe('OxyServices.rotateKey', () => {
         words: pendingFixture.words,
         backupRefreshed: true,
       });
-      expect(backupSpy).toHaveBeenCalledWith(pendingFixture.phrase, []);
+      expect(backupSpy).toHaveBeenCalledWith(pendingFixture.phrase, [], {
+        replacesLookupId: undefined,
+      });
 
       // The OLD-key signed message MUST match the server's reconstruction byte-for-byte.
       const expectedMessage = JSON.stringify({
@@ -599,16 +601,50 @@ describe('OxyServices.rotateKey', () => {
     it('carries what the previous backup carried into the new one (R5-6)', async () => {
       arrange();
       const carried = [{ privateKey: 'aa'.repeat(32), publicKey: '04ab', retiredAt: 1 }];
+      const replacesLookupId = 'ef'.repeat(32);
       jest
         .spyOn(oxy.identity.backup, 'readBeforeRotation')
-        .mockResolvedValue({ existed: true, carried });
+        .mockResolvedValue({ existed: true, carried, replacesLookupId });
       jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue(NEW_PUBLIC);
+      const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+      const order: string[] = [];
+      mockQuarantine.mockImplementation(async () => {
+        order.push('kept');
+      });
+      makeRequestSpy.mockReset();
+      makeRequestSpy.mockImplementation(async (_m: string, path: string) => {
+        order.push(path);
+        if (path.endsWith('/challenge')) {
+          return { challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' };
+        }
+        if (path.endsWith('/complete')) {
+          return { success: true, publicKey: NEW_PUBLIC, message: 'ok' };
+        }
+        return didDocWithKey(OLD_PUBLIC);
+      });
       const sealSpy = jest
         .spyOn(oxy.identity.backup, 'seal')
         .mockResolvedValue({ exists: true } as never);
 
       await oxy.identity.rotateKey({ proof: 'device' });
-      expect(sealSpy).toHaveBeenCalledWith(pendingFixture.phrase, carried);
+      expect(sealSpy).toHaveBeenCalledWith(pendingFixture.phrase, carried, { replacesLookupId });
+      // R7-2: the carried keys are in the ring BEFORE the swap, and the owed
+      // entry keeps the previous backup's locator for a later seal.
+      expect(order.indexOf('kept')).toBeGreaterThanOrEqual(0);
+      expect(order.indexOf('kept')).toBeLessThan(order.indexOf('/auth/rotate/complete'));
+      expect(mark).toHaveBeenCalledWith('user-123', { supersededLookupId: replacesLookupId });
+    });
+
+    it('does not rotate when a key the previous backup carries cannot be kept (R7-2)', async () => {
+      arrange();
+      const carried = [{ privateKey: 'aa'.repeat(32), publicKey: '04ab', retiredAt: 1 }];
+      jest
+        .spyOn(oxy.identity.backup, 'readBeforeRotation')
+        .mockResolvedValue({ existed: true, carried, replacesLookupId: 'ef'.repeat(32) });
+      mockQuarantine.mockRejectedValueOnce(new Error('keychain locked'));
+      makeRequestSpy.mockReset();
+      await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow('Nothing changed');
+      expect(makeRequestSpy).not.toHaveBeenCalled();
     });
 
     it('does not rotate (no challenge) when the backup exists but cannot be read (R5-6)', async () => {
@@ -637,9 +673,11 @@ describe('OxyServices.rotateKey', () => {
         throw new Error('offline');
       });
 
+      const restore = jest.spyOn(KeyManager, 'restoreBackupOwed').mockResolvedValue();
       await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow('network');
-      expect(mark).toHaveBeenCalledWith('user-123');
+      expect(mark).toHaveBeenCalledWith('user-123', undefined);
       expect(clear).not.toHaveBeenCalled();
+      expect(restore).not.toHaveBeenCalled();
     });
 
     it('a failure before the swap was asked for marks nothing (R6-9)', async () => {
@@ -653,7 +691,10 @@ describe('OxyServices.rotateKey', () => {
 
     it('marks the backup owed before the swap; clears it when the swap did not happen (R5-9)', async () => {
       const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
-      const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
+      // A backup this account already owed BEFORE the attempt (R7-10).
+      const before = { supersededLookupId: 'ab'.repeat(32) };
+      jest.spyOn(KeyManager, 'backupOwedEntry').mockResolvedValue(before);
+      const restore = jest.spyOn(KeyManager, 'restoreBackupOwed').mockResolvedValue();
       jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
       jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
       jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
@@ -673,14 +714,14 @@ describe('OxyServices.rotateKey', () => {
 
       await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow('refused');
       // Owed only once nothing before the swap can fail (R6-9); a definitive
-      // 4xx refusal clears it.
+      // 4xx refusal puts back what was owed before the attempt (R7-10).
       expect(order.slice(0, 3)).toEqual([
         '/auth/rotate/challenge',
         'owed',
         '/auth/rotate/complete',
       ]);
-      expect(mark).toHaveBeenCalledWith('user-123');
-      expect(clear).toHaveBeenCalledTimes(1);
+      expect(mark).toHaveBeenCalledWith('user-123', undefined);
+      expect(restore).toHaveBeenCalledWith('user-123', before);
     });
   });
 

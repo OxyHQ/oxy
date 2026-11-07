@@ -1212,6 +1212,100 @@ describe('round 6: a v1 record is swept again; the ring is bounded and never in 
     expect(await commons.migration.pendingOrganizationRevalidation()).toEqual([]);
   });
 
+  it('a full quarantine never stops re-validation: a held pair is kept past the bound (R7-5)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    leftByCore732(commons);
+    await commons.migration.ensureKeychainGroupsMigrated();
+    const ring = await import('../retiredKeys');
+    // A flood from the shared group filled this organization's quarantine.
+    for (let i = 0; i < ring.MAX_QUARANTINED_RING_ENTRIES; i += 1) {
+      const key = (i + 1).toString(16).padStart(64, '0');
+      await ring.quarantineRetiredIdentityKey(
+        { privateKey: key, publicKey: commons.KeyManager.derivePublicKey(key) },
+        { accountId: ORG },
+      );
+    }
+    const published = commons.KeyManager.derivePublicKey('99'.repeat(32));
+    await expect(
+      commons.org.revalidateHeldOrganizationKeys(async () => ({ publicKey: published })),
+    ).resolves.toBe(1);
+    expect(orgRingHolds(ORG_KEY, commons.KeyManager.derivePublicKey(ORG_KEY))).toBe(true);
+    expect(await commons.org.getOrganizationPrivateKey(ORG)).toBeNull();
+    expect(await commons.migration.pendingOrganizationRevalidation()).toEqual([]);
+  });
+
+  it('planted ids with no held pair settle with no network read; reads per launch are bounded (R7-11)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    const invented = Array.from({ length: 200 }, (_, i) => (i + 1).toString(16).padStart(24, 'a'));
+    const held = Array.from({ length: 20 }, (_, i) => (i + 1).toString(16).padStart(24, 'b'));
+    for (const [i, accountId] of held.entries()) {
+      const key = (i + 1).toString(16).padStart(64, 'c');
+      mockKeychain.put(GROUP.wallet, `oxy_org_identity_private_key.${accountId}`, key);
+      mockKeychain.put(
+        GROUP.wallet,
+        `oxy_org_identity_public_key.${accountId}`,
+        commons.KeyManager.derivePublicKey(key),
+      );
+    }
+    const v2 = JSON.stringify({ v: 2, completedAt: 1, revalidate: [...invented, ...held].sort() });
+    mockKeychain.put(GROUP.identity, RECORD[0], v2, RECORD[1]);
+    mockKeychain.put(GROUP.wallet, RECORD[0], v2, RECORD[1]);
+    const next = await launch(ENTITLEMENTS.commons);
+    const reads: string[] = [];
+    const answer = async (accountId: string) => {
+      reads.push(accountId);
+      const index = held.indexOf(accountId);
+      return {
+        publicKey: next.KeyManager.derivePublicKey((index + 1).toString(16).padStart(64, 'c')),
+      };
+    };
+    await expect(next.org.revalidateHeldOrganizationKeys(answer)).resolves.toBe(0);
+    expect(reads.every((id) => held.includes(id))).toBe(true);
+    expect(reads).toHaveLength(next.org.MAX_REVALIDATIONS_PER_LAUNCH);
+    // Only the held ones the bound left over still wait.
+    const pending = await next.migration.pendingOrganizationRevalidation();
+    expect(pending).toHaveLength(held.length - next.org.MAX_REVALIDATIONS_PER_LAUNCH);
+    expect(pending.every((id) => held.includes(id))).toBe(true);
+    await next.org.revalidateHeldOrganizationKeys(answer);
+    expect(await next.migration.pendingOrganizationRevalidation()).toEqual([]);
+  });
+
+  it('the bound is per ring, exempt keys pass it, and entries with no private half are purged (R7-5)', async () => {
+    const commons = await launch(ENTITLEMENTS.commons);
+    const ring = await import('../retiredKeys');
+    const pair = (n: number) => {
+      const key = n.toString(16).padStart(64, '0');
+      return { privateKey: key, publicKey: commons.KeyManager.derivePublicKey(key) };
+    };
+    for (let i = 1; i <= ring.MAX_QUARANTINED_RING_ENTRIES; i += 1) {
+      await ring.quarantineRetiredIdentityKey(pair(i));
+    }
+    const overflow = pair(ring.MAX_QUARANTINED_RING_ENTRIES + 1);
+    await expect(ring.quarantineRetiredIdentityKey(overflow)).rejects.toBeInstanceOf(
+      ring.RetiredKeyQuarantineFullError,
+    );
+    // Another ring is not refused by this one's flood.
+    await expect(
+      ring.quarantineRetiredIdentityKey(pair(500), { accountId: ORG }),
+    ).resolves.toBeUndefined();
+    // A key this device held itself is kept past the bound.
+    await expect(
+      ring.quarantineRetiredIdentityKey(pair(501), undefined, { exempt: true }),
+    ).resolves.toBeUndefined();
+    // Entries whose private half is gone hold nothing: purged to make room
+    // (two: the exempt key counts too).
+    for (const n of [1, 2]) {
+      await mockKeychain.deleteItemAsync(
+        `oxy_retired_identity_private_key.personal.${pair(n).publicKey}`,
+        { accessGroup: GROUP.wallet },
+      );
+    }
+    await expect(ring.quarantineRetiredIdentityKey(overflow)).resolves.toBeUndefined();
+    const left = await ring.listQuarantinedIdentityKeys();
+    expect(left).not.toContain(pair(1).publicKey);
+    expect(left).toContain(pair(3).publicKey);
+  });
+
   it('the wallet never reads a ring item from the shared group, even before Commons migrated (R6-12)', async () => {
     const key = '21'.repeat(32);
     const peable = await launch(ENTITLEMENTS.wallet);

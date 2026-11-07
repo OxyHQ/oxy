@@ -77,8 +77,12 @@ module.exports = {
     // after a v1 migration record, re-validates organization pairs against the
     // published key, asks Oxy to prove kept pre-history keys, never falls back
     // to the shared group for the ring, defers on a locked keychain and writes
-    // no public key into the production shared group from a dev build.
-    version: '1.11.0',
+    // no public key into the production shared group from a dev build; 1.12.0
+    // carries a superseded backup's keys into the ring before a rotation's
+    // swap, replaces that backup only with its acknowledgement, keeps one owed
+    // entry per account, bounds the quarantine per ring and never reads a
+    // locked ring as "not this key" (core 7.40.0, round 7).
+    version: '1.12.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /

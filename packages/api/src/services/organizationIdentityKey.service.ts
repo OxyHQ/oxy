@@ -53,7 +53,11 @@ import {
   sha256Hex,
   verifyIdentityProof,
 } from './identityProof.service';
-import { organizationKeyEverUsed, personalKeyEverRetired } from './organizationKeyHistory';
+import {
+  lockIdentityKeys,
+  organizationKeyEverUsed,
+  personalKeyEverRetired,
+} from './organizationKeyHistory';
 import SignatureService from './signature.service';
 
 /** The roles that may hold and change an organization's key (ADR 0061 D3). */
@@ -347,6 +351,9 @@ export async function applyOrganizationKey(
   return getDb().transaction(async (tx: Transaction) => {
     const context = await keyContext(tx, sessionId, accountId, true);
     const publicKey = canonicalKey(request.publicKey);
+    // Under the key's lock (R7, info): no personal writer can make it a root or
+    // a retired root between the checks and the insert.
+    await lockIdentityKeys(tx, publicKey);
     await checkOperation(tx, context, request.operation, publicKey);
     const actorPublicKey = context.actorPublicKey;
     if (!actorPublicKey) throw forbidden();

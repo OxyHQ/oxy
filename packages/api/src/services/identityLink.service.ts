@@ -48,7 +48,7 @@ import {
   sha256Hex,
   verifyIdentityProof,
 } from './identityProof.service';
-import { identityKeyEverUsed } from './organizationKeyHistory';
+import { identityKeyEverUsed, lockIdentityKeys } from './organizationKeyHistory';
 import SignatureService from './signature.service';
 import { verifyAccountReauth } from './reauth.service';
 
@@ -133,6 +133,9 @@ export async function linkRootToAccount(
   });
 
   if (!current) {
+    // Under the key's lock (R7, info): a key-history claim cannot make it a
+    // retired root between these reads and the write.
+    await lockIdentityKeys(tx, publicKey);
     const [existingUser] = await tx
       .select({ id: users.id })
       .from(users)

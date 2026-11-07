@@ -157,6 +157,13 @@ export const IDENTITY_ERROR_CODES = {
    * was this account's root (security review R6-5).
    */
   keyNotProven: 'IDENTITY_KEY_NOT_PROVEN',
+  /**
+   * `POST /identity/backup`: the stored backup is one a key rotation
+   * superseded, and the upload did not acknowledge it with its locator
+   * (`replacesLookupId`, security review R7-2). It carries retired keys under
+   * the previous phrase, so it is never silently replaced.
+   */
+  backupSuperseded: 'IDENTITY_BACKUP_SUPERSEDED',
 } as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[keyof typeof IDENTITY_ERROR_CODES];
