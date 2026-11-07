@@ -718,4 +718,14 @@ export type { ProfileAccessInput, ProfileAccessDecision } from '@oxy.so/contract
 export type { AccountInvitation, AccountInvitationPreview } from './api/accounts';
 
 export type { AddressesApi } from './api/addresses';
+export type {
+  KeychainApi,
+  KeychainEnrollmentsApi,
+  KeychainItemsApi,
+  KeychainCreateInput,
+  KeychainRosterAppendInput,
+  KeychainItemPutInput,
+  KeychainItemsQueryInput,
+  KeychainResetInput,
+} from './api/keychain';
 export type { PostalAddress, PostalAddressInput, PostalAddressUpdate } from '@oxy.so/contracts';
