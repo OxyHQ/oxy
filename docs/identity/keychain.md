@@ -272,3 +272,61 @@ Binary values are base64url without padding, hashes lowercase hex, and text
 | `items[]` | `{ vaultId, itemId, generation, vaultKey, item, plaintextJcs, paddedPlaintext, aad, nonce, ciphertext }` | one of each type, one whose JCS is exactly 256 bytes (no padding) |
 | `totp.rfc6238[]` | `{ secret, algorithm, digits, period, unixSeconds, code }` | RFC 6238 Appendix B |
 | `totp.otpauth[]` | `{ uri, secret, issuer, account, algorithm, digits, period, unixSeconds, code }` | the URI reads to these parameters and the code |
+
+## SDK
+
+Two layers in `@oxy.so/core` (ADR 0063 step 2).
+
+**`oxy.keychain`** (`packages/core/src/api/keychain.ts`) is one typed method per
+route, with no cryptography: `state()`, `create()`, `appendRoster()`,
+`ownWrap()`, `recoveryWrap()`, `reset()`, `enrollments.{create, list, get,
+postApproverNonce, reveal, approve, cancel}` and `items.{list, put, delete}`.
+Answers are checked for shape with `@oxy.so/contracts/client` (no Zod), never
+cached, and writes are never retried by the transport (the client decides after
+a `409`). A refusal is an `OxyApiError` whose `code` is a `KEYCHAIN_ERROR_CODES`
+value. It stays on the root entry; `openClient({ store })` loads the client
+below with `import('../crypto/index')`, the one lazy root.
+
+**`KeychainClient`** (`packages/core/src/crypto/keychain/client.ts`, exported by
+`@oxy.so/core/crypto`) is one device's side. The platform passes a
+`KeychainDeviceStore` (`load`, `save` replacing the whole record atomically,
+`clear`) over its own secure storage; the SDK never chooses where secrets live.
+The record is JSON-safe: `{ kind: 'member', vaultId, member, signingSecretKey,
+boxSecretKey, genesisHash, head, keyring, revision, items }` (the secret keys
+and the keyring are SECRET; `items` holds, per item, the revision, the highest
+counter seen and whether it is deleted), or `{ kind: 'joining', … }` while a
+request to join waits.
+
+| Operation | What it does |
+|---|---|
+| `status()` | `no_vault`, `not_member`, `joining`, `member` (members, generation, `orphanedMemberIds`), `removed`, `orphaned` or `vault_gone`. Reads and verifies; writes nothing |
+| `createVault({ deviceName, platform })` → `{ recoveryKey }` | Makes the keys and the recovery key in memory and returns its text once. Nothing reaches Oxy until `confirmRecoveryKey(text)` matches (case, hyphens and spaces ignored); then the genesis (signed by the device and the recovery key) and both wraps. The genesis is made once, so a retry after a lost answer sends the same one and a `409 KEYCHAIN_EXISTS` for that very genesis completes |
+| `requestToJoin()`, `revealWhenOpened()`, `completeJoin()`, `cancelJoin()` | The new device: commits (`POST /enrollments`), reveals its nonce once a member posted its own, returns the six-digit code, then becomes a member when the approval lands (opens its wrap, pins the roster it trusted when it asked) |
+| `listJoinRequests()`, `openJoinRequest(id)`, `joinRequestCode(id)`, `approveJoinRequest(id, { codeConfirmed: true })`, `denyJoinRequest(id)` | The approving member: pins the requested member and commitment BEFORE posting its nonce, checks the revealed nonce opens that commitment, shows the code, and appends `add` plus the new member's wrap only with the person's confirmation. The open request lives in this client's memory |
+| `joinWithRecoveryKey(text, { deviceName, platform })` | Checks the derived recovery keys are the roster's, opens the recovery wrap (signer checked against the roster), appends `add` and the device's wrap, both signed by the recovery key |
+| `sync()` → `{ items, deleted, revision }` | Pulls every page since the stored revision; refuses an item out of revision order, one that does not decrypt or is not the id asked for, and one whose counter is lower than one seen; keeps nothing unless the whole pull verified |
+| `putItem(draft)` → `{ item, superseded }`, `deleteItem(id)` → `{ id, superseded }` | Brings the keyring to the roster's newest generation first (fetching and checking the device's new wrap), writes with `baseRevision`; on `409` re-reads, keeps the higher counter and writes again: the last writer wins per item and the version it replaced is returned (a login's different password goes into `passwordHistory`). After four tries, `KeychainConflictError` |
+| `removeMember(id)`, `sweepOrphans()` | `remove` + `generation` per member (a device never removes itself: it leaves by signing out), a rotated keyring, wraps for every remaining member and `recovery`, one request; retried on `409 KEYCHAIN_ROSTER_CONFLICT` |
+| `replaceRecoveryKey()` → `{ recoveryKey }` | Shown once; on `confirmRecoveryKey(text)`: `recovery` + `generation` and wraps for every member and the new key |
+| `reset(proof)`, `forget()` | `DELETE /keychain` with the re-verification, then the store is cleared; `forget` clears only this device (after `removed`, `orphaned`, `vault_gone`, or when the account leaves the device) |
+
+Every answer is verified before anything is kept: the roster from genesis
+against the pinned genesis hash and head (`KeychainIntegrityError` with reason
+`fork`, `rollback` or `genesis_mismatch`, shown as a warning), Oxy's vault
+summary against it (`summary`), wraps against the roster and a new keyring
+against the generations held (`wrap`), items (`item`, `counter`), enrollments
+(`enrollment`) and the answer to every write (`answer`). An integrity error
+writes nothing, to the store or to Oxy; the next call verifies again from the
+pinned head, so a device does not write to a forked vault until it is resolved.
+A state that does not allow the operation is `KeychainStateError` (`reason`:
+`no_vault`, `not_member`, `removed`, `orphaned`, `vault_gone`,
+`recovery_key_mismatch`, `code_not_confirmed`, …). Operations of one client run
+one at a time.
+
+Tests: `src/crypto/keychain/__tests__/client.test.ts` runs every flow against
+`fakeKeychainServer.ts`, an in-memory server with the API's checks over the
+SDK's verifier, reached through `oxy.keychain` as on the wire: two devices with
+matching codes, a server that substitutes keys (the codes differ), recovery
+join, rotation on removal (the removed device cannot open new items), a
+replaced recovery key, rollback, fork, a replayed item, a forged wrap, the
+`409` merge, the orphan sweep and the reset.

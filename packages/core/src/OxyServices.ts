@@ -56,6 +56,7 @@ import { TopicsApi } from './api/topics';
 import { AppDataApi } from './api/appData';
 import { ContactsApi } from './api/contacts';
 import { AddressesApi } from './api/addresses';
+import { KeychainApi } from './api/keychain';
 import { ConsoleApi } from './api/console';
 
 export interface OxyConfig extends OxyConfigBase {
@@ -93,6 +94,7 @@ export type OxyCallScopeNamespace =
   | 'notifications'
   | 'assets'
   | 'identity'
+  | 'keychain'
   | 'safety'
   | 'contentClaims'
   | 'organizations'
@@ -357,6 +359,10 @@ export class OxyServices {
   /** DID, keys, identity links, domains, backup and the signed export. */
   get identity(): IdentityApi {
     return this.namespace('identity', (context) => new IdentityApi(context));
+  }
+  /** The end-to-end encrypted keychain's routes (ADR 0063); `openClient` for the device side. */
+  get keychain(): KeychainApi {
+    return this.namespace('keychain', (context) => new KeychainApi(context));
   }
   /** The account graph: accounts and their members. */
   get safety(): SafetyApi {

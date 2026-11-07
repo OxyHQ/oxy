@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 7.44.0
+
+The Oxy Keychain's client (ADR 0063 step 2): the `/keychain` routes as `oxy.keychain`, and `KeychainClient`, one device's side of the vault, over the 7.43 cryptography. Shape and flows in docs/identity/keychain.md#sdk.
+
+### Added
+
+- **`oxy.keychain`**: `state`, `create`, `appendRoster`, `ownWrap`, `recoveryWrap`, `reset`, `enrollments.{create, list, get, postApproverNonce, reveal, approve, cancel}`, `items.{list, put, delete}`. No cryptography (the routes carry only ciphertext); answers checked with `@oxy.so/contracts/client`, never cached, writes never retried by the transport; refusals are `OxyApiError` with a `KEYCHAIN_ERROR_CODES` code. `openClient({ store })` loads the client from `@oxy.so/core/crypto` on first use.
+- **`KeychainClient`** (`@oxy.so/core/crypto`), driven by the platform's `KeychainDeviceStore` (`load`/`save`/`clear` of a JSON-safe record whose secret fields the platform keeps in its secure storage): `status`, `createVault` + `confirmRecoveryKey` (the recovery key is shown once and must be typed back before Oxy sees the vault), `requestToJoin` / `revealWhenOpened` / `completeJoin` / `cancelJoin`, `listJoinRequests` / `openJoinRequest` / `joinRequestCode` / `approveJoinRequest(id, { codeConfirmed: true })` / `denyJoinRequest`, `joinWithRecoveryKey`, `sync`, `putItem` / `deleteItem` (on `409`: re-read, higher counter, last writer wins per item, the replaced version returned and a login's password kept in its history), `removeMember` and `sweepOrphans` (with a rotation), `replaceRecoveryKey`, `reset`, `forget`.
+- Every answer is verified before anything is kept (roster from genesis against the pinned genesis and head, the vault summary, wraps and the generations held, items and their counters, enrollments, write answers). A failure throws **`KeychainIntegrityError`** (`reason`: `fork`, `rollback`, `genesis_mismatch`, `roster`, `summary`, `wrap`, `item`, `counter`, `enrollment`, `answer`) and writes nothing. **`KeychainStateError`** (`reason`) when the device's state does not allow the operation; **`KeychainConflictError`** after four conflicting writes.
+
 ## 7.43.0
 
 The Oxy Keychain's cryptography (ADR 0063 D8), under `@oxy.so/core/crypto`. Formats only: the `oxy.keychain` routes come with the server's contracts.

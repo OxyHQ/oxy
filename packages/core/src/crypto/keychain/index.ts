@@ -10,11 +10,18 @@
  */
 
 export {
+  KeychainConflictError,
   KeychainCryptoError,
   KeychainFormatError,
+  KeychainIntegrityError,
   KeychainRosterError,
+  KeychainStateError,
 } from './errors';
-export type { KeychainRosterErrorReason } from './errors';
+export type {
+  KeychainIntegrityReason,
+  KeychainRosterErrorReason,
+  KeychainStateReason,
+} from './errors';
 export {
   RECOVERY as KEYCHAIN_RECOVERY,
   ITEM_PADDING_BLOCK as KEYCHAIN_ITEM_PADDING_BLOCK,
@@ -133,3 +140,20 @@ export {
   parseOtpauthUri,
 } from './totp';
 export type { TotpAlgorithm, TotpParameters, OtpauthTotp } from './totp';
+export { KeychainClient } from './client';
+export type {
+  KeychainClientOptions,
+  KeychainDeleteResult,
+  KeychainDeviceRecord,
+  KeychainDeviceStore,
+  KeychainItemCursor,
+  KeychainItemDraft,
+  KeychainJoiningRecord,
+  KeychainJoinProgress,
+  KeychainJoinRequest,
+  KeychainMemberRecord,
+  KeychainMemberSummary,
+  KeychainStatus,
+  KeychainSyncResult,
+  KeychainWriteResult,
+} from './client';

@@ -37,6 +37,9 @@ describe('@oxy.so/core root entry graph', () => {
     'crypto/signatureService.ts',
     'crypto/registrationPow.ts',
     'crypto/contentHash.ts',
+    // `oxy.keychain` loads the keychain client and its cryptography with `openClient`.
+    'crypto/keychain/client.ts',
+    'crypto/keychain/roster.ts',
     'utils/registrableApex.ts',
     'inference/OxyInferenceClient.ts',
     'session/SessionClient.ts',
