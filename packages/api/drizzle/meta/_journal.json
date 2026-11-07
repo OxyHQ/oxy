@@ -1681,6 +1681,13 @@
       "when": 1794003525969,
       "tag": "0240_identity_backup_superseded",
       "breakpoints": true
+    },
+    {
+      "idx": 241,
+      "version": "7",
+      "when": 1794015020001,
+      "tag": "0241_identity_backup_opt_outs",
+      "breakpoints": true
     }
   ]
 }

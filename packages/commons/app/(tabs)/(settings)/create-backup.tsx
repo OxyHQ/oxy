@@ -24,6 +24,9 @@ type IdentityStatus = 'checking' | 'present' | 'missing' | 'unavailable';
 /** Minimal shape of `GET /identity/backup/status`, mirrored to avoid a cross-package type import. */
 interface BackupStatus {
   exists: boolean;
+  superseded?: boolean;
+  /** The person deleted their backup (on any device) and has not created one since. */
+  optedOut?: boolean;
   publicKeyHint?: string;
   createdAt?: string;
 }
@@ -39,6 +42,12 @@ interface BackupStatus {
  *
  * The screen also surfaces the current backup status (exists / public-key hint /
  * created-at) and lets the user delete it.
+ *
+ * Deleting is the person's choice, and it is respected (owner's decision,
+ * 2026-11-07): Oxy records it on the account, so no device, and no key
+ * rotation, uploads a backup again until the person presses "Create" here,
+ * which sends their opt-in. Without a backup, the screen says that previous
+ * keys are recoverable off this phone only with their own recovery phrases.
  */
 export default function CreateBackupScreen() {
   const router = useRouter();
@@ -155,7 +164,9 @@ export default function CreateBackupScreen() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const status = await oxyServices.identity.backup.create(phrase);
+      // The person pressed "Create": their explicit choice, which also ends an
+      // earlier deletion (2026-11-07).
+      const status = await oxyServices.identity.backup.create(phrase, { optIn: true });
       setBackupStatus(status);
       setPhraseWords(new Array(RECOVERY_PHRASE_LENGTH).fill(''));
       // A rotation's owed backup is now sealed (R5-9).
@@ -180,7 +191,9 @@ export default function CreateBackupScreen() {
             setIsDeleting(true);
             try {
               await oxyServices.identity.backup.delete();
-              setBackupStatus({ exists: false });
+              setBackupStatus({ exists: false, optedOut: true });
+              // Nothing is owed once the person deleted it (2026-11-07).
+              void queryClient.invalidateQueries({ queryKey: BACKUP_OWED_QUERY_KEY });
               toast.success(t('backup.deleteSuccess'));
             } catch (err: unknown) {
               toast.error(err instanceof Error ? err.message : t('backup.deleteFailed'));
@@ -191,7 +204,7 @@ export default function CreateBackupScreen() {
         },
       },
     ]);
-  }, [oxyServices, t]);
+  }, [oxyServices, queryClient, t]);
 
   if (identityStatus === 'checking') {
     return (
@@ -270,6 +283,10 @@ export default function CreateBackupScreen() {
   }
 
   const backupExists = backupStatus?.exists === true;
+  const backupDeleted = !backupExists && backupStatus?.optedOut === true;
+  // Known to have no backup of the current key: previous keys are then
+  // recoverable off this phone only with their own phrases.
+  const noBackup = backupStatus !== null && !backupExists;
 
   return (
     <KeyboardAwareScrollViewWrapper
@@ -295,9 +312,26 @@ export default function CreateBackupScreen() {
             fill={backupExists ? colors.success : colors.textSecondary}
           />
           <Text style={[styles.statusTitle, { color: colors.text }]}>
-            {backupExists ? t('backup.existsTrue') : t('backup.existsFalse')}
+            {backupExists
+              ? t('backup.existsTrue')
+              : backupDeleted
+                ? t('backup.optedOutTitle')
+                : t('backup.existsFalse')}
           </Text>
         </View>
+        {backupDeleted && (
+          <Text style={[styles.statusMeta, { color: colors.textSecondary }]}>
+            {t('backup.optedOutBody')}
+          </Text>
+        )}
+        {noBackup && (
+          <Text
+            style={[styles.statusMeta, { color: colors.textSecondary }]}
+            testID="backup-no-backup-phrase-only"
+          >
+            {t('backup.noBackupPreviousKeys')}
+          </Text>
+        )}
         {backupExists && backupStatus?.publicKeyHint && (
           <Text style={[styles.statusMeta, { color: colors.textSecondary }]}>
             {t('backup.identityHint', { hint: backupStatus.publicKeyHint })}

@@ -81,8 +81,13 @@ module.exports = {
     // carries a superseded backup's keys into the ring before a rotation's
     // swap, replaces that backup only with its acknowledgement, keeps one owed
     // entry per account, bounds the quarantine per ring and never reads a
-    // locked ring as "not this key" (core 7.40.0, round 7).
-    version: '1.12.0',
+    // locked ring as "not this key" (core 7.40.0, round 7); 1.13.0 respects
+    // a backup the person deleted: a key rotation uploads none unless they
+    // choose "Create an encrypted backup", tells them before the swap that a
+    // previous key is then recoverable only with its phrase (shown, ticked, to
+    // a person with no backup on record), and the owed banner never nags them
+    // (core 7.41.0, owner's decision 2026-11-07).
+    version: '1.13.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /

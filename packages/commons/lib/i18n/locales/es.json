@@ -1023,13 +1023,16 @@
     "delete": "Eliminar copia de seguridad",
     "deleting": "Eliminando…",
     "deleteConfirmTitle": "¿Eliminar la copia de seguridad cifrada?",
-    "deleteConfirmBody": "Ya no podrás recuperar esta identidad desde Oxy solo con tu frase de recuperación. Puedes crear una nueva copia de seguridad en cualquier momento.",
+    "deleteConfirmBody": "Ya no podrás recuperar esta identidad desde Oxy usando solo tu frase de recuperación, y tus claves anteriores solo se podrán recuperar con sus propias frases de recuperación. Commons no volverá a crear una copia de seguridad a menos que lo hagas tú. Puedes crear una nueva cuando quieras.",
     "deleteSuccess": "Copia de seguridad cifrada eliminada.",
     "deleteFailed": "No pudimos eliminar tu copia de seguridad. Inténtalo de nuevo.",
     "biometricReason": "Verifica que eres tú para crear una copia de seguridad cifrada",
     "biometricFailed": "Verifícate con la biometría o el código de tu dispositivo para continuar.",
     "identityUnavailable": "No pudimos leer tu identidad del almacenamiento seguro. Desbloquea tu dispositivo e inténtalo de nuevo.",
-    "unavailableSubtitle": "El almacenamiento seguro no está disponible temporalmente"
+    "unavailableSubtitle": "El almacenamiento seguro no está disponible temporalmente",
+    "optedOutTitle": "Eliminaste tu copia de seguridad cifrada",
+    "optedOutBody": "Commons no volverá a crear una a menos que lo hagas aquí, ni siquiera al rotar tu clave.",
+    "noBackupPreviousKeys": "Sin copia de seguridad, tus claves anteriores solo están en este teléfono. Si lo pierdes, los FairCoin recibidos con una clave anterior solo se podrán recuperar con la frase de recuperación de esa clave, así que guarda cada una."
   },
   "restoreBackup": {
     "entry": "Restaurar desde copia de seguridad cifrada",
@@ -1136,7 +1139,13 @@
       "errorGeneric": "No pudimos completar la rotación. Tu clave anterior no ha cambiado.",
       "biometricReason": "Verifica que eres tú para rotar tu clave de identidad",
       "biometricFailed": "Verifícate con la biometría o el código de tu dispositivo para rotar tu clave.",
-      "backupNotRefreshed": "Tu clave se rotó, pero no se pudo sellar tu copia cifrada con la nueva frase. Créala en Copia de seguridad para que tu clave anterior también se guarde fuera de este teléfono."
+      "backupNotRefreshed": "Tu clave se rotó, pero no se pudo sellar tu copia cifrada con la nueva frase. Créala en Copia de seguridad para que tu clave anterior también se guarde fuera de este teléfono.",
+      "noBackupTitle": "No tienes copia de seguridad cifrada",
+      "noBackupBody": "Eliminaste tu copia de seguridad cifrada, así que esta rotación no creará una. Este teléfono conserva tu clave actual como clave anterior, solo para gastar. Si pierdes este teléfono, los FairCoin recibidos con esa clave solo se podrán recuperar con su frase de recuperación (la actual), así que guárdala.",
+      "noBackupOnRecordBody": "No tienes copia de seguridad cifrada. Esta rotación crea una de tu nueva clave y de tus claves anteriores, salvo que la desmarques abajo. Sin ella, este teléfono conserva tu clave actual como clave anterior, solo para gastar, y si lo pierdes los FairCoin recibidos con esa clave solo se podrán recuperar con su frase de recuperación (la actual), así que guárdala.",
+      "createBackup": "Crear una copia de seguridad cifrada",
+      "createBackupHint": "Opcional. Oxy guarda una copia cifrada de tu nueva clave y de tus claves anteriores que solo tu nueva frase de recuperación puede abrir.",
+      "successNoBackup": "Tu clave anterior solo está en este teléfono. Si lo pierdes, los FairCoin recibidos con esa clave solo se podrán recuperar con su frase de recuperación. Guarda esa frase."
     },
     "backBlockedTitle": "Guarda tu nueva frase primero",
     "backBlockedMessage": "Anota tu nueva frase de recuperación antes de continuar. Es la única forma de recuperar tu clave rotada."
@@ -2072,6 +2081,8 @@
     "invalidPrivateKey": "No es una clave privada válida. Tiene 64 caracteres hexadecimales.",
     "isCurrentKey": "Esa es tu clave actual, no una anterior.",
     "notYoursKey": "Esa clave no es una de las claves anteriores de esta cuenta.",
-    "backupNotUpdated": "Se añadió la clave, pero no se pudo actualizar tu copia cifrada. Vuelve a crearla en Copia de seguridad para que también incluya esta clave."
+    "backupNotUpdated": "Se añadió la clave, pero no se pudo actualizar tu copia cifrada. Vuelve a crearla en Copia de seguridad para que también incluya esta clave.",
+    "noBackupTitle": "No tienes copia de seguridad cifrada",
+    "noBackup": "Tus claves anteriores solo están en este teléfono. Si lo pierdes, los FairCoin recibidos con una clave anterior solo se podrán recuperar con la frase de recuperación de esa clave. Guarda esas frases."
   }
 }

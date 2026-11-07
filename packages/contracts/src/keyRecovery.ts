@@ -119,6 +119,17 @@ export const backupUploadRequestSchema = backupEnvelopeFields.extend({
    * when the stored backup is current or there is none.
    */
   replacesLookupId: backupLookupIdSchema.optional(),
+  /**
+   * The person's explicit choice to have a backup (owner's decision,
+   * 2026-11-07). A person who deleted their backup (`status.optedOut`) gets a
+   * new one only with it: an upload without it is refused (409
+   * `IDENTITY_BACKUP_OPTED_OUT`), so a key rotation, a re-seal or another
+   * device never re-uploads silently. An accepted upload with it clears the
+   * deletion in the same transaction. Ignored when the person never deleted
+   * one. Clients send it only from a control the person pressed ("Create
+   * backup", or the rotation's "Create a backup" choice).
+   */
+  optIn: z.boolean().optional(),
 });
 
 export type BackupUploadRequest = z.infer<typeof backupUploadRequestSchema>;
@@ -137,6 +148,16 @@ export const backupStatusResponseSchema = z.object({
    * replaces it only with `replacesLookupId`. Absent otherwise.
    */
   superseded: z.boolean().optional(),
+  /**
+   * `true` when the PERSON deleted their backup (`DELETE /identity/backup`)
+   * and has not chosen to create one since (owner's decision, 2026-11-07):
+   * `exists` is `false`. Told apart from "never had one" (absent) and from a
+   * rotation's `superseded`. Recorded on the account, so every device reads
+   * it: no client re-uploads a backup without the person's explicit opt-in
+   * (`optIn` on the upload). Without a backup, keys a rotation retired are
+   * recoverable off this phone only with their own recovery phrases.
+   */
+  optedOut: z.boolean().optional(),
   publicKeyHint: z.string().optional(),
   createdAt: z.string().optional(),
 });

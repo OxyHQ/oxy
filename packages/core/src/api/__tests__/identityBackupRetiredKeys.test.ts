@@ -7,7 +7,7 @@ import type { BackupUploadRequest, EncryptedBackupEnvelope } from '@oxy.so/contr
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { RecoveryPhraseService } from '../../crypto/recoveryPhrase';
-import { IdentityBackupSupersededError } from '../identity';
+import { IdentityBackupOptedOutError, IdentityBackupSupersededError } from '../identity';
 import { setPlatformOS } from '../../utils/platform';
 
 const mockRing = {
@@ -451,6 +451,93 @@ describe('oxy.identity.backup carries retired keys', () => {
         );
       await oxy.identity.backup.restoreRetiredKeys(PREVIOUS_PHRASE);
       expect(mark).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("a backup the person DELETED stays deleted (owner's decision, 2026-11-07)", () => {
+    function lastPost(): BackupUploadRequest {
+      const post = [...fetchMock.mock.calls].reverse().find(([, init]) => init?.method === 'POST');
+      return JSON.parse(String(post?.[1]?.body)) as BackupUploadRequest;
+    }
+
+    it("an upload that is not the person's choice is refused, typed, and drops the owed entry", async () => {
+      jest.spyOn(KeyManager, 'backupOwedEntry').mockResolvedValue({});
+      const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
+      fetchMock
+        .mockResolvedValueOnce(json({ error: 'not found' }, 404))
+        .mockResolvedValueOnce(
+          json({ error: 'IDENTITY_BACKUP_OPTED_OUT', message: 'deleted' }, 409),
+        );
+      await expect(oxy.identity.backup.create(PHRASE)).rejects.toBeInstanceOf(
+        IdentityBackupOptedOutError,
+      );
+      expect(lastPost().optIn).toBeUndefined();
+      expect(clear).toHaveBeenCalledWith('me');
+    });
+
+    it("create with optIn sends the person's choice", async () => {
+      fetchMock
+        .mockResolvedValueOnce(json({ error: 'not found' }, 404))
+        .mockResolvedValueOnce(json({ exists: true }));
+      await oxy.identity.backup.create(PHRASE, { optIn: true });
+      expect(lastPost().optIn).toBe(true);
+    });
+
+    it('a seal the rotation flow chose (owed with optIn) sends it, and a refusal keeps it owed', async () => {
+      jest.spyOn(KeyManager, 'backupOwedEntry').mockResolvedValue({ optIn: true });
+      const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
+      fetchMock
+        .mockResolvedValueOnce(json({ error: 'not found' }, 404))
+        .mockResolvedValueOnce(
+          json({ error: 'IDENTITY_BACKUP_OPTED_OUT', message: 'deleted' }, 409),
+        );
+      await expect(oxy.identity.backup.create(PHRASE)).rejects.toBeInstanceOf(
+        IdentityBackupOptedOutError,
+      );
+      expect(lastPost().optIn).toBe(true);
+      expect(clear).not.toHaveBeenCalled();
+    });
+
+    it('isOwed never nags a person who deleted their backup on another device', async () => {
+      const entry = jest.spyOn(KeyManager, 'backupOwedEntry').mockResolvedValue({});
+      const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
+      fetchMock.mockResolvedValueOnce(json({ exists: false, optedOut: true }));
+      await expect(oxy.identity.backup.isOwed()).resolves.toBe(false);
+      expect(clear).toHaveBeenCalledWith('me');
+
+      // Still owed while the person has not deleted it, or the status cannot be read.
+      clear.mockClear();
+      fetchMock.mockResolvedValueOnce(json({ exists: false }));
+      await expect(oxy.identity.backup.isOwed()).resolves.toBe(true);
+      fetchMock.mockRejectedValueOnce(new Error('offline'));
+      await expect(oxy.identity.backup.isOwed()).resolves.toBe(true);
+      // The person chose a backup in the rotation: owed whatever the status says.
+      entry.mockResolvedValue({ optIn: true });
+      fetchMock.mockReset();
+      await expect(oxy.identity.backup.isOwed()).resolves.toBe(true);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(clear).not.toHaveBeenCalled();
+    });
+
+    it("delete clears this device's owed entry once Oxy confirmed it", async () => {
+      const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
+      fetchMock.mockRejectedValueOnce(new Error('offline'));
+      await expect(oxy.identity.backup.delete()).rejects.toBeDefined();
+      expect(clear).not.toHaveBeenCalled();
+      fetchMock.mockResolvedValueOnce(json({ success: true }));
+      await expect(oxy.identity.backup.delete()).resolves.toEqual({ success: true });
+      expect(clear).toHaveBeenCalledWith('me');
+    });
+
+    it('readBeforeRotation reports the deletion and asks for no phrase', async () => {
+      const phrase = jest.fn(async () => PHRASE);
+      fetchMock.mockResolvedValueOnce(json({ exists: false, optedOut: true }));
+      await expect(oxy.identity.backup.readBeforeRotation(phrase)).resolves.toEqual({
+        existed: false,
+        carried: [],
+        optedOut: true,
+      });
+      expect(phrase).not.toHaveBeenCalled();
     });
   });
 });

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### A backup the person deleted stays deleted (owner's decision, 2026-11-07)
+
+- `DELETE /identity/backup` records the deletion on the account (`identity_backup_opt_outs`, migration 0241, pre-deploy, additive) in the transaction that deletes the backup. `GET /identity/backup/status` answers `{ exists: false, optedOut: true }` until the person creates one again, on every device.
+- `POST /identity/backup` over a deletion stores nothing without the person's `optIn: true` (409 `IDENTITY_BACKUP_OPTED_OUT`); with it, the backup is stored and the record removed in one transaction. Both writers take the account's backup advisory lock first. Account deletion removes the record.
+
 ### Security (round-7 review of the FairCoin identity receive)
 
 - **R7-1: only first-party sessions write the identity backup.** `POST` and `DELETE /identity/backup` mount `requireFirstPartyDeviceAccess`: an application token (`app_token_device_access_denied`) and a third-party or unregistered application's session (`third_party_device_access_denied`) are refused. `version` is at most `IDENTITY_BACKUP_MAX_VERSION` (2); a stored row above it (planted before the bound) no longer blocks a legitimate upload.

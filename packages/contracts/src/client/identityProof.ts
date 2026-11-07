@@ -164,6 +164,13 @@ export const IDENTITY_ERROR_CODES = {
    * the previous phrase, so it is never silently replaced.
    */
   backupSuperseded: 'IDENTITY_BACKUP_SUPERSEDED',
+  /**
+   * `POST /identity/backup`: the person deleted their encrypted backup, and
+   * the upload is not their explicit choice to create one again (`optIn`). A
+   * key rotation, a re-seal or another device never re-uploads a backup the
+   * person deleted (owner's decision, 2026-11-07).
+   */
+  backupOptedOut: 'IDENTITY_BACKUP_OPTED_OUT',
 } as const;
 
 export type IdentityErrorCode = (typeof IDENTITY_ERROR_CODES)[keyof typeof IDENTITY_ERROR_CODES];

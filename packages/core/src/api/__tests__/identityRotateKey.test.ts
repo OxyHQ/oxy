@@ -725,6 +725,133 @@ describe('OxyServices.rotateKey', () => {
     });
   });
 
+  describe("a backup the person DELETED is never re-uploaded silently (owner's decision, 2026-11-07)", () => {
+    function arrange() {
+      jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+      jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
+      jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
+      jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+      jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue(NEW_PUBLIC);
+      jest.spyOn(KeyManager, 'storeRecoveryMnemonic').mockResolvedValue();
+      jest.spyOn(KeyManager, 'backupOwedEntry').mockResolvedValue(null);
+      makeRequestSpy.mockReset();
+      makeRequestSpy.mockImplementation(async (method: string, path: string) => {
+        if (path === '/identity/backup/status') return { exists: false, optedOut: true };
+        if (path.endsWith('/challenge')) {
+          return { challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' };
+        }
+        if (path.endsWith('/complete')) {
+          return { success: true, publicKey: NEW_PUBLIC, message: 'ok' };
+        }
+        throw new Error(`unexpected ${method} ${path}`);
+      });
+      // The real reading of the server's status: whichever device deleted it.
+      (oxy.identity.backup.readBeforeRotation as jest.Mock).mockRestore?.();
+    }
+
+    it('uploads nothing and marks nothing owed; the replaced key is still kept on this phone', async () => {
+      arrange();
+      const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+      const seal = jest.spyOn(oxy.identity.backup, 'seal');
+
+      const result = await oxy.identity.rotateKey({ proof: 'device' });
+
+      expect(result.backupOptedOut).toBe(true);
+      expect(result.backupRefreshed).toBeUndefined();
+      expect(seal).not.toHaveBeenCalled();
+      expect(mark).not.toHaveBeenCalled();
+      const paths = makeRequestSpy.mock.calls.map(([method, path]) => `${method} ${path}`);
+      expect(paths).not.toContain('POST /identity/backup');
+      // The replaced key stays here for spending (ADR 0061 D7).
+      expect(mockRetire).toHaveBeenCalledWith({
+        privateKey: oldKeyPair.privateKey,
+        publicKey: OLD_PUBLIC,
+      });
+    });
+
+    it('createBackup: false is a no, like leaving it out', async () => {
+      arrange();
+      jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+      const seal = jest.spyOn(oxy.identity.backup, 'seal');
+      await oxy.identity.rotateKey({ proof: 'device', createBackup: false });
+      expect(seal).not.toHaveBeenCalled();
+    });
+
+    it("the person's explicit choice in the flow uploads, with their opt-in, and is owed until sealed", async () => {
+      arrange();
+      const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+      const seal = jest
+        .spyOn(oxy.identity.backup, 'seal')
+        .mockResolvedValue({ exists: true } as never);
+
+      const result = await oxy.identity.rotateKey({ proof: 'device', createBackup: true });
+
+      expect(seal).toHaveBeenCalledWith(pendingFixture.phrase, [], {
+        replacesLookupId: undefined,
+        optIn: true,
+      });
+      expect(mark).toHaveBeenCalledWith('user-123', { optIn: true });
+      expect(result.backupRefreshed).toBe(true);
+      expect(result.backupOptedOut).toBeUndefined();
+    });
+
+    describe('no backup on record (never made, or deleted before deletions were recorded)', () => {
+      function noneOnRecord() {
+        arrange();
+        makeRequestSpy.mockImplementation(async (method: string, path: string) => {
+          if (path === '/identity/backup/status') return { exists: false };
+          if (path.endsWith('/challenge')) {
+            return { challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' };
+          }
+          if (path.endsWith('/complete')) {
+            return { success: true, publicKey: NEW_PUBLIC, message: 'ok' };
+          }
+          throw new Error(`unexpected ${method} ${path}`);
+        });
+      }
+
+      it('declining the backup shown before the swap uploads nothing and owes nothing', async () => {
+        noneOnRecord();
+        const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+        const seal = jest.spyOn(oxy.identity.backup, 'seal');
+        const result = await oxy.identity.rotateKey({ proof: 'device', createBackup: false });
+        expect(seal).not.toHaveBeenCalled();
+        expect(mark).not.toHaveBeenCalled();
+        expect(result.backupOptedOut).toBe(true);
+      });
+
+      it('accepting it (or not being asked) creates one as before (R4-4), without an opt-in', async () => {
+        for (const createBackup of [true, undefined]) {
+          noneOnRecord();
+          jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+          const seal = jest
+            .spyOn(oxy.identity.backup, 'seal')
+            .mockResolvedValue({ exists: true } as never);
+          const result = await oxy.identity.rotateKey({ proof: 'device', createBackup });
+          expect(seal).toHaveBeenCalledWith(pendingFixture.phrase, [], {
+            replacesLookupId: undefined,
+          });
+          expect(result.backupOptedOut).toBeUndefined();
+          seal.mockRestore();
+        }
+      });
+    });
+
+    it('a person who HAS a backup cannot decline its re-seal: it keeps every key', async () => {
+      arrange();
+      const carried = [{ privateKey: 'aa'.repeat(32), publicKey: '04ab', retiredAt: 1 }];
+      jest
+        .spyOn(oxy.identity.backup, 'readBeforeRotation')
+        .mockResolvedValue({ existed: true, carried, replacesLookupId: 'ef'.repeat(32) });
+      jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+      const seal = jest
+        .spyOn(oxy.identity.backup, 'seal')
+        .mockResolvedValue({ exists: true } as never);
+      await oxy.identity.rotateKey({ proof: 'device', createBackup: false });
+      expect(seal).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('phrase proof (replace the LAST credential)', () => {
     it('refuses a phrase that is not the account’s CURRENT key, before anything changes (R6-10)', async () => {
       const other = await RecoveryPhraseService.derivePendingIdentity();

@@ -331,7 +331,7 @@
     },
     "packages/commons": {
       "name": "commons",
-      "version": "1.12.0",
+      "version": "1.13.0",
       "dependencies": {
         "@expo/vector-icons": "^15.1.1",
         "@oxy.so/app-preset": "workspace:*",
@@ -483,7 +483,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "6.17.0",
+      "version": "6.18.0",
       "dependencies": {
         "zod": "catalog:",
       },
@@ -496,7 +496,7 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "7.40.0",
+      "version": "7.41.0",
       "dependencies": {
         "@noble/ciphers": "^2.4.0",
         "@noble/hashes": "^2.4.0",

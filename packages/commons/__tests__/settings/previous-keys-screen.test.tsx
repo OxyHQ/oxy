@@ -157,3 +157,43 @@ it('re-seals a backup a rotation superseded with the previous phrase just added 
     expect(create).toHaveBeenCalledWith(CURRENT_PHRASE, { previousPhrase: PHRASE }),
   );
 });
+
+describe("without a backup, a previous key is recoverable only with its phrase (owner's decision, 2026-11-07)", () => {
+  function withStatus(answer: Record<string, unknown>) {
+    const status = jest.fn(async () => answer);
+    __setOxyState({
+      oxyServices: {
+        identity: { keyHistory, backup: { status } },
+        session: { userId: 'aaaaaaaaaaaaaaaaaaaaaaaa' },
+      },
+    });
+    return status;
+  }
+
+  it('says so when the person deleted their backup', async () => {
+    withStatus({ exists: false, optedOut: true });
+    const { findByTestId, container } = renderScreen();
+    await findByTestId('previous-keys-no-backup');
+    expect(container.textContent).toContain('You deleted your encrypted backup');
+    expect(container.textContent).toContain(
+      "can be recovered only with that key's recovery phrase",
+    );
+  });
+
+  it('says so when there has never been one', async () => {
+    withStatus({ exists: false });
+    const { findByTestId, container } = renderScreen();
+    await findByTestId('previous-keys-no-backup');
+    expect(container.textContent).toContain('You have no encrypted backup');
+  });
+
+  it('says nothing of the kind while a backup holds them', async () => {
+    for (const answer of [{ exists: true }, { exists: false, superseded: true }]) {
+      const status = withStatus(answer);
+      const { queryByTestId, unmount } = renderScreen();
+      await waitFor(() => expect(status).toHaveBeenCalled());
+      expect(queryByTestId('previous-keys-no-backup')).toBeNull();
+      unmount();
+    }
+  });
+});

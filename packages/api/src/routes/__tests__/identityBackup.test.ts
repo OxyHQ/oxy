@@ -73,6 +73,7 @@ import { IDENTITY_BACKUP_MAX_VERSION } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { identityBackups } from '../../db/schema/identityBackups';
+import { identityBackupOptOuts } from '../../db/schema/identityBackupOptOuts';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import identityBackupRouter from '../identityBackup';
@@ -642,5 +643,120 @@ describe('only first-party sessions write the backup, and only a version a clien
     const [row] = await storedRows(OWNER);
     expect(row.version).toBe(2);
     expect(row.ciphertext).toBe('c0ffee');
+  });
+});
+
+describe("a backup the PERSON deleted stays deleted (owner's decision, 2026-11-07)", () => {
+  async function optOutRows(userId: string) {
+    return getDb()
+      .select()
+      .from(identityBackupOptOuts)
+      .where(eq(identityBackupOptOuts.userId, userId));
+  }
+
+  /** A first-party application, whose session is another device of the same person. */
+  async function insertApplication(): Promise<string> {
+    const [app] = await getDb()
+      .insert(applications)
+      .values({
+        name: `first_party ${crypto.randomUUID()}`,
+        ownerAccountId: STRANGER,
+        status: 'active',
+        type: 'first_party',
+        scopes: ['user:read'],
+      })
+      .returning({ id: applications.id });
+    return app.id;
+  }
+
+  it('never had one: /status answers none, not deleted', async () => {
+    const res = await request('GET', '/identity/backup/status');
+    expect(res.body).toEqual({ exists: false });
+    expect(await optOutRows(OWNER)).toHaveLength(0);
+  });
+
+  it('DELETE records the deletion on the account; /status tells it from none and from superseded', async () => {
+    await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+    expect((await request('DELETE', '/identity/backup')).status).toBe(200);
+    expect(await storedRows(OWNER)).toHaveLength(0);
+    expect(await optOutRows(OWNER)).toHaveLength(1);
+    expect((await request('GET', '/identity/backup/status')).body).toEqual({
+      exists: false,
+      optedOut: true,
+    });
+  });
+
+  it("an upload without the person's opt-in is refused and stores nothing, whichever device sends it", async () => {
+    await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+    await request('DELETE', '/identity/backup');
+
+    // A re-seal after a rotation, from this phone or another (another session
+    // of the same account): no `optIn`, so nothing is stored.
+    for (const token of [undefined, { applicationId: await insertApplication() }]) {
+      currentToken = token;
+      const refused = await request('POST', '/identity/backup', uploadBody({ version: 2 }));
+      expect(refused.status).toBe(409);
+      expect(refused.body).toMatchObject({ error: 'IDENTITY_BACKUP_OPTED_OUT' });
+      const explicitNo = await request(
+        'POST',
+        '/identity/backup',
+        uploadBody({ version: 2, optIn: false }),
+      );
+      expect(explicitNo.status).toBe(409);
+    }
+    expect(await storedRows(OWNER)).toHaveLength(0);
+    expect(await optOutRows(OWNER)).toHaveLength(1);
+  });
+
+  it("the person's explicit opt-in stores the backup and clears the deletion", async () => {
+    await request('DELETE', '/identity/backup');
+    const created = await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ version: 2, optIn: true }),
+    );
+    expect(created.status).toBe(200);
+    expect(await storedRows(OWNER)).toHaveLength(1);
+    expect(await optOutRows(OWNER)).toHaveLength(0);
+    expect((await request('GET', '/identity/backup/status')).body).toMatchObject({
+      exists: true,
+    });
+    // Later uploads (a rotation's re-seal) need no opt-in again.
+    expect((await request('POST', '/identity/backup', uploadBody({ version: 2 }))).status).toBe(
+      200,
+    );
+  });
+
+  it('an opt-in the upload guard refuses keeps the deletion', async () => {
+    await request('DELETE', '/identity/backup');
+    const res = await request('POST', '/identity/backup', uploadBody({ version: 9, optIn: true }));
+    expect(res.status).toBe(400);
+    expect(await optOutRows(OWNER)).toHaveLength(1);
+  });
+
+  it("one person's deletion does not touch another's backups", async () => {
+    await request('DELETE', '/identity/backup');
+    currentUserId = STRANGER;
+    expect((await request('POST', '/identity/backup', uploadBody({ version: 2 }))).status).toBe(
+      200,
+    );
+    expect((await request('GET', '/identity/backup/status')).body).toMatchObject({
+      exists: true,
+    });
+  });
+
+  it('a second DELETE keeps the first time the person deleted it', async () => {
+    await request('DELETE', '/identity/backup');
+    const [first] = await optOutRows(OWNER);
+    await request('DELETE', '/identity/backup');
+    const rows = await optOutRows(OWNER);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].optedOutAt.getTime()).toBe(first.optedOutAt.getTime());
+  });
+
+  it('deleting the account deletes the record with it', async () => {
+    await request('DELETE', '/identity/backup');
+    await getDb().delete(users).where(eq(users.id, OWNER));
+    expect(await optOutRows(OWNER)).toHaveLength(0);
   });
 });

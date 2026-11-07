@@ -1,5 +1,20 @@
 # Changelog — `@oxy.so/core`
 
+## 7.41.0
+
+A backup the person deleted stays deleted (owner's decision, 2026-11-07): rotating a key never silently re-uploads the encrypted identity backup of a person who deleted theirs.
+
+### Changed
+
+- **`rotateKey` respects the deletion.** When `backup.status().optedOut` (read by `readBeforeRotation`, which now returns `optedOut`), the rotation uploads nothing and marks nothing owed, and the result carries `backupOptedOut: true`; the replaced key is still kept in this device's ring for spending, and off the phone only its own recovery phrase recovers it. `RotateKeyOptions.createBackup: true` is the person's explicit opt-in from the rotation flow: the re-seal then sends `optIn` and the backup is owed (with the choice) until sealed. A person with no backup on record (never made one, or deleted it before deletions were recorded) is re-sealed as before unless `createBackup: false` (they declined it when shown), which also uploads nothing and owes nothing (`backupOptedOut`); `readBeforeRotation` now also returns `superseded`. A person with a backup (current or superseded) is re-sealed as before whatever `createBackup` says.
+- **`backup.create(phrase, { optIn })`.** Pass `optIn: true` only from a control the person pressed; over a deletion, an upload without it throws `IdentityBackupOptedOutError` (exported) and drops this device's owed entry.
+- **`backup.isOwed()` never nags a person who deleted their backup**, on any device: an owed entry without the person's choice is checked against `status().optedOut` and dropped. **`backup.delete()`** clears this device's owed entry once Oxy confirmed the deletion.
+- `BackupOwedEntry.optIn` and `markBackupOwed(userId, { optIn })`: the person's choice travels with the owed entry until the seal.
+
+### For Peable
+
+Nothing to change. Retired keys stay in the device ring whatever the backup; a person without a backup recovers a previous key on another phone only with that key's phrase (Commons, Backup & recovery → Previous keys).
+
 ## 7.40.0
 
 Round-7 security review of the Peable mainnet identity receive: R7-2, R7-4 (core half), R7-5, R7-10, R7-11.
