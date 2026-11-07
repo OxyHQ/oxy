@@ -1097,7 +1097,8 @@ export const SEED_APPS: SeedAppSpec[] = [
       // (`POST /apps/invitations/email`).
       'invitations:email',
     ],
-    capabilities: [catalogApplicationCapability('noted')],
+    // Nilo's own workspace catalog (`mcp.nilo.so`): its pages, read by MCP clients.
+    capabilities: [catalogApplicationCapability('noted'), catalogApplicationCapability('nilo')],
   },
   {
     id: ASTRO_APPLICATION_ID,
