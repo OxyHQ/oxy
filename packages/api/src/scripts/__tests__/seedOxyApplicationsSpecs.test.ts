@@ -215,7 +215,7 @@ describe('the canonical official-application registry', () => {
     expect(computeSeedApplicationPlan(plan.desired, target).changes).toEqual([]);
   });
 
-  it('registers Nilo by exact identity: inference, linked-file reads, the notes catalog and invitation email', () => {
+  it('registers Nilo by exact identity: inference, linked-file reads, the notes and Nilo catalogs and invitation email', () => {
     const nilo = specNamed('Nilo');
     expect(nilo).toMatchObject({
       id: NILO_APPLICATION_ID,
@@ -241,7 +241,7 @@ describe('the canonical official-application registry', () => {
       id: NILO_APPLICATION_ID,
     });
     expect(seededPrincipal(nilo)).toEqual({ type: 'first_party', isInternal: false });
-    expect(nilo.capabilities).toEqual(['catalog:noted']);
+    expect(nilo.capabilities).toEqual(['catalog:noted', 'catalog:nilo']);
   });
 
   it('registers Astro by exact identity as a native public sign-in client with no authority beyond the session', () => {
