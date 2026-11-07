@@ -122,6 +122,7 @@ import applicationAccountsRouter from './routes/applicationAccounts';
 import identityRoutes from './routes/identity';
 import chainsRoutes from './routes/chains';
 import identityBackupRoutes from './routes/identityBackup';
+import keychainRoutes from './routes/keychain';
 import linkedAccountsRoutes from './routes/linkedAccounts';
 import { aliasesForUser } from './services/linkedAccounts/linkedAccounts.service';
 import identityProofRoutes from './routes/identityProof';
@@ -1079,6 +1080,11 @@ app.use('/application-accounts', applicationAccountsRouter);
 // auth. Mounted
 // BEFORE `/identity` so the more specific `/identity/backup` prefix wins.
 app.use('/identity/backup', identityBackupRoutes);
+// The Oxy Keychain (ADR 0063): an end-to-end encrypted vault per personal
+// account; Oxy keeps ciphertext, public keys and signatures only. Bearer only,
+// the account's own device sessions or the platform's `host.self` token; each
+// route checks the signed roster's rules on every write.
+app.use('/keychain', keychainRoutes);
 // Linking Commons to an account without a key from two devices (ADR 0030): a
 // relay for the root proof Commons signs, confirmed by an email code. Before
 // `/identity`.

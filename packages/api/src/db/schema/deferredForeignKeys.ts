@@ -120,6 +120,7 @@ import { usageReservations } from './usageReservations';
 import { inferenceMeteredUsage } from './inferenceMeteredUsage';
 import { kaanaGrantAdmittedLines, kaanaGrants } from './kaanaGrants';
 import { inferenceProviderCostAttempts } from './inferenceProviderCostAttempts';
+import { keychainEnrollments, keychainItems, keychainMembers } from './keychain';
 import { userCredits } from './userCredits';
 import { userLinkMetadata } from './userLinkMetadata';
 import { userLocations } from './userLocations';
@@ -157,6 +158,24 @@ const PRICE_VERSION_LABEL_REASON =
   'table that resolves Kaana’s; the entries charged are copied beside it.';
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: keychainMembers,
+    column: keychainMembers.memberId,
+    reason:
+      'The uuid a device chose for itself in the Oxy Keychain roster (ADR 0063 D3), half of this table’s own primary key with `vault_id`; it names this row, not another.',
+  },
+  {
+    table: keychainItems,
+    column: keychainItems.itemId,
+    reason:
+      'The uuid a device chose for an Oxy Keychain item, repeated inside its ciphertext (ADR 0063 D7), half of this table’s own primary key with `vault_id`; it names this row, not another.',
+  },
+  {
+    table: keychainEnrollments,
+    column: keychainEnrollments.approverMemberId,
+    reason:
+      'The roster member id (`keychain_members.member_id`) of the device approving the enrollment, within the same vault. Members are never deleted while their vault exists (removal sets `removed_seq`), and the enrollment cascades with the vault, so the reference cannot dangle; the route checks it is the caller’s live member on every use.',
+  },
   {
     table: githubTrustedPublishers,
     column: githubTrustedPublishers.repositoryId,

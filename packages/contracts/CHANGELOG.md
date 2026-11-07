@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.20.0
+
+The Oxy Keychain's wire contract (ADR 0063, `docs/identity/keychain.md`).
+
+### Added
+
+- `keychain.ts`: the strict request schemas of every `/keychain` route (`keychainCreateRequestSchema`, `keychainRosterAppendRequestSchema`, `keychainEnrollmentCreateRequestSchema`, `keychainApproverNonceRequestSchema`, `keychainRevealRequestSchema`, `keychainApproveRequestSchema`, `keychainItemPutRequestSchema`, `keychainItemDeleteRequestSchema`, `keychainItemsQuerySchema`, `keychainResetRequestSchema`), the roster body (`keychainRosterBodySchema`, five operations, nothing rewritten), members, entries, wraps, and the response schemas.
+- The `client` entry, without Zod: `KEYCHAIN_ERROR_CODES`, `KEYCHAIN_LIMITS`, `KEYCHAIN_DOMAINS`, `KEYCHAIN_PLATFORMS`, `KEYCHAIN_ROSTER_OPS`, `KEYCHAIN_ENROLLMENT_STATUSES`, `KEYCHAIN_RECOVERY`, the canonical base64url patterns, every `Keychain*` type, and the response checks (`keychainStateResponseCheck`, `keychainWrapResponseCheck`, `keychainEnrollmentResponseCheck`, `keychainEnrollmentsResponseCheck`, `keychainItemResponseCheck`, `keychainItemsResponseCheck`).
+- Formats as the SDK fixes them (#2219): ids are lowercase uuids of any version, a member name is 1 to 256 bytes of well-formed UTF-8, a roster `createdAt` is `toISOString`'s spelling (`KEYCHAIN_TIMESTAMP_PATTERN`).
+- `REAUTH_ACTIONS`: `reset_keychain`.
+- `IDENTITY_PROOF_ACTIONS.keychainReset` (`keychain_reset`): the reset on an account whose root is linked, signed by the root over `{ vaultId }`.
+
 ## 6.18.0
 
 A backup the person deleted stays deleted (owner's decision, 2026-11-07).

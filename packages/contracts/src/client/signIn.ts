@@ -129,6 +129,8 @@ export const REAUTH_ACTIONS = [
   'credentials_manage',
   'supervision',
   'supervision_purchase',
+  /** `DELETE /keychain`: reset the Oxy Keychain, deleting every item (ADR 0063 D6). */
+  'reset_keychain',
 ] as const;
 
 export type ReauthAction = (typeof REAUTH_ACTIONS)[number];
