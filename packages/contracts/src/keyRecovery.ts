@@ -31,6 +31,12 @@ import { utf16MinLength } from './stringChecks';
  */
 import { z } from 'zod';
 
+/**
+ * The highest envelope version any client writes (core's `BACKUP_ENVELOPE_VERSION`:
+ * 2 carries the retired keys). An upload above it is refused (R7-1).
+ */
+export const IDENTITY_BACKUP_MAX_VERSION = 2;
+
 /** 256-bit backup locator (32 bytes), lowercase/uppercase hex. */
 export const backupLookupIdSchema = z
   .string()
@@ -89,6 +95,13 @@ export type EncryptedBackupEnvelope = z.infer<typeof encryptedBackupEnvelopeSche
  * re-upload REPLACES the prior backup rather than accumulating duplicates.
  */
 export const backupUploadRequestSchema = backupEnvelopeFields.extend({
+  /**
+   * At most {@link IDENTITY_BACKUP_MAX_VERSION} (security review R7-1): the
+   * server keeps the HIGHER version of two uploads, so an envelope version no
+   * client writes would refuse every later legitimate upload with 409, for
+   * good. A new envelope version raises the maximum here first.
+   */
+  version: z.number().check(integerCheck()).positive().max(IDENTITY_BACKUP_MAX_VERSION),
   /**
    * The raw 256-bit backup locator (hex), derived client-side from the seed
    * with a domain-separated HKDF `info`. The server stores ONLY its sha256; a

@@ -611,6 +611,7 @@ export type { IdentityKeyHistory, IdentityKeyHistoryClaimRequest } from './ident
 
 export {
   // Schemas — encrypted off-device identity backup (b3 Feature 1)
+  IDENTITY_BACKUP_MAX_VERSION,
   backupLookupIdSchema,
   encryptedBackupEnvelopeSchema,
   backupUploadRequestSchema,

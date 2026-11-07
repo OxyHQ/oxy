@@ -17,18 +17,25 @@
  * bearer token. Its real protection is that entropy; the hash-and-lookup +
  * constant-shape 404 are defense-in-depth against enumeration. No bearer writes
  * carry ambient cookies, so this router is mounted without CSRF.
+ *
+ * Both WRITES are the account's own (security review R7-1): the backup is the
+ * only off-device copy of the person's retired keys, so a third-party
+ * application's session or an application token (ADR 0058) may neither replace
+ * nor delete it (`requireFirstPartyDeviceAccess`, as `/identity/key-history`).
  */
 import { Router, type Request, type Response } from 'express';
 import crypto from 'node:crypto';
-import { and, eq, isNull, lte } from 'drizzle-orm';
+import { and, eq, gt, isNull, lte, or } from 'drizzle-orm';
 import { isValidSecp256k1PublicKey, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ConflictError, NotFoundError, UnauthorizedError, BadRequestError } from '../utils/error';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import {
+  IDENTITY_BACKUP_MAX_VERSION,
   backupUploadRequestSchema,
   backupLookupIdSchema,
   type BackupUploadRequest,
@@ -182,10 +189,17 @@ async function assertSealedUnderCurrentRoot(userId: string, publicKeyHint: strin
  * A backup sealed with a stale phrase (a slot that still held the phrase of a
  * rotated-away key) backs up a retired key, and would replace the backup of
  * the key the account signs in with. An account without a root is not checked.
+ *
+ * First-party only, and the version is bounded (R7-1): a third party's bearer
+ * is refused before anything is read, and the contract refuses a version above
+ * `IDENTITY_BACKUP_MAX_VERSION`. A stored row ABOVE that maximum was never
+ * written by a client (an upload made before the bound existed), so it never
+ * blocks a legitimate upload: it is replaced like an older version.
  */
 router.post(
   '/',
   authMiddleware,
+  requireFirstPartyDeviceAccess,
   backupWriteLimiter,
   validate({ body: backupUploadRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -216,7 +230,10 @@ router.post(
         .onConflictDoUpdate({
           target: identityBackups.userId,
           set: stored,
-          setWhere: lte(identityBackups.version, body.version),
+          setWhere: or(
+            lte(identityBackups.version, body.version),
+            gt(identityBackups.version, IDENTITY_BACKUP_MAX_VERSION),
+          ),
         })
         .returning({
           publicKeyHint: identityBackups.publicKeyHint,
@@ -284,11 +301,12 @@ router.get(
 
 /**
  * DELETE /identity/backup — remove the caller's backup. Idempotent (deleting a
- * non-existent backup still returns success).
+ * non-existent backup still returns success). First-party only (R7-1).
  */
 router.delete(
   '/',
   authMiddleware,
+  requireFirstPartyDeviceAccess,
   backupDeleteLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user?._id;
