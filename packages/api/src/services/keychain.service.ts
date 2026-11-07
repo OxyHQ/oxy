@@ -146,11 +146,28 @@ interface CallerMember {
   signingKey: string;
 }
 
-/** The live member bound to `deviceSessionId`, or `null`. */
+/**
+ * Where a keychain request comes from, as the verified bearer says: the device
+ * session and the account's presence on it (`device_account_contexts`, the
+ * token's `device_context_id`). A member is bound to both. The context is what
+ * ends when THIS account leaves the device, whether or not other accounts stay
+ * on it, so binding to it is what orphans the member then (ADR 0063 D4).
+ */
+export interface KeychainDevice {
+  sessionId: string;
+  contextId: string;
+}
+
+/**
+ * The live member bound to this device AND this account's presence on it (the
+ * device context), or `null`. A member whose context went (the account signed
+ * out of or was removed from the device, even with other accounts still on it)
+ * is orphaned and matches nothing, here or ever again (ADR 0063 D4).
+ */
 async function memberOfSession(
   db: DatabaseOrTransaction,
   vaultId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
 ): Promise<CallerMember | null> {
   const [row] = await db
     .select({ memberId: keychainMembers.memberId, signingKey: keychainMembers.signingKey })
@@ -158,7 +175,8 @@ async function memberOfSession(
     .where(
       and(
         eq(keychainMembers.vaultId, vaultId),
-        eq(keychainMembers.deviceSessionId, deviceSessionId),
+        eq(keychainMembers.deviceSessionId, device.sessionId),
+        eq(keychainMembers.deviceContextId, device.contextId),
         isNull(keychainMembers.removedSeq),
       ),
     )
@@ -169,9 +187,9 @@ async function memberOfSession(
 async function requireMember(
   db: DatabaseOrTransaction,
   vaultId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
 ): Promise<CallerMember> {
-  const member = await memberOfSession(db, vaultId, deviceSessionId);
+  const member = await memberOfSession(db, vaultId, device);
   if (!member) throw notMember();
   return member;
 }
@@ -226,7 +244,7 @@ const EMPTY_STATE: KeychainStateResponse = { vault: null, roster: [], members: [
 async function stateOf(
   db: DatabaseOrTransaction,
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
 ): Promise<KeychainStateResponse> {
   const vault = await readVault(db, accountId);
   if (!vault) return EMPTY_STATE;
@@ -239,13 +257,17 @@ async function stateOf(
     .select({
       memberId: keychainMembers.memberId,
       deviceSessionId: keychainMembers.deviceSessionId,
+      deviceContextId: keychainMembers.deviceContextId,
       removedSeq: keychainMembers.removedSeq,
     })
     .from(keychainMembers)
     .where(eq(keychainMembers.vaultId, vault.id))
     .orderBy(asc(keychainMembers.addedSeq));
   const self = members.find(
-    (member) => member.removedSeq === null && member.deviceSessionId === deviceSessionId,
+    (member) =>
+      member.removedSeq === null &&
+      member.deviceSessionId === device.sessionId &&
+      member.deviceContextId === device.contextId,
   );
   return {
     vault: {
@@ -259,7 +281,7 @@ async function stateOf(
     roster: roster.map((entry) => ({ body: entry.body, signatures: entry.signatures })),
     members: members.map((member) => ({
       id: member.memberId,
-      orphaned: member.deviceSessionId === null,
+      orphaned: member.deviceSessionId === null || member.deviceContextId === null,
       removed: member.removedSeq !== null,
     })),
     self: self?.memberId ?? null,
@@ -269,9 +291,9 @@ async function stateOf(
 /** `GET /keychain`: one consistent snapshot of the vault, its roster and its members. */
 export async function readKeychainState(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
 ): Promise<KeychainStateResponse> {
-  return getDb().transaction((tx) => stateOf(tx, accountId, deviceSessionId), {
+  return getDb().transaction((tx) => stateOf(tx, accountId, device), {
     isolationLevel: 'repeatable read',
     accessMode: 'read only',
   });
@@ -320,13 +342,13 @@ async function wrapFor(
 /** `GET /keychain/wrap`: the caller's own member's wrap, and nobody else's. */
 export async function readOwnWrap(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
 ): Promise<KeychainWrap> {
   const db = getDb();
   const vault = await readVault(db, accountId);
   if (!vault) throw noVault();
   // Answered 404, not 403: there is no wrap for this device (keychain.md).
-  const member = await memberOfSession(db, vault.id, deviceSessionId);
+  const member = await memberOfSession(db, vault.id, device);
   const wrap = member ? await wrapFor(db, vault.id, member.memberId) : null;
   if (!wrap) {
     throw new ApiError(
@@ -362,7 +384,7 @@ async function persistAppend(
   vaultId: string,
   append: Pick<AppliedAppend, 'entries' | 'state'>,
   wraps: KeychainWrap[],
-  bindings: ReadonlyMap<string, string>,
+  bindings: ReadonlyMap<string, KeychainDevice>,
 ): Promise<void> {
   const { entries, state } = append;
   await tx.insert(keychainRosterEntries).values(
@@ -378,12 +400,13 @@ async function persistAppend(
   for (const entry of entries) {
     const { body } = entry;
     if (body.op === 'genesis' || body.op === 'add') {
-      const deviceSessionId = bindings.get(body.member.id);
-      if (!deviceSessionId) throw new Error('keychain: an added member without a device session');
+      const device = bindings.get(body.member.id);
+      if (!device) throw new Error('keychain: an added member without a device');
       await tx.insert(keychainMembers).values({
         vaultId,
         memberId: body.member.id,
-        deviceSessionId,
+        deviceSessionId: device.sessionId,
+        deviceContextId: device.contextId,
         name: body.member.name,
         platform: body.member.platform,
         signingKey: body.member.signingKey,
@@ -430,9 +453,17 @@ function opsOf(entries: ParsedEntry[]): string {
   return entries.map((entry) => entry.body.op).join(',');
 }
 
-/** A member could not be bound: its device session is already a live member's. */
+/**
+ * A member could not be bound: its device context is already a live member's
+ * (or, until migration 0244 drops it, its device session is).
+ */
 function rethrowBinding(error: unknown): never {
-  if (isUniqueViolation(error, 'keychain_members_live_device_session_key')) throw alreadyMember();
+  if (
+    isUniqueViolation(error, 'keychain_members_live_device_context_key') ||
+    isUniqueViolation(error, 'keychain_members_live_device_session_key')
+  ) {
+    throw alreadyMember();
+  }
   throw error;
 }
 
@@ -443,7 +474,7 @@ function rethrowBinding(error: unknown): never {
  */
 export async function createKeychain(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   genesis: KeychainEntry,
   wraps: KeychainWrap[],
 ): Promise<KeychainStateResponse> {
@@ -476,10 +507,10 @@ export async function createKeychain(
         state.vaultId,
         { entries: [parsed], state },
         wraps,
-        new Map([[member.id, deviceSessionId]]),
+        new Map([[member.id, device]]),
       );
       logger.info('keychain.vault.created', { vaultId: state.vaultId, memberId: member.id });
-      return stateOf(tx, accountId, deviceSessionId);
+      return stateOf(tx, accountId, device);
     });
   } catch (error) {
     // Two creations at once, or a vault id another account already holds.
@@ -513,7 +544,7 @@ function keychainExists(): ApiError {
  */
 export async function appendRoster(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   entries: KeychainEntry[],
   wraps: KeychainWrap[],
 ): Promise<KeychainStateResponse> {
@@ -521,9 +552,9 @@ export async function appendRoster(
     .transaction(async (tx) => {
       const vault = await lockVault(tx, accountId);
       const base = await loadRosterState(tx, vault);
-      const caller = await memberOfSession(tx, vault.id, deviceSessionId);
+      const caller = await memberOfSession(tx, vault.id, device);
       const append = applyEntries(base, entries);
-      const bindings = new Map<string, string>();
+      const bindings = new Map<string, KeychainDevice>();
 
       if (caller) {
         if (append.added.length > 0) {
@@ -557,7 +588,7 @@ export async function appendRoster(
           signers: new Map([[KEYCHAIN_RECOVERY, base.recovery.signingKey]]),
           rotation: false,
         });
-        bindings.set(member.id, deviceSessionId);
+        bindings.set(member.id, device);
       }
 
       await persistAppend(tx, vault.id, append, wraps, bindings);
@@ -570,7 +601,7 @@ export async function appendRoster(
         generation: append.state.generation,
         wraps: wraps.length,
       });
-      return stateOf(tx, accountId, deviceSessionId);
+      return stateOf(tx, accountId, device);
     })
     .catch(rethrowBinding);
 }
@@ -600,6 +631,7 @@ const ENROLLMENT_COLUMNS = {
   id: keychainEnrollments.id,
   vaultId: keychainEnrollments.vaultId,
   deviceSessionId: keychainEnrollments.deviceSessionId,
+  deviceContextId: keychainEnrollments.deviceContextId,
   member: keychainEnrollments.member,
   commitment: keychainEnrollments.commitment,
   approverNonce: keychainEnrollments.approverNonce,
@@ -627,6 +659,22 @@ async function lockEnrollment(
 }
 
 /** A pending enrollment still inside its ten minutes, else the refusal that says why not. */
+/** The enrolling device of a request, or `null` once its context has gone. */
+function enrollingDeviceOf(
+  row: Pick<EnrollmentRow, 'deviceSessionId' | 'deviceContextId'>,
+): KeychainDevice | null {
+  return row.deviceContextId
+    ? { sessionId: row.deviceSessionId, contextId: row.deviceContextId }
+    : null;
+}
+
+function isEnrollingDevice(
+  row: Pick<EnrollmentRow, 'deviceSessionId' | 'deviceContextId'>,
+  device: KeychainDevice,
+): boolean {
+  return row.deviceSessionId === device.sessionId && row.deviceContextId === device.contextId;
+}
+
 function requirePending(row: EnrollmentRow, now: Date): void {
   if (row.status !== 'pending') throw enrollmentState('That request to join was already decided.');
   if (row.expiresAt.getTime() <= now.getTime()) throw enrollmentExpired();
@@ -639,14 +687,14 @@ function requirePending(row: EnrollmentRow, now: Date): void {
  */
 export async function createEnrollment(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   member: KeychainMember,
   commitment: string,
   now: Date = new Date(),
 ): Promise<KeychainEnrollment> {
   return getDb().transaction(async (tx) => {
     const vault = await lockVault(tx, accountId);
-    if (await memberOfSession(tx, vault.id, deviceSessionId)) throw alreadyMember();
+    if (await memberOfSession(tx, vault.id, device)) throw alreadyMember();
     assertUsableKeys(member);
     const [known] = await tx
       .select({ memberId: keychainMembers.memberId })
@@ -661,7 +709,7 @@ export async function createEnrollment(
       .where(
         and(
           eq(keychainEnrollments.vaultId, vault.id),
-          eq(keychainEnrollments.deviceSessionId, deviceSessionId),
+          eq(keychainEnrollments.deviceContextId, device.contextId),
           eq(keychainEnrollments.status, 'pending'),
         ),
       );
@@ -682,7 +730,8 @@ export async function createEnrollment(
       .insert(keychainEnrollments)
       .values({
         vaultId: vault.id,
-        deviceSessionId,
+        deviceSessionId: device.sessionId,
+        deviceContextId: device.contextId,
         member,
         commitment,
         status: 'pending',
@@ -701,13 +750,13 @@ export async function createEnrollment(
 /** `GET /keychain/enrollments`: the pending, unexpired requests, for a live member. */
 export async function listEnrollments(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   now: Date = new Date(),
 ): Promise<KeychainEnrollment[]> {
   const db = getDb();
   const vault = await readVault(db, accountId);
   if (!vault) throw noVault();
-  await requireMember(db, vault.id, deviceSessionId);
+  await requireMember(db, vault.id, device);
   const rows = await db
     .select(ENROLLMENT_COLUMNS)
     .from(keychainEnrollments)
@@ -730,7 +779,7 @@ async function enrollmentForCaller(
   db: DatabaseOrTransaction,
   vault: VaultRow,
   enrollmentId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   lock: boolean,
 ): Promise<{ row: EnrollmentRow; enrolling: boolean; member: CallerMember | null }> {
   const row = lock
@@ -748,8 +797,8 @@ async function enrollmentForCaller(
           .limit(1)
       )[0];
   if (!row) throw enrollmentNotFound();
-  const enrolling = row.deviceSessionId === deviceSessionId;
-  const member = await memberOfSession(db, vault.id, deviceSessionId);
+  const enrolling = isEnrollingDevice(row, device);
+  const member = await memberOfSession(db, vault.id, device);
   if (!enrolling && !member) throw enrollmentNotFound();
   return { row, enrolling, member };
 }
@@ -757,14 +806,14 @@ async function enrollmentForCaller(
 /** `GET /keychain/enrollments/:id`. An expired pending one answers `410`. */
 export async function readEnrollment(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   enrollmentId: string,
   now: Date = new Date(),
 ): Promise<KeychainEnrollment> {
   const db = getDb();
   const vault = await readVault(db, accountId);
   if (!vault) throw noVault();
-  const { row } = await enrollmentForCaller(db, vault, enrollmentId, deviceSessionId, false);
+  const { row } = await enrollmentForCaller(db, vault, enrollmentId, device, false);
   if (row.status === 'pending' && row.expiresAt.getTime() <= now.getTime()) {
     throw enrollmentExpired();
   }
@@ -777,7 +826,7 @@ export async function readEnrollment(
  */
 export async function postApproverNonce(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   enrollmentId: string,
   memberId: string,
   approverNonce: string,
@@ -785,7 +834,7 @@ export async function postApproverNonce(
 ): Promise<KeychainEnrollment> {
   return getDb().transaction(async (tx) => {
     const vault = await lockVault(tx, accountId);
-    const caller = await requireMember(tx, vault.id, deviceSessionId);
+    const caller = await requireMember(tx, vault.id, device);
     if (caller.memberId !== memberId) {
       throw enrollmentState('An approver names itself.');
     }
@@ -816,7 +865,7 @@ export async function postApproverNonce(
  */
 export async function revealDeviceNonce(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   enrollmentId: string,
   deviceNonce: string,
   now: Date = new Date(),
@@ -824,7 +873,7 @@ export async function revealDeviceNonce(
   const outcome = await getDb().transaction(async (tx) => {
     const vault = await lockVault(tx, accountId);
     const row = await lockEnrollment(tx, vault.id, enrollmentId);
-    if (row.deviceSessionId !== deviceSessionId) throw enrollmentNotFound();
+    if (!isEnrollingDevice(row, device)) throw enrollmentNotFound();
     requirePending(row, now);
     if (row.approverNonce === null) {
       throw enrollmentState('No device has opened this request yet.');
@@ -864,7 +913,7 @@ export async function revealDeviceNonce(
  */
 export async function approveEnrollment(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   enrollmentId: string,
   entry: KeychainEntry,
   wrap: KeychainWrap,
@@ -873,7 +922,7 @@ export async function approveEnrollment(
   return getDb()
     .transaction(async (tx) => {
       const vault = await lockVault(tx, accountId);
-      const caller = await requireMember(tx, vault.id, deviceSessionId);
+      const caller = await requireMember(tx, vault.id, device);
       const row = await lockEnrollment(tx, vault.id, enrollmentId);
       requirePending(row, now);
       if (row.approverMemberId !== caller.memberId) {
@@ -882,7 +931,11 @@ export async function approveEnrollment(
       if (row.deviceNonce === null) {
         throw enrollmentState('The new device has not answered yet.');
       }
-      if (await memberOfSession(tx, vault.id, row.deviceSessionId)) throw alreadyMember();
+      // The enrolling device's presence, as it was when it asked. Gone (the
+      // account left that device since): the request is void.
+      const enrollingDevice = enrollingDeviceOf(row);
+      if (!enrollingDevice) throw enrollmentNotFound();
+      if (await memberOfSession(tx, vault.id, enrollingDevice)) throw alreadyMember();
 
       const base = await loadRosterState(tx, vault);
       const append = applyEntries(base, [entry]);
@@ -906,7 +959,7 @@ export async function approveEnrollment(
         rotation: false,
       });
 
-      await persistAppend(tx, vault.id, append, [wrap], new Map([[added.id, row.deviceSessionId]]));
+      await persistAppend(tx, vault.id, append, [wrap], new Map([[added.id, enrollingDevice]]));
       await tx
         .update(keychainEnrollments)
         .set({ status: 'approved' })
@@ -918,7 +971,7 @@ export async function approveEnrollment(
         approverMemberId: caller.memberId,
         seq: append.state.seq,
       });
-      return stateOf(tx, accountId, deviceSessionId);
+      return stateOf(tx, accountId, device);
     })
     .catch(rethrowBinding);
 }
@@ -930,18 +983,12 @@ export async function approveEnrollment(
  */
 export async function cancelEnrollment(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   enrollmentId: string,
 ): Promise<void> {
   await getDb().transaction(async (tx) => {
     const vault = await lockVault(tx, accountId);
-    const { row, enrolling } = await enrollmentForCaller(
-      tx,
-      vault,
-      enrollmentId,
-      deviceSessionId,
-      true,
-    );
+    const { row, enrolling } = await enrollmentForCaller(tx, vault, enrollmentId, device, true);
     if (enrolling) {
       await tx.delete(keychainEnrollments).where(eq(keychainEnrollments.id, row.id));
     } else if (row.status === 'pending') {
@@ -1008,14 +1055,14 @@ function itemNotFound(): ApiError {
  */
 export async function listItems(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   since: number,
   limit: number,
 ): Promise<{ items: KeychainItem[]; revision: number; more: boolean }> {
   const db = getDb();
   const vault = await readVault(db, accountId);
   if (!vault) throw noVault();
-  await requireMember(db, vault.id, deviceSessionId);
+  await requireMember(db, vault.id, device);
   const rows = await db
     .select(ITEM_COLUMNS)
     .from(keychainItems)
@@ -1036,10 +1083,10 @@ export async function listItems(
 async function itemWriteContext(
   tx: DatabaseOrTransaction,
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
 ): Promise<{ vault: VaultRow; member: CallerMember }> {
   const vault = await lockVault(tx, accountId);
-  const member = await requireMember(tx, vault.id, deviceSessionId);
+  const member = await requireMember(tx, vault.id, device);
   return { vault, member };
 }
 
@@ -1066,12 +1113,12 @@ async function takeRevision(tx: DatabaseOrTransaction, vault: VaultRow): Promise
 /** `PUT /keychain/items/:itemId`. */
 export async function putItem(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   itemId: string,
   input: { baseRevision: number | null; generation: number; nonce: string; ciphertext: string },
 ): Promise<KeychainItem> {
   return getDb().transaction(async (tx) => {
-    const { vault, member } = await itemWriteContext(tx, accountId, deviceSessionId);
+    const { vault, member } = await itemWriteContext(tx, accountId, device);
     if (input.generation > vault.generation) {
       throw new ApiError(
         400,
@@ -1120,12 +1167,12 @@ export async function putItem(
 /** `DELETE /keychain/items/:itemId`: a tombstone at the next revision. */
 export async function deleteItem(
   accountId: string,
-  deviceSessionId: string,
+  device: KeychainDevice,
   itemId: string,
   baseRevision: number,
 ): Promise<KeychainItem> {
   return getDb().transaction(async (tx) => {
-    const { vault, member } = await itemWriteContext(tx, accountId, deviceSessionId);
+    const { vault, member } = await itemWriteContext(tx, accountId, device);
     const existing = await lockItem(tx, vault.id, itemId);
     if (!existing || existing.deletedAt !== null) throw itemNotFound();
     if (existing.revision !== baseRevision) throw itemConflict();

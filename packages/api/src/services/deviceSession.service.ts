@@ -34,6 +34,7 @@ import { deviceCredentials } from '../db/schema/deviceCredentials';
 import { deviceJoinCodes } from '../db/schema/deviceJoinCodes';
 import { devicePrincipals } from '../db/schema/devicePrincipals';
 import { deviceSessions } from '../db/schema/deviceSessions';
+import { keychainMembers } from '../db/schema/keychain';
 import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import sessionCache from '../utils/sessionCache';
@@ -857,8 +858,12 @@ class DeviceSessionService {
         // server-side session is left dangling with no context referencing it.
         // A context with no session displaces nothing: there is no session to
         // kill, only a "reachable, never used" row to fill in.
+        // The keychain members bound to the context being replaced (ADR 0063
+        // D4). Read before the delete, whose foreign key orphans them.
+        let keychainBound: KeychainBinding[] = [];
         if (existing) {
           displacedSessionId = existing.sessionId;
+          keychainBound = await keychainMembersBoundTo(tx, existing.contextId);
           await tx
             .delete(deviceAccountContexts)
             .where(eq(deviceAccountContexts.id, existing.contextId));
@@ -875,7 +880,7 @@ class DeviceSessionService {
           principalUserId === input.accountId ? input.sessionId : null,
         );
 
-        await tx
+        const [context] = await tx
           .insert(deviceAccountContexts)
           .values({
             deviceSessionId: current.id,
@@ -897,7 +902,16 @@ class DeviceSessionService {
               deviceAccountContexts.accountId,
             ],
             set: { sessionId: input.sessionId, revokedAt: null, addedAt: new Date() },
-          });
+          })
+          .returning({ id: deviceAccountContexts.id });
+
+        // A new session for an account that stays on this device, as the same
+        // person: its keychain membership stays with it. Any other replacement
+        // (the account moved to another operator) leaves the member orphaned,
+        // as every removal does.
+        if (existing && existing.principalId === principalId && keychainBound.length > 0) {
+          await rebindKeychainMembers(tx, keychainBound, context.id);
+        }
 
         // Every principal keeps at least one context here, so nothing is
         // orphaned by the delete above — except when case 2 moved an account to
@@ -2658,3 +2672,46 @@ class DeviceSessionService {
 // exports `accountService` by name).
 export const deviceSessionService = new DeviceSessionService();
 export default deviceSessionService;
+
+/** A keychain member, by its key (ADR 0063). */
+interface KeychainBinding {
+  vaultId: string;
+  memberId: string;
+}
+
+/** The live keychain members bound to one device context. */
+async function keychainMembersBoundTo(
+  tx: Queryable,
+  contextId: string,
+): Promise<KeychainBinding[]> {
+  return tx
+    .select({ vaultId: keychainMembers.vaultId, memberId: keychainMembers.memberId })
+    .from(keychainMembers)
+    .where(and(eq(keychainMembers.deviceContextId, contextId), isNull(keychainMembers.removedSeq)));
+}
+
+/**
+ * Bind keychain members to the context that replaced theirs. Only for an
+ * account that stays on the device as the same person (`addAccount` case 2);
+ * every other end of a context leaves its members orphaned (the foreign key's
+ * `SET NULL`).
+ */
+async function rebindKeychainMembers(
+  tx: Queryable,
+  members: readonly KeychainBinding[],
+  contextId: string,
+): Promise<void> {
+  for (const member of members) {
+    await tx
+      .update(keychainMembers)
+      .set({ deviceContextId: contextId })
+      .where(
+        and(
+          eq(keychainMembers.vaultId, member.vaultId),
+          eq(keychainMembers.memberId, member.memberId),
+          isNull(keychainMembers.deviceContextId),
+          isNull(keychainMembers.removedSeq),
+        ),
+      );
+  }
+}

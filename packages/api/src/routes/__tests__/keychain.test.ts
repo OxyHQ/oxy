@@ -69,7 +69,9 @@ import {
 import { canonicalize } from '@oxy.so/protocol';
 import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
 import { deviceSessions } from '../../db/schema/deviceSessions';
+import deviceSessionService from '../../services/deviceSession.service';
 import {
   keychainEnrollments,
   keychainItems,
@@ -131,15 +133,51 @@ async function insertDeviceSession(): Promise<string> {
   return row.id;
 }
 
-/** The bearer every following request carries. */
-function actAs(
+/**
+ * The account signed in on the device, through the real device-session service
+ * (its context: the account's presence there, ADR 0063 D4). Idempotent while the
+ * account stays; after it signed out, a new context.
+ */
+async function signInOnDevice(userId: string, deviceSessionId: string): Promise<string> {
+  const [device] = await getDb()
+    .select({ deviceId: deviceSessions.deviceId })
+    .from(deviceSessions)
+    .where(eq(deviceSessions.id, deviceSessionId));
+  const contextOf = async () =>
+    (
+      await getDb()
+        .select({ id: deviceAccountContexts.id })
+        .from(deviceAccountContexts)
+        .where(
+          and(
+            eq(deviceAccountContexts.deviceSessionId, deviceSessionId),
+            eq(deviceAccountContexts.accountId, userId),
+          ),
+        )
+    )[0]?.id;
+  const existing = await contextOf();
+  if (existing) return existing;
+  await deviceSessionService.addAccount(
+    device.deviceId,
+    { accountId: userId, sessionId: randomUUID() },
+    { activate: 'if-empty' },
+  );
+  const created = await contextOf();
+  if (!created) throw new Error('test: no device context after addAccount');
+  return created;
+}
+
+/** The bearer every following request carries: the account on that device. */
+async function actAs(
   userId: string,
   deviceSessionId: string | null,
   token: Record<string, unknown> = {},
-) {
+): Promise<void> {
   mockAuth.userId = userId;
   mockAuth.kind = 'personal';
-  mockAuth.token = { deviceSessionId, ...token };
+  const deviceContextId =
+    deviceSessionId === null ? null : await signInOnDevice(userId, deviceSessionId);
+  mockAuth.token = { deviceSessionId, deviceContextId, ...token };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -325,7 +363,7 @@ beforeEach(async () => {
   OWNER = await insertUser();
   SESSION_A = await insertDeviceSession();
   A = newDevice('Laptop');
-  actAs(OWNER, SESSION_A);
+  await actAs(OWNER, SESSION_A);
   mockVerifyAccountReauth.mockReset();
 });
 
@@ -335,14 +373,14 @@ beforeEach(async () => {
 
 describe('who may call', () => {
   it('refuses a third-party application session', async () => {
-    actAs(OWNER, SESSION_A, { applicationId: randomUUID() });
+    await actAs(OWNER, SESSION_A, { applicationId: randomUUID() });
     const res = await call('GET', '/keychain');
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('third_party_device_access_denied');
   });
 
   it('refuses an application token, but lets the platform’s own (`host.self`) through', async () => {
-    actAs(OWNER, SESSION_A, {
+    await actAs(OWNER, SESSION_A, {
       host: {
         platform: 'oxyos',
         credentialId: 'c',
@@ -355,7 +393,7 @@ describe('who may call', () => {
     expect(refused.status).toBe(403);
     expect(refused.body.error).toBe('app_token_device_access_denied');
 
-    actAs(OWNER, SESSION_A, {
+    await actAs(OWNER, SESSION_A, {
       host: {
         platform: 'oxyos',
         credentialId: 'c',
@@ -376,14 +414,14 @@ describe('who may call', () => {
   });
 
   it('refuses someone acting as another account', async () => {
-    actAs(OWNER, SESSION_A, { principalUserId: await insertUser() });
+    await actAs(OWNER, SESSION_A, { principalUserId: await insertUser() });
     const res = await call('GET', '/keychain');
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('KEYCHAIN_NOT_AVAILABLE');
   });
 
   it('refuses a bearer without a device session', async () => {
-    actAs(OWNER, null);
+    await actAs(OWNER, null);
     const res = await call('GET', '/keychain');
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('KEYCHAIN_DEVICE_REQUIRED');
@@ -616,7 +654,7 @@ describe('enrollment', () => {
   });
 
   async function enroll(deviceNonce: Uint8Array) {
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     const res = await call('POST', '/keychain/enrollments', {
       member: B.member,
       commitment: commitmentOf(vault.vaultId, B.member, deviceNonce),
@@ -626,7 +664,7 @@ describe('enrollment', () => {
   }
 
   async function open(id: string) {
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     return call('POST', `/keychain/enrollments/${id}/approver-nonce`, {
       memberId: A.id,
       approverNonce: b64(randomBytes(32)),
@@ -637,19 +675,19 @@ describe('enrollment', () => {
     const deviceNonce = randomBytes(32);
     const id = await enroll(deviceNonce);
 
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const listed = await call('GET', '/keychain/enrollments');
     expect(listed.body.data.enrollments.map((e: { id: string }) => e.id)).toEqual([id]);
     expect((await open(id)).status).toBe(200);
 
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     const revealed = await call('POST', `/keychain/enrollments/${id}/reveal`, {
       deviceNonce: b64(deviceNonce),
     });
     expect(revealed.status).toBe(200);
     expect(revealed.body.data.enrollment.deviceNonce).toBe(b64(deviceNonce));
 
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const add = entry(next(vault, { op: 'add', member: B.member }), [A]);
     const approved = await call('POST', `/keychain/enrollments/${id}/approve`, {
       entry: add,
@@ -659,7 +697,7 @@ describe('enrollment', () => {
     expect(approved.body.data.vault.rosterSeq).toBe(1);
     expect(approved.body.data.self).toBe(A.id);
 
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     const state = await call('GET', '/keychain');
     expect(state.body.data.self).toBe(B.id);
     const own = await call('GET', '/keychain/wrap');
@@ -672,7 +710,7 @@ describe('enrollment', () => {
   it('refuses a revealed nonce that does not open the commitment, and denies the request', async () => {
     const id = await enroll(randomBytes(32));
     await open(id);
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     const res = await call('POST', `/keychain/enrollments/${id}/reveal`, {
       deviceNonce: b64(randomBytes(32)),
     });
@@ -692,7 +730,7 @@ describe('enrollment', () => {
     const opened = await open(id);
     expect(opened.status).toBe(410);
     expect(opened.body.error).toBe('KEYCHAIN_ENROLLMENT_EXPIRED');
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     expect((await call('GET', `/keychain/enrollments/${id}`)).status).toBe(410);
   });
 
@@ -712,10 +750,10 @@ describe('enrollment', () => {
     const deviceNonce = randomBytes(32);
     const id = await enroll(deviceNonce);
     await open(id);
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     await call('POST', `/keychain/enrollments/${id}/reveal`, { deviceNonce: b64(deviceNonce) });
 
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const impostor = newDevice('Phone');
     const res = await call('POST', `/keychain/enrollments/${id}/approve`, {
       entry: entry(next(vault, { op: 'add', member: { ...impostor.member, id: B.id } }), [A]),
@@ -726,7 +764,7 @@ describe('enrollment', () => {
   });
 
   it('serves nothing to a device whose session is not the member’s', async () => {
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     const wrapRes = await call('GET', '/keychain/wrap');
     expect(wrapRes.status).toBe(404);
     expect(wrapRes.body.error).toBe('KEYCHAIN_NOT_MEMBER');
@@ -747,7 +785,7 @@ describe('enrollment', () => {
 
   it('keeps at most four pending requests, one per device', async () => {
     for (let index = 0; index < KEYCHAIN_LIMITS.maxPendingEnrollments; index++) {
-      actAs(OWNER, await insertDeviceSession());
+      await actAs(OWNER, await insertDeviceSession());
       const device = newDevice();
       const res = await call('POST', '/keychain/enrollments', {
         member: device.member,
@@ -755,7 +793,7 @@ describe('enrollment', () => {
       });
       expect(res.status).toBe(201);
     }
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     const res = await call('POST', '/keychain/enrollments', {
       member: B.member,
       commitment: b64(randomBytes(32)),
@@ -765,7 +803,7 @@ describe('enrollment', () => {
   });
 
   it('refuses a request from a device that is already a member', async () => {
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const res = await call('POST', '/keychain/enrollments', {
       member: newDevice().member,
       commitment: b64(randomBytes(32)),
@@ -776,9 +814,9 @@ describe('enrollment', () => {
 
   it('lets a member deny a request, and the device withdraw its own', async () => {
     const id = await enroll(randomBytes(32));
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     expect((await call('DELETE', `/keychain/enrollments/${id}`)).status).toBe(204);
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     expect((await call('GET', `/keychain/enrollments/${id}`)).body.data.enrollment.status).toBe(
       'denied',
     );
@@ -798,7 +836,7 @@ describe('POST /keychain/roster', () => {
 
   /** Add B through the recovery key from B's own session (ADR 0063 D6). */
   async function addByRecovery(device: Device, session: string) {
-    actAs(OWNER, session);
+    await actAs(OWNER, session);
     const add = entry(next(vault, { op: 'add', member: device.member }), [
       recoverySigner(vault.recovery),
     ]);
@@ -825,7 +863,7 @@ describe('POST /keychain/roster', () => {
   });
 
   it('refuses a recovery add signed with a key that is not the recovery key', async () => {
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     const forged = newRecovery();
     const res = await call('POST', '/keychain/roster', {
       entries: [entry(next(vault, { op: 'add', member: B.member }), [recoverySigner(forged)])],
@@ -837,7 +875,7 @@ describe('POST /keychain/roster', () => {
 
   it('refuses an entry signed by a device that is not a member', async () => {
     const stranger = newDevice();
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const res = await call('POST', '/keychain/roster', {
       entries: [entry(next(vault, { op: 'generation', generation: 2 }), [stranger])],
       wraps: [],
@@ -847,7 +885,7 @@ describe('POST /keychain/roster', () => {
   });
 
   it('refuses a non-member that is not recovering', async () => {
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     const res = await call('POST', '/keychain/roster', {
       entries: [entry(next(vault, { op: 'generation', generation: 2 }), [A])],
       wraps: [],
@@ -862,7 +900,7 @@ describe('POST /keychain/roster', () => {
       entries: [entry(next(vault, { op: 'generation', generation: 2 }), [A])],
       wraps: [wrap(vault.vaultId, A.id, 2, A), wrap(vault.vaultId, 'recovery', 2, A)],
     });
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const [one, two] = await Promise.all([
       call('POST', '/keychain/roster', rotate()),
       call('POST', '/keychain/roster', rotate()),
@@ -883,7 +921,7 @@ describe('POST /keychain/roster', () => {
 
   it('refuses a removal without a new generation', async () => {
     await addByRecovery(B, SESSION_B);
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const res = await call('POST', '/keychain/roster', {
       entries: [entry(next(vault, { op: 'remove', memberId: B.id }), [A])],
       wraps: [],
@@ -894,7 +932,7 @@ describe('POST /keychain/roster', () => {
 
   it('refuses a rotation that leaves a remaining recipient without the new key', async () => {
     await addByRecovery(B, SESSION_B);
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const remove = entry(next(vault, { op: 'remove', memberId: B.id }), [A]);
     const generation = entry(
       {
@@ -914,7 +952,7 @@ describe('POST /keychain/roster', () => {
 
   it('removes a device with a full rotation: its wrap is gone and it is served nothing', async () => {
     await addByRecovery(B, SESSION_B);
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const remove = entry(next(vault, { op: 'remove', memberId: B.id }), [A]);
     const generation = entry(
       {
@@ -938,13 +976,13 @@ describe('POST /keychain/roster', () => {
       .from(keychainWraps)
       .where(and(eq(keychainWraps.vaultId, vault.vaultId), eq(keychainWraps.recipient, B.id)));
     expect(wrapB).toEqual([]);
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     expect((await call('GET', '/keychain/wrap')).status).toBe(404);
   });
 
   it('refuses a wrap for a removed member in the rotation', async () => {
     await addByRecovery(B, SESSION_B);
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const remove = entry(next(vault, { op: 'remove', memberId: B.id }), [A]);
     const generation = entry(
       {
@@ -967,7 +1005,7 @@ describe('POST /keychain/roster', () => {
   });
 
   it('refuses a new recovery key without a new generation (ADR 0063 D6 as amended)', async () => {
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const res = await call('POST', '/keychain/roster', {
       entries: [entry(next(vault, { op: 'recovery', recovery: newRecovery().keys }), [A])],
       wraps: [wrap(vault.vaultId, 'recovery', 1, A)],
@@ -978,7 +1016,7 @@ describe('POST /keychain/roster', () => {
 
   it('refuses a generation placed before the removal it rotates for', async () => {
     await addByRecovery(B, SESSION_B);
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const generation = entry(next(vault, { op: 'generation', generation: 2 }), [A]);
     const remove = entry(
       {
@@ -998,7 +1036,7 @@ describe('POST /keychain/roster', () => {
 
   it('refuses a second signature on an entry other than genesis', async () => {
     await addByRecovery(B, SESSION_B);
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const res = await call('POST', '/keychain/roster', {
       entries: [entry(next(vault, { op: 'generation', generation: 2 }), [A, B])],
       wraps: [
@@ -1016,7 +1054,7 @@ describe('POST /keychain/roster', () => {
       ...newDevice().member,
       signingKey: b64(new Uint8Array(32).fill(0).map((_, i) => (i === 0 ? 1 : 0))),
     };
-    actAs(OWNER, SESSION_B);
+    await actAs(OWNER, SESSION_B);
     const res = await call('POST', '/keychain/enrollments', {
       member: weak,
       commitment: b64(randomBytes(32)),
@@ -1026,7 +1064,7 @@ describe('POST /keychain/roster', () => {
   });
 
   it('replaces the recovery key with a new generation sealed to every member and the new key', async () => {
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const replacement = newRecovery();
     const recoveryEntry = entry(next(vault, { op: 'recovery', recovery: replacement.keys }), [A]);
     const generation = entry(
@@ -1046,7 +1084,7 @@ describe('POST /keychain/roster', () => {
     // The old recovery key no longer adds a device.
     const C = newDevice();
     const after = res.body.data.vault;
-    actAs(OWNER, await insertDeviceSession());
+    await actAs(OWNER, await insertDeviceSession());
     const stale = await call('POST', '/keychain/roster', {
       entries: [
         entry(
@@ -1069,7 +1107,7 @@ describe('POST /keychain/roster', () => {
   });
 
   it('refuses an add by a member outside an enrollment', async () => {
-    actAs(OWNER, SESSION_A);
+    await actAs(OWNER, SESSION_A);
     const res = await call('POST', '/keychain/roster', {
       entries: [entry(next(vault, { op: 'add', member: B.member }), [A])],
       wraps: [wrap(vault.vaultId, B.id, 1, A)],
@@ -1241,6 +1279,108 @@ describe('lifecycle', () => {
     expect((await call('GET', '/keychain/items')).status).toBe(403);
   });
 
+  async function deviceIdOf(deviceSessionId: string): Promise<string> {
+    const [row] = await getDb()
+      .select({ deviceId: deviceSessions.deviceId })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.id, deviceSessionId));
+    return row.deviceId;
+  }
+
+  async function bindingOf(vaultId: string, memberId: string) {
+    const [row] = await getDb()
+      .select({
+        deviceSessionId: keychainMembers.deviceSessionId,
+        deviceContextId: keychainMembers.deviceContextId,
+      })
+      .from(keychainMembers)
+      .where(and(eq(keychainMembers.vaultId, vaultId), eq(keychainMembers.memberId, memberId)));
+    return row;
+  }
+
+  it('orphans the member of an account that signs out of a device another account still uses', async () => {
+    const vault = await createVault(A);
+    const other = await insertUser();
+    await signInOnDevice(other, SESSION_A);
+
+    await deviceSessionService.signout(await deviceIdOf(SESSION_A), { accountId: OWNER });
+
+    // The device stays (the other account is on it); the member does not.
+    const [device] = await getDb()
+      .select({ id: deviceSessions.id })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.id, SESSION_A));
+    expect(device).toBeDefined();
+    const binding = await bindingOf(vault.vaultId, A.id);
+    expect(binding.deviceSessionId).toBe(SESSION_A);
+    expect(binding.deviceContextId).toBeNull();
+
+    // Signing in again on the same device does not bring it back: a new
+    // presence, no member, nothing served.
+    await actAs(OWNER, SESSION_A);
+    const state = await call('GET', '/keychain');
+    expect(state.body.data.members).toEqual([{ id: A.id, orphaned: true, removed: false }]);
+    expect(state.body.data.self).toBeNull();
+    expect((await call('GET', '/keychain/wrap')).status).toBe(404);
+    expect((await call('GET', '/keychain/items')).status).toBe(403);
+
+    // The device may ask to join again, as any device that is no member.
+    const again = newDevice('Laptop again');
+    const res = await call('POST', '/keychain/enrollments', {
+      member: again.member,
+      commitment: commitmentOf(vault.vaultId, again.member, randomBytes(32)),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('keeps the member of an account that signs in again on the device without leaving it', async () => {
+    const vault = await createVault(A);
+    const before = await bindingOf(vault.vaultId, A.id);
+
+    // A new session for the account already on the device (addAccount's case 2).
+    await deviceSessionService.addAccount(await deviceIdOf(SESSION_A), {
+      accountId: OWNER,
+      sessionId: randomUUID(),
+    });
+
+    const after = await bindingOf(vault.vaultId, A.id);
+    expect(after.deviceSessionId).toBe(SESSION_A);
+    expect(after.deviceContextId).not.toBeNull();
+    expect(after.deviceContextId).not.toBe(before.deviceContextId);
+    await actAs(OWNER, SESSION_A);
+    const state = await call('GET', '/keychain');
+    expect(state.body.data.self).toBe(A.id);
+    expect(state.body.data.members).toEqual([{ id: A.id, orphaned: false, removed: false }]);
+  });
+
+  it('voids a request to join once its account has left that device', async () => {
+    const vault = await createVault(A);
+    const SESSION_B = await insertDeviceSession();
+    const B = newDevice('Phone');
+    await actAs(OWNER, SESSION_B);
+    const asked = await call('POST', '/keychain/enrollments', {
+      member: B.member,
+      commitment: commitmentOf(vault.vaultId, B.member, randomBytes(32)),
+    });
+    expect(asked.status).toBe(201);
+
+    await deviceSessionService.signout(await deviceIdOf(SESSION_B), { accountId: OWNER });
+
+    const left = await getDb()
+      .select({ id: keychainEnrollments.id })
+      .from(keychainEnrollments)
+      .where(eq(keychainEnrollments.id, asked.body.data.enrollment.id));
+    expect(left).toEqual([]);
+  });
+
+  it('refuses a bearer without the account’s presence on the device', async () => {
+    await createVault(A);
+    await actAs(OWNER, SESSION_A, { deviceContextId: null });
+    const res = await call('GET', '/keychain');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('KEYCHAIN_DEVICE_REQUIRED');
+  });
+
   it('deletes the vault and everything under it with the account', async () => {
     const vault = await createVault(A);
     await call('PUT', `/keychain/items/${randomUUID()}`, {
@@ -1311,7 +1451,7 @@ describe('DELETE /keychain', () => {
     const root = generateSecp256k1KeyPair();
     const owner = await insertUser({ publicKey: root.publicKey.toLowerCase() });
     const session = await insertDeviceSession();
-    actAs(owner, session);
+    await actAs(owner, session);
     const device = newDevice();
     const vault = await createVault(device);
 

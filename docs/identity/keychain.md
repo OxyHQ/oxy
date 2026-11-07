@@ -16,8 +16,10 @@ Every `/keychain` route:
 3. A personal account acting as itself: `req.user.kind === 'personal'` and
    `req.oxyToken.principalUserId === req.oxyToken.subjectAccountId`. Anything
    else is `403 KEYCHAIN_NOT_AVAILABLE`.
-4. A device session: `req.oxyToken.deviceSessionId` is required (it is what a
-   member is bound to). Missing: `403 KEYCHAIN_DEVICE_REQUIRED`.
+4. A device, and the account's presence on it: `req.oxyToken.deviceSessionId`
+   and `req.oxyToken.deviceContextId` (the verified `device_context_id`) are
+   both required; together they are what a member is bound to (see "Leaving a
+   device"). Missing: `403 KEYCHAIN_DEVICE_REQUIRED`.
 
 Responses use the API's usual `{ data }` envelope; a refusal is the API's error
 body `{ error, message }` with `error` from `KEYCHAIN_ERROR_CODES`
@@ -35,13 +37,15 @@ Code: `packages/api/src/routes/keychain.ts`, `services/keychain.service.ts`
 |---|---|---|---|
 | `keychain_vaults` | `id` (uuid, client-chosen) | `account_id` (unique, FK users CASCADE), `genesis_hash`, `roster_seq`, `roster_head`, `generation`, `revision` (bigint, the item counter), `created_at`, `updated_at` | One per account |
 | `keychain_roster_entries` | (`vault_id`, `seq`) | `hash`, `op`, `body` (text: the JCS of the entry without signatures, as received), `signatures` (jsonb), `created_at` | Append-only; FK vault CASCADE |
-| `keychain_members` | (`vault_id`, `member_id`) | `device_session_id` (FK `device_sessions` SET NULL: NULL means orphaned), `name`, `platform`, `signing_key`, `box_key`, `added_seq`, `removed_seq` (nullable), `created_at`, `updated_at` | Derived from the roster; the binding to a device session is the server's own; at most one live member per device session (partial unique index) |
+| `keychain_members` | (`vault_id`, `member_id`) | `device_session_id` (FK `device_sessions` SET NULL), `device_context_id` (FK `device_account_contexts` SET NULL); either NULL means orphaned, `name`, `platform`, `signing_key`, `box_key`, `added_seq`, `removed_seq` (nullable), `created_at`, `updated_at` | Derived from the roster; the binding to a device and the account's presence on it is the server's own; at most one live member per device context (partial unique index `keychain_members_live_device_context_key`) |
 | `keychain_wraps` | (`vault_id`, `recipient`) | `generation`, `signer`, `epk`, `nonce`, `ciphertext`, `signature`, `created_at`, `updated_at` | `recipient` is a member id or `recovery`; one row per recipient, replaced |
 | `keychain_items` | (`vault_id`, `item_id`) | `revision`, `generation`, `nonce` and `ciphertext` (both null for a tombstone), `deleted_at` (nullable), `created_at`, `updated_at` | Unique (`vault_id`, `revision`) |
-| `keychain_enrollments` | `id` (uuid v7) | `vault_id` (FK CASCADE), `device_session_id` (FK CASCADE), `member` (jsonb), `commitment`, `approver_nonce`, `approver_member_id`, `device_nonce`, `status` (`pending`/`approved`/`denied`), `expires_at`, `created_at`, `updated_at` | Expiry registry on `expires_at` (+1 day grace) |
+| `keychain_enrollments` | `id` (uuid v7) | `vault_id` (FK CASCADE), `device_session_id` (FK CASCADE), `device_context_id` (FK `device_account_contexts` CASCADE: a request from an account that has left the device is void), `member` (jsonb), `commitment`, `approver_nonce`, `approver_member_id`, `device_nonce`, `status` (`pending`/`approved`/`denied`), `expires_at`, `created_at`, `updated_at` | Expiry registry on `expires_at` (+1 day grace) |
 
 Every closed set is `text` + CHECK, every binary column CHECKs its base64url
-shape. Migration `0242_keychain`.
+shape. Migrations `0242_keychain`, `0243_keychain_member_device_context`
+(pre) and `0244_keychain_drop_member_session_key` (post, drops the old
+one-member-per-device-session index).
 
 Limits (`KEYCHAIN_LIMITS`, refused `409 KEYCHAIN_LIMIT_REACHED`): 10 000 live
 items per vault; an item's or a wrap's ciphertext at most 64 KiB (base64url
@@ -60,7 +64,7 @@ signatures 64, nonces of enrollment 32, commitments 32).
 
 | Route | Body → answer | Checks |
 |---|---|---|
-| `GET /keychain` | → `{ vault: { id, genesisHash, rosterSeq, rosterHead, generation, revision } \| null, roster: Entry[], members: [{ id, orphaned, removed }], self: memberId \| null }` | One snapshot (repeatable read). No vault: `vault` and `self` null, the lists empty. `self` is the live member bound to the caller's device session |
+| `GET /keychain` | → `{ vault: { id, genesisHash, rosterSeq, rosterHead, generation, revision } \| null, roster: Entry[], members: [{ id, orphaned, removed }], self: memberId \| null }` | One snapshot (repeatable read). No vault: `vault` and `self` null, the lists empty. `self` is the live member bound to the caller's device and context |
 | `POST /keychain` | `{ genesis: Entry, wraps: [Wrap(member), Wrap(recovery)] }` → `201`, the `GET` answer | No vault yet (`409 KEYCHAIN_EXISTS`, also for a vault id another account holds); `genesis` valid (seq 0, prev null, exactly two signatures: the member's and the recovery key's); exactly these two wraps, generation 1, signed by the member; the member bound to the caller's device session |
 | `POST /keychain/roster` | `{ entries: Entry[], wraps: Wrap[] }` → the `GET` answer | See "Roster appends" below |
 | `GET /keychain/wrap` | → `{ wrap }` for the caller's own member | `404 KEYCHAIN_NOT_MEMBER` when the caller is no live member |
@@ -110,7 +114,7 @@ roster test vectors, accepting the chain and refusing every rejection.
 
 Two callers:
 
-- **A live member** (bound to the caller's device session): `remove`,
+- **A live member** (bound to the caller's device and the account's presence on it): `remove`,
   `generation` and `recovery` entries. An `add` is refused here: a device is
   added by approving its enrollment, which binds it to the device that asked.
   A request that moves the generation must come with a wrap at the newest one
@@ -123,12 +127,31 @@ Two callers:
 - **A device that is no member, with the recovery key** (ADR 0063 D6): exactly
   one `add`, signed by the recovery key alone, with the new member's wrap at
   the current generation signed by the recovery key; the new member is bound
-  to the caller's device session. Anything else from a non-member is `403
+  to the caller's device and context. Anything else from a non-member is `403
   KEYCHAIN_NOT_MEMBER`.
 
 Ed25519 verification is strict (RFC 8032, `@noble/curves` with `zip215: false`).
 All entries, members, wraps and the vault's head move in one transaction under
 the vault row's lock; a concurrent append waits for it and then conflicts.
+
+### Leaving a device (ADR 0063 D4)
+
+A member is bound to the device session AND to the account's presence on it,
+its `device_account_contexts` row. When the account leaves the device — signs
+out of it, is removed from it in Oxy's device list or from a machine, or the
+whole device ends — that row goes and the member's `device_context_id` is set
+NULL by its foreign key, **whether or not other accounts remain on the
+device** (the device-session row may stay for them). The member is then
+orphaned for good: signing in again on the device makes a new context, so the
+device is served nothing and joins again like any new device, and a member
+device removes the orphan with a rotation. Being a foreign key, this holds for
+every path that ends a context, present and future.
+
+The one replacement that is not a departure is `addAccount`'s case 2: a new
+session for an account that stays on the device as the same person. There the
+members bound to the old context are re-bound to the new one in the same
+transaction (`rebindKeychainMembers` in `deviceSession.service.ts`). If the
+account moves to another operator, nothing is re-bound.
 
 ### Reset
 

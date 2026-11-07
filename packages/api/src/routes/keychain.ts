@@ -80,6 +80,7 @@ import {
   resetKeychain,
   revealDeviceNonce,
   vaultIdOf,
+  type KeychainDevice,
 } from '../services/keychain.service';
 import { verifyAccountReauth } from '../services/reauth.service';
 import { isTotpEnabled, verifySecondFactor } from '../services/totp.service';
@@ -106,17 +107,23 @@ const readLimiter = accountLimiter('read', FIFTEEN_MINUTES, 600);
 const writeLimiter = accountLimiter('write', FIFTEEN_MINUTES, 120);
 const enrollmentLimiter = accountLimiter('enroll', 60 * 60 * 1000, 10);
 
-/** The caller, as the keychain needs it: the account and the device session. */
+/**
+ * The caller, as the keychain needs it: the account, and the device it is on
+ * — the device session and the account's presence on it (the verified token's
+ * `device_context_id`), which together are what a member is bound to.
+ */
 interface KeychainCaller {
   accountId: string;
-  deviceSessionId: string;
+  device: KeychainDevice;
 }
 
 function callerOf(req: AuthRequest): KeychainCaller {
   const accountId = req.user?._id;
-  const deviceSessionId = req.oxyToken?.deviceSessionId;
-  if (!accountId || !deviceSessionId) throw new UnauthorizedError('Authentication required');
-  return { accountId, deviceSessionId };
+  const sessionId = req.oxyToken?.deviceSessionId;
+  const contextId = req.oxyToken?.deviceContextId;
+  if (!accountId || !sessionId || !contextId)
+    throw new UnauthorizedError('Authentication required');
+  return { accountId, device: { sessionId, contextId } };
 }
 
 /**
@@ -142,7 +149,7 @@ function requireKeychainCaller(req: AuthRequest, res: Response, next: () => void
     });
     return;
   }
-  if (!token.deviceSessionId) {
+  if (!token.deviceSessionId || !token.deviceContextId) {
     res.status(403).json({
       error: KEYCHAIN_ERROR_CODES.deviceRequired,
       message: 'The keychain is reached from a signed-in device.',
@@ -167,8 +174,8 @@ router.get(
   '/',
   readLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
-    sendSuccess(res, await readKeychainState(accountId, deviceSessionId));
+    const { accountId, device } = callerOf(req);
+    sendSuccess(res, await readKeychainState(accountId, device));
   }),
 );
 
@@ -178,13 +185,9 @@ router.post(
   writeLimiter,
   validate({ body: keychainCreateRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
+    const { accountId, device } = callerOf(req);
     const body = req.body as KeychainCreateRequest;
-    sendSuccess(
-      res,
-      await createKeychain(accountId, deviceSessionId, body.genesis, body.wraps),
-      201,
-    );
+    sendSuccess(res, await createKeychain(accountId, device, body.genesis, body.wraps), 201);
   }),
 );
 
@@ -194,9 +197,9 @@ router.post(
   writeLimiter,
   validate({ body: keychainRosterAppendRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
+    const { accountId, device } = callerOf(req);
     const body = req.body as KeychainRosterAppendRequest;
-    sendSuccess(res, await appendRoster(accountId, deviceSessionId, body.entries, body.wraps));
+    sendSuccess(res, await appendRoster(accountId, device, body.entries, body.wraps));
   }),
 );
 
@@ -205,8 +208,8 @@ router.get(
   '/wrap',
   readLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
-    sendSuccess(res, { wrap: await readOwnWrap(accountId, deviceSessionId) });
+    const { accountId, device } = callerOf(req);
+    sendSuccess(res, { wrap: await readOwnWrap(accountId, device) });
   }),
 );
 
@@ -310,14 +313,9 @@ router.post(
   enrollmentLimiter,
   validate({ body: keychainEnrollmentCreateRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
+    const { accountId, device } = callerOf(req);
     const body = req.body as KeychainEnrollmentCreateRequest;
-    const enrollment = await createEnrollment(
-      accountId,
-      deviceSessionId,
-      body.member,
-      body.commitment,
-    );
+    const enrollment = await createEnrollment(accountId, device, body.member, body.commitment);
     sendSuccess(res, { enrollment }, 201);
   }),
 );
@@ -327,8 +325,8 @@ router.get(
   '/enrollments',
   readLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
-    sendSuccess(res, { enrollments: await listEnrollments(accountId, deviceSessionId) });
+    const { accountId, device } = callerOf(req);
+    sendSuccess(res, { enrollments: await listEnrollments(accountId, device) });
   }),
 );
 
@@ -338,8 +336,8 @@ router.get(
   readLimiter,
   validate({ params: keychainEnrollmentParamsSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
-    const enrollment = await readEnrollment(accountId, deviceSessionId, req.params.id as string);
+    const { accountId, device } = callerOf(req);
+    const enrollment = await readEnrollment(accountId, device, req.params.id as string);
     sendSuccess(res, { enrollment });
   }),
 );
@@ -350,11 +348,11 @@ router.post(
   writeLimiter,
   validate({ params: keychainEnrollmentParamsSchema, body: keychainApproverNonceRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
+    const { accountId, device } = callerOf(req);
     const body = req.body as KeychainApproverNonceRequest;
     const enrollment = await postApproverNonce(
       accountId,
-      deviceSessionId,
+      device,
       req.params.id as string,
       body.memberId,
       body.approverNonce,
@@ -369,11 +367,11 @@ router.post(
   writeLimiter,
   validate({ params: keychainEnrollmentParamsSchema, body: keychainRevealRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
+    const { accountId, device } = callerOf(req);
     const body = req.body as KeychainRevealRequest;
     const enrollment = await revealDeviceNonce(
       accountId,
-      deviceSessionId,
+      device,
       req.params.id as string,
       body.deviceNonce,
     );
@@ -387,11 +385,11 @@ router.post(
   writeLimiter,
   validate({ params: keychainEnrollmentParamsSchema, body: keychainApproveRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
+    const { accountId, device } = callerOf(req);
     const body = req.body as KeychainApproveRequest;
     const state = await approveEnrollment(
       accountId,
-      deviceSessionId,
+      device,
       req.params.id as string,
       body.entry,
       body.wrap,
@@ -406,8 +404,8 @@ router.delete(
   writeLimiter,
   validate({ params: keychainEnrollmentParamsSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
-    await cancelEnrollment(accountId, deviceSessionId, req.params.id as string);
+    const { accountId, device } = callerOf(req);
+    await cancelEnrollment(accountId, device, req.params.id as string);
     res.status(204).end();
   }),
 );
@@ -422,9 +420,9 @@ router.get(
   readLimiter,
   validate({ query: keychainItemsQuerySchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
+    const { accountId, device } = callerOf(req);
     const query = req.query as unknown as KeychainItemsQuery;
-    sendSuccess(res, await listItems(accountId, deviceSessionId, query.since, query.limit));
+    sendSuccess(res, await listItems(accountId, device, query.since, query.limit));
   }),
 );
 
@@ -434,9 +432,9 @@ router.put(
   writeLimiter,
   validate({ params: keychainItemParamsSchema, body: keychainItemPutRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
+    const { accountId, device } = callerOf(req);
     const body = req.body as KeychainItemPutRequest;
-    const item = await putItem(accountId, deviceSessionId, req.params.itemId as string, body);
+    const item = await putItem(accountId, device, req.params.itemId as string, body);
     sendSuccess(res, { item });
   }),
 );
@@ -447,11 +445,11 @@ router.delete(
   writeLimiter,
   validate({ params: keychainItemParamsSchema, body: keychainItemDeleteRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { accountId, deviceSessionId } = callerOf(req);
+    const { accountId, device } = callerOf(req);
     const body = req.body as KeychainItemDeleteRequest;
     const item = await deleteItem(
       accountId,
-      deviceSessionId,
+      device,
       req.params.itemId as string,
       body.baseRevision,
     );
