@@ -6,7 +6,7 @@
  * text it was read from is refused, so one value has one spelling and a Rust
  * reader and this one agree on what is valid.
  *
- * ESM/CJS safe: static `import` only, no `require()`. No `\p{…}` regex (Hermes).
+ * ESM/CJS safe: static imports only. No Unicode property escapes in any regex (Hermes).
  */
 
 import { canonicalize } from '@oxy.so/protocol';
@@ -89,7 +89,6 @@ export function fromHex(text: string, what = 'value'): Uint8Array {
 }
 
 const encoder = new TextEncoder();
-const decoder = new TextDecoder('utf-8', { fatal: true });
 
 /** UTF-8 of a well-formed string. */
 export function utf8(text: string): Uint8Array {
@@ -97,13 +96,16 @@ export function utf8(text: string): Uint8Array {
   return encoder.encode(text);
 }
 
-/** Strict UTF-8 decoding: malformed input throws. */
+/**
+ * Strict UTF-8 decoding: malformed input throws. Checked by re-encoding (a
+ * malformed sequence decodes to U+FFFD, which re-encodes to other bytes), so
+ * it needs only a plain `TextDecoder`: Hermes's may lack the `fatal` option.
+ */
 export function fromUtf8(bytes: Uint8Array): string {
-  try {
-    return decoder.decode(bytes);
-  } catch {
-    throw new KeychainFormatError('not valid UTF-8');
-  }
+  const text = new TextDecoder().decode(bytes);
+  const again = encoder.encode(text);
+  if (!bytesEqual(again, bytes)) throw new KeychainFormatError('not valid UTF-8');
+  return text;
 }
 
 /** Concatenate byte arrays. */

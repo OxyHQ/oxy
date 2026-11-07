@@ -242,6 +242,11 @@ no signature or ciphertext can be replayed as another kind.
   to 0.
 - `vaultId`, `itemId` and member ids are lowercase uuids; `g` is decimal ASCII.
 - Randomness: the platform CSPRNG (`crypto.getRandomValues`, `getrandom`).
+- What this text leaves to the implementation (the roster bodies' fields,
+  timestamps, strict Ed25519 verification, the item schemas' exact shape, the
+  JCS subset) is fixed in
+  [docs/identity/keychain.md#formats-in-detail](../identity/keychain.md#formats-in-detail)
+  and in the test vectors.
 
 ### D9. Not in this decision
 
