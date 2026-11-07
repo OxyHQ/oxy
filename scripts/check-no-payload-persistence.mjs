@@ -164,6 +164,19 @@ const BANNED_NAME_PATTERNS = [
  * completions Oxy would be storing on its own initiative.
  */
 const DECLARED_FREE_SHAPED_COLUMNS = [
+  // ---- the Oxy Keychain (ADR 0063) ----------------------------------------------
+  {
+    table: 'keychain_roster_entries',
+    column: 'signatures',
+    holds:
+      'one or two `{ signer, signature }` pairs (a member uuid or `recovery`, a 64-byte Ed25519 signature as base64url) over the roster entry, parsed with the contract schema before storage; no inference payload.',
+  },
+  {
+    table: 'keychain_enrollments',
+    column: 'member',
+    holds:
+      'the enrolling device’s roster member `{ id, name, platform, signingKey, boxKey }` (a uuid, a display name of at most 64 characters, a closed platform, two 32-byte public keys), parsed strictly with the contract schema; no inference payload.',
+  },
   {
     table: 'organization_profiles',
     column: 'aliases',

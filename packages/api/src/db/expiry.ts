@@ -109,6 +109,7 @@ import {
   inferenceProviderConnectionAuditEvents,
 } from './schema/inferenceProviderConnectionAuditEvents';
 import { identityProofChallenges } from './schema/identityProofChallenges';
+import { KEYCHAIN_ENROLLMENT_GRACE_SECONDS, keychainEnrollments } from './schema/keychain';
 import { appAssertionChallenges } from './schema/appAssertionChallenges';
 import { APP_ATTEST_KEY_RETENTION_SECONDS, appAttestKeys } from './schema/appAttestKeys';
 import { emailVerifications } from './schema/emailVerifications';
@@ -262,6 +263,16 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Grace window — the request outlives its deadline for an hour so a late ' +
       'poll is told "expired" rather than "never existed". Every read filters ' +
       'expiry itself, so nothing depends on the sweep for correctness.',
+  },
+  {
+    table: keychainEnrollments,
+    column: keychainEnrollments.expiresAt,
+    retentionSeconds: KEYCHAIN_ENROLLMENT_GRACE_SECONDS,
+    reason:
+      'Deadline plus grace: a keychain enrollment lives ten minutes, and every ' +
+      'route that acts on one checks `expires_at` itself (an expired pending ' +
+      'enrollment is answered 410). The day after lets the enrolling device read ' +
+      'the outcome (approved, denied, expired) instead of a 404.',
   },
   {
     table: identityProofChallenges,

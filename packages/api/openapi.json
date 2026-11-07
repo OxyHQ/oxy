@@ -31811,7 +31811,8 @@
                     "enum": [
                       "link_identity",
                       "organization_key_create",
-                      "organization_key_replace"
+                      "organization_key_replace",
+                      "keychain_reset"
                     ]
                   }
                 },

@@ -103,6 +103,7 @@ export * from './followEvents';
 export * from './githubTrustedPublishers';
 export * from './identityBackups';
 export * from './identityBackupOptOuts';
+export * from './keychain';
 export * from './identityProofChallenges';
 export * from './emailVerifications';
 export * from './emailSignInRequests';

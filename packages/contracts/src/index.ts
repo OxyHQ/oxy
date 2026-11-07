@@ -1685,3 +1685,5 @@ export type {
 } from './applicationAccounts';
 
 export * from './postalAddresses';
+
+export * from './keychain';

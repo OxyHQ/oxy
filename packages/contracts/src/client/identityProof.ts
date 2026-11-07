@@ -35,6 +35,12 @@ export const IDENTITY_PROOF_ACTIONS = {
    * root and the new key, and by the current key when the device holds it.
    */
   organizationKeyReplace: 'organization_key_replace',
+  /**
+   * Reset the account's Oxy Keychain (`DELETE /keychain`, ADR 0063 D6) on an
+   * account whose root is linked: it has no email or password to re-verify
+   * with, so its root confirms the reset. The payload is `{ vaultId }`.
+   */
+  keychainReset: 'keychain_reset',
 } as const;
 
 export type IdentityProofAction =

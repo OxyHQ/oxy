@@ -14,8 +14,8 @@
  *     live BYOK connection refuses the deletion with a 409 (see
  *     {@link assertAccountDeletable}).
  *  2. The closure fence (`beginAccountClosure`), then every optional datum:
- *     email data, the identity backup, sessions, device sessions, the social
- *     graph.
+ *     email data, the identity backup, the keychain, sessions, device
+ *     sessions, the social graph.
  *  3. Retained financial records → the account is ARCHIVED; otherwise the row
  *     is deleted. Either way the `account.deleted` event for relying parties
  *     (OxyHQ/Mention#1169) and the storage deletion of the account's uploads
@@ -25,6 +25,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { identityBackups } from '../db/schema/identityBackups';
 import { identityBackupOptOuts } from '../db/schema/identityBackupOptOuts';
+import { keychainVaults } from '../db/schema/keychain';
 import { users } from '../db/schema/users';
 import { ConflictError } from '../utils/error';
 import { logger } from '../utils/logger';
@@ -126,6 +127,10 @@ export async function deleteAccount(
   await getDb().delete(identityBackups).where(eq(identityBackups.userId, userId));
   // And the record that the person had deleted it (an archived account keeps its row).
   await getDb().delete(identityBackupOptOuts).where(eq(identityBackupOptOuts.userId, userId));
+  // The Oxy Keychain (ADR 0063): its vault and, by cascade, every roster entry,
+  // member, wrap, item and enrollment. Here and not only by the `users`
+  // cascade, because an archived account keeps its row.
+  await getDb().delete(keychainVaults).where(eq(keychainVaults.accountId, userId));
   // Every session and every device-session holding, so a deleted account
   // cannot keep minting tokens from a retained secret.
   await sessionService.deactivateAllUserSessions(userId);
