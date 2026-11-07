@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Security (round-7 review of the FairCoin identity receive)
+
+- **R7-1: only first-party sessions write the identity backup.** `POST` and `DELETE /identity/backup` mount `requireFirstPartyDeviceAccess`: an application token (`app_token_device_access_denied`) and a third-party or unregistered application's session (`third_party_device_access_denied`) are refused. `version` is at most `IDENTITY_BACKUP_MAX_VERSION` (2); a stored row above it (planted before the bound) no longer blocks a legitimate upload.
+- **R7-2: a superseded backup is replaced only with its acknowledgement.** `POST /identity/backup` takes `replacesLookupId`; over a superseded backup the upsert replaces it only when its sha256 is the stored locator hash, else 409 `IDENTITY_BACKUP_SUPERSEDED` with the backup kept. `GET /identity/backup/status` answers a superseded backup as `{ exists: false, superseded: true, publicKeyHint, createdAt }`.
+- **A re-link cannot race the key-history claim (R7, info).** Every writer that decides what a key is (sign-up, `/auth/link` and the link flow, rotation, the organization key, `POST /identity/key-history/claim` and the backfill) takes `pg_advisory_xact_lock` on the key (`lockIdentityKeys`, `services/organizationKeyHistory.ts`) in its transaction before its checks; the claim and the backfill read the evidence and insert in one transaction, and a rotation checks the new key again under the lock.
+
 ### Security (round-6 review of the FairCoin identity receive)
 
 - **R6-5: a root replaced before the key history can be claimed.** `POST /identity/key-history/claim` (first-party device access, personal accounts) adds a key to `personal_identity_key_retirements` only when the caller signs with it AND Oxy's own records prove it was this account's identity key: verified, self-issued `signed_records` the account wrote with it (`services/personalKeyEvidence.ts`). Never a key that is any account's live root or identity key, an organization's, in another account's history, or shown by another account's records too. `scripts/backfill-personal-key-retirements.ts` (dry run by default, `--apply`; counts only) applies the same rules to every personal account: an owner step.

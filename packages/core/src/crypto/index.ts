@@ -21,7 +21,12 @@ export {
   IdentityPersistError,
   IdentityUnavailableError,
 } from './keyManager';
-export type { KeyPair, IdentityStatus, IdentityRecoveryResult } from './keyManager';
+export type {
+  BackupOwedEntry,
+  KeyPair,
+  IdentityStatus,
+  IdentityRecoveryResult,
+} from './keyManager';
 export { readIdentityMarker, updateIdentityMarker } from './identityMarker';
 export type { IdentityMarker } from './identityMarker';
 export type { IdentityDeviceBackupStore } from './deviceBackup';
@@ -106,6 +111,7 @@ export {
   listQuarantinedIdentityKeys,
   signWithQuarantinedIdentityKey,
   MAX_QUARANTINED_RING_ENTRIES,
+  MAX_QUARANTINED_RING_ENTRIES_TOTAL,
   RetiredKeyQuarantineFullError,
   RetiredKeyRingUnreadableError,
 } from './retiredKeys';

@@ -50,6 +50,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { hashedIpKey } from '../utils/ipKey';
 import { ApiError, BadRequestError, ConflictError, UnauthorizedError } from '../utils/error';
 import { mintIdentityProofChallenge } from '../services/identityProof.service';
+import { lockIdentityKeys } from '../services/organizationKeyHistory';
 import { personalKeyEvidence } from '../services/personalKeyEvidence';
 import SignatureService from '../services/signature.service';
 
@@ -247,42 +248,46 @@ router.post(
       throw new BadRequestError('Invalid signature — cannot verify possession of the key');
     }
 
-    const db = getDb();
-    const evidence = await personalKeyEvidence(db, userId, publicKey);
-    switch (evidence.kind) {
-      case 'already-retired':
-        break;
-      case 'proven': {
-        const [inserted] = await db
-          .insert(personalIdentityKeyRetirements)
-          .values({ userId, publicKey, retiredAt: evidence.lastSeenAt })
-          .onConflictDoNothing({ target: personalIdentityKeyRetirements.publicKey })
-          .returning({ id: personalIdentityKeyRetirements.id });
-        if (!inserted) {
-          // A concurrent writer took the key first: it is this account's only
-          // when that writer was this account.
-          const [row] = await db
-            .select({ userId: personalIdentityKeyRetirements.userId })
-            .from(personalIdentityKeyRetirements)
-            .where(eq(personalIdentityKeyRetirements.publicKey, publicKey))
-            .limit(1);
-          if (row?.userId !== userId) {
+    // One transaction, the key locked before the evidence is read (R7, info):
+    // a re-link of the key cannot commit between the read and the insert.
+    await getDb().transaction(async (db) => {
+      await lockIdentityKeys(db, publicKey);
+      const evidence = await personalKeyEvidence(db, userId, publicKey);
+      switch (evidence.kind) {
+        case 'already-retired':
+          break;
+        case 'proven': {
+          const [inserted] = await db
+            .insert(personalIdentityKeyRetirements)
+            .values({ userId, publicKey, retiredAt: evidence.lastSeenAt })
+            .onConflictDoNothing({ target: personalIdentityKeyRetirements.publicKey })
+            .returning({ id: personalIdentityKeyRetirements.id });
+          if (!inserted) {
+            // A concurrent writer took the key first: it is this account's only
+            // when that writer was this account.
+            const [row] = await db
+              .select({ userId: personalIdentityKeyRetirements.userId })
+              .from(personalIdentityKeyRetirements)
+              .where(eq(personalIdentityKeyRetirements.publicKey, publicKey))
+              .limit(1);
+            if (row?.userId !== userId) {
+              throw new ConflictError("This key is in another account's history");
+            }
+          }
+          break;
+        }
+        case 'excluded':
+          if (evidence.reason === 'current-root') {
+            throw new ConflictError("This key is the account's current root, not a retired one");
+          }
+          if (evidence.reason === 'retired-elsewhere') {
             throw new ConflictError("This key is in another account's history");
           }
-        }
-        break;
+          throw keyNotProven();
+        case 'unproven':
+          throw keyNotProven();
       }
-      case 'excluded':
-        if (evidence.reason === 'current-root') {
-          throw new ConflictError("This key is the account's current root, not a retired one");
-        }
-        if (evidence.reason === 'retired-elsewhere') {
-          throw new ConflictError("This key is in another account's history");
-        }
-        throw keyNotProven();
-      case 'unproven':
-        throw keyNotProven();
-    }
+    });
     res.status(200).json(await keyHistoryOf(userId, account.publicKey));
   }),
 );

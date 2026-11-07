@@ -50,7 +50,7 @@ import userCache from '../utils/userCache.js';
 import { buildUserDid } from '../services/did.service.js';
 import { buildAuthMethodEntries } from '../utils/authMethodEntries.js';
 import { linkRootToAccount } from '../services/identityLink.service.js';
-import { identityKeyEverUsed } from '../services/organizationKeyHistory.js';
+import { identityKeyEverUsed, lockIdentityKeys } from '../services/organizationKeyHistory.js';
 import { ApiError } from '../utils/error.js';
 import {
   IDENTITY_ERROR_CODES,
@@ -431,6 +431,15 @@ router.post(
     //    so its restore envelope says so and `/status` reads it as none.
     try {
       await db.transaction(async (tx) => {
+        // Both keys locked (R7, info), and the new one checked again under the
+        // lock: a key-history claim or another link cannot change what either
+        // key is between the checks above and this swap. The account row is
+        // locked first, the order `linkRootToAccount` takes them in.
+        await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update');
+        await lockIdentityKeys(tx, canonicalOldPublicKey, canonicalNewPublicKey);
+        if (await identityKeyEverUsed(tx, canonicalNewPublicKey)) {
+          throw new ConflictError('This identity is already linked to another account');
+        }
         const replaced = await tx
           .update(userAuthMethods)
           .set({ methodPublicKey: canonicalNewPublicKey, linkedAt: new Date() })

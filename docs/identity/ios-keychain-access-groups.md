@@ -273,9 +273,14 @@ groups. That residual risk is the same on Android (Commons' certificate).
   - *The ring is never read from the shared group (R6-12)*, not even by the
     Peable wallet before Commons' migration finished.
   - *Bounds (R6-14).* A run looks at no more than 100 organizations (its own
-    index first); the ring keeps no more than 64 quarantined entries, past
-    which a shared copy is left where it is (never lost, never trusted) and
-    the run still settles.
+    index first); each ring keeps no more than 64 quarantined entries from
+    the shared group, and all rings 256 together (R7-5), past which a shared
+    copy is left where it is (never lost, never trusted) and the run still
+    settles. Entries whose private half is gone are dropped first. A key the
+    device held itself (rotation, organization re-validation) or a
+    phrase-opened backup carried is never refused by the bound. Re-validation
+    settles organizations with no held pair without a network read and asks
+    Oxy about at most 16 per launch (R7-11).
   - *No prompts in any app (R6-16).* The device-session slot is read through
     `readSharedWithoutInteraction` (exported from `@oxy.so/core/session`, for
     every reader of the shared group).

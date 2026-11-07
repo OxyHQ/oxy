@@ -39,6 +39,7 @@ import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import { buildUserDid, OXY_DID } from '../../services/did.service';
+import { lockIdentityKeys } from '../../services/organizationKeyHistory';
 import { backfillPersonalKeyRetirements } from '../../services/personalKeyEvidence';
 import SignatureService from '../../services/signature.service';
 import identityProofRouter from '../identityProof';
@@ -304,5 +305,49 @@ describe('backfillPersonalKeyRetirements', () => {
 
     const again = await backfillPersonalKeyRetirements(getDb(), { apply: true });
     expect(again.inserted).toBe(0);
+  });
+});
+
+describe('a re-link racing the claim or the backfill (R7, info)', () => {
+  /**
+   * Make `publicKey` another person's live root in a transaction that holds the
+   * key's lock, as every live-key writer does, and run `racer` while that
+   * transaction is open: it must wait for the commit and then see the key live.
+   */
+  async function relinkWhile<T>(publicKey: string, racer: () => Promise<T>): Promise<T> {
+    const other = await personWithRoot();
+    let settled = false;
+    let raced: Promise<T> | undefined;
+    await getDb().transaction(async (tx) => {
+      await lockIdentityKeys(tx, publicKey);
+      await tx.update(users).set({ publicKey }).where(eq(users.id, other));
+      raced = racer().finally(() => {
+        settled = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Still waiting on the lock: it decided nothing from the pre-commit state.
+      expect(settled).toBe(false);
+    });
+    if (!raced) throw new Error('racer did not start');
+    return raced;
+  }
+
+  it('the claim waits on the key and then refuses the now-live key, adding nothing', async () => {
+    const key = generateSecp256k1KeyPair();
+    await signedRecordBy(currentUserId, key.publicKey);
+    const res = await relinkWhile(key.publicKey, () =>
+      request('/identity/key-history/claim', claimBody(currentUserId, key)),
+    );
+    expect(res.status).toBe(404);
+    expect(await historyRows(key.publicKey)).toEqual([]);
+  });
+
+  it('the backfill decides again under the lock and adds nothing for the now-live key', async () => {
+    const key = generateSecp256k1KeyPair();
+    await signedRecordBy(currentUserId, key.publicKey);
+    await relinkWhile(key.publicKey, () =>
+      backfillPersonalKeyRetirements(getDb(), { apply: true }),
+    );
+    expect(await historyRows(key.publicKey)).toEqual([]);
   });
 });

@@ -158,6 +158,43 @@ describe('iOS: the keychain group', () => {
     expect(current && toHex(current)).toBe(toHex(deriveScopedSeedFromKey(CURRENT_KEY, INFO)));
   });
 
+  it('a ring that cannot be read now is never "not this key" (R7-4)', async () => {
+    await KeyManager.importKeyPair(CURRENT_KEY);
+    const retiredPublic = KeyManager.derivePublicKey(RETIRED_KEY);
+    await ring.retireIdentityKey({ privateKey: RETIRED_KEY, publicKey: retiredPublic }, ME);
+    const store = (await import('expo-secure-store' as string)) as unknown as {
+      __failPlan__: { failKey?: string; failOp?: 'get' | 'set'; failTimes?: number };
+    };
+    const unavailable = { name: 'IdentityUnavailableError' };
+    // The index cannot be read (a locked keychain).
+    Object.assign(store.__failPlan__, {
+      failKey: 'oxy_retired_identity_index_v1',
+      failOp: 'get',
+      failTimes: 1,
+    });
+    await expect(
+      KeyManager.deriveScopedSeed(INFO, { publicKey: retiredPublic, ...ME }),
+    ).rejects.toMatchObject(unavailable);
+    // The index lists it, but its private half cannot be read.
+    Object.assign(store.__failPlan__, {
+      failKey: `oxy_retired_identity_private_key.personal.${retiredPublic}`,
+      failOp: 'get',
+      failTimes: 1,
+    });
+    await expect(
+      KeyManager.signSocialReceive(0, DIGEST, { publicKey: retiredPublic, ...ME }),
+    ).rejects.toMatchObject(unavailable);
+    // Readable again: the key, and a key it does not hold is definitively null.
+    const seed = await KeyManager.deriveScopedSeed(INFO, { publicKey: retiredPublic, ...ME });
+    expect(seed && toHex(seed)).toBe(toHex(deriveScopedSeedFromKey(RETIRED_KEY, INFO)));
+    await expect(
+      KeyManager.deriveScopedSeed(INFO, {
+        publicKey: KeyManager.derivePublicKey(OTHER_KEY),
+        ...ME,
+      }),
+    ).resolves.toBeNull();
+  });
+
   it('the selector naming the current key answers with the current key', async () => {
     await KeyManager.importKeyPair(CURRENT_KEY);
     const seed = await KeyManager.deriveScopedSeed(INFO, {
@@ -517,7 +554,8 @@ describe('Android, every other app (asks Commons)', () => {
 
   it('passes the organization account id with the selector', async () => {
     const publicKey = KeyManager.derivePublicKey(ORG_RETIRED_KEY);
-    const b = bridge({});
+    // Commons answers, and does not hold the key: definitively null.
+    const b = bridge({ listRetiredKeys: jest.fn(async () => []) });
     mockBridge.current = b;
     await KeyManager.deriveScopedSeed(INFO, { accountId: ORG, publicKey });
     await KeyManager.signSocialReceive(0, DIGEST, { accountId: ORG, publicKey });
@@ -528,7 +566,7 @@ describe('Android, every other app (asks Commons)', () => {
   it('canonicalizes a compressed selector (a DID or gateway encoding) before asking', async () => {
     const uncompressed = KeyManager.derivePublicKey(RETIRED_KEY);
     const compressed = deriveSecp256k1PublicKey(RETIRED_KEY, true);
-    const b = bridge({});
+    const b = bridge({ listRetiredKeys: jest.fn(async () => []) });
     mockBridge.current = b;
     await KeyManager.deriveScopedSeed(INFO, { publicKey: compressed, ...ME });
     expect(b.deriveRetiredScopedSeed).toHaveBeenCalledWith(INFO, uncompressed, undefined);
@@ -536,6 +574,43 @@ describe('Android, every other app (asks Commons)', () => {
       KeyManager.signSocialReceive(0, DIGEST, { publicKey: 'zz', ...ME }),
     ).resolves.toBeNull();
     expect(b.signRetiredSocialReceive).not.toHaveBeenCalled();
+  });
+
+  it('a Commons that does not answer is never "not this key" (R7-4)', async () => {
+    const publicKey = KeyManager.derivePublicKey(RETIRED_KEY);
+    const other = KeyManager.derivePublicKey(ORG_RETIRED_KEY);
+    const unavailable = { name: 'IdentityUnavailableError' };
+
+    // Nothing answers: busy, not installed, an older protocol.
+    mockBridge.current = bridge({});
+    await expect(KeyManager.deriveScopedSeed(INFO, { publicKey, ...ME })).rejects.toMatchObject(
+      unavailable,
+    );
+    await expect(
+      KeyManager.signSocialReceive(0, DIGEST, { publicKey, ...ME }),
+    ).rejects.toMatchObject(unavailable);
+    await expect(ring.listRetiredIdentityKeys(ME)).rejects.toThrow('did not answer');
+
+    // Commons lists the key (or describes it as current) but could not use it.
+    mockBridge.current = bridge({ listRetiredKeys: jest.fn(async () => [publicKey]) });
+    await expect(KeyManager.deriveScopedSeed(INFO, { publicKey, ...ME })).rejects.toMatchObject(
+      unavailable,
+    );
+    mockBridge.current = bridge({
+      listRetiredKeys: jest.fn(async () => []),
+      describe: jest.fn(async () => ({ v: 1, publicKey })),
+    });
+    await expect(
+      KeyManager.signSocialReceive(0, DIGEST, { publicKey, ...ME }),
+    ).rejects.toMatchObject(unavailable);
+
+    // Commons answers, holding other keys only: definitively not held.
+    mockBridge.current = bridge({
+      listRetiredKeys: jest.fn(async () => [other]),
+      describe: jest.fn(async () => ({ v: 1, publicKey: other })),
+    });
+    await expect(KeyManager.deriveScopedSeed(INFO, { publicKey, ...ME })).resolves.toBeNull();
+    await expect(KeyManager.signSocialReceive(0, DIGEST, { publicKey, ...ME })).resolves.toBeNull();
   });
 
   it('an app cannot keep a retired key itself', async () => {

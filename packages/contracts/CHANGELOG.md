@@ -1,5 +1,15 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.17.0
+
+Round-7 security review (R7-2).
+
+### Added
+
+- `backupUploadRequestSchema.replacesLookupId` (optional, 64 hex): the raw locator of a superseded backup the upload replaces. Without it, or with another backup's locator, an upload over a superseded backup is refused.
+- `backupStatusResponseSchema.superseded` (optional boolean): the stored backup is one a key rotation superseded (`exists` is `false`; `publicKeyHint` / `createdAt` describe it).
+- `IDENTITY_ERROR_CODES.backupSuperseded` (`IDENTITY_BACKUP_SUPERSEDED`, also in the `client` entry).
+
 ## 6.16.0
 
 Round-7 security review (R7-1).

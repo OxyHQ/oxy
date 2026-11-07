@@ -6,6 +6,8 @@
 import type { BackupUploadRequest, EncryptedBackupEnvelope } from '@oxy.so/contracts';
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
+import { RecoveryPhraseService } from '../../crypto/recoveryPhrase';
+import { IdentityBackupSupersededError } from '../identity';
 import { setPlatformOS } from '../../utils/platform';
 
 const mockRing = {
@@ -34,6 +36,9 @@ jest.mock('../../crypto/retiredKeys', () => ({
 const PHRASE =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 const RETIRED = 'a7'.repeat(32);
+/** BIP-39 test vector: the phrase of a key a rotation replaced. */
+const PREVIOUS_PHRASE =
+  'legal winner thank year wave sausage worth useful legal winner thank yellow';
 const PLANTED = 'b8'.repeat(32);
 
 function makeJwt(payload: Record<string, unknown>): string {
@@ -310,7 +315,7 @@ describe('oxy.identity.backup carries retired keys', () => {
   });
 
   it('the owed flag stays when the upload is not confirmed (R6-9)', async () => {
-    jest.spyOn(KeyManager, 'backupOwedFor').mockResolvedValue('me');
+    jest.spyOn(KeyManager, 'backupOwedEntry').mockResolvedValue({});
     const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
     fetchMock
       .mockResolvedValueOnce(json({ error: 'not found' }, 404))
@@ -348,13 +353,104 @@ describe('oxy.identity.backup carries retired keys', () => {
   });
 
   it('a sealed backup clears the owed flag; isOwed answers for the signed-in account (R5-9)', async () => {
-    const owed = jest.spyOn(KeyManager, 'backupOwedFor').mockResolvedValue('me');
+    const owed = jest.spyOn(KeyManager, 'backupOwedEntry').mockResolvedValue({});
     const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
     await expect(oxy.identity.backup.isOwed()).resolves.toBe(true);
-    owed.mockResolvedValue('someone-else');
+    expect(owed).toHaveBeenLastCalledWith('me');
+    owed.mockResolvedValue(null);
     await expect(oxy.identity.backup.isOwed()).resolves.toBe(false);
-    owed.mockResolvedValue('me');
+    owed.mockResolvedValue({});
     await createAndCapture();
-    expect(clear).toHaveBeenCalledTimes(1);
+    // Only this account's entry (R7-10).
+    expect(clear).toHaveBeenCalledWith('me');
+  });
+
+  describe('a superseded backup is replaced only with its acknowledgement (R7-2)', () => {
+    const previousPrivate = async () =>
+      RecoveryPhraseService.derivePrivateKeyFromPhrase(PREVIOUS_PHRASE);
+    const previousLookupId = async () =>
+      (await RecoveryPhraseService.deriveBackupMaterial(PREVIOUS_PHRASE)).lookupId.toLowerCase();
+
+    /** The previous phrase's backup, sealed while it was the account's key, as served superseded. */
+    async function supersededEnvelope(): Promise<EncryptedBackupEnvelope> {
+      const previous = await previousPrivate();
+      historyMock.mockResolvedValue(
+        json({ publicKey: KeyManager.derivePublicKey(previous), retired: [] }),
+      );
+      fetchMock
+        .mockResolvedValueOnce(json({ error: 'not found' }, 404))
+        .mockResolvedValueOnce(json({ exists: true }));
+      await oxy.identity.backup.create(PREVIOUS_PHRASE);
+      const envelope = lastUpload();
+      // The rotation: the current key is PHRASE's; the previous one is retired.
+      historyMock.mockResolvedValue(history([RETIRED, previous]));
+      fetchMock.mockReset();
+      mockRing.kept = [];
+      return { ...envelope, superseded: true };
+    }
+
+    it('sends the owed entry’s acknowledgement, and a refusal is a typed error', async () => {
+      const ack = 'ab'.repeat(32);
+      jest.spyOn(KeyManager, 'backupOwedEntry').mockResolvedValue({ supersededLookupId: ack });
+      const clear = jest.spyOn(KeyManager, 'clearBackupOwed').mockResolvedValue();
+      fetchMock
+        .mockResolvedValueOnce(json({ error: 'not found' }, 404))
+        .mockResolvedValueOnce(
+          json({ error: 'IDENTITY_BACKUP_SUPERSEDED', message: 'superseded' }, 409),
+        );
+      await expect(oxy.identity.backup.create(PHRASE)).rejects.toBeInstanceOf(
+        IdentityBackupSupersededError,
+      );
+      const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+      expect(JSON.parse(String(post?.[1]?.body)).replacesLookupId).toBe(ack);
+      expect(clear).not.toHaveBeenCalled();
+    });
+
+    it('with the previous phrase, carries its keys and acknowledges it with its locator', async () => {
+      const envelope = await supersededEnvelope();
+      fetchMock
+        .mockResolvedValueOnce(json(envelope)) // the previous phrase opens the superseded backup
+        .mockResolvedValueOnce(json({ error: 'not found' }, 404)) // the current phrase has none
+        .mockResolvedValueOnce(json({ exists: true }));
+      await oxy.identity.backup.create(PHRASE, { previousPhrase: PREVIOUS_PHRASE });
+      const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+      expect(JSON.parse(String(post?.[1]?.body)).replacesLookupId).toBe(await previousLookupId());
+      expect(mockRing.kept.map((key) => key.publicKey)).toContain(
+        KeyManager.derivePublicKey(await previousPrivate()),
+      );
+    });
+
+    it('a phrase that opens no superseded backup changes nothing', async () => {
+      fetchMock.mockResolvedValueOnce(json({ error: 'not found' }, 404));
+      await expect(
+        oxy.identity.backup.create(PHRASE, { previousPhrase: PREVIOUS_PHRASE }),
+      ).rejects.toThrow('Nothing changed');
+      expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+    });
+
+    it('restoreRetiredKeys records the acknowledgement once every key it holds is bound', async () => {
+      const envelope = await supersededEnvelope();
+      const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+      const previousPublic = KeyManager.derivePublicKey(await previousPrivate());
+      fetchMock
+        .mockResolvedValueOnce(json(envelope))
+        .mockResolvedValueOnce(
+          json({ exists: false, superseded: true, publicKeyHint: previousPublic.slice(0, 16) }),
+        );
+      await expect(oxy.identity.backup.restoreRetiredKeys(PREVIOUS_PHRASE)).resolves.toBe(1);
+      expect(mark).toHaveBeenCalledWith('me', { supersededLookupId: await previousLookupId() });
+    });
+
+    it('restoreRetiredKeys records nothing for a backup that is not the account’s stored one', async () => {
+      const envelope = await supersededEnvelope();
+      const mark = jest.spyOn(KeyManager, 'markBackupOwed').mockResolvedValue();
+      fetchMock
+        .mockResolvedValueOnce(json(envelope))
+        .mockResolvedValueOnce(
+          json({ exists: false, superseded: true, publicKeyHint: '04ffffffffffffff' }),
+        );
+      await oxy.identity.backup.restoreRetiredKeys(PREVIOUS_PHRASE);
+      expect(mark).not.toHaveBeenCalled();
+    });
   });
 });

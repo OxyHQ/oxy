@@ -38,7 +38,7 @@ import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users, type AccountKind } from '../db/schema/users';
 import { ApiError, BadRequestError, ConflictError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { identityKeyEverUsed } from './organizationKeyHistory';
+import { identityKeyEverUsed, lockIdentityKeys } from './organizationKeyHistory';
 import { untrustedNameColumns } from '../utils/displayNameSanitize';
 import { normalizeUsername } from '../utils/username';
 import type { AccountRow } from './account.service';
@@ -316,6 +316,9 @@ export async function createPersonalAccount(
 ): Promise<AccountRow> {
   // A key that was ever an organization's, or a person's retired root, is never
   // a person's (ADR 0061 D2).
+  // Under the key's lock (R7, info), so a key-history claim cannot retire it
+  // between this read and the insert.
+  if ('publicKey' in credential) await lockIdentityKeys(tx, credential.publicKey);
   if ('publicKey' in credential && (await identityKeyEverUsed(tx, credential.publicKey))) {
     throw new ApiError(
       409,

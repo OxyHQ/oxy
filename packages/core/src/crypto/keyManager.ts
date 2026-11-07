@@ -31,8 +31,16 @@ import {
 import { isDev, logger } from '../logger';
 import { deriveScopedSeedFromKey, signSocialReceiveDigest } from './identityDerivations';
 import { type IdentitySignerStore, registerIdentitySignerStore } from './identitySigner';
-import { getOrganizationPrivateKey, isOrganizationAccountId } from './organizationKeys';
-import { getRetiredPrivateKey, retiredKeyScope, unmirrorPersonalRetiredKeys } from './retiredKeys';
+import {
+  getOrganizationPrivateKey,
+  getOrganizationPrivateKeyStrict,
+  isOrganizationAccountId,
+} from './organizationKeys';
+import {
+  getRetiredPrivateKeyStrict,
+  retiredKeyScope,
+  unmirrorPersonalRetiredKeys,
+} from './retiredKeys';
 import {
   type KeychainItemClass,
   groupedKeychainStore,
@@ -228,6 +236,16 @@ const ROTATION_PENDING_KEY = 'oxy_identity_rotation_pending_v1';
  * Not a secret; AsyncStorage.
  */
 const BACKUP_OWED_KEY = 'oxy_identity_backup_owed_v1';
+
+/**
+ * One account's owed backup (R7-10). `supersededLookupId` is the raw locator of
+ * the backup a rotation superseded, kept on the device that carried its keys
+ * into the ring, so the next seal may replace it (R7-2). Not a secret on its
+ * own (the backup key needs the previous phrase), but never logged.
+ */
+export interface BackupOwedEntry {
+  supersededLookupId?: string;
+}
 
 /**
  * The resolved set of storage key names + keychain services a session reads and
@@ -1457,33 +1475,111 @@ export class KeyManager {
   }
 
   /**
-   * Record that `userId`'s encrypted identity backup is owed (R5-9): before a
-   * rotation's server swap, which deletes the old backup. Best-effort where
-   * there is no app storage (web).
+   * Every account whose backup is owed on this device, with what each needs
+   * (R7-10): one entry per account, so one account's rotation never overwrites
+   * or clears another's. Reads the pre-R7 value (a bare account id) as that
+   * account's entry. Never throws: an unreadable or malformed slot is empty.
    */
-  static async markBackupOwed(userId: string): Promise<void> {
-    const storage = await KeyManager._advisoryStorage();
-    await storage?.setItem(BACKUP_OWED_KEY, userId);
-  }
-
-  /** The backup is sealed: clear the owed flag. Best-effort: never throws. */
-  static async clearBackupOwed(): Promise<void> {
+  private static async _readBackupOwed(): Promise<Record<string, BackupOwedEntry>> {
     try {
       const storage = await KeyManager._advisoryStorage();
-      await storage?.setItem(BACKUP_OWED_KEY, '');
+      const raw = (await storage?.getItem(BACKUP_OWED_KEY)) || '';
+      if (!raw) return {};
+      if (!raw.startsWith('{')) return { [raw]: {} };
+      const parsed = JSON.parse(raw) as { owed?: unknown };
+      const owed = parsed?.owed;
+      if (typeof owed !== 'object' || owed === null) return {};
+      const out: Record<string, BackupOwedEntry> = {};
+      for (const [userId, value] of Object.entries(owed as Record<string, unknown>)) {
+        const lookupId = (value as { supersededLookupId?: unknown } | null)?.supersededLookupId;
+        out[userId] =
+          typeof lookupId === 'string' && /^[0-9a-f]{64}$/.test(lookupId)
+            ? { supersededLookupId: lookupId }
+            : {};
+      }
+      return out;
+    } catch {
+      return {};
+    }
+  }
+
+  private static async _writeBackupOwed(owed: Record<string, BackupOwedEntry>): Promise<void> {
+    const storage = await KeyManager._advisoryStorage();
+    await storage?.setItem(
+      BACKUP_OWED_KEY,
+      Object.keys(owed).length === 0 ? '' : JSON.stringify({ v: 2, owed }),
+    );
+  }
+
+  /**
+   * Record that `userId`'s encrypted identity backup is owed (R5-9): before a
+   * rotation's server swap, which supersedes or deletes the old backup.
+   * `supersededLookupId` is the previous backup's locator, kept so the next
+   * seal may replace the superseded backup once its keys are in the ring
+   * (R7-2); an entry that already holds one keeps it when none is given. Other
+   * accounts' entries are untouched (R7-10). Best-effort where there is no app
+   * storage (web).
+   */
+  static async markBackupOwed(
+    userId: string,
+    options?: { supersededLookupId?: string },
+  ): Promise<void> {
+    const owed = await KeyManager._readBackupOwed();
+    const lookupId = options?.supersededLookupId?.toLowerCase();
+    owed[userId] =
+      lookupId && /^[0-9a-f]{64}$/.test(lookupId)
+        ? { supersededLookupId: lookupId }
+        : (owed[userId] ?? {});
+    await KeyManager._writeBackupOwed(owed);
+  }
+
+  /**
+   * The backup is sealed: clear `userId`'s owed entry, and only that one
+   * (R7-10). Without `userId` every entry is cleared. Best-effort: never throws.
+   */
+  static async clearBackupOwed(userId?: string): Promise<void> {
+    try {
+      if (userId === undefined) {
+        await KeyManager._writeBackupOwed({});
+        return;
+      }
+      const owed = await KeyManager._readBackupOwed();
+      if (!(userId in owed)) return;
+      delete owed[userId];
+      await KeyManager._writeBackupOwed(owed);
     } catch (error) {
       logger.warn('Failed to clear the backup-owed flag', { component: 'KeyManager' }, error);
     }
   }
 
-  /** The account whose backup is owed on this device, or `null`. Never throws. */
-  static async backupOwedFor(): Promise<string | null> {
+  /**
+   * `userId`'s owed entry, or `null` when its backup is not owed. A rotation
+   * snapshots it before marking and puts it back ({@link restoreBackupOwed})
+   * when the server refused the rotation, so a backup that was owed BEFORE the
+   * attempt stays owed (R7-10). Never throws.
+   */
+  static async backupOwedEntry(userId: string): Promise<BackupOwedEntry | null> {
+    return (await KeyManager._readBackupOwed())[userId] ?? null;
+  }
+
+  /** Put back `userId`'s entry as {@link backupOwedEntry} read it (`null`: not owed). Never throws. */
+  static async restoreBackupOwed(userId: string, entry: BackupOwedEntry | null): Promise<void> {
     try {
-      const storage = await KeyManager._advisoryStorage();
-      return (await storage?.getItem(BACKUP_OWED_KEY)) || null;
-    } catch {
-      return null;
+      const owed = await KeyManager._readBackupOwed();
+      if (entry === null) delete owed[userId];
+      else owed[userId] = { ...entry };
+      await KeyManager._writeBackupOwed(owed);
+    } catch (error) {
+      logger.warn('Failed to restore the backup-owed flag', { component: 'KeyManager' }, error);
     }
+  }
+
+  /**
+   * An account whose backup is owed on this device, or `null`. With several,
+   * any one of them: ask {@link backupOwedEntry} for a given account. Never throws.
+   */
+  static async backupOwedFor(): Promise<string | null> {
+    return Object.keys(await KeyManager._readBackupOwed())[0] ?? null;
   }
 
   /**
@@ -3426,6 +3522,11 @@ export class KeyManager {
    * @param opts.ownerAccountId The person's account id, for a personal retired key.
    * @returns 32 bytes of derived keying material, or `null` on web / when no
    *          identity key is available to this app.
+   * @throws {IdentityUnavailableError} with `opts.publicKey`, when this device
+   *          may hold the key but cannot read it now (a locked keychain, an
+   *          unreadable ring, a Commons that did not answer; security review
+   *          R7-4). `null` there means DEFINITIVELY not held: never treat the
+   *          error as "not this key" — retry, or show the wallet as locked.
    */
   static async deriveScopedSeed(
     info: string,
@@ -3439,9 +3540,12 @@ export class KeyManager {
         const selected = KeyManager._selectorKey(opts.publicKey);
         if (!selected) return null;
         const bridge = await loadCommonsIdentityBridge();
+        if (!bridge) return null;
         const seed =
-          (await bridge?.deriveRetiredScopedSeed?.(info, selected, opts.accountId)) ?? null;
-        return seed ? hexToBytes(seed) : null;
+          (await bridge.deriveRetiredScopedSeed?.(info, selected, opts.accountId)) ?? null;
+        if (seed) return hexToBytes(seed);
+        await KeyManager._assertCommonsDoesNotHold(bridge, selected, opts.accountId);
+        return null;
       }
       const selected = await KeyManager._selectedPrivateKey({ ...opts, publicKey: opts.publicKey });
       return selected ? deriveScopedSeedFromKey(selected, info) : null;
@@ -3503,6 +3607,8 @@ export class KeyManager {
    *
    * @returns the signature, or `null` on web / when no identity key is
    *          available to this app.
+   * @throws {IdentityUnavailableError} with `opts.publicKey`, as
+   *          {@link deriveScopedSeed} (R7-4).
    */
   static async signSocialReceive(
     index: number,
@@ -3517,10 +3623,13 @@ export class KeyManager {
         const selected = KeyManager._selectorKey(opts.publicKey);
         if (!selected) return null;
         const bridge = await loadCommonsIdentityBridge();
-        return (
-          (await bridge?.signRetiredSocialReceive?.(index, digest, selected, opts.accountId)) ??
-          null
-        );
+        if (!bridge) return null;
+        const signed =
+          (await bridge.signRetiredSocialReceive?.(index, digest, selected, opts.accountId)) ??
+          null;
+        if (signed) return signed;
+        await KeyManager._assertCommonsDoesNotHold(bridge, selected, opts.accountId);
+        return null;
       }
       const selected = await KeyManager._selectedPrivateKey({ ...opts, publicKey: opts.publicKey });
       return selected ? signSocialReceiveDigest(selected, index, digest) : null;
@@ -3573,23 +3682,91 @@ export class KeyManager {
       return null;
     }
     const wanted = KeyManager.canonicalPublicKey(publicKey);
-    const current =
-      accountId !== undefined
-        ? await getOrganizationPrivateKey(accountId)
-        : isAndroid()
-          ? await KeyManager.getPrivateKey()
-          : ((await KeyManager.getSharedPrivateKey()) ?? (await KeyManager.getPrivateKey()));
+    // Strict reads (security review R7-4): a read that fails is never "not
+    // this key". It is remembered, and thrown unless another source holds it.
+    let unreadable: unknown = null;
+    let current: string | null = null;
+    try {
+      current =
+        accountId !== undefined
+          ? await getOrganizationPrivateKeyStrict(accountId)
+          : isAndroid()
+            ? await KeyManager._readPrimaryPrivateKeyStrict()
+            : ((await KeyManager._readSharedPrivateKeyStrict()) ??
+              (await KeyManager._readPrimaryPrivateKeyStrict()));
+    } catch (error) {
+      unreadable = error;
+    }
     if (current && KeyManager.canonicalPublicKey(KeyManager.derivePublicKey(current)) === wanted) {
       return current;
     }
-    return getRetiredPrivateKey(
-      wanted,
-      accountId !== undefined
-        ? { accountId }
-        : ownerAccountId !== undefined
-          ? { ownerAccountId }
-          : undefined,
+    let retired: string | null = null;
+    try {
+      retired = await getRetiredPrivateKeyStrict(
+        wanted,
+        accountId !== undefined
+          ? { accountId }
+          : ownerAccountId !== undefined
+            ? { ownerAccountId }
+            : undefined,
+      );
+    } catch (error) {
+      unreadable ??= error;
+    }
+    if (retired) return retired;
+    if (unreadable !== null) {
+      throw new IdentityUnavailableError(
+        'The key this payment needs cannot be read on this device right now.',
+        unreadable,
+      );
+    }
+    return null;
+  }
+
+  /** {@link getPrivateKey} without the null-on-failure contract: a failed read throws. */
+  private static async _readPrimaryPrivateKeyStrict(): Promise<string | null> {
+    const migration = await KeyManager._ensureIdentitySlotsMigrated();
+    if (migration.mode === 'deferred') {
+      throw new IdentityUnavailableError('The identity slots cannot be read right now.');
+    }
+    const store = await initSecureStore();
+    return store.getItemAsync(
+      migration.layout.primaryPrivateKeyName,
+      KeyManager._slotOpts(migration.layout.primaryService),
     );
+  }
+
+  /** {@link getSharedPrivateKey} without the null-on-failure contract (iOS): a failed read throws. */
+  private static async _readSharedPrivateKeyStrict(): Promise<string | null> {
+    if (isWebPlatform() || !isIOS()) return null;
+    const store = await keychainItemStore('spending-key');
+    return store.getItemAsync(STORAGE_KEYS.SHARED_PRIVATE_KEY, {});
+  }
+
+  /**
+   * Android outside Commons, after the identity host answered nothing for
+   * `publicKey` (R7-4): its answer collapses "I do not hold it" and "I could
+   * not answer" into one `null`. Settle which with two reads: the host is
+   * definitively without the key only when it LISTS that scope's retired keys
+   * (so it is reachable now) without it, and does not describe it as the
+   * current key. Anything else throws {@link IdentityUnavailableError}: a busy
+   * or unreachable Commons is never "not this key".
+   */
+  private static async _assertCommonsDoesNotHold(
+    bridge: NonNullable<Awaited<ReturnType<typeof loadCommonsIdentityBridge>>>,
+    publicKey: string,
+    accountId: string | undefined,
+  ): Promise<void> {
+    const listed = (await bridge.listRetiredKeys?.(accountId)) ?? null;
+    if (listed === null) {
+      throw new IdentityUnavailableError("Commons' identity host did not answer for this key.");
+    }
+    const described = await bridge.describe(accountId);
+    if (listed.includes(publicKey) || described?.publicKey.toLowerCase() === publicKey) {
+      throw new IdentityUnavailableError(
+        'Commons holds this key but could not use it right now; try again when it is open.',
+      );
+    }
   }
 
   /**

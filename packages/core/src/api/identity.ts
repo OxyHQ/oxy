@@ -19,6 +19,7 @@
  */
 import {
   checkContract,
+  IDENTITY_ERROR_CODES,
   IDENTITY_PROOF_ACTIONS,
   identityLinkCreateResponseCheck,
   identityLinkStateCheck,
@@ -405,6 +406,38 @@ export class IdentityApi {
     );
     const resealBackup = !isWeb() || previousBackup.existed;
 
+    // 2d. The keys that backup carries go into this device's ring NOW, before
+    //     the server swap supersedes it (security review R7-2): the new
+    //     phrase cannot open it, so a re-seal that fails after the swap would
+    //     otherwise leave them in memory only. Each is bound to this account
+    //     when its key history names it, kept quarantined otherwise (R6-10);
+    //     the key being replaced was kept in 2b. A key that cannot be kept
+    //     stops the rotation with nothing changed on the server.
+    if (!isWeb() && previousBackup.carried.length > 0) {
+      const replaced = KeyManager.canonicalPublicKey(oldPublicKey).toLowerCase();
+      for (const key of previousBackup.carried) {
+        const id = key.publicKey.toLowerCase();
+        if (id === replaced) continue;
+        const pair = { privateKey: key.privateKey, publicKey: key.publicKey };
+        try {
+          if (namedByHistory.has(id)) {
+            await retireIdentityKey(pair, { ownerAccountId: userId });
+          } else {
+            await quarantineRetiredIdentityKey(pair, undefined, { exempt: true });
+          }
+        } catch (keepError) {
+          logger.warn(
+            'Could not keep a key the encrypted backup carries; not rotating.',
+            { component: 'oxy.identity', method: 'rotateKey' },
+            keepError,
+          );
+          throw new Error(
+            'A previous key your encrypted backup holds could not be kept on this device, so your key was not rotated. Nothing changed.',
+          );
+        }
+      }
+    }
+
     // 3. Request a single-use rotate_key challenge (bearer).
     const { challenge } = await this.ctx.request<RotateKeyChallengeResponse>(
       'POST',
@@ -446,8 +479,18 @@ export class IdentityApi {
     //     between leaves the flag, and Commons keeps asking
     //     (`backup.isOwed()`). Marked only now, after every step that cannot
     //     change anything server-side.
+    //     The entry also keeps the previous backup's locator (R7-2): this
+    //     device carried its keys into the ring in 2d, so the next seal may
+    //     replace it once the swap superseded it. What was owed BEFORE this
+    //     attempt is snapshotted, and put back when the server refuses (R7-10).
+    const owedBefore = isWeb() ? null : await KeyManager.backupOwedEntry(userId);
     if (resealBackup && !isWeb()) {
-      await KeyManager.markBackupOwed(userId);
+      await KeyManager.markBackupOwed(
+        userId,
+        previousBackup.replacesLookupId
+          ? { supersededLookupId: previousBackup.replacesLookupId }
+          : undefined,
+      );
     }
 
     // 5. Complete the rotation. On an AMBIGUOUS failure, reconcile against the
@@ -459,8 +502,11 @@ export class IdentityApi {
       // exists) clears the owed flag. Anything ambiguous (no response, a 5xx
       // that may have come after the commit, an unreadable DID) keeps it: an
       // owed backup that was not needed costs one prompt; one cleared while
-      // the swap went through costs the backup (R6-9).
-      if (definitive && resealBackup && !isWeb()) await KeyManager.clearBackupOwed();
+      // the swap went through costs the backup (R6-9). A refusal puts back
+      // what was owed before this attempt, never less (R7-10).
+      if (definitive && resealBackup && !isWeb()) {
+        await KeyManager.restoreBackupOwed(userId, owedBefore);
+      }
       throw error;
     };
     try {
@@ -533,7 +579,13 @@ export class IdentityApi {
               { ownerAccountId: userId },
             );
           } else {
-            await quarantineRetiredIdentityKey({ privateKey: held, publicKey: heldPublic });
+            // A key this phone held itself: kept whatever a planted shared
+            // group put in the quarantine (R7-5).
+            await quarantineRetiredIdentityKey(
+              { privateKey: held, publicKey: heldPublic },
+              undefined,
+              { exempt: true },
+            );
           }
         }
         const holdsSharedSlot = isAndroid()
@@ -600,7 +652,9 @@ export class IdentityApi {
     let backupRefreshed: boolean | undefined;
     if (resealBackup && !localPersistFailed) {
       try {
-        await this.backup.seal(pending.phrase, previousBackup.carried);
+        await this.backup.seal(pending.phrase, previousBackup.carried, {
+          replacesLookupId: previousBackup.replacesLookupId,
+        });
         backupRefreshed = true;
       } catch (backupError) {
         backupRefreshed = false;
@@ -937,6 +991,27 @@ export class IdentityDomainsApi {
 
 // ── Encrypted backup ───────────────────────────────────────────────────────
 
+/** The server's code for an unacknowledged upload over a superseded backup (R7-2). */
+const IDENTITY_BACKUP_SUPERSEDED_CODE = IDENTITY_ERROR_CODES.backupSuperseded;
+
+/**
+ * `backup.create` was refused because the account's stored backup is one a key
+ * rotation SUPERSEDED (security review R7-2): it holds keys under the previous
+ * recovery phrase, which the new phrase cannot open, so it is never replaced
+ * without its acknowledgement. Nothing changed. Create the backup again with
+ * `{ previousPhrase }`, or add the previous phrase as a previous key first
+ * (`restoreRetiredKeys`), which records the acknowledgement on this device.
+ */
+export class IdentityBackupSupersededError extends Error {
+  override readonly name = 'IdentityBackupSupersededError';
+  readonly code = IDENTITY_BACKUP_SUPERSEDED_CODE;
+  constructor() {
+    super(
+      'Your previous encrypted backup holds keys from before your last key change. Add your previous recovery phrase to replace it. Nothing changed.',
+    );
+  }
+}
+
 /**
  * Envelope/payload version. 2 (core 7.34.0): the payload carries the retired
  * ring and every writer merges the previous backup's keys. The server refuses
@@ -1067,19 +1142,63 @@ export class IdentityBackupApi {
    * device's ring, and in the new payload). Works cross-platform: the identity
    * is derived from the phrase, not read from SecureStore.
    *
+   * A backup a key rotation SUPERSEDED (`status().superseded`, R7-2) holds
+   * keys under the previous phrase, and is replaced only with its
+   * acknowledgement: this device keeps it after a rotation it made, or after
+   * {@link restoreRetiredKeys} opened it; otherwise pass `previousPhrase`, and
+   * its keys are carried into the new backup (and kept in this device's ring
+   * where one is held).
+   *
    * @throws when the existing backup cannot be read (anything but "none"),
    *   when this device's ring cannot be read, or when a key the previous
    *   backup carried would be missing from the new one — nothing is uploaded.
+   *   {@link IdentityBackupSupersededError} when a superseded backup was not
+   *   acknowledged.
    */
-  async create(phrase: string): Promise<BackupStatusResponse> {
-    return this.seal(phrase, []);
+  async create(
+    phrase: string,
+    options?: { previousPhrase?: string },
+  ): Promise<BackupStatusResponse> {
+    const previousPhrase = options?.previousPhrase?.trim();
+    if (!previousPhrase) return this.seal(phrase, []);
+    const { RecoveryPhraseService } = await import('../crypto/index');
+    const ownerAccountId = this.ctx.oxy.session.userId;
+    this.assertRestoreOwner(ownerAccountId);
+    const previous = await this.open(previousPhrase, true);
+    if (!previous?.superseded) {
+      throw new Error(
+        'That recovery phrase does not open a previous backup of this account. Nothing changed.',
+      );
+    }
+    // Every key it holds is carried into the new backup, and `seal` refuses to
+    // upload unless each one is sealed there (and keeps them in the ring where
+    // one is held).
+    const carried = await healthyCarried(
+      [
+        ...(Array.isArray(previous.retiredKeys) ? previous.retiredKeys : []),
+        {
+          privateKey: previous.privateKey,
+          publicKey: previous.publicKey,
+          retiredAt: Date.parse(previous.createdAt) || Date.now(),
+        },
+      ],
+      null,
+    );
+    const { lookupId } = await RecoveryPhraseService.deriveBackupMaterial(previousPhrase);
+    return this.seal(phrase, carried, { replacesLookupId: lookupId });
   }
 
   /**
    * {@link create}, also carrying `carried` (a rotation's previous backup,
-   * sealed under the replaced phrase, which the server deletes). @internal
+   * sealed under the replaced phrase, which the server supersedes), and
+   * acknowledging a superseded backup with `replacesLookupId` (else the owed
+   * entry's, R7-2). @internal
    */
-  async seal(phrase: string, carried: readonly BackupRetiredKey[]): Promise<BackupStatusResponse> {
+  async seal(
+    phrase: string,
+    carried: readonly BackupRetiredKey[],
+    options?: { replacesLookupId?: string },
+  ): Promise<BackupStatusResponse> {
     const { KeyManager, RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO, encryptAead } =
       await import('../crypto/index');
     const userId = this.ctx.oxy.session.userId;
@@ -1128,6 +1247,10 @@ export class IdentityBackupApi {
     const aad = buildBackupAad(BACKUP_ENVELOPE_VERSION, publicKeyHint);
     const { nonce, ciphertext } = encryptAead(backupKey, plaintext, aad);
 
+    // The acknowledgement of a superseded backup (R7-2): the caller's, else the
+    // one this device kept when it carried that backup's keys into the ring.
+    const owed = isWeb() ? null : await KeyManager.backupOwedEntry(userId);
+    const replacesLookupId = options?.replacesLookupId ?? owed?.supersededLookupId;
     const body: BackupUploadRequest = {
       version: BACKUP_ENVELOPE_VERSION,
       algorithm: BACKUP_ALGORITHM,
@@ -1137,15 +1260,28 @@ export class IdentityBackupApi {
       publicKeyHint,
       createdAt,
       lookupId,
+      ...(replacesLookupId ? { replacesLookupId } : {}),
     };
 
-    const status = await this.ctx.request<BackupStatusResponse>('POST', '/identity/backup', body, {
-      cache: false,
-    });
+    let status: BackupStatusResponse;
+    try {
+      status = await this.ctx.request<BackupStatusResponse>('POST', '/identity/backup', body, {
+        cache: false,
+      });
+    } catch (error) {
+      if (
+        extractErrorStatus(error) === 409 &&
+        (error as { code?: unknown } | null)?.code === IDENTITY_BACKUP_SUPERSEDED_CODE
+      ) {
+        throw new IdentityBackupSupersededError();
+      }
+      throw error;
+    }
     // Cleared only on the server's confirmation of THIS upload (R6-9): any
-    // failure, including a lost response, threw above and leaves it owed.
-    if (status?.exists === true && (await KeyManager.backupOwedFor()) === userId) {
-      await KeyManager.clearBackupOwed();
+    // failure, including a lost response, threw above and leaves it owed. Only
+    // this account's entry (R7-10).
+    if (status?.exists === true && owed !== null) {
+      await KeyManager.clearBackupOwed(userId);
     }
     return status;
   }
@@ -1173,14 +1309,16 @@ export class IdentityBackupApi {
     ownerAccountId: string,
     history: IdentityKeyHistory | null,
     method: string,
-  ): Promise<number> {
+  ): Promise<{ kept: number; bound: number; total: number }> {
     const { holdsRetiredRing, retireIdentityKey, quarantineRetiredIdentityKey } = await import(
       '../crypto/index'
     );
-    if (!(await holdsRetiredRing())) return 0;
     const named = new Set((history?.retired ?? []).map((entry) => entry.publicKey.toLowerCase()));
     const current = history?.publicKey?.toLowerCase() ?? null;
+    const total = keys.filter((key) => key.publicKey.toLowerCase() !== current).length;
+    if (!(await holdsRetiredRing())) return { kept: 0, bound: 0, total };
     let kept = 0;
+    let bound = 0;
     for (const key of keys) {
       const pair = { privateKey: key.privateKey, publicKey: key.publicKey };
       const id = key.publicKey.toLowerCase();
@@ -1189,8 +1327,11 @@ export class IdentityBackupApi {
         if (named.has(id)) {
           this.assertRestoreOwner(ownerAccountId);
           await retireIdentityKey(pair, { ownerAccountId });
+          bound += 1;
         } else {
-          await quarantineRetiredIdentityKey(pair);
+          // From a backup the phrase opened: never refused by the bound that
+          // keeps out a planted shared group (R7-5).
+          await quarantineRetiredIdentityKey(pair, undefined, { exempt: true });
         }
         kept += 1;
       } catch (error) {
@@ -1201,7 +1342,7 @@ export class IdentityBackupApi {
         );
       }
     }
-    return kept;
+    return { kept, bound, total };
   }
 
   /**
@@ -1216,7 +1357,7 @@ export class IdentityBackupApi {
     const userId = this.ctx.oxy.session.userId;
     if (!userId) return false;
     const { KeyManager } = await import('../crypto/index');
-    return (await KeyManager.backupOwedFor()) === userId;
+    return (await KeyManager.backupOwedEntry(userId)) !== null;
   }
 
   /**
@@ -1230,16 +1371,28 @@ export class IdentityBackupApi {
    */
   async readBeforeRotation(
     currentPhrase: () => Promise<string | null>,
-  ): Promise<{ existed: boolean; carried: BackupRetiredKey[] }> {
-    let existed: boolean;
+  ): Promise<{ existed: boolean; carried: BackupRetiredKey[]; replacesLookupId?: string }> {
+    let status: BackupStatusResponse;
     try {
-      existed = (await this.status()).exists;
+      status = await this.status();
     } catch (error) {
       throw new Error(
         `Your encrypted backup could not be checked, so your key was not rotated. Nothing changed. (${error instanceof Error ? error.message : 'unknown'})`,
       );
     }
-    if (!existed) return { existed, carried: [] };
+    const existed = status.exists;
+    if (!existed) {
+      // A backup an EARLIER rotation superseded (R7-2) stays superseded: its
+      // keys are in this device's ring when this device made that rotation,
+      // and the owed entry kept its acknowledgement for the next seal.
+      if (status.superseded !== true || isWeb()) return { existed, carried: [] };
+      const userId = this.ctx.oxy.session.userId;
+      const { KeyManager } = await import('../crypto/index');
+      const owed = userId ? await KeyManager.backupOwedEntry(userId) : null;
+      return owed?.supersededLookupId
+        ? { existed, carried: [], replacesLookupId: owed.supersededLookupId }
+        : { existed, carried: [] };
+    }
     let phrase: string | null;
     try {
       phrase = await currentPhrase();
@@ -1261,6 +1414,10 @@ export class IdentityBackupApi {
     }
     // 404: the account's backup is not this phrase's; it carries nothing of this key.
     if (!previous) return { existed, carried: [] };
+    // Its locator: the acknowledgement that replaces it once the swap has
+    // superseded it (R7-2), because its keys are carried.
+    const { RecoveryPhraseService } = await import('../crypto/index');
+    const { lookupId } = await RecoveryPhraseService.deriveBackupMaterial(phrase);
     const carried = [
       ...(previous.retiredKeys ?? []),
       {
@@ -1269,7 +1426,11 @@ export class IdentityBackupApi {
         retiredAt: Date.parse(previous.createdAt) || Date.now(),
       },
     ];
-    return { existed, carried: await healthyCarried(carried, null) };
+    return {
+      existed,
+      carried: await healthyCarried(carried, null),
+      replacesLookupId: lookupId.toLowerCase(),
+    };
   }
 
   /**
@@ -1381,6 +1542,18 @@ export class IdentityBackupApi {
     payload: BackupPayload & { superseded?: true },
     ownerAccountId: string,
   ): Promise<number> {
+    return (await this.keepCarriedRetiredKeysStrict(payload, ownerAccountId)).kept;
+  }
+
+  /**
+   * {@link keepCarriedRetiredKeys}, also saying how many keys there were to
+   * keep (the account's current key excluded), so a caller about to replace
+   * the backup they came from can tell "all kept" from "some failed".
+   */
+  private async keepCarriedRetiredKeysStrict(
+    payload: BackupPayload & { superseded?: true },
+    ownerAccountId: string,
+  ): Promise<{ kept: number; bound: number; total: number }> {
     const { KeyManager } = await import('../crypto/index');
     // The phrase opened the backup, but that does not make its keys the
     // signed-in account's (R6-10): each is bound to it only when the
@@ -1405,7 +1578,7 @@ export class IdentityBackupApi {
     if (payload.superseded) {
       keys.push({ privateKey: payload.privateKey, publicKey: payload.publicKey, retiredAt: 0 });
     }
-    if (keys.length === 0) return 0;
+    if (keys.length === 0) return { kept: 0, bound: 0, total: 0 };
     let history: IdentityKeyHistory | null = null;
     try {
       history = await this.readHistory();
@@ -1442,7 +1615,38 @@ export class IdentityBackupApi {
     this.assertRestoreOwner(ownerAccountId);
     const payload = await this.open(phrase, true);
     this.assertRestoreOwner(ownerAccountId);
-    return payload ? this.keepCarriedRetiredKeys(payload, ownerAccountId) : 0;
+    if (!payload) return 0;
+    const { kept, bound, total } = await this.keepCarriedRetiredKeysStrict(payload, ownerAccountId);
+    // The account's SUPERSEDED backup, every key of it now in the ring and
+    // bound to the account (R7-2), so the next backup carries each of them:
+    // this device may replace it. Its locator becomes the acknowledgement the
+    // next `create` sends. Only the account's own stored backup (its hint),
+    // and never when a key could not be kept or stays quarantined.
+    if (payload.superseded && total > 0 && bound === total && !isWeb()) {
+      try {
+        const status = await this.status();
+        const hint = status.publicKeyHint?.toLowerCase() ?? '';
+        if (
+          status.superseded === true &&
+          hint.length >= PUBLIC_KEY_HINT_LENGTH &&
+          payload.publicKey.toLowerCase().startsWith(hint)
+        ) {
+          const { KeyManager, RecoveryPhraseService } = await import('../crypto/index');
+          const { lookupId } = await RecoveryPhraseService.deriveBackupMaterial(phrase);
+          this.assertRestoreOwner(ownerAccountId);
+          await KeyManager.markBackupOwed(ownerAccountId, {
+            supersededLookupId: lookupId.toLowerCase(),
+          });
+        }
+      } catch (error) {
+        logger.warn(
+          'Could not record the previous backup as replaceable',
+          { component: 'oxy.identity', method: 'backup.restoreRetiredKeys' },
+          error,
+        );
+      }
+    }
+    return kept;
   }
 
   /**

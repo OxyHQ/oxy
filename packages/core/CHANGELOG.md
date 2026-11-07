@@ -1,5 +1,21 @@
 # Changelog — `@oxy.so/core`
 
+## 7.40.0
+
+Round-7 security review of the Peable mainnet identity receive: R7-2, R7-4 (core half), R7-5, R7-10, R7-11.
+
+### Security
+
+- **R7-2: a superseded backup's keys are kept before the swap, and it is replaced only with its acknowledgement.** `rotateKey` keeps every key the previous backup carries in the ring (bound when the key history names it, quarantined otherwise) BEFORE `POST /auth/rotate/complete`, and does not rotate when one cannot be kept. The previous backup's locator is kept in the owed entry and sent as `replacesLookupId` by the re-seal, and by a later `backup.create` when the re-seal failed. `backup.create(phrase, { previousPhrase })` opens a superseded backup with the previous phrase and carries its keys; `backup.restoreRetiredKeys(previousPhrase)` records the acknowledgement once every key of the account's superseded backup is bound in the ring. An unacknowledged upload throws `IdentityBackupSupersededError` (exported). `readBeforeRotation` returns `replacesLookupId`.
+- **R7-4: a key that cannot be read now is never "not this key".** With the `publicKey` selector, `KeyManager.deriveScopedSeed` and `signSocialReceive` resolve `null` only when the key is DEFINITIVELY not held, and throw `IdentityUnavailableError` when it may be: a keychain or ring read that failed, a listed key whose private half cannot be read, and on Android outside Commons an identity host that did not answer, or that lists (or describes as current) the key without using it (settled with `listRetiredKeys` + `describe`). `listRetiredIdentityKeys` throws `RetiredKeyRingUnreadableError` when Commons' host did not answer, instead of reading as empty. `getRetiredPrivateKeyStrict` / `getOrganizationPrivateKeyStrict` are the strict readers (internal).
+- **R7-5: a planted quarantine flood cannot stop re-validation or a rotation.** `MAX_QUARANTINED_RING_ENTRIES` (64) is per ring, with `MAX_QUARANTINED_RING_ENTRIES_TOTAL` (256) across rings. `quarantineRetiredIdentityKey(key, selector, { exempt: true })` is never refused by the bound: the rotation's held slot keys, organization re-validation and keys a phrase-opened backup carried use it. Quarantined entries whose private half is gone are dropped before a refusal. `revalidateHeldOrganizationKeys` no longer throws: an organization that fails stays pending and the others proceed.
+- **R7-10: one owed-backup entry per account.** `markBackupOwed(userId, { supersededLookupId? })`, `clearBackupOwed(userId?)` (without an id: every entry), `backupOwedEntry(userId)`, `restoreBackupOwed(userId, entry)`; the pre-7.40 value (a bare account id) reads as its account's entry. A refused rotation puts back what was owed before it instead of clearing. `isOwed` and the seal read and clear only the signed-in account's entry. `backupOwedFor()` answers any one owed account.
+- **R7-11: planted organization ids cost no network read.** Re-validation settles ids with no held pair (and malformed ids) locally in one write (`settleOrganizationRevalidations`), then asks Oxy about at most `MAX_REVALIDATIONS_PER_LAUNCH` (16) organizations per launch.
+
+### For Peable
+
+Treat `IdentityUnavailableError` (`error.name === 'IdentityUnavailableError'`) from `deriveScopedSeed` / `signSocialReceive` with `{ publicKey }`, and a throw from `listRetiredIdentityKeys`, as "cannot tell now": keep the payment's key as possibly held, show the wallet as locked or Commons as unavailable, retry later. Only `null` (or a list that answered) means the key is not on this device.
+
 ## 7.39.0
 
 Round-6 security review of the Peable mainnet identity receive: R6-3, R6-5, R6-8, R6-9, R6-10, R6-12, R6-14 and the dev-build note.

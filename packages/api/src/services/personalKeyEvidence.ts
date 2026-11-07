@@ -57,7 +57,7 @@ import { personalIdentityKeyRetirements } from '../db/schema/personalIdentityKey
 import { signedRecords } from '../db/schema/signedRecords';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users } from '../db/schema/users';
-import { organizationKeyEverUsed } from './organizationKeyHistory';
+import { lockIdentityKeys, organizationKeyEverUsed } from './organizationKeyHistory';
 
 /** The answer for one `(account, key)`. */
 export type PersonalKeyEvidence =
@@ -269,12 +269,20 @@ export async function backfillPersonalKeyRetirements(
       case 'proven': {
         report.proven += 1;
         if (!options.apply) break;
-        const inserted = await db
-          .insert(personalIdentityKeyRetirements)
-          .values({ userId, publicKey: canonical, retiredAt: evidence.lastSeenAt })
-          .onConflictDoNothing({ target: personalIdentityKeyRetirements.publicKey })
-          .returning({ id: personalIdentityKeyRetirements.id });
-        report.inserted += inserted.length;
+        // Decided again under the key's lock, in the insert's transaction (R7,
+        // info): a re-link between the read above and the insert would make a
+        // live key a retired one.
+        report.inserted += await db.transaction(async (tx) => {
+          await lockIdentityKeys(tx, canonical);
+          const locked = await personalKeyEvidence(tx, userId, canonical);
+          if (locked.kind !== 'proven') return 0;
+          const inserted = await tx
+            .insert(personalIdentityKeyRetirements)
+            .values({ userId, publicKey: canonical, retiredAt: locked.lastSeenAt })
+            .onConflictDoNothing({ target: personalIdentityKeyRetirements.publicKey })
+            .returning({ id: personalIdentityKeyRetirements.id });
+          return inserted.length;
+        });
         break;
       }
     }

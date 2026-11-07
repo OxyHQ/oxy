@@ -30,12 +30,19 @@ import { isValidSecp256k1PublicKey, normalizeSecp256k1PublicKey } from '@oxy.so/
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ConflictError, NotFoundError, UnauthorizedError, BadRequestError } from '../utils/error';
+import {
+  ApiError,
+  ConflictError,
+  NotFoundError,
+  UnauthorizedError,
+  BadRequestError,
+} from '../utils/error';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import {
   IDENTITY_BACKUP_MAX_VERSION,
+  IDENTITY_ERROR_CODES,
   backupUploadRequestSchema,
   backupLookupIdSchema,
   type BackupUploadRequest,
@@ -195,6 +202,14 @@ async function assertSealedUnderCurrentRoot(userId: string, publicKeyHint: strin
  * `IDENTITY_BACKUP_MAX_VERSION`. A stored row ABOVE that maximum was never
  * written by a client (an upload made before the bound existed), so it never
  * blocks a legitimate upload: it is replaced like an older version.
+ *
+ * Never over a SUPERSEDED backup without its acknowledgement (R7-2): a backup
+ * a key rotation kept carries the person's retired keys under the previous
+ * phrase, and the new phrase cannot open it. An upload replaces it only with
+ * `replacesLookupId`, the superseded backup's own locator (its sha256 must be
+ * the stored hash), which only a client that opened it (or carried its keys at
+ * the rotation) holds. Otherwise 409 `IDENTITY_BACKUP_SUPERSEDED`, with the
+ * stored backup kept. Part of the same upsert statement.
  */
 router.post(
   '/',
@@ -230,9 +245,17 @@ router.post(
         .onConflictDoUpdate({
           target: identityBackups.userId,
           set: stored,
-          setWhere: or(
-            lte(identityBackups.version, body.version),
-            gt(identityBackups.version, IDENTITY_BACKUP_MAX_VERSION),
+          setWhere: and(
+            or(
+              lte(identityBackups.version, body.version),
+              gt(identityBackups.version, IDENTITY_BACKUP_MAX_VERSION),
+            ),
+            body.replacesLookupId === undefined
+              ? isNull(identityBackups.supersededAt)
+              : or(
+                  isNull(identityBackups.supersededAt),
+                  eq(identityBackups.lookupIdHash, lookupIdHashOf(body.replacesLookupId)),
+                ),
           ),
         })
         .returning({
@@ -240,7 +263,20 @@ router.post(
           clientCreatedAt: identityBackups.clientCreatedAt,
         });
       if (!row) {
-        // The caller's row exists and holds a NEWER envelope version.
+        // The caller's row exists and the guard kept it: superseded without
+        // its acknowledgement, or a NEWER envelope version.
+        const [kept] = await getDb()
+          .select({ supersededAt: identityBackups.supersededAt })
+          .from(identityBackups)
+          .where(eq(identityBackups.userId, userId))
+          .limit(1);
+        if (kept?.supersededAt) {
+          throw new ApiError(
+            409,
+            'Your previous backup holds keys from before your last key change: open it with your previous recovery phrase first.',
+            IDENTITY_ERROR_CODES.backupSuperseded,
+          );
+        }
         throw new ConflictError(
           'A newer version of the app wrote this backup. Update the app to replace it.',
         );
@@ -270,7 +306,10 @@ router.post(
 /**
  * GET /identity/backup/status — whether the caller has a backup of its CURRENT
  * root, plus the non-sensitive hint + timestamp when one exists. No ciphertext,
- * no locator. A backup a key rotation superseded (R6-8) reads as none.
+ * no locator. A backup a key rotation superseded (R6-8) is not one of the
+ * current root (`exists: false`), and is told apart from none (R7-2):
+ * `superseded: true` with its hint and timestamp, so the client knows a new
+ * backup must acknowledge it.
  */
 router.get(
   '/status',
@@ -285,16 +324,25 @@ router.get(
       .select({
         publicKeyHint: identityBackups.publicKeyHint,
         clientCreatedAt: identityBackups.clientCreatedAt,
+        supersededAt: identityBackups.supersededAt,
       })
       .from(identityBackups)
-      // A superseded backup (R6-8) holds a retired root: the account's CURRENT
-      // key has no backup, so the client is asked to create one.
-      .where(and(eq(identityBackups.userId, userId), isNull(identityBackups.supersededAt)))
+      .where(eq(identityBackups.userId, userId))
       .limit(1);
 
-    const payload: BackupStatusResponse = row
-      ? { exists: true, publicKeyHint: row.publicKeyHint, createdAt: row.clientCreatedAt }
-      : { exists: false };
+    // A superseded backup (R6-8) holds a retired root: the account's CURRENT
+    // key has no backup, so the client is asked to create one, acknowledging
+    // the superseded one (R7-2).
+    const payload: BackupStatusResponse = !row
+      ? { exists: false }
+      : row.supersededAt
+        ? {
+            exists: false,
+            superseded: true,
+            publicKeyHint: row.publicKeyHint,
+            createdAt: row.clientCreatedAt,
+          }
+        : { exists: true, publicKeyHint: row.publicKeyHint, createdAt: row.clientCreatedAt };
     res.status(200).json(payload);
   }),
 );

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Button } from '@oxy.so/bloom/button';
 import { toast } from '@oxy.so/bloom/toast';
@@ -24,6 +25,7 @@ import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { Icons } from '@/constants/icons';
 import { RECOVERY_PHRASE_LENGTH } from '@/constants/auth';
+import { BACKUP_OWED_QUERY_KEY } from '@/hooks/identity/useBackupOwed';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { readPastedPhrase, WRONG_WORD_COUNT_KEY } from '@/lib/recovery-phrase/paste';
@@ -47,6 +49,7 @@ export default function PreviousKeysScreen() {
   const colors = useColors();
   const { t } = useTranslation();
   const { oxyServices } = useOxy();
+  const queryClient = useQueryClient();
   const [held, setHeld] = useState<RetiredIdentityKey[] | null>(null);
   const [words, setWords] = useState<string[]>(() => new Array(RECOVERY_PHRASE_LENGTH).fill(''));
   const [problem, setProblem] = useState<string | null>(null);
@@ -118,6 +121,8 @@ export default function PreviousKeysScreen() {
         return;
       }
       if (!ownerAccountId) return;
+      // The previous phrase also opens the backup a rotation superseded (R7-2).
+      const previousPhrase = mode === 'phrase' ? words.join(' ') : undefined;
       await retireIdentityKey(key, { ownerAccountId });
       await syncRetiredKeys(ownerAccountId);
       setWords(new Array(RECOVERY_PHRASE_LENGTH).fill(''));
@@ -125,13 +130,19 @@ export default function PreviousKeysScreen() {
       toast.success(t('previousKeys.added'));
       await refresh();
       // Re-seal the encrypted backup so it carries this key too (R4-4). Only
-      // when the person has one and this phone holds the current phrase.
+      // when the person has one and this phone holds the current phrase. A
+      // backup a rotation superseded is replaced only when the phrase just
+      // added is the one that opens it (its keys are then carried; R7-2).
       try {
         const [status, phrase] = await Promise.all([
           oxyServices.identity.backup.status(),
           KeyManager.getRecoveryMnemonic(),
         ]);
-        if (status.exists && phrase) await oxyServices.identity.backup.create(phrase);
+        if (phrase && status.exists) await oxyServices.identity.backup.create(phrase);
+        else if (phrase && status.superseded && previousPhrase) {
+          await oxyServices.identity.backup.create(phrase, { previousPhrase });
+          void queryClient.invalidateQueries({ queryKey: BACKUP_OWED_QUERY_KEY });
+        }
       } catch {
         toast.error(t('previousKeys.backupNotUpdated'));
       }
@@ -140,7 +151,7 @@ export default function PreviousKeysScreen() {
     } finally {
       setWorking(false);
     }
-  }, [mode, oxyServices, ownerAccountId, privateKeyText, refresh, t, words]);
+  }, [mode, oxyServices, ownerAccountId, privateKeyText, queryClient, refresh, t, words]);
 
   const complete =
     mode === 'phrase'

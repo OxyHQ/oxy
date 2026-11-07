@@ -108,6 +108,17 @@ export const backupUploadRequestSchema = backupEnvelopeFields.extend({
    * DB dump therefore cannot recompute a locator to enumerate backups.
    */
   lookupId: backupLookupIdSchema,
+  /**
+   * The raw locator of a SUPERSEDED backup this upload replaces (security
+   * review R7-2). A key rotation keeps the previous backup, marked superseded,
+   * because it carries the person's retired keys under the previous phrase; an
+   * upload replaces it only with this acknowledgement, which proves the client
+   * opened it (or carried its keys at the rotation): its sha256 must be the
+   * stored backup's. Without it, or with any other locator, an upload over a
+   * superseded backup is refused (409 `IDENTITY_BACKUP_SUPERSEDED`). Ignored
+   * when the stored backup is current or there is none.
+   */
+  replacesLookupId: backupLookupIdSchema.optional(),
 });
 
 export type BackupUploadRequest = z.infer<typeof backupUploadRequestSchema>;
@@ -119,6 +130,13 @@ export type BackupUploadRequest = z.infer<typeof backupUploadRequestSchema>;
  */
 export const backupStatusResponseSchema = z.object({
   exists: z.boolean(),
+  /**
+   * `true` when the stored backup is one a key rotation SUPERSEDED (R6-8,
+   * R7-2): `exists` is `false` (the current key has no backup), and
+   * `publicKeyHint` / `createdAt` describe the superseded one. A new backup
+   * replaces it only with `replacesLookupId`. Absent otherwise.
+   */
+  superseded: z.boolean().optional(),
   publicKeyHint: z.string().optional(),
   createdAt: z.string().optional(),
 });

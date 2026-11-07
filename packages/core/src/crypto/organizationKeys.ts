@@ -49,6 +49,7 @@ import { isAndroid, isIOS, isWeb } from '../utils/platform';
 import { registeredIdentitySignerStore } from './identitySigner';
 import {
   pendingOrganizationRevalidation,
+  settleOrganizationRevalidations,
   prepareKeychainAccess,
   settleOrganizationRevalidation,
 } from './keychainGroupMigration';
@@ -354,6 +355,17 @@ export async function getOrganizationPublicKey(accountId: string): Promise<strin
  * platforms) and, on iOS, the Peable wallet through the wallet keychain group.
  * `null` everywhere else. Use it to sign within the app only; never transmit it.
  */
+/**
+ * {@link getOrganizationPrivateKey} that never turns a failed read into "no
+ * key" (security review R7-4): `null` only when the read succeeded and found
+ * none; a keychain error propagates. @internal — `KeyManager`'s `publicKey`
+ * selector.
+ */
+export async function getOrganizationPrivateKeyStrict(accountId: string): Promise<string | null> {
+  if (!isOrganizationAccountId(accountId)) return null;
+  return (await readLocalPair(accountId))?.privateKey ?? null;
+}
+
 export async function getOrganizationPrivateKey(accountId: string): Promise<string | null> {
   if (!isOrganizationAccountId(accountId)) return null;
   try {
@@ -456,34 +468,73 @@ export async function revalidateHeldOrganizationKeys(
   readPublished: OrganizationPublishedKeyReader,
 ): Promise<number> {
   if (!isIOS()) return 0;
-  let quarantined = 0;
-  for (const accountId of await pendingOrganizationRevalidation()) {
+  const pending = await pendingOrganizationRevalidation();
+  if (pending.length === 0) return 0;
+  // First, with no network read (R7-11): an id that is not an organization's,
+  // or for which this device holds no pair, has nothing to check. A planted
+  // list of invented ids settles here, in one write.
+  const store = await pairStore();
+  const toCheck: string[] = [];
+  const nothingToCheck: string[] = [];
+  for (const accountId of pending) {
     if (!isOrganizationAccountId(accountId)) {
-      await settleOrganizationRevalidation(accountId);
+      nothingToCheck.push(accountId);
       continue;
     }
-    let published: string | null;
+    let held: string | null;
     try {
-      const answer = (await readPublished(accountId)).publicKey;
-      published = answer ? normalizeSecp256k1PublicKey(answer.trim()) : null;
+      held = await heldPrivateKey(store, accountId);
     } catch {
+      // Unreadable now: a later launch asks again.
       continue;
     }
-    const store = await pairStore();
-    const held = await heldPrivateKey(store, accountId);
-    const heldPublic = held ? deriveSecp256k1PublicKey(held) : null;
-    if (held && heldPublic && heldPublic !== published) {
-      await quarantineRetiredIdentityKey(
-        { privateKey: held, publicKey: heldPublic },
-        { accountId },
-      );
-      await removeLivePair(accountId);
-      quarantined += 1;
+    if (held) toCheck.push(accountId);
+    else nothingToCheck.push(accountId);
+  }
+  if (nothingToCheck.length > 0) await settleOrganizationRevalidations(nothingToCheck);
+
+  // Then at most MAX_REVALIDATIONS_PER_LAUNCH reads of the published key; the
+  // rest wait for the next launch. One organization that fails (offline, not
+  // an owner, a keychain error) stays pending and never stops the others.
+  let quarantined = 0;
+  for (const accountId of toCheck.slice(0, MAX_REVALIDATIONS_PER_LAUNCH)) {
+    try {
+      let published: string | null;
+      try {
+        const answer = (await readPublished(accountId)).publicKey;
+        published = answer ? normalizeSecp256k1PublicKey(answer.trim()) : null;
+      } catch {
+        continue;
+      }
+      const held = await heldPrivateKey(store, accountId);
+      const heldPublic = held ? deriveSecp256k1PublicKey(held) : null;
+      if (held && heldPublic && heldPublic !== published) {
+        // A pair this device held: kept whatever a planted shared group put
+        // in the quarantine (R7-5).
+        await quarantineRetiredIdentityKey(
+          { privateKey: held, publicKey: heldPublic },
+          { accountId },
+          { exempt: true },
+        );
+        await removeLivePair(accountId);
+        quarantined += 1;
+      }
+      await settleOrganizationRevalidation(accountId);
+    } catch (error) {
+      logger.warn('Could not re-validate a held organization key; it stays pending', {
+        component: 'OrganizationKeys',
+        error: error instanceof Error ? error.name : 'unknown',
+      });
     }
-    await settleOrganizationRevalidation(accountId);
   }
   return quarantined;
 }
+
+/**
+ * How many organizations {@link revalidateHeldOrganizationKeys} asks Oxy about
+ * in one launch (R7-11). A real device holds a handful of organization keys.
+ */
+export const MAX_REVALIDATIONS_PER_LAUNCH = 16;
 
 /** Remove an organization's live pair, its Android mirror and its index entry; its phrase stays. */
 async function removeLivePair(accountId: string): Promise<void> {

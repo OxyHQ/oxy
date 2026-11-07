@@ -893,6 +893,23 @@ export async function settleOrganizationRevalidation(accountId: string): Promise
   return context.mover.write(RECORD_SLOT, JSON.stringify(next));
 }
 
+/**
+ * Drop every id in `accountIds` from the pending re-validation list in ONE
+ * write (R7-11): the ids with nothing to check. Resolves whether the record
+ * was rewritten (or had nothing to drop). @internal
+ */
+export async function settleOrganizationRevalidations(
+  accountIds: readonly string[],
+): Promise<boolean> {
+  const context = await holderRecordContext();
+  const drop = new Set(accountIds);
+  if (!context?.record.revalidate?.some((id) => drop.has(id))) return true;
+  const revalidate = context.record.revalidate.filter((id) => !drop.has(id));
+  const { revalidate: _done, ...rest } = context.record;
+  const next: CompletionRecord = revalidate.length > 0 ? { ...rest, revalidate } : rest;
+  return context.mover.write(RECORD_SLOT, JSON.stringify(next));
+}
+
 /** Commons' settled v2 record, with the mover to rewrite it; `null` elsewhere. */
 async function holderRecordContext(): Promise<{ mover: Mover; record: CompletionRecord } | null> {
   const access = await resolveKeychainAccess();
