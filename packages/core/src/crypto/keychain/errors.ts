@@ -69,8 +69,10 @@ export type KeychainIntegrityReason =
   | 'wrap'
   /** An item that does not decrypt, or is not in the keychain's format. */
   | 'item'
-  /** An item whose counter is lower than one this device already saw. */
+  /** An item whose counter is lower than one this device already saw, or a deleted one back. */
   | 'counter'
+  /** Oxy left out a change it announced, or an item this device knows (full sync). */
+  | 'incomplete'
   /** An enrollment that is not the one this device made or opened. */
   | 'enrollment'
   /** An answer to a write that does not reflect the write. */

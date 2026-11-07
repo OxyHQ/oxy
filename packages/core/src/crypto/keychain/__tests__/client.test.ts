@@ -476,6 +476,85 @@ describe('KeychainClient', () => {
     expect(past.reason).toBe('rollback');
   });
 
+  it('refuses a pull that leaves out the newest change, and a full sync recovers an omitted one', async () => {
+    const server = new FakeKeychainServer();
+    const a = await device(server, 'a');
+    const b = await device(server, 'b');
+    await createVault(a);
+    await join(a, b);
+    const x = await a.client.putItem(login('x'));
+    const y = await a.client.putItem(login('y'));
+
+    // An empty answer that claims the vault moved on.
+    server.views.items = () => [];
+    const saves = b.store.saves;
+    const skipped = await refusal<KeychainIntegrityError>(b.client.sync());
+    expect(skipped.reason).toBe('incomplete');
+    expect(b.store.saves).toBe(saves);
+
+    // An older change left out (indistinguishable from one rewritten later)...
+    server.views.items = (items) => items.filter((i) => i.id !== x.item.id);
+    expect((await b.client.sync()).items).toEqual([y.item]);
+    server.views.items = undefined;
+    expect((await b.client.sync()).items).toEqual([]);
+    // ...comes back with a full sync once Oxy answers honestly.
+    const full = await b.client.sync({ full: true });
+    expect(full.items.map((i) => i.id).sort()).toEqual([x.item.id, y.item.id].sort());
+
+    // A full sync refuses an answer without an item this device knows.
+    server.views.items = (items) => items.filter((i) => i.id !== x.item.id);
+    const hidden = await refusal<KeychainIntegrityError>(b.client.sync({ full: true }));
+    expect(hidden.reason).toBe('incomplete');
+  });
+
+  it('a deleted item never comes back, even to a device that only saw its deletion', async () => {
+    const server = new FakeKeychainServer();
+    const a = await device(server, 'a');
+    const b = await device(server, 'b');
+    const c = await device(server, 'c');
+    await createVault(a);
+    await join(a, b);
+    const { item } = await a.client.putItem(login('gone'));
+    await b.client.sync();
+    const live = {
+      ...(server.items.get(item.id) as NonNullable<ReturnType<typeof server.items.get>>),
+    };
+    await a.client.deleteItem(item.id);
+    await b.client.sync();
+    await join(a, c, 'Tablet');
+    expect(await c.client.sync()).toMatchObject({ items: [], deleted: [item.id] });
+
+    const replay = () => {
+      const vault = server.vault as NonNullable<typeof server.vault>;
+      vault.revision += 1;
+      server.items.set(item.id, { ...live, revision: vault.revision });
+    };
+    replay();
+    expect((await refusal<KeychainIntegrityError>(b.client.sync())).reason).toBe('counter');
+    expect((await refusal<KeychainIntegrityError>(c.client.sync())).reason).toBe('counter');
+
+    const reuse = await refusal<KeychainStateError>(
+      a.client.putItem({ ...login('again'), id: item.id }),
+    );
+    expect(reuse.reason).toBe('not_found');
+  });
+
+  it('a write that meets another device deletion is kept under a new id', async () => {
+    const server = new FakeKeychainServer();
+    const a = await device(server, 'a');
+    const b = await device(server, 'b');
+    await createVault(a);
+    await join(a, b);
+    const { item } = await a.client.putItem(login('one'));
+    await b.client.sync();
+    await a.client.deleteItem(item.id);
+    const kept = await b.client.putItem({ ...login('edited'), id: item.id });
+    expect(kept.deletedId).toBe(item.id);
+    expect(kept.item.id).not.toBe(item.id);
+    expect(kept.item).toMatchObject({ password: 'edited', counter: 1 });
+    expect((await a.client.sync()).items).toEqual([kept.item]);
+  });
+
   it('merges a conflicting write: the last writer wins and nothing is dropped', async () => {
     const server = new FakeKeychainServer();
     const a = await device(server, 'a');

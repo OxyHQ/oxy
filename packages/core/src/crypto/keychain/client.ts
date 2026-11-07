@@ -249,6 +249,11 @@ export interface KeychainWriteResult {
    * its password, when different, is kept in `passwordHistory`.
    */
   superseded: KeychainItem | null;
+  /**
+   * Set when another device deleted the item while this write was made: the
+   * write is kept as a new item (`item.id`), and this is the deleted id.
+   */
+  deletedId: string | null;
 }
 
 export interface KeychainDeleteResult {
@@ -1271,24 +1276,32 @@ export class KeychainClient {
   /**
    * Pull every change since this device's revision, verify and decrypt it, and
    * return the items. Nothing is kept unless the whole pull verified.
+   *
+   * With `full`, read the whole vault again from revision 0 and reconcile it
+   * with what this device knows: every item it knows must be there, at its
+   * revision or a newer one. Oxy can delay a change (it cannot forge or roll
+   * one back), and an incremental sync would not ask again for one it left
+   * out; a full sync recovers it once Oxy answers honestly. Run one at launch
+   * and now and then. `items` and `deleted` are then the whole vault.
    */
-  sync(): Promise<KeychainSyncResult> {
+  sync(options: { full?: boolean } = {}): Promise<KeychainSyncResult> {
     return this.exclusive(async () => {
       const session = await this.openSession();
       try {
-        return await this.pull(session);
+        return await this.pull(session, options.full === true);
       } finally {
         this.release(session);
       }
     });
   }
 
-  private async pull(session: Session): Promise<KeychainSyncResult> {
+  private async pull(session: Session, full = false): Promise<KeychainSyncResult> {
     const { record, keyring } = session;
     const cursors: Record<string, KeychainItemCursor> = { ...record.items };
     const changed = new Map<string, KeychainItem>();
     const deleted = new Set<string>();
-    let since = record.revision;
+    const seen = new Set<string>();
+    let since = full ? 0 : record.revision;
     let revision: number;
     for (;;) {
       const page = await this.api.items.list({ since, limit: KEYCHAIN_LIMITS.maxItemsPage });
@@ -1298,6 +1311,7 @@ export class KeychainClient {
       let last = since;
       for (const wire of page.items) {
         this.acceptItem(session, wire, last, page.revision, keyring, cursors, changed, deleted);
+        seen.add(wire.id);
         last = wire.revision;
       }
       if (page.more) {
@@ -1306,9 +1320,18 @@ export class KeychainClient {
         since = last;
         continue;
       }
-      if (page.revision < last) throw integrity('rollback')('an item is newer than the vault');
+      // The newest write still holds the vault's newest revision (nothing
+      // rewrote it after), so an honest last page ends with it.
+      if (page.revision > since && last !== page.revision) {
+        throw integrity('incomplete')('Oxy left out the newest change it announced');
+      }
       revision = page.revision;
       break;
+    }
+    if (full) {
+      for (const id of Object.keys(record.items)) {
+        if (!seen.has(id)) throw integrity('incomplete')('Oxy left out an item this device knows');
+      }
     }
     await this.store.save({ ...this.advanced(session), revision, items: cursors });
     return { items: [...changed.values()], deleted: [...deleted], revision };
@@ -1329,6 +1352,9 @@ export class KeychainClient {
       throw integrity('rollback')('the items are not in revision order');
     }
     const known = cursors[wire.id];
+    if (known && wire.revision < known.revision) {
+      throw integrity('rollback')('an item is at an older revision than this device saw');
+    }
     if (wire.deletedAt !== null) {
       if (wire.nonce !== null || wire.ciphertext !== null) {
         throw integrity('item')('a deleted item carries a ciphertext');
@@ -1344,6 +1370,11 @@ export class KeychainClient {
     }
     if (wire.nonce === null || wire.ciphertext === null) {
       throw integrity('item')('an item carries no ciphertext');
+    }
+    if (known?.deleted) {
+      // A deleted id is never written again (`putItem`), so a live copy of it
+      // is an old ciphertext served again.
+      throw integrity('counter')('a deleted item came back');
     }
     let item: KeychainItem;
     try {
@@ -1375,20 +1406,26 @@ export class KeychainClient {
    */
   putItem(draft: KeychainItemDraft): Promise<KeychainWriteResult> {
     return this.exclusive(async () => {
-      const id = draft.id ?? randomUuid();
+      let id = draft.id ?? randomUuid();
       if (!isLowercaseUuid(id)) throw new KeychainFormatError('an item id is a lowercase uuid');
       let session = await this.openSession();
       let superseded: KeychainItem | null = null;
+      let deletedId: string | null = null;
       let content: KeychainItemDraft = draft;
       try {
         for (let attempt = 1; ; attempt += 1) {
           const { record, keyring } = session;
-          const cursor = record.items[id];
-          if (cursor?.deleted && cursor.counter === null) {
-            throw new KeychainStateError(
-              'not_found',
-              'that item was deleted before this device saw it',
-            );
+          let cursor: KeychainItemCursor | undefined = record.items[id];
+          if (cursor?.deleted) {
+            // An item id is never written again after its deletion (a device
+            // refuses a deleted item coming back). A write that met another
+            // device's deletion is kept under a new id instead of dropped.
+            if (attempt === 1) {
+              throw new KeychainStateError('not_found', 'that item was deleted');
+            }
+            deletedId = deletedId ?? id;
+            id = randomUuid();
+            cursor = undefined;
           }
           const now = keychainTimestamp(this.now());
           const createdAt = content.createdAt ?? now;
@@ -1426,7 +1463,7 @@ export class KeychainClient {
                 [id]: { revision: written.revision, counter: item.counter, deleted: false },
               },
             });
-            return { item, superseded };
+            return { item, superseded, deletedId };
           } catch (error) {
             if (apiCode(error) !== KEYCHAIN_ERROR_CODES.itemConflict) throw error;
             if (attempt >= MAX_WRITE_ATTEMPTS) {

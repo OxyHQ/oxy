@@ -304,8 +304,8 @@ request to join waits.
 | `requestToJoin()`, `revealWhenOpened()`, `completeJoin()`, `cancelJoin()` | The new device: commits (`POST /enrollments`), reveals its nonce once a member posted its own, returns the six-digit code, then becomes a member when the approval lands (opens its wrap, pins the roster it trusted when it asked) |
 | `listJoinRequests()`, `openJoinRequest(id)`, `joinRequestCode(id)`, `approveJoinRequest(id, { codeConfirmed: true })`, `denyJoinRequest(id)` | The approving member: pins the requested member and commitment BEFORE posting its nonce, checks the revealed nonce opens that commitment, shows the code, and appends `add` plus the new member's wrap only with the person's confirmation. The open request lives in this client's memory |
 | `joinWithRecoveryKey(text, { deviceName, platform })` | Checks the derived recovery keys are the roster's, opens the recovery wrap (signer checked against the roster), appends `add` and the device's wrap, both signed by the recovery key |
-| `sync()` → `{ items, deleted, revision }` | Pulls every page since the stored revision; refuses an item out of revision order, one that does not decrypt or is not the id asked for, and one whose counter is lower than one seen; keeps nothing unless the whole pull verified |
-| `putItem(draft)` → `{ item, superseded }`, `deleteItem(id)` → `{ id, superseded }` | Brings the keyring to the roster's newest generation first (fetching and checking the device's new wrap), writes with `baseRevision`; on `409` re-reads, keeps the higher counter and writes again: the last writer wins per item and the version it replaced is returned (a login's different password goes into `passwordHistory`). After four tries, `KeychainConflictError` |
+| `sync({ full? })` → `{ items, deleted, revision }` | Pulls every page since the stored revision; refuses an item out of revision order or at an older revision than seen, one that does not decrypt or is not the id asked for, one whose counter is lower than one seen, a deleted item coming back, and a last page that does not end with the revision it announces (the newest write always holds it); keeps nothing unless the whole pull verified. `full` reads from revision 0 and requires every item the device knows: run it at launch and now and then |
+| `putItem(draft)` → `{ item, superseded }`, `deleteItem(id)` → `{ id, superseded }` | Brings the keyring to the roster's newest generation first (fetching and checking the device's new wrap), writes with `baseRevision`; on `409` re-reads, keeps the higher counter and writes again: the last writer wins per item and the version it replaced is returned (a login's different password goes into `passwordHistory`). An item id is never written again after its deletion: `putItem` on a deleted id is refused, and a write that met another device's deletion is kept under a new id (`deletedId` names the deleted one). After four tries, `KeychainConflictError` |
 | `removeMember(id)`, `sweepOrphans()` | `remove` + `generation` per member (a device never removes itself: it leaves by signing out), a rotated keyring, wraps for every remaining member and `recovery`, one request; retried on `409 KEYCHAIN_ROSTER_CONFLICT` |
 | `replaceRecoveryKey()` → `{ recoveryKey }` | Shown once; on `confirmRecoveryKey(text)`: `recovery` + `generation` and wraps for every member and the new key |
 | `reset(proof)`, `forget()` | `DELETE /keychain` with the re-verification, then the store is cleared; `forget` clears only this device (after `removed`, `orphaned`, `vault_gone`, or when the account leaves the device) |
@@ -315,9 +315,16 @@ against the pinned genesis hash and head (`KeychainIntegrityError` with reason
 `fork`, `rollback` or `genesis_mismatch`, shown as a warning), Oxy's vault
 summary against it (`summary`), wraps against the roster and a new keyring
 against the generations held (`wrap`), items (`item`, `counter`), enrollments
-(`enrollment`) and the answer to every write (`answer`). An integrity error
+(`enrollment`), a pull that leaves out what it announces (`incomplete`) and the
+answer to every write (`answer`). An integrity error
 writes nothing, to the store or to Oxy; the next call verifies again from the
 pinned head, so a device does not write to a forked vault until it is resolved.
+What the protocol cannot prevent is delay: Oxy can leave out a change that a
+later write of the same item would also explain, since item revisions are not
+signed; it cannot forge one or roll one back. An incremental sync does not ask
+again below its revision, so the full sync is the repair once Oxy answers
+honestly.
+
 A state that does not allow the operation is `KeychainStateError` (`reason`:
 `no_vault`, `not_member`, `removed`, `orphaned`, `vault_gone`,
 `recovery_key_mismatch`, `code_not_confirmed`, …). Operations of one client run
