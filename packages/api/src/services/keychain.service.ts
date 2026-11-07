@@ -324,9 +324,16 @@ export async function readOwnWrap(
   const db = getDb();
   const vault = await readVault(db, accountId);
   if (!vault) throw noVault();
-  const member = await requireMember(db, vault.id, deviceSessionId);
-  const wrap = await wrapFor(db, vault.id, member.memberId);
-  if (!wrap) throw notMember();
+  // Answered 404, not 403: there is no wrap for this device (keychain.md).
+  const member = await memberOfSession(db, vault.id, deviceSessionId);
+  const wrap = member ? await wrapFor(db, vault.id, member.memberId) : null;
+  if (!wrap) {
+    throw new ApiError(
+      404,
+      'This device is not one of the keychain’s devices.',
+      KEYCHAIN_ERROR_CODES.notMember,
+    );
+  }
   return wrap;
 }
 

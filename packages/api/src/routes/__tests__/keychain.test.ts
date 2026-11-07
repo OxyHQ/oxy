@@ -728,7 +728,7 @@ describe('enrollment', () => {
   it('serves nothing to a device whose session is not the member’s', async () => {
     actAs(OWNER, SESSION_B);
     const wrapRes = await call('GET', '/keychain/wrap');
-    expect(wrapRes.status).toBe(403);
+    expect(wrapRes.status).toBe(404);
     expect(wrapRes.body.error).toBe('KEYCHAIN_NOT_MEMBER');
     const items = await call('GET', '/keychain/items');
     expect(items.status).toBe(403);
@@ -945,7 +945,7 @@ describe('POST /keychain/roster', () => {
       .where(and(eq(keychainWraps.vaultId, vault.vaultId), eq(keychainWraps.recipient, B.id)));
     expect(wrapB).toEqual([]);
     actAs(OWNER, SESSION_B);
-    expect((await call('GET', '/keychain/wrap')).status).toBe(403);
+    expect((await call('GET', '/keychain/wrap')).status).toBe(404);
   });
 
   it('refuses a wrap for a removed member in the rotation', async () => {
@@ -1174,7 +1174,7 @@ describe('lifecycle', () => {
     const state = await call('GET', '/keychain');
     expect(state.body.data.members).toEqual([{ id: A.id, orphaned: true, removed: false }]);
     expect(state.body.data.self).toBeNull();
-    expect((await call('GET', '/keychain/wrap')).status).toBe(403);
+    expect((await call('GET', '/keychain/wrap')).status).toBe(404);
     expect((await call('GET', '/keychain/items')).status).toBe(403);
   });
 
