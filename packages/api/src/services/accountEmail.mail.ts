@@ -122,6 +122,7 @@ const REAUTH_ACTION_TEXT: Record<ReauthAction, string> = {
   credentials_manage: 'manage autonomous credentials for an account you govern',
   supervision: 'confirm a supervised-account safety change',
   supervision_purchase: 'decide the exact purchase requested by a supervised account',
+  reset_keychain: 'RESET your Oxy Keychain, deleting every password and passkey in it',
 };
 
 /** A code a signed-in person enters to confirm ONE named sensitive change. */

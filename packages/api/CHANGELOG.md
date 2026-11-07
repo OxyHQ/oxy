@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### The Oxy Keychain, step 1: the server (ADR 0063)
+
+- Six tables (`keychain_vaults`, `keychain_roster_entries`, `keychain_members`, `keychain_wraps`, `keychain_items`, `keychain_enrollments`; migration 0242), all under the vault and the vault under the account (`ON DELETE CASCADE`); a member's device session is `ON DELETE SET NULL` (orphaned, served nothing). Enrollments are swept a day after they expire.
+- Routes under `/keychain` (`docs/identity/keychain.md`): the vault and its signed roster, wraps, enrollments with a compared code, items synced by revision with tombstones, and the reset. Every route is a personal account acting as itself through a device session, first-party or the platform's `host.self` token. The server verifies the roster's JCS bodies, Ed25519 signatures, chain and signer rules, the wraps and the enrollment commitment on every write, in one transaction under the vault's lock.
+- `DELETE /keychain` needs a fresh `reset_keychain` re-verification, or, on an account with a linked root, a one-use root proof (`keychain_reset`, from `POST /identity/proof-challenge`).
+- Account deletion deletes the keychain too (an archived account keeps its row, so the cascade alone would not).
+
 ### Device sign-ins handed to third parties before #2215 are ended (owner step)
 
 - `scripts/revoke-third-party-device-signins.ts` (dry run unless `--apply`; `--auth-sessions-only` for the precise record alone; prints counts only) finds every device (QR) sign-in a non-official application received before #2215 (claimed `auth_sessions`, and, since those are swept an hour after their deadline, the `"<application> App"` session and `device_added` trail entry every approval wrote; a label an official application also produces is skipped) and ends its claim-only device: every account signed out of it, its restore secrets, join codes and background secret revoked, its sessions ended and announced, one `device_removed` entry on each affected account's security trail. Idempotent. Run as a one-off task from the API image.

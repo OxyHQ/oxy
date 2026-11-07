@@ -346,3 +346,47 @@ export {
 export type { CampaignAttribution } from './campaignAttribution';
 
 export { isLanguageTag } from './language';
+
+export {
+  KEYCHAIN_PLATFORMS,
+  KEYCHAIN_ROSTER_OPS,
+  KEYCHAIN_ENROLLMENT_STATUSES,
+  KEYCHAIN_RECOVERY,
+  KEYCHAIN_DOMAINS,
+  KEYCHAIN_LIMITS,
+  KEYCHAIN_ERROR_CODES,
+  KEYCHAIN_ID_PATTERN,
+  KEYCHAIN_BYTES32_PATTERN,
+  KEYCHAIN_NONCE_PATTERN,
+  KEYCHAIN_SIGNATURE_PATTERN,
+  KEYCHAIN_BASE64URL_PATTERN,
+  KEYCHAIN_HASH_PATTERN,
+  keychainStateResponseCheck,
+  keychainWrapResponseCheck,
+  keychainEnrollmentResponseCheck,
+  keychainEnrollmentsResponseCheck,
+  keychainItemResponseCheck,
+  keychainItemsResponseCheck,
+} from './keychain';
+export type {
+  KeychainPlatform,
+  KeychainRosterOp,
+  KeychainEnrollmentStatus,
+  KeychainErrorCode,
+  KeychainMember,
+  KeychainRecoveryKeys,
+  KeychainRosterBody,
+  KeychainSignature,
+  KeychainEntry,
+  KeychainWrap,
+  KeychainVaultSummary,
+  KeychainMemberStatus,
+  KeychainStateResponse,
+  KeychainWrapResponse,
+  KeychainEnrollment,
+  KeychainEnrollmentResponse,
+  KeychainEnrollmentsResponse,
+  KeychainItem,
+  KeychainItemResponse,
+  KeychainItemsResponse,
+} from './keychain';

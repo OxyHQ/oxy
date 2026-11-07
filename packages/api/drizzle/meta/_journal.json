@@ -1688,6 +1688,13 @@
       "when": 1794015020001,
       "tag": "0241_identity_backup_opt_outs",
       "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1794075988102,
+      "tag": "0242_keychain",
+      "breakpoints": true
     }
   ]
 }

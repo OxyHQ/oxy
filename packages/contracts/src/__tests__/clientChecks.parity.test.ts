@@ -185,6 +185,63 @@ const purchaseApproval = {
 };
 const { lineItems: _lineItems, ...purchaseApprovalSummary } = purchaseApproval;
 
+const KC_ID = '0b8f3c1e-7d2a-4f5b-9c3d-2e1f0a9b8c7d';
+const KC_KEY = 'A'.repeat(43);
+const kcEntry = {
+  body: '{"op":"genesis"}',
+  signatures: [{ signer: KC_ID, signature: 'B'.repeat(86) }],
+};
+const kcWrap = {
+  recipient: 'recovery',
+  generation: 1,
+  epk: KC_KEY,
+  nonce: 'C'.repeat(32),
+  ciphertext: 'D'.repeat(64),
+  signer: KC_ID,
+  signature: 'B'.repeat(86),
+};
+const kcMember = {
+  id: KC_ID,
+  name: 'ThinkPad',
+  platform: 'oxyos',
+  signingKey: KC_KEY,
+  boxKey: KC_KEY,
+};
+const kcEnrollment = {
+  id: KC_ID,
+  vaultId: KC_ID,
+  member: kcMember,
+  commitment: KC_KEY,
+  approverNonce: null,
+  approverMemberId: KC_ID,
+  deviceNonce: KC_KEY,
+  status: 'pending',
+  expiresAt: ISO,
+  createdAt: ISO,
+};
+const kcItem = {
+  id: KC_ID,
+  revision: 4,
+  generation: 2,
+  nonce: 'C'.repeat(32),
+  ciphertext: 'D'.repeat(64),
+  deletedAt: null,
+  updatedAt: ISO,
+};
+const kcState = {
+  vault: {
+    id: KC_ID,
+    genesisHash: HEX64,
+    rosterSeq: 3,
+    rosterHead: HEX64,
+    generation: 2,
+    revision: 0,
+  },
+  roster: [kcEntry],
+  members: [{ id: KC_ID, orphaned: false, removed: true }],
+  self: KC_ID,
+};
+
 const PAIRS: Pair[] = [
   {
     name: 'deviceSessionState',
@@ -1230,6 +1287,45 @@ const PAIRS: Pair[] = [
       { sourceId: 's', reconciliationPending: true },
       { sourceId: 's', cancelAtPeriodEnd: true, reconciliationPending: true },
     ],
+  },
+  {
+    name: 'keychainStateResponse',
+    check: client.keychainStateResponseCheck,
+    schema: contracts.keychainStateResponseSchema,
+    samples: [kcState, { vault: null, roster: [], members: [], self: null }],
+  },
+  {
+    name: 'keychainWrapResponse',
+    check: client.keychainWrapResponseCheck,
+    schema: contracts.keychainWrapResponseSchema,
+    samples: [{ wrap: kcWrap }],
+  },
+  {
+    name: 'keychainEnrollmentResponse',
+    check: client.keychainEnrollmentResponseCheck,
+    schema: contracts.keychainEnrollmentResponseSchema,
+    samples: [{ enrollment: kcEnrollment }],
+  },
+  {
+    name: 'keychainEnrollmentsResponse',
+    check: client.keychainEnrollmentsResponseCheck,
+    schema: contracts.keychainEnrollmentsResponseSchema,
+    samples: [{ enrollments: [kcEnrollment] }, { enrollments: [] }],
+  },
+  {
+    name: 'keychainItemResponse',
+    check: client.keychainItemResponseCheck,
+    schema: contracts.keychainItemResponseSchema,
+    samples: [
+      { item: kcItem },
+      { item: { ...kcItem, nonce: null, ciphertext: null, deletedAt: ISO_LATER } },
+    ],
+  },
+  {
+    name: 'keychainItemsResponse',
+    check: client.keychainItemsResponseCheck,
+    schema: contracts.keychainItemsResponseSchema,
+    samples: [{ items: [kcItem], revision: 4, more: false }],
   },
 ];
 

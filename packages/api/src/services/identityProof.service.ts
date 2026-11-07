@@ -28,7 +28,11 @@ import { ApiError } from '../utils/error';
 import SignatureService from './signature.service';
 
 /** Actions minted by `POST /identity/proof-challenge`. */
-export const BEARER_PROOF_ACTIONS: ReadonlySet<IdentityProofAction> = new Set(['link_identity']);
+export const BEARER_PROOF_ACTIONS: ReadonlySet<IdentityProofAction> = new Set([
+  'link_identity',
+  // `DELETE /keychain` on an account with a linked root (ADR 0063 D6).
+  'keychain_reset',
+]);
 
 export function sha256Hex(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');

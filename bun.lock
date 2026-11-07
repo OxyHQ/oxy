@@ -141,6 +141,7 @@
         "@kaana.ai/contracts": "8.2.0",
         "@levischuck/tiny-cbor": "^0.3.6",
         "@lottiefiles/dotlottie-web": "0.82.1",
+        "@noble/curves": "catalog:",
         "@opentelemetry/api": "^1.10.0",
         "@opentelemetry/exporter-trace-otlp-http": "^0.300.0",
         "@opentelemetry/instrumentation-aws-sdk": "^0.79.0",
@@ -483,7 +484,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "6.19.0",
+      "version": "6.20.0",
       "dependencies": {
         "zod": "catalog:",
       },
