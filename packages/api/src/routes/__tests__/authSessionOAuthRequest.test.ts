@@ -251,7 +251,8 @@ describe('POST /auth/session/create — the OAuth binding', () => {
   });
 
   it('leaves a device sign-in with the WHOLE binding NULL', async () => {
-    const { clientId } = await client();
+    // A device sign-in is an official application's only.
+    const { clientId } = await client({ type: 'first_party' });
     const sessionToken = token();
 
     await post('/auth/session/create', { sessionToken, clientId });
@@ -264,6 +265,31 @@ describe('POST /auth/session/create — the OAuth binding', () => {
     expect(row.oauthCodeChallengeMethod).toBeNull();
     expect(row.oauthScopes).toBeNull();
     expect(row.oauthSubjectAccountId).toBeNull();
+  });
+
+  it('gives a third party the QR through its OAuth binding only, never a device sign-in', async () => {
+    const { clientId, applicationId } = await client();
+
+    // The device sign-in would end in the shared device session and its restore
+    // secret: refused, nothing written.
+    const deviceToken = token();
+    const device = await post('/auth/session/create', { sessionToken: deviceToken, clientId });
+    expect(device.status).toBe(403);
+    expect(device.body).toMatchObject({ error: 'third_party_device_sign_in_denied' });
+    expect(await stored(deviceToken)).toBeUndefined();
+
+    // The same client WITH an OAuth binding finalizes into a scoped code.
+    const oauthToken = token();
+    const bound = await post('/auth/session/create', {
+      sessionToken: oauthToken,
+      clientId,
+      oauth: oauthBody(),
+    });
+    expect(bound.status).toBe(200);
+    const row = await stored(oauthToken);
+    expect(row.purpose).toBe('oauth_authorization');
+    expect(row.oauthAuthority).toBe('external');
+    expect(row.applicationId).toBe(applicationId);
   });
 
   it('keeps a trusted absent scope empty in the request, resolving fallback at consent time', async () => {

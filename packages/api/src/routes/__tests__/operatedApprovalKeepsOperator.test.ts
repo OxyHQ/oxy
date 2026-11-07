@@ -144,7 +144,8 @@ async function pendingSignIn(): Promise<{ sessionToken: string; authorizeCode: s
   const ownerAccountId = await account();
   const [app] = await getDb()
     .insert(applications)
-    .values({ name: `App ${randomUUID()}`, ownerAccountId })
+    // Device sign-in is an official application's only.
+    .values({ name: `App ${randomUUID()}`, type: 'first_party', ownerAccountId })
     .returning({ id: applications.id });
   const sessionToken = `at_${randomUUID().replace(/-/g, '')}`;
   const authorizeCode = randomUUID().replace(/-/g, '');

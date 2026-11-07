@@ -79,6 +79,9 @@ import { formatUserResponse } from '../utils/userTransform';
 import { exchangeAuthCode, AUTH_CODE_TTL_MS } from '../services/oauthCode.service';
 import {
   approvalMintsSession,
+  deviceSignInApplicationIsTrusted,
+  THIRD_PARTY_DEVICE_SIGN_IN_DENIED,
+  THIRD_PARTY_DEVICE_SIGN_IN_MESSAGE,
   resolveApprovalOperator,
   claimAuthSession,
   authorizeSessionWithSignedChallenge,
@@ -213,6 +216,11 @@ async function findActiveApplicationById(applicationId: string): Promise<Applica
     .where(and(eq(applications.id, applicationId), eq(applications.status, 'active')))
     .limit(1);
   return app ?? null;
+}
+
+/** A refused approval as its 403, keeping the outcome's code when it names one. */
+function approvalRefusal(outcome: { message: string; code?: string }): ApiError {
+  return outcome.code ? new ApiError(403, outcome.message, outcome.code) : new ForbiddenError(outcome.message);
 }
 
 /**
@@ -640,7 +648,11 @@ router.get('/user/:publicKey', validate({ params: getUserByPublicKeyParams }), S
  *       400:
  *         description: Missing/invalid application reference or token already in use.
  *       403:
- *         description: Application is not available (suspended/deleted/pending review).
+ *         description: >
+ *           Application is not available (suspended/deleted/pending review), or a
+ *           device sign-in (no `oauth` binding) was asked for by an application
+ *           that is not an official Oxy app (`third_party_device_sign_in_denied`;
+ *           third parties sign in with OAuth).
  */
 router.post('/session/create', validate({ body: authSessionCreateSchema }), asyncHandler(async (req, res) => {
   const { sessionToken, expiresAt, clientId, applicationId, oauth } = req.body as {
@@ -710,6 +722,21 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
   if (resolvedApp.status !== 'active') {
     // Suspended / deleted / pending_review applications cannot start flows.
     throw new ForbiddenError('Application is not available');
+  }
+
+  // A DEVICE sign-in (no OAuth binding) ends in the shared device session: no
+  // application binding, a device restore secret at the claim, and every
+  // account control behind `requireFirstPartyDeviceAccess`. That is an official
+  // Oxy app's sign-in only (`docs/auth/integration-guide.md`: third parties do
+  // not use the Commons QR; ADR 0029 D1/D2). A third party signs in with OAuth —
+  // the redirect, or this same request WITH an OAuth binding, which finalizes
+  // into a scoped authorization code — so its device sign-in is refused here,
+  // before anything is written. Approval and claim re-check the registry.
+  if (!oauth && !isTrustedApplication(resolvedApp)) {
+    logger.warn('[AuthSession] Device sign-in refused: not an official application', {
+      applicationId: resolvedApp.id,
+    });
+    throw new ApiError(403, THIRD_PARTY_DEVICE_SIGN_IN_MESSAGE, THIRD_PARTY_DEVICE_SIGN_IN_DENIED);
   }
 
   // OAuth binding (optional). When present this request stops being a device
@@ -1238,7 +1265,7 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
     if (!outcome.ok) {
       if (outcome.status === 404) throw new NotFoundError(outcome.message);
       if (outcome.status === 400) throw new BadRequestError(outcome.message);
-      throw new ForbiddenError(outcome.message);
+      throw approvalRefusal(outcome);
     }
     emitAuthSessionUpdate(sessionToken, { status: 'authorized', userId: authenticatedUserId });
     sendSuccess(res, { success: true, user: { id: authenticatedUserId,
@@ -1284,13 +1311,20 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
       throw new ForbiddenError('This account cannot approve a sign-in from this session');
     }
 
-    // Resolve the bound Application for the device-name label. The session can't
-    // exist without a valid applicationId; fall back to a generic label only if
-    // the app was hard-deleted between create and authorize.
-    const app = await findApplicationById(authSession.applicationId);
-    const appLabel = app ? app.name : 'App';
+    // The shared device session is an official application's only, re-read
+    // from the registry now (`deviceSignInApplicationIsTrusted`): a request
+    // whose application is not, or is no longer, official mints nothing.
+    const app = await findActiveApplicationById(authSession.applicationId);
+    if (!app || !isTrustedApplication(app)) {
+      logger.warn('[AuthSession] Device sign-in approval refused: not an official application', {
+        sessionToken: sessionToken.substring(0, 8) + '...',
+        applicationId: authSession.applicationId,
+      });
+      throw new ApiError(403, THIRD_PARTY_DEVICE_SIGN_IN_MESSAGE, THIRD_PARTY_DEVICE_SIGN_IN_DENIED);
+    }
+    const appLabel = app.name;
 
-    // Create a new session for the third-party app, owned by the
+    // Create a new session for the requesting (official) app, owned by the
     // authenticated user identified via the bearer token. The server derives a
     // fresh device id because the public session-creation request has not proved
     // ownership of an existing device session.
@@ -1507,18 +1541,30 @@ router.post(
 
     const userData = formatUserResponse(user);
 
+    // The last step before the claimant holds the shared session and its device
+    // restore secret, so the registry is asked once more: an application that
+    // stopped being official since the approval gets nothing, and the session
+    // the approval minted for it is ended rather than left unclaimed and live.
+    if (!(await deviceSignInApplicationIsTrusted(authSession.applicationId))) {
+      logger.warn('[AuthSession] Claim refused: not an official application', {
+        sessionToken: sessionToken.substring(0, 8) + '...',
+        applicationId: authSession.applicationId,
+      });
+      await sessionService.deactivateSession(authSession.authorizedSessionId);
+      throw new UnauthorizedError('invalid_grant');
+    }
+
     // The approval minted the session on a fresh, claim-only device, because the
     // requester must never choose a device whose restore secret it would then
     // receive. A requester that PROVES a device already holds that device's
     // credential, so the account joins it instead (ADR 0029 D2): the browser's
-    // shared device, which every official app on it then sees. Only an official
-    // application's claim does — a third party keeps its isolated device — and
-    // an invalid proof leaves the claim exactly as it was.
+    // shared device, which every official app on it then sees (every claim that
+    // reaches here is an official application's, checked above), and an invalid
+    // proof leaves the claim exactly as it was.
     let session = { sessionId: authSession.authorizedSessionId, deviceId: approvedSession.deviceId };
     if (device) {
       const provenDeviceId = await resolveProvenDeviceId(device);
-      const app = provenDeviceId ? await findActiveApplicationById(authSession.applicationId) : null;
-      if (provenDeviceId && app && isTrustedApplication(app) && provenDeviceId !== session.deviceId) {
+      if (provenDeviceId && provenDeviceId !== session.deviceId) {
         // A new session ON the proven device, and the approval's own retired:
         // its tokens carry the claim-only device id, and a refresh keeps the id
         // its token names, so moving the row would not move the session.
@@ -1806,7 +1852,7 @@ router.post(
 
     if (!outcome.ok) {
       if (outcome.status === 401) throw new UnauthorizedError(outcome.message);
-      if (outcome.status === 403) throw new ForbiddenError(outcome.message);
+      if (outcome.status === 403) throw approvalRefusal(outcome);
       if (outcome.status === 404) throw new NotFoundError(outcome.message);
       throw new BadRequestError(outcome.message);
     }
@@ -1897,7 +1943,7 @@ router.post(
     });
 
     if (!outcome.ok) {
-      if (outcome.status === 403) throw new ForbiddenError(outcome.message);
+      if (outcome.status === 403) throw approvalRefusal(outcome);
       if (outcome.status === 404) throw new NotFoundError(outcome.message);
       throw new BadRequestError(outcome.message);
     }

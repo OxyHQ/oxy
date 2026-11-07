@@ -231,12 +231,13 @@ app_token_device_access_denied`, whatever its application: the device is the
 platform's. So does every route outside that lane that ends, lists, renames or
 creates sessions or devices (`refuseApplicationToken`): `/session/sessions`,
 `/session/logout*`, `/session/device/{sessions,logout-all,name}`, `/devices/*`,
-`POST /accounts/:id/switch`, `POST /auth/session/authorize-code/:code`,
+`POST /auth/session/authorize-code/:code`,
 `POST /auth/oauth/authorize`, `POST /auth/mcp/oauth/authorize` and
 `DELETE /auth/mcp/oauth/grants/:id`; and the account-level writes behind
 `requireFirstPartyDeviceAccess` (sign-in methods and password, authenticator,
-email, Commons linking, agent and organization keys, families, account
-deletion). One exception: an application token naming the platform's own
+email, Commons linking, agent and organization keys, identity backup and key
+history, families, account deletion, and `POST /accounts/:id/switch`, whose
+minted session is a shared one). One exception: an application token naming the platform's own
 application (`host.self`, OxyOS's Settings) may make the account's own security
 writes (reauth, password, authenticator, email, sign-in methods,
 `requireAccountSecurityAccess`), keeping the platform's session when it signs
@@ -251,6 +252,17 @@ session, so the ordinary path does no lookup at all.
 
 A **trusted** application is an official Oxy app joining the shared device
 session and keeps all of the above unchanged.
+
+**Device sign-in (the Commons QR) is an official application's only.** A
+request without an OAuth binding (`POST /auth/session/create` with no `oauth`)
+is approved into a shared session (NULL `application_id`) and claimed with a
+device restore secret, so NULL there means "an official app's device" only
+because the application that started it is trusted. A non-official application
+is refused `403 third_party_device_sign_in_denied` at creation, and the registry
+is asked again at every approval (bearer, by code, key-signed) and at the claim,
+which ends the minted session rather than hand it over. A third party gets the
+QR through OAuth instead: the same request WITH an OAuth binding finalizes into
+a scoped authorization code and an isolated session.
 
 ## The v1 window
 

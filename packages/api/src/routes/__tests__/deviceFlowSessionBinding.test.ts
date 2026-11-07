@@ -161,7 +161,8 @@ async function pendingRequest(deviceId: string): Promise<string> {
     .returning({ id: users.id });
   const [app] = await getDb()
     .insert(applications)
-    .values({ name: `App ${randomUUID()}`, ownerAccountId: owner.id })
+    // Device sign-in is an official application's only.
+    .values({ name: `App ${randomUUID()}`, type: 'first_party', ownerAccountId: owner.id })
     .returning({ id: applications.id });
   const sessionToken = `at_${randomUUID().replace(/-/g, '')}`;
   await getDb()

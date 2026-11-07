@@ -130,7 +130,9 @@ beforeAll(async () => {
     .values({
       name: `App ${randomUUID()}`,
       ownerAccountId: owner.id,
-      type: 'third_party',
+      // Device sign-in is an official application's only; the label is about
+      // the REQUESTER, so the app's origin is one of its registered ones.
+      type: 'first_party',
       redirectUris: ['https://acme.example/cb'],
     })
     .returning({ id: applications.id });

@@ -135,7 +135,8 @@ async function approvedRequest(
     .returning({ id: users.id });
   const [app] = await getDb()
     .insert(applications)
-    .values({ name: `App ${randomUUID()}`, ownerAccountId: user.id })
+    // Device sign-in is an official application's only; the claim re-checks it.
+    .values({ name: `App ${randomUUID()}`, type: 'first_party', ownerAccountId: user.id })
     .returning({ id: applications.id });
 
   const sessionId = `sess-${randomUUID()}`;

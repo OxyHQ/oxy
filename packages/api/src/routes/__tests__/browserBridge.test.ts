@@ -528,13 +528,41 @@ describe('one browser, one session through the bridge', () => {
     expect((await mint(auth)).body.error).toBe('no_active_session');
   });
 
-  it('a third-party claim keeps its isolated device even with a valid proof', async () => {
+  it("a third party's QR sign-in never reaches the browser's device, even with a valid proof", async () => {
+    // A device sign-in is an official application's only: a third party's
+    // request (one written before `/session/create` refused them) is never
+    // approved, so there is nothing to claim onto the proven device.
     const thirdParty = await registeredApp(false);
     const alice = await user();
     const auth = await registerOnAuth();
+    const sessionToken = `at_${randomUUID().replace(/-/g, '')}`;
+    await getDb()
+      .insert(authSessions)
+      .values({
+        sessionToken,
+        authorizeCode: randomUUID().replace(/-/g, ''),
+        applicationId: thirdParty.id,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        status: 'pending',
+      });
+    authenticatedUser = {
+      _id: alice.id,
+      username: alice.username,
+      sessionId: await insertBearerSession(alice.id),
+    };
+    const approved = await request(app)
+      .post(`/auth/session/authorize/${sessionToken}`)
+      .set('user-agent', USER_AGENT)
+      .send({});
+    authenticatedUser = null;
+    expect(approved.status).toBe(403);
+    expect(approved.body.error).toBe('third_party_device_sign_in_denied');
 
-    const claimed = await qrSignIn(thirdParty, alice, auth);
-    expect(claimed.deviceId).not.toBe(auth.deviceId);
+    const claimed = await request(app)
+      .post('/auth/session/claim')
+      .set('user-agent', USER_AGENT)
+      .send({ sessionToken, device: auth });
+    expect(claimed.status).toBe(401);
     expect((await mint(auth)).body.error).toBe('no_active_session');
   });
 });
