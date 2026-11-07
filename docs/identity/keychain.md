@@ -47,9 +47,10 @@ Limits (`KEYCHAIN_LIMITS`, refused `409 KEYCHAIN_LIMIT_REACHED`): 10 000 live
 items per vault; an item's or a wrap's ciphertext at most 64 KiB (base64url
 characters); a roster at most 1 000 entries; 32 live members; 4 pending
 enrollments per vault. Refused as malformed (`400`): an entry `body` over
-4 096 characters, more than 64 entries in one append, a member name over 64
-UTF-16 units, with a control character, a lone surrogate or surrounding
-spaces.
+4 096 characters, more than 64 entries in one append, a member name that is
+not 1 to 256 bytes of well-formed UTF-8, a timestamp not in `toISOString`'s
+spelling, a member or recovery key no device could use (a small-order Ed25519
+point, a low-order X25519 key).
 
 ## Routes
 
@@ -97,25 +98,28 @@ Every entry is checked against the roster as it stands just before it, the
 order a device verifies in: `vaultId`; `seq` = head + 1 and `prev` = the head's
 hash (the FIRST entry not continuing the head is `409 KEYCHAIN_ROSTER_CONFLICT`:
 another device wrote first, or a fork; a later one is the request's own error,
-`400 KEYCHAIN_ROSTER_INVALID`); every signature valid and its signer a live
-member, or the current recovery key for an `add` only; an `add` never reuses a
-member id; a `remove` names a live member; a `generation` is the current one
-plus one, at most one per request.
+`400 KEYCHAIN_ROSTER_INVALID`); exactly one signature (genesis: two), valid,
+its signer a live member, or the current recovery key for an `add` only; an
+`add` never reuses a member id; a `remove` names a live member; a `generation`
+is the current one plus one; a `remove` and a `recovery` are each followed AT
+ONCE by a `generation` (ADR 0063 D3/D6 as amended in #2219: the vault key moves
+on whenever a key that could open it stops being trusted), and a request never
+ends with one pending (`400 KEYCHAIN_ROTATION_INCOMPLETE`). These are the SDK
+verifier's rules (`verifyRoster`); the server's verifier reproduces the SDK's
+roster test vectors, accepting the chain and refusing every rejection.
 
 Two callers:
 
 - **A live member** (bound to the caller's device session): `remove`,
   `generation` and `recovery` entries. An `add` is refused here: a device is
   added by approving its enrollment, which binds it to the device that asked.
-  A request with a `remove` must carry a `generation` (`400
-  KEYCHAIN_ROTATION_INCOMPLETE`), before or after the removes; a member that
-  removes ITSELF puts the `generation` first, since after its `remove` it may
-  sign nothing. A `generation` must come with a wrap at it for every member
-  live after the request (orphaned ones included) and `recovery`, and nothing
-  else (`400 KEYCHAIN_ROTATION_INCOMPLETE` for one missing, `400
-  KEYCHAIN_WRAP_INVALID` for one extra, a removed member's included); a
-  `recovery` without a `generation` with the recovery wrap alone. Every wrap is
-  signed by the caller's member. A removed member's wrap is deleted.
+  A request that moves the generation must come with a wrap at the newest one
+  for every member live after the request (orphaned ones included) and
+  `recovery` (the new recovery key after a `recovery`), and nothing else (`400
+  KEYCHAIN_ROTATION_INCOMPLETE` for one missing, `400 KEYCHAIN_WRAP_INVALID` for
+  one extra, a removed member's included). Every wrap is signed by the caller's
+  member. A removed member's wrap is deleted. The last member cannot remove
+  itself (no member would remain to sign the `generation`).
 - **A device that is no member, with the recovery key** (ADR 0063 D6): exactly
   one `add`, signed by the recovery key alone, with the new member's wrap at
   the current generation signed by the recovery key; the new member is bound

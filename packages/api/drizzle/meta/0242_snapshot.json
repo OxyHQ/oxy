@@ -1,5 +1,5 @@
 {
-  "id": "a7d57a2b-c51c-4261-add4-af4839cd9b00",
+  "id": "4562626c-2c04-4560-9ba2-d411896f610e",
   "prevId": "eff00671-f026-4389-9812-d0d4e07b80c2",
   "version": "7",
   "dialect": "postgresql",
@@ -17620,7 +17620,7 @@
         },
         "keychain_enrollments_approver_check": {
           "name": "keychain_enrollments_approver_check",
-          "value": "(\"keychain_enrollments\".\"approver_nonce\" is null) = (\"keychain_enrollments\".\"approver_member_id\" is null) and (\"keychain_enrollments\".\"approver_nonce\" is null or \"keychain_enrollments\".\"approver_nonce\" ~ '^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$') and (\"keychain_enrollments\".\"approver_member_id\" is null or \"keychain_enrollments\".\"approver_member_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')"
+          "value": "(\"keychain_enrollments\".\"approver_nonce\" is null) = (\"keychain_enrollments\".\"approver_member_id\" is null) and (\"keychain_enrollments\".\"approver_nonce\" is null or \"keychain_enrollments\".\"approver_nonce\" ~ '^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$') and (\"keychain_enrollments\".\"approver_member_id\" is null or \"keychain_enrollments\".\"approver_member_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')"
         },
         "keychain_enrollments_device_nonce_check": {
           "name": "keychain_enrollments_device_nonce_check",
@@ -17733,7 +17733,7 @@
       "checkConstraints": {
         "keychain_items_item_id_check": {
           "name": "keychain_items_item_id_check",
-          "value": "\"keychain_items\".\"item_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'"
+          "value": "\"keychain_items\".\"item_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
         },
         "keychain_items_revision_check": {
           "name": "keychain_items_revision_check",
@@ -17912,7 +17912,7 @@
       "checkConstraints": {
         "keychain_members_member_id_check": {
           "name": "keychain_members_member_id_check",
-          "value": "\"keychain_members\".\"member_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'"
+          "value": "\"keychain_members\".\"member_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
         },
         "keychain_members_platform_check": {
           "name": "keychain_members_platform_check",
@@ -18120,7 +18120,7 @@
       "checkConstraints": {
         "keychain_vaults_id_check": {
           "name": "keychain_vaults_id_check",
-          "value": "\"keychain_vaults\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'"
+          "value": "\"keychain_vaults\".\"id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
         },
         "keychain_vaults_genesis_hash_check": {
           "name": "keychain_vaults_genesis_hash_check",
@@ -18242,11 +18242,11 @@
       "checkConstraints": {
         "keychain_wraps_recipient_check": {
           "name": "keychain_wraps_recipient_check",
-          "value": "\"keychain_wraps\".\"recipient\" = 'recovery' or \"keychain_wraps\".\"recipient\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'"
+          "value": "\"keychain_wraps\".\"recipient\" = 'recovery' or \"keychain_wraps\".\"recipient\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
         },
         "keychain_wraps_signer_check": {
           "name": "keychain_wraps_signer_check",
-          "value": "\"keychain_wraps\".\"signer\" = 'recovery' or \"keychain_wraps\".\"signer\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'"
+          "value": "\"keychain_wraps\".\"signer\" = 'recovery' or \"keychain_wraps\".\"signer\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
         },
         "keychain_wraps_generation_check": {
           "name": "keychain_wraps_generation_check",

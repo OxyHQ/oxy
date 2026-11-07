@@ -28,6 +28,7 @@ import {
   KEYCHAIN_PLATFORMS,
   KEYCHAIN_RECOVERY,
   KEYCHAIN_SIGNATURE_PATTERN,
+  KEYCHAIN_TIMESTAMP_PATTERN,
   type KeychainEnrollmentResponse,
   type KeychainEnrollmentsResponse,
   type KeychainItemResponse,
@@ -38,7 +39,7 @@ import {
 import { integerCheck } from './numberChecks';
 import { identityProofSchema } from './identityProof';
 import { reauthProofSchema, secondFactorCodeSchema } from './signIn';
-import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
+import { utf16MaxLength, utf16MinLength } from './stringChecks';
 
 export {
   KEYCHAIN_PLATFORMS,
@@ -54,6 +55,7 @@ export {
   KEYCHAIN_SIGNATURE_PATTERN,
   KEYCHAIN_BASE64URL_PATTERN,
   KEYCHAIN_HASH_PATTERN,
+  KEYCHAIN_TIMESTAMP_PATTERN,
 } from './client/keychain';
 export type {
   KeychainPlatform,
@@ -115,35 +117,41 @@ const generationSchema = z.number().check(integerCheck()).min(1).max(Number.MAX_
 const revisionSchema = z.number().check(integerCheck()).min(1).max(Number.MAX_SAFE_INTEGER);
 
 /**
- * A member's name: no control characters (C0, DEL, C1), no lone surrogate (JCS
- * cannot carry one) and no surrounding white space.
+ * A member's name: 1 to 256 bytes of UTF-8, any characters (a device's UI
+ * sanitizes it for display), but well-formed: no lone surrogate, which JCS
+ * cannot carry.
  */
-function isPlainName(name: string): boolean {
-  if (name.trim() !== name) return false;
+function isMemberName(name: string): boolean {
+  let bytes = 0;
   for (let index = 0; index < name.length; index++) {
     const unit = name.charCodeAt(index);
-    if (unit < 0x20 || (unit >= 0x7f && unit <= 0x9f)) return false;
     if (unit >= 0xd800 && unit <= 0xdbff) {
       const next = name.charCodeAt(index + 1);
       if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+      bytes += 4;
       index++;
     } else if (unit >= 0xdc00 && unit <= 0xdfff) {
       return false;
+    } else {
+      bytes += unit < 0x80 ? 1 : unit < 0x800 ? 2 : 3;
     }
   }
-  return true;
+  return bytes >= 1 && bytes <= KEYCHAIN_LIMITS.maxMemberNameBytes;
+}
+
+/** `Date#toISOString`'s spelling, and a real instant. */
+function isKeychainTimestamp(value: string): boolean {
+  if (!KEYCHAIN_TIMESTAMP_PATTERN.test(value)) return false;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) && new Date(ms).toISOString() === value;
 }
 
 export const keychainMemberSchema = z
   .object({
     id: keychainIdSchema,
-    name: z
-      .string()
-      .check(utf16MinLength(1))
-      .check(utf16MaxLength(KEYCHAIN_LIMITS.maxMemberNameLength))
-      .refine(isPlainName, {
-        message: 'A member name has no control characters and no surrounding spaces',
-      }),
+    name: z.string().refine(isMemberName, {
+      message: 'A member name is 1 to 256 bytes of well-formed UTF-8',
+    }),
     platform: z.enum(KEYCHAIN_PLATFORMS),
     signingKey: keychainBytes32Schema,
     boxKey: keychainBytes32Schema,
@@ -159,7 +167,9 @@ const rosterBodyBase = {
   vaultId: keychainIdSchema,
   seq: z.number().check(integerCheck()).min(0).max(Number.MAX_SAFE_INTEGER),
   prev: hashSchema.nullable(),
-  createdAt: z.string().check(isoDateTime()),
+  createdAt: z.string().refine(isKeychainTimestamp, {
+    message: 'Expected an ISO 8601 UTC timestamp with milliseconds',
+  }),
 };
 
 /**

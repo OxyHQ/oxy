@@ -22,13 +22,19 @@
  *   signer may sign that operation in the roster AS IT STANDS JUST BEFORE THE
  *   ENTRY (the order a device verifies in): a live member for every operation,
  *   or the current recovery key for an `add`.
+ *   Genesis carries exactly two signatures, every other entry exactly one.
+ * - Every member and recovery key is usable: a signing key is a canonical,
+ *   not small-order Ed25519 point, a box key not of low order.
+ * - A `remove` or a `recovery` is followed at once by a `generation`
+ *   (current + 1), as the SDK's `verifyRoster` requires; a request never ends
+ *   with one pending.
  * - Wraps verify over `"oxy.keychain.wrap.v1\n" ‖ JCS({ vaultId, recipient,
  *   generation, epk, nonce, ciphertext, signer })`; which wraps a request must
  *   carry is decided by the caller (`requireWraps`).
  */
 
 import crypto from 'node:crypto';
-import { ed25519 } from '@noble/curves/ed25519.js';
+import { ed25519, x25519 } from '@noble/curves/ed25519.js';
 import {
   KEYCHAIN_DOMAINS,
   KEYCHAIN_ERROR_CODES,
@@ -102,6 +108,38 @@ export function verifyEd25519(signature: string, message: string, publicKey: str
     });
   } catch {
     return false;
+  }
+}
+
+/**
+ * A roster signing key a strict verifier could ever accept: a canonical
+ * encoding of a curve point that is not of small order.
+ */
+export function isUsableSigningKey(key: string): boolean {
+  try {
+    return !ed25519.Point.fromBytes(fromBase64Url(key), false).isSmallOrder();
+  } catch {
+    return false;
+  }
+}
+
+/** Any clamped scalar shows a low-order point: X25519 with it is all zeros. */
+const BOX_KEY_PROBE = new Uint8Array(32).fill(0x55);
+
+/** A roster box key something can be sealed to: not of low order. */
+export function isUsableBoxKey(key: string): boolean {
+  try {
+    // Noble refuses a low-order point itself; the zero test is the belt to that.
+    return x25519.getSharedSecret(BOX_KEY_PROBE, fromBase64Url(key)).some((byte) => byte !== 0);
+  } catch {
+    return false;
+  }
+}
+
+/** Refuse a member or recovery key pair no device could use (the SDK's `decodeSigningKey`/`decodeBoxKey`). */
+export function assertUsableKeys(keys: { signingKey: string; boxKey: string }): void {
+  if (!isUsableSigningKey(keys.signingKey) || !isUsableBoxKey(keys.boxKey)) {
+    throw rosterInvalid('A roster entry names a key no device could use.');
   }
 }
 
@@ -179,12 +217,20 @@ export function parseEntry(entry: KeychainEntry): ParsedEntry {
   if (canonical !== entry.body) {
     throw rosterInvalid('A roster entry is not in its canonical form (JCS).');
   }
+  const body = parsed.data;
+  if (body.op === 'genesis' || body.op === 'add') assertUsableKeys(body.member);
+  if (body.op === 'genesis' || body.op === 'recovery') assertUsableKeys(body.recovery);
+  // Genesis carries exactly two signatures (its member's and the recovery
+  // key's); every other entry exactly one.
+  if (entry.signatures.length !== (body.op === 'genesis' ? 2 : 1)) {
+    throw rosterInvalid('A roster entry has the wrong number of signatures.');
+  }
   const signers = new Set(entry.signatures.map((signature) => signature.signer));
   if (signers.size !== entry.signatures.length) {
     throw rosterInvalid('A roster entry is signed twice by the same signer.');
   }
   return {
-    body: parsed.data,
+    body,
     raw: entry.body,
     hash: rosterEntryHash(entry.body),
     signatures: entry.signatures,
@@ -292,7 +338,7 @@ export interface AppliedAppend {
   state: RosterState;
   added: KeychainMember[];
   removed: string[];
-  /** The new generation, when the request rotates. */
+  /** The newest generation the request moved to, when it rotates. */
   newGeneration: number | null;
   recoveryReplaced: boolean;
 }
@@ -310,6 +356,10 @@ export function applyEntries(base: RosterState, entries: KeychainEntry[]): Appli
   const removed: string[] = [];
   let newGeneration: number | null = null;
   let recoveryReplaced = false;
+  // A `remove` or a `recovery` is followed by a `generation` at once (ADR 0063
+  // D3/D6): the vault key moves on whenever a key that could open it stops
+  // being trusted. The same rule as the SDK's `verifyRoster`.
+  let pendingGeneration = false;
 
   entries.forEach((entry, index) => {
     const parsed = parseEntry(entry);
@@ -321,6 +371,11 @@ export function applyEntries(base: RosterState, entries: KeychainEntry[]): Appli
     }
     if (body.seq >= KEYCHAIN_LIMITS.maxRosterEntries) {
       throw limitReached('This keychain has the most roster entries it can hold.');
+    }
+    if (pendingGeneration && body.op !== 'generation') {
+      throw rotationIncomplete(
+        'A removal or a new recovery key is followed at once by a new generation of the vault key.',
+      );
     }
     verifyEntrySignatures(state, parsed);
 
@@ -347,22 +402,22 @@ export function applyEntries(base: RosterState, entries: KeychainEntry[]): Appli
         if (!member?.live) throw rosterInvalid('Only a member can be removed.');
         member.live = false;
         removed.push(body.memberId);
+        pendingGeneration = true;
         break;
       }
       case 'generation': {
-        if (newGeneration !== null) {
-          throw rosterInvalid('One request moves the vault key at most one generation.');
-        }
         if (body.generation !== state.generation + 1) {
           throw rosterInvalid('A new generation is the current one plus one.');
         }
         state.generation = body.generation;
         newGeneration = body.generation;
+        pendingGeneration = false;
         break;
       }
       case 'recovery': {
         state.recovery = { ...body.recovery };
         recoveryReplaced = true;
+        pendingGeneration = true;
         break;
       }
     }
@@ -371,9 +426,9 @@ export function applyEntries(base: RosterState, entries: KeychainEntry[]): Appli
     applied.push(parsed);
   });
 
-  if (removed.length > 0 && newGeneration === null) {
+  if (pendingGeneration) {
     throw rotationIncomplete(
-      'Removing a device moves the vault key to a new generation in the same request.',
+      'A removal or a new recovery key is followed at once by a new generation of the vault key.',
     );
   }
   return { entries: applied, state, added, removed, newGeneration, recoveryReplaced };

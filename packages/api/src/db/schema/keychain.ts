@@ -51,7 +51,7 @@ import { users } from './users';
 /** How long a finished or expired enrollment is kept so a poll reads its outcome, not a 404. */
 export const KEYCHAIN_ENROLLMENT_GRACE_SECONDS = 24 * 60 * 60;
 
-const UUID = `'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'`;
+const UUID = `'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'`;
 const HEX64 = `'^[0-9a-f]{64}$'`;
 const BYTES32 = `'^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$'`;
 const NONCE24 = `'^[A-Za-z0-9_-]{32}$'`;

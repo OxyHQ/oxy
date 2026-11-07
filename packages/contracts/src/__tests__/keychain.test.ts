@@ -71,26 +71,20 @@ describe('binary values', () => {
 });
 
 describe('members', () => {
-  it('is strict, with a plain name and a closed platform', () => {
+  it('is strict, with a name of 1 to 256 bytes of well-formed UTF-8 and a closed platform', () => {
     expect(keychainMemberSchema.safeParse(member()).success).toBe(true);
     expect(keychainMemberSchema.safeParse({ ...member(), extra: 1 }).success).toBe(false);
     expect(keychainMemberSchema.safeParse({ ...member(), platform: 'plan9' }).success).toBe(false);
     expect(
       keychainMemberSchema.safeParse({ ...member(), id: randomUUID().toUpperCase() }).success,
     ).toBe(false);
-    for (const name of [
-      '',
-      ' Laptop',
-      'Laptop ',
-      'a\u0000b',
-      'a\u0085b',
-      '\ud800x',
-      'x\udc00',
-      'n'.repeat(65),
-    ]) {
+    for (const name of ['', '\ud800x', 'x\udc00', 'n'.repeat(257), 'é'.repeat(129)]) {
       expect(keychainMemberSchema.safeParse({ ...member(), name }).success).toBe(false);
     }
-    expect(keychainMemberSchema.safeParse({ ...member(), name: 'Nate’s 💻' }).success).toBe(true);
+    // Any characters otherwise: the UI sanitizes for display.
+    for (const name of ['Nate’s 💻', ' a\u0000"\\/\u2028 ', 'n'.repeat(256), 'é'.repeat(128)]) {
+      expect(keychainMemberSchema.safeParse({ ...member(), name }).success).toBe(true);
+    }
   });
 });
 
@@ -114,6 +108,18 @@ describe('roster bodies', () => {
       const parsed = keychainRosterBodySchema.safeParse(body);
       expect(parsed.success).toBe(true);
       expect(parsed.data).toEqual(body);
+    }
+  });
+
+  it('takes a timestamp only in its toISOString spelling', () => {
+    const body = { ...base(), op: 'remove', memberId: randomUUID() };
+    for (const createdAt of [
+      '2026-11-07T12:00:00Z',
+      '2026-11-07T12:00:00.0000Z',
+      '2026-11-07T12:00:00.000+00:00',
+      '2026-02-30T12:00:00.000Z',
+    ]) {
+      expect(keychainRosterBodySchema.safeParse({ ...body, createdAt }).success).toBe(false);
     }
   });
 

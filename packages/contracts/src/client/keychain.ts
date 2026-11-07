@@ -89,8 +89,8 @@ export const KEYCHAIN_LIMITS = {
   maxEntriesPerAppend: 64,
   /** One roster entry's `body`, in characters. */
   maxEntryBodyLength: 4_096,
-  /** A member's display name, in UTF-16 units. */
-  maxMemberNameLength: 64,
+  /** A member's display name, in bytes of UTF-8 (at least 1; any characters). */
+  maxMemberNameBytes: 256,
 } as const;
 
 /**
@@ -147,9 +147,10 @@ export type KeychainErrorCode = (typeof KEYCHAIN_ERROR_CODES)[keyof typeof KEYCH
 /*  Encodings                                                                 */
 /* -------------------------------------------------------------------------- */
 
-/** A lowercase RFC 9562 uuid: vault, member, item and enrollment ids. */
-export const KEYCHAIN_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+/** A lowercase uuid in its 8-4-4-4-12 form, any version: vault, member, item and enrollment ids. */
+export const KEYCHAIN_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** A roster timestamp in its one spelling: UTC with milliseconds, as `Date#toISOString` writes it. */
+export const KEYCHAIN_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 /** 32 bytes, canonical base64url (43 characters): keys, enrollment nonces, commitments. */
 export const KEYCHAIN_BYTES32_PATTERN = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 /** 24 bytes, base64url (32 characters): an XChaCha20-Poly1305 nonce. */

@@ -48,6 +48,7 @@ import {
   type ParsedEntry,
   type RosterState,
   applyEntries,
+  assertUsableKeys,
   enrollmentCommitment,
   liveMemberIds,
   requireWraps,
@@ -501,9 +502,10 @@ function keychainExists(): ApiError {
  *
  * - a live member: any `remove`, `generation` and `recovery` entries (an `add`
  *   goes through an enrollment's approval, which binds the new member to the
- *   device that asked). A `generation` comes with a wrap at it for every
- *   remaining member and `recovery`; a `recovery` with the recovery wrap. Every
- *   wrap is sealed and signed by the caller.
+ *   device that asked). Each `remove` and `recovery` is followed at once by a
+ *   `generation`, and a request that moves the generation carries a wrap at it
+ *   for every remaining member and `recovery`. Every wrap is sealed and signed
+ *   by the caller.
  * - a device that is no member, holding the recovery key (ADR 0063 D6): exactly
  *   one `add`, signed by the recovery key alone, with the new member's wrap
  *   signed by the recovery key. The new member is bound to the caller's device
@@ -528,10 +530,10 @@ export async function appendRoster(
           throw rosterInvalid('A device is added by approving its request to join.');
         }
         const recipients = new Set<string>();
+        // A new generation (which every `remove` and `recovery` brings) is
+        // sealed to every member still in the roster and to the recovery key.
         if (append.newGeneration !== null) {
           for (const id of liveMemberIds(append.state)) recipients.add(id);
-          recipients.add(KEYCHAIN_RECOVERY);
-        } else if (append.recoveryReplaced) {
           recipients.add(KEYCHAIN_RECOVERY);
         }
         requireWraps(wraps, {
@@ -645,6 +647,7 @@ export async function createEnrollment(
   return getDb().transaction(async (tx) => {
     const vault = await lockVault(tx, accountId);
     if (await memberOfSession(tx, vault.id, deviceSessionId)) throw alreadyMember();
+    assertUsableKeys(member);
     const [known] = await tx
       .select({ memberId: keychainMembers.memberId })
       .from(keychainMembers)

@@ -857,21 +857,15 @@ describe('POST /keychain/roster', () => {
   });
 
   it('refuses an append that does not continue the head (a fork), and a lost race', async () => {
-    const recovery = newRecovery();
-    const rotate = (r: RecoveryKey) =>
-      entry(next(vault, { op: 'recovery', recovery: r.keys }), [A]);
+    // Two devices' rotations from the same head: one lands, the other conflicts.
+    const rotate = () => ({
+      entries: [entry(next(vault, { op: 'generation', generation: 2 }), [A])],
+      wraps: [wrap(vault.vaultId, A.id, 2, A), wrap(vault.vaultId, 'recovery', 2, A)],
+    });
     actAs(OWNER, SESSION_A);
-    const first = rotate(recovery);
-    const second = rotate(newRecovery());
     const [one, two] = await Promise.all([
-      call('POST', '/keychain/roster', {
-        entries: [first],
-        wraps: [wrap(vault.vaultId, 'recovery', 1, A)],
-      }),
-      call('POST', '/keychain/roster', {
-        entries: [second],
-        wraps: [wrap(vault.vaultId, 'recovery', 1, A)],
-      }),
+      call('POST', '/keychain/roster', rotate()),
+      call('POST', '/keychain/roster', rotate()),
     ]);
     expect([one.status, two.status].sort()).toEqual([200, 409]);
     expect([one, two].find((r) => r.status === 409)?.body.error).toBe('KEYCHAIN_ROSTER_CONFLICT');
@@ -972,14 +966,83 @@ describe('POST /keychain/roster', () => {
     expect(res.body.error).toBe('KEYCHAIN_WRAP_INVALID');
   });
 
-  it('replaces the recovery key with its wrap', async () => {
+  it('refuses a new recovery key without a new generation (ADR 0063 D6 as amended)', async () => {
     actAs(OWNER, SESSION_A);
-    const replacement = newRecovery();
     const res = await call('POST', '/keychain/roster', {
-      entries: [entry(next(vault, { op: 'recovery', recovery: replacement.keys }), [A])],
+      entries: [entry(next(vault, { op: 'recovery', recovery: newRecovery().keys }), [A])],
       wraps: [wrap(vault.vaultId, 'recovery', 1, A)],
     });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('KEYCHAIN_ROTATION_INCOMPLETE');
+  });
+
+  it('refuses a generation placed before the removal it rotates for', async () => {
+    await addByRecovery(B, SESSION_B);
+    actAs(OWNER, SESSION_A);
+    const generation = entry(next(vault, { op: 'generation', generation: 2 }), [A]);
+    const remove = entry(
+      {
+        ...next(vault, { op: 'remove', memberId: B.id }),
+        seq: vault.seq + 2,
+        prev: hashOf(generation.body),
+      },
+      [A],
+    );
+    const res = await call('POST', '/keychain/roster', {
+      entries: [generation, remove],
+      wraps: [wrap(vault.vaultId, A.id, 2, A), wrap(vault.vaultId, 'recovery', 2, A)],
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('KEYCHAIN_ROTATION_INCOMPLETE');
+  });
+
+  it('refuses a second signature on an entry other than genesis', async () => {
+    await addByRecovery(B, SESSION_B);
+    actAs(OWNER, SESSION_A);
+    const res = await call('POST', '/keychain/roster', {
+      entries: [entry(next(vault, { op: 'generation', generation: 2 }), [A, B])],
+      wraps: [
+        wrap(vault.vaultId, A.id, 2, A),
+        wrap(vault.vaultId, B.id, 2, A),
+        wrap(vault.vaultId, 'recovery', 2, A),
+      ],
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('KEYCHAIN_ROSTER_INVALID');
+  });
+
+  it('refuses a member whose signing key is of small order', async () => {
+    const weak = {
+      ...newDevice().member,
+      signingKey: b64(new Uint8Array(32).fill(0).map((_, i) => (i === 0 ? 1 : 0))),
+    };
+    actAs(OWNER, SESSION_B);
+    const res = await call('POST', '/keychain/enrollments', {
+      member: weak,
+      commitment: b64(randomBytes(32)),
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('KEYCHAIN_ROSTER_INVALID');
+  });
+
+  it('replaces the recovery key with a new generation sealed to every member and the new key', async () => {
+    actAs(OWNER, SESSION_A);
+    const replacement = newRecovery();
+    const recoveryEntry = entry(next(vault, { op: 'recovery', recovery: replacement.keys }), [A]);
+    const generation = entry(
+      {
+        ...next(vault, { op: 'generation', generation: 2 }),
+        seq: vault.seq + 2,
+        prev: hashOf(recoveryEntry.body),
+      },
+      [A],
+    );
+    const res = await call('POST', '/keychain/roster', {
+      entries: [recoveryEntry, generation],
+      wraps: [wrap(vault.vaultId, A.id, 2, A), wrap(vault.vaultId, 'recovery', 2, A)],
+    });
     expect(res.status).toBe(200);
+    expect(res.body.data.vault.generation).toBe(2);
     // The old recovery key no longer adds a device.
     const C = newDevice();
     const after = res.body.data.vault;
@@ -999,7 +1062,7 @@ describe('POST /keychain/roster', () => {
           [recoverySigner(vault.recovery)],
         ),
       ],
-      wraps: [wrap(vault.vaultId, C.id, 1, recoverySigner(vault.recovery))],
+      wraps: [wrap(vault.vaultId, C.id, 2, recoverySigner(vault.recovery))],
     });
     expect(stale.status).toBe(400);
     expect(stale.body.error).toBe('KEYCHAIN_ROSTER_INVALID');

@@ -361,6 +361,7 @@ export {
   KEYCHAIN_SIGNATURE_PATTERN,
   KEYCHAIN_BASE64URL_PATTERN,
   KEYCHAIN_HASH_PATTERN,
+  KEYCHAIN_TIMESTAMP_PATTERN,
   keychainStateResponseCheck,
   keychainWrapResponseCheck,
   keychainEnrollmentResponseCheck,
