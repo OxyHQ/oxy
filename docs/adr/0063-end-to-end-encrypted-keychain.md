@@ -125,9 +125,14 @@ encrypt under that.
   new wrap for every remaining member and for `recovery`. A request missing
   any of them is refused, so no remaining member is left without the new key
   and none is sealed to the removed one.
-- When Oxy ends a member's device session (signed out everywhere, removed in
-  Oxy's device list, the account removed from a machine), Oxy stops serving
-  that member anything and marks it `orphaned` in `GET /keychain`. The next
+- A member is bound to the account's presence on one device (its device
+  context), not only to the device. When the account leaves the device —
+  signed out of it, signed out everywhere, removed in Oxy's device list, the
+  account removed from a machine — Oxy stops serving that member anything and
+  marks it `orphaned` in `GET /keychain`, **whether or not other accounts
+  remain on that device** (amended 2026-11-07: a device another account still
+  used kept its device session, so the member was not orphaned). Signing in
+  again on the device does not revive it: the device joins again. The next
   member device that sees an orphaned member removes it with a rotation. Oxy
   cannot remove a member itself: it can only stop serving it.
 

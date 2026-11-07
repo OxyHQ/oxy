@@ -12,9 +12,11 @@
  * - `keychain_roster_entries` — the append-only signed membership log, kept
  *   exactly as signed (`body` is the JCS bytes the signatures cover).
  * - `keychain_members` — derived from the roster, plus the one fact that is
- *   the server's own: which device session a member is bound to. When that
- *   session ends the binding is set NULL (orphaned) and Oxy serves the member
- *   nothing more (ADR 0063 D4).
+ *   the server's own: which device, and which presence of the account on it
+ *   (its device context), a member is bound to. When the account leaves that
+ *   device — signed out of it or removed from it, whether or not other
+ *   accounts stay — or the device itself goes, the binding is set NULL
+ *   (orphaned) and Oxy serves the member nothing more (ADR 0063 D4).
  * - `keychain_wraps` — the keyring sealed to each recipient, one row each.
  * - `keychain_items` — one ciphertext per item; a deletion is a tombstone so
  *   `since` sync sees it.
@@ -45,6 +47,7 @@ import {
   type KeychainSignature,
 } from '@oxy.so/contracts';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
+import { deviceAccountContexts } from './deviceAccountContexts';
 import { deviceSessions } from './deviceSessions';
 import { users } from './users';
 
@@ -141,6 +144,19 @@ export const keychainMembers = pgTable(
      * member device can remove it from the roster.
      */
     deviceSessionId: text().references(() => deviceSessions.id, { onDelete: 'set null' }),
+    /**
+     * The account's presence on that device (`device_account_contexts`, the
+     * bearer's `device_context_id`). `SET NULL` when it goes: the account
+     * signed out of the device or was removed from it, even while other
+     * accounts remain on it and the device session row stays. The member is
+     * then ORPHANED for good: signing in again on the device makes a new
+     * context, never this one, so the device joins again (ADR 0063 D4). The
+     * one place a context is replaced while the account stays on the device
+     * (`deviceSession.service` `addAccount`, a new session for an account
+     * already there) carries the binding over in the same transaction.
+     * NULL on rows written before this column (none are live).
+     */
+    deviceContextId: text().references(() => deviceAccountContexts.id, { onDelete: 'set null' }),
     /** Display only; never logged. */
     name: text().notNull(),
     platform: text({ enum: KEYCHAIN_PLATFORMS }).notNull(),
@@ -157,12 +173,15 @@ export const keychainMembers = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.vaultId, t.memberId] }),
-    // One live member per device session and vault: the session IS the binding.
-    uniqueIndex('keychain_members_live_device_session_key')
-      .on(t.vaultId, t.deviceSessionId)
-      .where(sql`${t.removedSeq} is null and ${t.deviceSessionId} is not null`),
-    // The `SET NULL` from `device_sessions` and the caller lookup both go by session.
+    // One live member per account presence and vault: the context IS the
+    // binding. An orphaned member (context NULL) holds no slot, so the same
+    // device can join again once the account is back on it.
+    uniqueIndex('keychain_members_live_device_context_key')
+      .on(t.vaultId, t.deviceContextId)
+      .where(sql`${t.removedSeq} is null and ${t.deviceContextId} is not null`),
+    // The `SET NULL`s from `device_sessions` and `device_account_contexts`.
     index('keychain_members_device_session_id_idx').on(t.deviceSessionId),
+    index('keychain_members_device_context_id_idx').on(t.deviceContextId),
     check('keychain_members_member_id_check', sql`${t.memberId} ~ ${sql.raw(UUID)}`),
     check(
       'keychain_members_platform_check',
@@ -267,6 +286,12 @@ export const keychainEnrollments = pgTable(
     deviceSessionId: text()
       .notNull()
       .references(() => deviceSessions.id, { onDelete: 'cascade' }),
+    /**
+     * The enrolling account's presence on that device. `CASCADE`: a request
+     * from an account that has since left the device is void. Nullable only
+     * for rows written before the column; such a row approves nothing.
+     */
+    deviceContextId: text().references(() => deviceAccountContexts.id, { onDelete: 'cascade' }),
     /** The member the device asks to be: `{ id, name, platform, signingKey, boxKey }`. */
     member: jsonb().$type<KeychainMember>().notNull(),
     /** SHA-256 of the commit input (ADR 0063 D8), base64url. */
@@ -283,6 +308,7 @@ export const keychainEnrollments = pgTable(
   (t) => [
     index('keychain_enrollments_vault_id_status_idx').on(t.vaultId, t.status),
     index('keychain_enrollments_device_session_id_idx').on(t.deviceSessionId),
+    index('keychain_enrollments_device_context_id_idx').on(t.deviceContextId),
     index('keychain_enrollments_expires_at_idx').on(t.expiresAt),
     check(
       'keychain_enrollments_status_check',
