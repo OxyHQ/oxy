@@ -558,6 +558,33 @@ class SessionService {
       liveSession?: boolean;
     } = {},
   ): Promise<SessionValidationResult | null> {
+    return this.validateSessionAgainst(accessToken, options, 'cached');
+  }
+
+  /**
+   * `validateSession` against the session row as `row` reads it: `'cached'`
+   * (this task's cache first, the ordinary path) or `'live'` (the database).
+   *
+   * A binding refused against a CACHED row is not a verdict. The cache's local
+   * tier is per task and lives five minutes, and a Redis `invalidate` from
+   * another task does not reach it, so it can hold the row as it was before
+   * another task re-bound it. The device-flow claim is exactly that: the
+   * approval creates the session (cached by the task that served it), the
+   * claim binds it to its device context on another task and mints from the
+   * row, and the claimant's first request lands on the approving task, whose
+   * copy has no device context — `device_session_mismatch` for a token minted
+   * a moment ago from the row itself. So a refusal against the cache is asked
+   * again of the row, once; the row decides, and its answer replaces the copy.
+   */
+  private async validateSessionAgainst(
+    accessToken: string,
+    options: {
+      allowSupervisedPolicyEvaluation?: boolean;
+      throwOnError?: boolean;
+      liveSession?: boolean;
+    },
+    row: 'cached' | 'live',
+  ): Promise<SessionValidationResult | null> {
     try {
       const validationResult = validateAccessToken(accessToken, {
         throwOnUnavailable: options.liveSession,
@@ -569,7 +596,7 @@ class SessionService {
       const sessionId = validationResult.payload.sessionId;
       const result = options.liveSession
         ? await this.getLiveSessionWithUser(sessionId)
-        : await this.getSessionWithUser(sessionId, { useCache: true });
+        : await this.getSessionWithUser(sessionId, { useCache: row === 'cached' });
       if (!result) {
         return null;
       }
@@ -629,6 +656,9 @@ class SessionService {
         acceptHost: true,
       });
       if (!binding.ok) {
+        if (row === 'cached' && !options.liveSession) {
+          return this.validateSessionAgainst(accessToken, options, 'live');
+        }
         logger.warn('[SessionService] Access token rejected by binding check', {
           component: 'SessionService',
           method: 'validateSession',
@@ -652,6 +682,12 @@ class SessionService {
           return null;
         }
         identity = { ...identity, host };
+      }
+
+      // The live row agreed where this task's copy did not: the copy is stale,
+      // and the row replaces it so the next request does not ask again.
+      if (row === 'live' && !options.liveSession) {
+        sessionCache.set(sessionId, session);
       }
 
       if (sessionCache.shouldUpdateLastActive(sessionId)) {

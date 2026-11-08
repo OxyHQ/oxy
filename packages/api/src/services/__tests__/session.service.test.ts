@@ -788,6 +788,56 @@ describe('validateSession / getSessionWithUser', () => {
 });
 
 /**
+ * The device-flow claim across two tasks. The approval creates the session and
+ * the task that served it caches the row; the claim, on another task, binds the
+ * session to its device context and mints from the row. The cache's local tier
+ * is per task and no other task's `invalidate` reaches it, so the approving
+ * task still holds the row as it was before the binding. Played here by putting
+ * that copy back after the bind: the claimant's first request reaching that
+ * task was refused (`device_session_mismatch`) and the QR sign-in on OxyOS,
+ * which has no credential to re-mint with, had to be scanned again.
+ */
+describe('validateSession against a copy another task left stale', () => {
+  async function claimedAcrossTasks() {
+    const user = await account();
+    const device = deviceId();
+    const created = await sessionService.createSession(user, request(), { deviceId: device });
+    const approvingTasksCopy = await storedSession(created.sessionId);
+    await deviceSessionService.addAccount(device, {
+      accountId: user,
+      sessionId: created.sessionId,
+    });
+    await deviceSessionService.bindSessionToContext(device, created.sessionId);
+    const minted = await sessionService.getAccessToken(created.sessionId);
+    sessionCache.clear();
+    sessionCache.set(created.sessionId, approvingTasksCopy);
+    return { created, minted, approvingTasksCopy };
+  }
+
+  it("accepts the claim's token: the row decides, not the stale copy", async () => {
+    const { created, minted, approvingTasksCopy } = await claimedAcrossTasks();
+    expect(approvingTasksCopy.deviceSessionId).toBeNull();
+    expect(validateAccessToken(minted?.accessToken ?? '').payload?.device_session_id).toBeTruthy();
+
+    const result = await sessionService.validateSession(minted?.accessToken ?? '');
+
+    expect(result?.session.sessionId).toBe(created.sessionId);
+    // The row replaced the stale copy, so the next request is answered from it.
+    expect(sessionCache.get(created.sessionId)?.deviceSessionId).toBe(
+      (await storedSession(created.sessionId)).deviceSessionId,
+    );
+  });
+
+  it('still refuses a token the row itself disagrees with', async () => {
+    const { created } = await claimedAcrossTasks();
+    // The approval's own token, minted before the binding: the row now says
+    // otherwise, and the live re-read is what refuses it.
+    sessionCache.clear();
+    expect(await sessionService.validateSession(created.accessToken)).toBeNull();
+  });
+});
+
+/**
  * Issue #937, Phase 6 — the access-token v2 binding, at the seam where it is
  * written and re-read rather than in the pure claim-set unit
  * (`utils/__tests__/accessTokenV2.test.ts`).
