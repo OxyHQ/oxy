@@ -28,7 +28,8 @@
     "./tsconfig/base.json": "./tsconfig/base.json",
     "./tsconfig/frontend.json": "./tsconfig/frontend.json",
     "./tsconfig/backend.json": "./tsconfig/backend.json",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./css/document-scroll.css": "./css/document-scroll.css"
   },
   "files": [
     "NOTICE",

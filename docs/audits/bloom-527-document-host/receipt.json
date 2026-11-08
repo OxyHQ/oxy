@@ -1,0 +1,40 @@
+{
+  "baseline": {
+    "versions": {
+      "@oxy.so/bloom": "11.1.1",
+      "@oxy.so/services": "12.14.0",
+      "@oxy.so/core": "6.17.0",
+      "@oxy.so/contracts": "5.8.0",
+      "@oxy.so/app-preset": "3.6.1",
+      "expo": "58.0.23",
+      "expo-router": "58.0.30",
+      "react-native": "0.88.0"
+    },
+    "lock_sha256": "d6df9d7cdcac3f1a725ea05d9c43dfa41d38095563fe7e15c351d7c7b77a7364",
+    "html_sha256": "f7d35430ad0d229497c9a58f413ec7b09c1030405c7280f4d7a7140df9ecdfa6",
+    "global_css_sha256": "0e5ccf40019f2b0ff14b30a1aea1cdad3f9994e44312b9f90ceef8b87fab954a"
+  },
+  "current_candidate": {
+    "versions": {
+      "@oxy.so/bloom": "17.22.0",
+      "@oxy.so/services": "14.15.2",
+      "@oxy.so/core": "7.44.0",
+      "@oxy.so/contracts": "6.22.0",
+      "@oxy.so/app-preset": "6.5.1",
+      "expo": "58.0.23",
+      "expo-router": "58.0.30",
+      "react-native": "0.88.0"
+    },
+    "lock_sha256": "aa9b2a9b8b40f381e61a4c302cec5438742272702c47a555cf1aae2918869e63",
+    "html_sha256": "cafdb50fe7674f52510ea2ae406d0176b7a08ef1450bb90c79fdf03ffee2bc6e",
+    "global_css_sha256": "bcdfc5913c040c13599e7811280ec0e83ca6aac58c3081fb7ed585cf8a8cac03"
+  },
+  "source": "Oxy origin/main a3c6bcabb20240bf24c377bc4f632ab683e7daba",
+  "candidate": {
+    "kind": "local packed source candidate, not published",
+    "preset_tarball_sha256": "dc95767092ede2f5b276b2e8984d92187886fbbc62ccd7cd040d8ccd64a858c1",
+    "css_sha256": "cd201a58562ea7b70531941fe71372263e874522e84c60db7ce3648564231ae2",
+    "installed_css_sha256": "cd201a58562ea7b70531941fe71372263e874522e84c60db7ce3648564231ae2",
+    "fixture_sha256": "70f13304b265d2428783161f0e14219542613a4127bf51535486001728720481"
+  }
+}
