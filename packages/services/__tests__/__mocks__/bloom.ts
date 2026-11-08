@@ -13,6 +13,7 @@ import {
   useContext,
   useState,
   type ReactNode,
+  type Ref,
 } from 'react';
 
 type ToastFn = (message: string, options?: Record<string, unknown>) => void;
@@ -391,14 +392,25 @@ export const Text = ({
   children,
   testID,
   accessibilityRole,
-}: { children?: ReactNode; testID?: string; accessibilityRole?: string } & Record<
-  string,
-  unknown
->) =>
-  // Only `alert` is carried: an error line is found by its role.
+  ref,
+  tabIndex,
+}: {
+  children?: ReactNode;
+  testID?: string;
+  accessibilityRole?: string;
+  ref?: Ref<HTMLSpanElement>;
+  tabIndex?: number;
+} & Record<string, unknown>) =>
+  // Only `alert` is carried: an error line is found by its role. `ref` and the
+  // web's `tabIndex` reach the host, as Bloom's own `Text` hands them on.
   createElement(
     'span',
-    { 'data-testid': testID, role: accessibilityRole === 'alert' ? 'alert' : undefined },
+    {
+      'data-testid': testID,
+      role: accessibilityRole === 'alert' ? 'alert' : undefined,
+      ref,
+      tabIndex,
+    },
     children,
   );
 
@@ -997,3 +1009,37 @@ export const Textarea = ({
 export const Box = passthrough('div');
 export const useOverlayLayerContext = () => ({ root: 1010, backdrop: 1010, surface: 1011 });
 export const isTopmostOverlayLayer = jest.fn(() => true);
+
+/** `@oxy.so/bloom/hooks`: motion allowed, and the native focus move inert (web tests own focus). */
+export const usePrefersReducedMotion = (): boolean => false;
+export const useItemAccessibilityFocus =
+  (_current: string | null) =>
+  (_key: string, _view: unknown): void =>
+    undefined;
+
+/** `@oxy.so/bloom/motion` `ScreenTransition`: its children, the direction it would travel recorded. */
+export const ScreenTransition = ({
+  children,
+  direction,
+}: {
+  children?: ReactNode;
+  direction: 'forward' | 'backward';
+} & Record<string, unknown>) =>
+  createElement(
+    'div',
+    { 'data-testid': 'screen-transition', 'data-direction': direction },
+    children,
+  );
+
+/** `@oxy.so/bloom/carousel` `CarouselDots`: decorative without `onIndexChange`, as the real one. */
+export const CarouselDots = ({
+  count,
+  index,
+  testID,
+}: { count: number; index: number; testID?: string } & Record<string, unknown>) =>
+  createElement('div', {
+    'aria-hidden': 'true',
+    'data-testid': testID,
+    'data-count': count,
+    'data-index': index,
+  });

@@ -2,8 +2,8 @@
  * The shell every Oxy sign-in screen shares — the in-app account dialog and
  * every page of the auth.oxy.so IdP render these, so the two cannot drift:
  *
- *   header   the Oxy mark (56), then the title (48/800, tight) and a 18px
- *            description, 8 apart
+ *   header   the Oxy mark (56) or the screen's own icon, then the title
+ *            (48/800, tight) and a 18px description, 8 apart
  *   screen   blocks 24 apart, at most 448 wide
  *   split    from `md`, Bloom `AuthCard`'s split base — max 880, radius 24,
  *            1px border, two equal columns, the right one on the secondary
@@ -17,7 +17,7 @@
  */
 
 import type React from 'react';
-import { Linking, Text as RNText } from 'react-native';
+import { Linking, Platform, Text as RNText } from 'react-native';
 import { View } from 'react-native-css/components';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -32,20 +32,43 @@ const PRIVACY_URL = 'https://oxy.so/company/transparency/policies/privacy';
 const TITLE = { fontSize: 48, lineHeight: 48, fontWeight: '800', letterSpacing: -1.2 } as const;
 const DESCRIPTION = { fontSize: 18, lineHeight: 28 } as const;
 const TERMS = { fontSize: 14, lineHeight: 20, textAlign: 'center', paddingHorizontal: 24 } as const;
+/** A title focused by code is a place, not a control: no focus ring. */
+const PLACE = { outlineWidth: 0 } as const;
 
 export interface OxyAuthScreenHeaderProps {
   title: string;
   description?: React.ReactNode;
+  /** Drawn in place of the Oxy mark (a platform's own step icon), at most 56 tall. */
+  icon?: React.ReactNode;
+  /**
+   * The title's host view, for a surface that moves focus to it (a setup
+   * assistant's step change). Given, the title also takes focus from code on
+   * the web (`tabIndex` -1), never from Tab.
+   */
+  titleRef?: React.Ref<React.ComponentRef<typeof RNText>>;
 }
 
-/** The Oxy mark over the screen's title and description. */
-export const OxyAuthScreenHeader: React.FC<OxyAuthScreenHeaderProps> = ({ title, description }) => {
+/** The Oxy mark (or the screen's icon) over the screen's title and description. */
+export const OxyAuthScreenHeader: React.FC<OxyAuthScreenHeaderProps> = ({
+  title,
+  description,
+  icon,
+  titleRef,
+}) => {
   const theme = useTheme();
+  const focusable = titleRef != null && Platform.OS === 'web';
   return (
     <View className="gap-6">
-      <LogoIcon height={LOGO_HEIGHT} />
+      {icon ?? <LogoIcon height={LOGO_HEIGHT} />}
       <View className="max-w-[90%] gap-2">
-        <Text accessibilityRole="header" style={[TITLE, { color: theme.colors.text }]}>
+        <Text
+          accessibilityRole="header"
+          // Bloom's `Text` hands `ref` (a prop in React 19) and react-native-web's
+          // `tabIndex` to its host text; neither is in React Native's `TextProps`.
+          {...{ ref: titleRef }}
+          {...(focusable ? { tabIndex: -1 } : null)}
+          style={[TITLE, { color: theme.colors.text }, focusable ? PLACE : null]}
+        >
           {title}
         </Text>
         {description != null && description !== '' ? (

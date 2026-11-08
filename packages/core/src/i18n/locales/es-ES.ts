@@ -538,6 +538,7 @@ const dict = {
   },
   common: {
     stepOf: 'Paso {{step}} de {{total}}',
+    stepAnnouncement: '{{title}}, paso {{step}} de {{total}}',
     actions: {
       back: 'Atrás',
       continue: 'Continuar',

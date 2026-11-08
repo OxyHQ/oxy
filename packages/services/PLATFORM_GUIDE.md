@@ -185,6 +185,42 @@ The identity provider mounts the same `OxyProvider` with the same device-first c
 
 ---
 
+### A platform's setup (OxyOS)
+
+A platform that sets an Oxy account up on a screen of its own (OxyOS's first run, ADR 0064, OxyOS ADR 0020) composes its steps with the SDK's sign-in in one frame, `OxySetupFlow`. The flow is controlled: the platform decides which steps apply, which is current and what every action does; the SDK draws each step in the sign-in's shell, the footer (Back, a secondary, the primary), "Step 2 of 5", focus, the announcement and the transition. The sign-in step is `oxySignInStep()` — the account dialog's `OxyAuthChooser`, unchanged.
+
+```tsx
+import { OxyProvider, OxySetupFlow, oxySignInStep, type OxySetupStep } from '@oxy.so/services';
+
+function Setup() {
+  const [current, setCurrent] = useState('welcome');
+  const [cardWidth, setCardWidth] = useState<number | null>(null); // 880 while the QR split shows
+  const steps: OxySetupStep[] = [
+    { id: 'welcome', title: 'Welcome', content: null,
+      primary: { label: 'Continue', onPress: () => setCurrent('oxy-sign-in') } },
+    oxySignInStep(),
+    { id: 'pin', title: 'Create a PIN', icon: <PinIcon />, initialFocus: 'content',
+      content: <PinFields autoFocus />, primary: { label: 'Continue', onPress: savePin, busy, disabled: !pinOk } },
+  ];
+  return (
+    <Card maxWidth={cardWidth ?? 448}>
+      <OxySetupFlow label="Set up your account" steps={steps} current={current}
+        onBack={current === 'welcome' ? undefined : back} onMaxWidthChange={setCardWidth} />
+    </Card>
+  );
+}
+
+// Around it: <OxyProvider clientId="…" authStateStore={setupStore}> — the sign-in's credential and how
+// it signed in (`context.method` 'qr' | 'password', the typed password) reach `setupStore.save`, and
+// `useOxy()` follows the account; move to the next step from there.
+```
+
+- Needs `OxyProvider` (for the sign-in step) and Bloom's provider; it inherits the Bloom theme (`BloomProvider mode="dark"` on a dark card).
+- `initialFocus: 'content'` on a step whose field takes focus itself; otherwise focus goes to the step's title.
+- A step with an `aside` is the split card from `md` and asks for 880, as the sign-in does with its QR.
+
+---
+
 ### Node.js (Backend)
 
 **Install:**

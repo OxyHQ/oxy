@@ -403,6 +403,18 @@ export { default as OxyAuthChooser } from './ui/components/OxyAuthChooser';
 export type { OxyAuthChooserProps } from './ui/components/OxyAuthChooser';
 export { OxySurfaceFrame } from './ui/components/OxySurfaceFrame';
 export type { OxySurfaceFrameProps } from './ui/components/OxySurfaceFrame';
+// A platform's setup in the sign-in's own frame: the host's steps and the SDK's
+// sign-in (`oxySignInStep`, the chooser above unchanged) on one card, controlled
+// by the host (ADR 0064; OxyOS's login screen sets up an account with it).
+export { OxySetupFlow } from './ui/components/setupFlow/OxySetupFlow';
+export type {
+  OxySetupFlowProps,
+  OxySetupStep,
+  OxySetupAction,
+  OxySetupPrimaryAction,
+} from './ui/components/setupFlow/OxySetupFlow';
+export { oxySignInStep } from './ui/components/setupFlow/oxySignInStep';
+export type { OxySignInStepOptions } from './ui/components/setupFlow/oxySignInStep';
 
 // THE sign-in screens. The account dialog renders them, and so does every page
 // of the auth.oxy.so IdP: one implementation of what a person sees when they
