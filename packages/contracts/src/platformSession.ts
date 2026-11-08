@@ -26,6 +26,7 @@ import {
   OXYOS_DESKTOP_ENTRY_ID_PATTERN,
   PLATFORM_HOSTS,
 } from './client/platformSession';
+import { deviceProofSchema } from './deviceSession';
 import { isoDateTime, utf16MaxLength, utf16MinLength } from './stringChecks';
 
 export {
@@ -51,6 +52,22 @@ const publicClientIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxL
 export const platformClientSchema = z.strictObject({
   platform: platformHostSchema,
   clientId: publicClientIdSchema,
+});
+
+/**
+ * `POST /session/device/platform`: a platform's credential from the QR
+ * approval (ADR 0058 2.1, amended 2026-11-08). `device` is the holder
+ * credential a device-sign-in claim (`POST /auth/session/claim`) issued to the
+ * platform's setup client a few minutes ago, the request having been started by
+ * the application `platformClient` names. Honoured as `platformClient` is on
+ * the password sign-in (no web `Origin`, the registry's `platformHost`). The
+ * proof is spent once; the answer is the password sign-in's (`LoginResult`),
+ * its `deviceSecret` the platform credential. Every proof that is not
+ * redeemable gets the same 401 (`invalid_grant`).
+ */
+export const devicePlatformRequestSchema = z.strictObject({
+  device: z.strictObject(deviceProofSchema.shape),
+  platformClient: platformClientSchema,
 });
 
 /**
@@ -124,6 +141,7 @@ export const hostTokenValidationSchema = z.object({
 export type PlatformHost = (typeof PLATFORM_HOSTS)[number];
 export type DeviceAppTokenErrorCode = (typeof DEVICE_APP_TOKEN_ERROR_CODES)[number];
 export type PlatformClient = z.infer<typeof platformClientSchema>;
+export type DevicePlatformRequest = z.infer<typeof devicePlatformRequestSchema>;
 export type DeviceAppTokenAttestation = z.infer<typeof deviceAppTokenAttestationSchema>;
 export type DeviceAppTokenRequest = z.infer<typeof deviceAppTokenRequestSchema>;
 export type DeviceAppTokenResponse = z.infer<typeof deviceAppTokenResponseSchema>;

@@ -77,6 +77,7 @@ import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import { resolveProvenDeviceId } from '../services/deviceJoin.service';
 import { formatUserResponse } from '../utils/userTransform';
 import { exchangeAuthCode, AUTH_CODE_TTL_MS } from '../services/oauthCode.service';
+import { recordClaimedCredential } from '../services/platformPromotion.service';
 import {
   approvalMintsSession,
   deviceSignInApplicationIsTrusted,
@@ -1593,6 +1594,23 @@ router.post(
       session,
       userId: authSession.authorizedUserId,
     });
+
+    // The credential this claim issued is the device proof a platform's setup
+    // client may redeem once, within minutes, for its platform credential
+    // (`POST /session/device/platform`, ADR 0058 2.1): recorded on the request
+    // it answers, so the redemption is bound to this approval and to the
+    // application that started it. Best-effort: without it nothing is
+    // redeemable, and the sign-in itself is unaffected.
+    if (deviceSecret) {
+      await recordClaimedCredential(authSession.id, session.deviceId, deviceSecret).catch(
+        (error: unknown) => {
+          logger.warn('[AuthSession] Could not record the claimed credential', {
+            sessionId: session.sessionId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        },
+      );
+    }
 
     // Finalization binds the session row to its device context. Mint only
     // afterwards so the credential returned to the claimant carries that

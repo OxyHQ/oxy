@@ -8,7 +8,8 @@
   in `@oxy.so/core` 7.34.0 and `@oxy.so/services` 14.11.0 (#2199). Step 4
   (OxyOS) is being built against the contracts below; step 5 (Astro) has not
   started.
-- Date: 2026-10-30; accepted 2026-11-06
+- Date: 2026-10-30; accepted 2026-11-06; amended 2026-11-08 (R6, the QR
+  approval issues the platform credential)
 - Decided by: the owner (product direction, 2026-10-30). The open questions
   were resolved, and the mechanism refined, under the owner's delegation on
   2026-11-06 (see "Resolved questions" and "Refinements made in accepting it")
@@ -471,8 +472,10 @@ is published by hand (Release packages publishes a merged bump).
 Each is binding; the platforms' implementations code against them.
 
 **R1. How the platform credential is issued (2.1).** The sign-in that names the
-platform is the platform service's own password sign-in, never the setup
-client's. `POST /auth/signin/password`, and `POST /auth/signin/second-factor`
+platform is the platform service's own: its password sign-in, or, since
+2026-11-08, its redemption of the QR approval the setup client just claimed
+(R6). Never the setup client's own sign-in. `POST /auth/signin/password`, and
+`POST /auth/signin/second-factor`
 completing it, accept an optional `platformClient: { platform, clientId }`.
 
 - It is honoured only when the request carries no browser context (`Origin` or
@@ -496,7 +499,8 @@ completing it, accept an optional `platformClient: { platform, clientId }`.
   email's code or link, a password, or the Commons QR approved on a phone (a
   claim, `POST /auth/session/claim`, issues the claiming device's holder
   credential like any other sign-in). Whichever it was, the platform's
-  password sign-in then proves it and retires it (2026-11-07).
+  password sign-in then proves it and retires it (2026-11-07); a QR claim's
+  credential is redeemed without any password instead (R6, 2026-11-08).
 - **One session per account.** A platform sign-in never reuses a session
   (`freshSession`): the new session replaces the account's session on the
   device (`addAccount` deactivates the one it displaces, through the one
@@ -590,6 +594,59 @@ refuses `host` (`host_not_accepted`) unless its caller re-checks it live
 `hostTokenAuthority.service.ts`), so a lane written before this ADR cannot
 believe an application token by accident.
 
+**R6. The QR approval issues the platform credential (amended 2026-11-08, by
+the owner).** Oxy signs a person in on a new device by approval, not by a
+secret typed into it: the device shows a QR, an identity the person already
+holds (Commons' key, or a signed-in session) approves it, and the device claims
+the approved request. That is the authentication, and an account may have no
+password at all (a Commons account has none by design). So a QR sign-in on a
+platform is entirely passwordless, and R1's password sign-in cannot be the only
+way the platform service gets its credential: it is the way for a password
+sign-in, and this is the way for a QR sign-in, for every account, whether or
+not it has a password.
+
+`POST /session/device/platform`, public like `/session/device/token` (no
+bearer; the proof is the credential):
+
+- in: `{ device: { deviceId, deviceSecret }, platformClient: { platform,
+  clientId } }`;
+- out: the password sign-in's answer (`LoginResult`), its `deviceSecret` the
+  platform credential.
+
+`platformClient` is resolved first, exactly as on the password sign-in (no
+browser context, an active trusted application declaring that `platformHost`),
+and an unhonoured one is the ordinary 400 before anything is looked up. The
+proof is the holder credential a device-sign-in claim issued; the claim records
+it on the request it answers (`auth_sessions.claimed_credential_id`, migrations
+0246–0247). It is redeemable only when, in one transaction holding the device's
+row lock, every one of these holds on live rows:
+
+1. the secret proves a live ordinary holder credential of that device;
+2. it is the credential a claim recorded, the request a `device_sign_in`,
+   `consumed` less than ten minutes ago;
+3. the request was started by the application `platformClient` names, so a
+   proof another client claimed (another platform, another app) is not
+   redeemable by this one;
+4. the approved account is still signed in on the device (a live device
+   context), and is a personal, active account.
+
+The proof is deleted in that transaction: spent once, so a replay or a racing
+second redemption finds nothing. Every proof that is not redeemable is the same
+401 `invalid_grant`, whichever check failed, so the route says nothing about
+which devices, credentials or accounts exist. What is issued is exactly what
+the password sign-in issues (`mintSignInSession` with the platform client): a
+fresh session replacing the setup client's, and a platform credential with its
+rotation and revocation; revoking the device or the account revokes it. If
+issuing fails after the proof is spent, the redemption fails closed and the
+setup starts again with a new QR.
+
+Budgets: per hashed IP (20 in 15 minutes); per device id as sent, counted
+whether or not it exists (5 in 15 minutes); per account, asked once the proof
+is known to sign it in and before it is spent (10 in 15 minutes). Each
+redemption is logged with the account, the device id's prefix, the platform
+and the application, never a secret; the session's sign-in is recorded as
+every sign-in is.
+
 ## Enforcement
 
 - **API tests** (`routes/__tests__/platformAppTokens.db.test.ts`,
@@ -606,7 +663,14 @@ believe an application token by accident.
   application's trust. A token with `azp` and no `host` on a shared session is
   `client_mismatch`.
   A platform sign-in issues a platform credential, deletes the proof's row and
-  leaves one session for the account however often it repeats; an unhonoured
+  leaves one session for the account however often it repeats;
+  `routes/__tests__/devicePlatform.db.test.ts` redeems a claimed QR end to end
+  (create, approve on a phone, claim, redeem, mint an application's token) and
+  refuses a replay, all but one of concurrent redemptions, another platform
+  client's or a non-platform application's proof, a stale claim, an account
+  signed out of the device or no longer active, a revoked credential, a
+  browser, and a wrong secret, an unknown device and a password sign-in's
+  credential, those three with one identical answer; an unhonoured
   `platformClient` is refused identically for known and unknown identifiers
   with no lockout reservation or password work; the second factor completes
   only with the same platform client.

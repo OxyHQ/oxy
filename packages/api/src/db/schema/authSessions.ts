@@ -45,6 +45,7 @@ import { applications } from './applications';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 import { sessions } from './sessions';
+import { deviceCredentials } from './deviceCredentials';
 
 /** The authoritative state machine. Delivery progress is never one of these. */
 export const AUTH_SESSION_STATUSES = [
@@ -176,6 +177,16 @@ export const authSessions = pgTable(
     /** DELIVERY PROGRESS — when an approval surface first opened it. Written once. */
     openedAt: timestamptz(),
     consumedAt: timestamptz(),
+    /**
+     * The holder credential the claim issued to the claiming device (a device
+     * sign-in's `POST /auth/session/claim`). It is the device proof a platform
+     * redeems once, within minutes of the claim, for its platform credential
+     * (`POST /session/device/platform`, ADR 0058 2.1, amended 2026-11-08): the
+     * QR approval is what authenticates, and this binds the proof to the request
+     * and to the application that started it. `SET NULL`: a credential retired
+     * (redeemed, revoked, evicted) leaves nothing to redeem.
+     */
+    claimedCredentialId: text().references(() => deviceCredentials.id, { onDelete: 'set null' }),
     expiresAt: timestamptz().notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -186,6 +197,8 @@ export const authSessions = pgTable(
     index('auth_sessions_application_id_idx').on(t.applicationId),
     // Supports the expiry sweep in `db/expiry.ts`.
     index('auth_sessions_expires_at_idx').on(t.expiresAt),
+    // The platform promotion finds the claim by the credential its proof names.
+    index('auth_sessions_claimed_credential_id_idx').on(t.claimedCredentialId),
     // No `(session_token, status)` index: it would be redundant.
     // `auth_sessions_session_token_key` is UNIQUE, so the lookup already lands
     // on one row and `status` is a free check on it.

@@ -484,7 +484,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "6.20.0",
+      "version": "6.21.0",
       "dependencies": {
         "zod": "catalog:",
       },

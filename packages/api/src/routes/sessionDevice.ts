@@ -16,6 +16,8 @@ import {
   deviceJoinResponseSchema,
   deviceRegisterResponseSchema,
   deviceTokenMintRequestSchema,
+  devicePlatformRequestSchema,
+  type DevicePlatformRequest,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
@@ -23,6 +25,13 @@ import { requireSameSiteOrigin } from '../middleware/originGuard';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { sendRateLimited } from '../middleware/errorHandler';
 import { rateLimit } from '../middleware/rateLimiter';
+import { validate } from '../middleware/validate';
+import { resolvePlatformClient } from '../services/platformClient.service';
+import {
+  PromotionRateLimitedError,
+  invalidDeviceProof,
+  redeemDeviceProof,
+} from '../services/platformPromotion.service';
 import { holderContextEvidenceBudget } from '../middleware/security';
 import { clearFailures, type LockoutCheck, reserveAttempt } from '../services/loginLockout.service';
 import {
@@ -661,6 +670,104 @@ router.post(
         accountId: outcome.accountId,
       }),
     });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// A platform's credential from the QR approval (ADR 0058 2.1, amended)
+// ---------------------------------------------------------------------------
+
+/** Per hashed IP: a setup redeems once; a few retries, never a stream of guesses. */
+const devicePlatformLimiter = rateLimit({
+  prefix: 'rl:session:device-platform:',
+  windowMs: 15 * 60_000,
+  max: 20,
+  keyGenerator: (req: Request) => `session:device-platform:ip:${hashedIpKey(req)}`,
+});
+/** Redemptions one device id may be asked for in 15 minutes, known or not. */
+const DEVICE_PLATFORM_DEVICE_BUDGET = 5;
+/** Redemptions one account may make in 15 minutes, across its devices. */
+const DEVICE_PLATFORM_ACCOUNT_BUDGET = 10;
+const DEVICE_PLATFORM_WINDOW_SECONDS = 15 * 60;
+
+/**
+ * A platform's credential from the QR approval it just claimed
+ * (`services/platformPromotion.service.ts`).
+ *
+ * Public like `/token`: no bearer; the claim's holder credential is the proof,
+ * spent once. `platformClient` is resolved first, from the request and the
+ * registry alone (no browser context, the registry's `platformHost`), and an
+ * unhonoured one is the ordinary invalid-request answer before anything is
+ * looked up. Then the device id's own budget (counted whether or not the
+ * device exists), the proof, the account's budget (before the proof is spent)
+ * and the platform's sign-in, exactly as the password sign-in issues it. Every
+ * proof that is not redeemable gets the same 401; nothing logged carries a
+ * secret.
+ *
+ * Answers 200 with the password sign-in's `LoginResult`, its `deviceSecret`
+ * the platform credential.
+ *
+ * @response 400 Error Not the contract's body, or a platform client that is not honoured.
+ * @response 401 Error `invalid_grant`: the proof is not redeemable.
+ * @response 429 Error Rate limited; Retry-After may be present.
+ */
+router.post(
+  '/platform',
+  devicePlatformLimiter,
+  validate({ body: devicePlatformRequestSchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const body = req.body as DevicePlatformRequest;
+    const client = await resolvePlatformClient(req, body.platformClient);
+    if (!client) throw invalidDeviceProof();
+
+    const perDevice = await reserveAttempt({
+      scope: 'device-platform:device',
+      identifier: body.device.deviceId,
+      maxAttempts: DEVICE_PLATFORM_DEVICE_BUDGET,
+      windowSeconds: DEVICE_PLATFORM_WINDOW_SECONDS,
+    });
+    if (perDevice.locked) {
+      refuseLockedOut(res, perDevice);
+      return;
+    }
+
+    let accountBudget: LockoutCheck | null = null;
+    let redeemed: Awaited<ReturnType<typeof redeemDeviceProof>>;
+    try {
+      redeemed = await redeemDeviceProof(body.device, client, {
+        admitAccount: async (userId) => {
+          accountBudget = await reserveAttempt({
+            scope: 'device-platform:account',
+            identifier: userId,
+            maxAttempts: DEVICE_PLATFORM_ACCOUNT_BUDGET,
+            windowSeconds: DEVICE_PLATFORM_WINDOW_SECONDS,
+          });
+          return !accountBudget.locked;
+        },
+      });
+    } catch (error) {
+      if (error instanceof PromotionRateLimitedError && accountBudget) {
+        refuseLockedOut(res, accountBudget);
+        return;
+      }
+      throw error;
+    }
+
+    // Loaded here, not at the top: the sign-in service reaches the session
+    // controller and through it the whole app (`server.ts`), which this router
+    // must not pull into every importer (and its tests).
+    const { mintSignInSession } = await import('../services/signInSession.service.js');
+    res
+      .status(200)
+      .json(
+        await mintSignInSession(
+          req,
+          { id: redeemed.userId, username: redeemed.username, avatar: redeemed.avatar },
+          { platformClient: client },
+          redeemed.deviceId,
+        ),
+      );
   }),
 );
 
