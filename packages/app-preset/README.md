@@ -489,3 +489,31 @@ Requires **Expo SDK 56+**; validated against **Expo SDK 58 / React Native 0.88**
 uses `proguard-android-optimize.txt` and turns R8 on through `gradle.properties`
 (`android.enableMinifyInReleaseBuilds`), so the preset's `-optimize` ProGuard
 swap only changes anything on SDK 56/57.
+
+### Web document scrolling versus a bounded host
+
+The document-scroll stylesheet is available from app-preset 6.6.0.
+
+The base stylesheet preserves Expo's bounded host: `body` cannot scroll and a
+bounded `ScrollView`/Bloom `Screen` owns its region. Keep that default for apps
+whose routes fit the viewport.
+
+For an application that uses document flow (for example Bloom `AppShell
+scroll="page"` with `panelLayout.flow="document"`), explicitly import the host
+recipe after the base in the app's `global.css`:
+
+```css
+@import "@oxy.so/app-preset/base.css";
+@import "@oxy.so/app-preset/css/document-scroll.css";
+```
+
+This enables body overflow without changing the root's height or removing Expo's
+reset. Bounded regions can still own their own scroll inside that host; do not add
+an outer `ScrollView` around a document-owning Screen. This CSS only configures
+the web host; native scroll remains owned by the native Screen/ScrollView.
+
+Configure this in the stylesheet, not only in a custom `+html.tsx`: Expo's
+`web.output="single"` export uses its default HTML and does not render that custom
+document. Static output must keep its script/style `headNodes` and `bodyNodes`.
+The generated scaffold defaults to a bounded host. Changing the host permission
+is separate from choosing the scroll owner for each route.

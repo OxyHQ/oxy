@@ -1,0 +1,114 @@
+[
+  {
+    "case": "width-320",
+    "mode": "document",
+    "viewportWidth": 320,
+    "hostWidth": 320,
+    "documentY": 650,
+    "internalOffsets": [
+      0
+    ],
+    "dialogOverflow": "hidden",
+    "restoredOverflow": "auto",
+    "horizontalOverflow": 0,
+    "errors": []
+  },
+  {
+    "case": "width-320",
+    "mode": "bounded",
+    "viewportWidth": 320,
+    "hostWidth": 320,
+    "documentY": 0,
+    "internalOffsets": [
+      650
+    ],
+    "dialogOverflow": "hidden",
+    "restoredOverflow": "auto",
+    "horizontalOverflow": 0,
+    "errors": []
+  },
+  {
+    "case": "width-390",
+    "mode": "document",
+    "viewportWidth": 390,
+    "hostWidth": 390,
+    "documentY": 650,
+    "internalOffsets": [
+      0
+    ],
+    "dialogOverflow": "hidden",
+    "restoredOverflow": "auto",
+    "horizontalOverflow": 0,
+    "errors": []
+  },
+  {
+    "case": "width-390",
+    "mode": "bounded",
+    "viewportWidth": 390,
+    "hostWidth": 390,
+    "documentY": 0,
+    "internalOffsets": [
+      650
+    ],
+    "dialogOverflow": "hidden",
+    "restoredOverflow": "auto",
+    "horizontalOverflow": 0,
+    "errors": []
+  },
+  {
+    "case": "desktop",
+    "mode": "document",
+    "viewportWidth": 1100,
+    "hostWidth": 1100,
+    "documentY": 650,
+    "internalOffsets": [
+      0
+    ],
+    "dialogOverflow": "hidden",
+    "restoredOverflow": "auto",
+    "horizontalOverflow": 0,
+    "errors": []
+  },
+  {
+    "case": "desktop",
+    "mode": "bounded",
+    "viewportWidth": 1100,
+    "hostWidth": 1100,
+    "documentY": 0,
+    "internalOffsets": [
+      650
+    ],
+    "dialogOverflow": "hidden",
+    "restoredOverflow": "auto",
+    "horizontalOverflow": 0,
+    "errors": []
+  },
+  {
+    "case": "desktop-narrow-final",
+    "mode": "document",
+    "viewportWidth": 1100,
+    "hostWidth": 320,
+    "documentY": 650,
+    "internalOffsets": [
+      0
+    ],
+    "dialogOverflow": "hidden",
+    "restoredOverflow": "auto",
+    "horizontalOverflow": 0,
+    "errors": []
+  },
+  {
+    "case": "desktop-narrow-final",
+    "mode": "bounded",
+    "viewportWidth": 1100,
+    "hostWidth": 320,
+    "documentY": 0,
+    "internalOffsets": [
+      650
+    ],
+    "dialogOverflow": "hidden",
+    "restoredOverflow": "auto",
+    "horizontalOverflow": 0,
+    "errors": []
+  }
+]

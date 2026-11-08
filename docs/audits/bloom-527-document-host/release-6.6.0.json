@@ -1,0 +1,9 @@
+{
+  "version": "6.6.0",
+  "publication": "not published; normal CI/release workflow pending",
+  "tarball_sha256": "acc87bddeaeea22ca23d6cdc1f0a7741b2beace99018c0a5433aed5641c75616",
+  "tarball_sha512": "694976d7f858aa7e14aa71ba03fb2b831965253d912b2a5f02510130a1771f2c3d5fae3d2ec675f7c3b450ee62cecd5690334f6aa755e049b0fa07d690fc813d",
+  "css_sha256": "cd201a58562ea7b70531941fe71372263e874522e84c60db7ce3648564231ae2",
+  "exports": "./css/document-scroll.css",
+  "comparison": "CSS bytes identical to the source candidate used by the eight browser cases"
+}

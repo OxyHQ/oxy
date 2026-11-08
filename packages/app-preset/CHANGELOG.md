@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.6.0
+
+### Added
+
+- Add `@oxy.so/app-preset/css/document-scroll.css` as an explicit web host opt-in
+  for document-owned scrolling. It enables body overflow while preserving the
+  default bounded reset, root geometry, nested bounded owners and modal scroll
+  locking. The base stylesheet does not enable it automatically.
+
 ## 6.5.1
 
 ### Fixed

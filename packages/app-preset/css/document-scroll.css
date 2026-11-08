@@ -1,0 +1,9 @@
+/* Explicit web host opt-in for document-owned scrolling (for example Bloom
+ * AppShell scroll="page"). Expo's default reset intentionally disables body
+ * scrolling for bounded ScrollViews. Keep that default in base.css; import this
+ * stylesheet only when the application's host allows document flow.
+ * The selector beats Expo's body reset regardless of stylesheet order. Retain
+ * root/viewport geometry so bounded screens keep their existing scroll owner. */
+html body {
+  overflow: auto;
+}

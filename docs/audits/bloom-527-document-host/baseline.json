@@ -1,0 +1,10 @@
+{
+  "errors": [],
+  "state": {
+    "text": "Welcome to Document host probe\nSign in with your Oxy account to continue.\nSign in with Oxy",
+    "bodyOverflow": "hidden",
+    "html": "<html lang=\"en\" style=\"--css-interop-darkMode: class dark; --background: rgb(247 235 240); --foreground: rgb(42 17 50); --surface: rgb(241 221 233); --surface-foreground: rgb(42 17 50); --popover: rgb(237 206 228); --popover-foreground: rgb(42 17 50); --primary: rgb(148 34 174); --primary-foreground",
+    "height": 844,
+    "viewport": 844
+  }
+}
