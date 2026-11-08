@@ -1,14 +1,14 @@
 {
   "package": "@oxy.so/services",
-  "version": "14.18.0",
+  "version": "14.18.1",
   "verifiedAt": "2026-11-09",
   "sourceBranch": "fix/services-header-action-equality",
-  "sourceCommit": "978414fd5cede533fadb1afd9a0cb7f22722e228",
+  "sourceCommit": "8f913d85e",
   "checks": {
     "jest": {
-      "command": "bun run test --runInBand",
+      "command": "bun run services:test",
       "suitesPassed": 178,
-      "testsPassed": 1524
+      "testsPassed": 1529
     },
     "typescript": "passed",
     "iconSubsetCheck": "passed",
@@ -20,10 +20,10 @@
     }
   },
   "tarball": {
-    "filename": "oxy.so-services-14.18.0.tgz",
+    "filename": "oxy.so-services-14.18.1.tgz",
     "creation": "bun pm pack --ignore-scripts",
-    "sha256": "6b6c5a79abbcff7117dd1c7966d08f0378410b748515fff0be39ad8b05fe45a5",
+    "sha256": "a80b9953d780cdbc9e29d5b3ac2755c8a10f7cdedc936e159d666078beb12deb",
     "manifestVersionVerified": true
   },
-  "consumerAcceptance": "pending publication and Nilo install/typecheck against 14.18.0"
+  "consumerAcceptance": "pending publication and Nilo install/typecheck against 14.18.1"
 }

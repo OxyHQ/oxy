@@ -4,8 +4,8 @@
 
 ### Fixed
 
-Surface header contributions accept Bloom semantic header actions and legacy accessible-label entries. Presentation changes update the host without rendering loops from inline callbacks. Semantic callbacks follow stable IDs through reordering and become inert when removed; legacy static lists keep positional dispatch, and custom header nodes remain identity-compared.
-Typecheck the adapter with Bloom semantic action declarations while retaining support for the 17.15 minimum.
+- **Surface header contributions** accept Bloom semantic header actions and legacy accessible-label entries. Presentation changes update the host without render loops from inline callbacks. Semantic callbacks follow stable IDs through reordering and become inert when removed; legacy static lists keep positional dispatch, and custom header nodes remain identity-compared.
+- Typecheck the adapter with Bloom semantic header-action declarations while retaining support for the 17.15 minimum.
 
 ## 14.18.0
 
