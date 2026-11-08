@@ -11,9 +11,11 @@ scroll-owner code needed to change.
 The candidate adds an explicit `@oxy.so/app-preset/css/document-scroll.css`
 subpath containing `html body { overflow: auto }`. The selector wins over Expo's
 body reset without relying on import order. The base stylesheet and Expo reset
-remain unchanged. This is a **local packed source candidate**, still labeled
-6.5.1 for the experiment; the new subpath needs an additive published version
-before consumer adoption. It is not in the published 6.5.1 package.
+remain unchanged. The initial browser experiment used a **local packed source candidate** labeled
+6.5.1; it was never the published 6.5.1 package. The PR now prepares the additive
+6.6.0 release with its synchronized lockfile and changelog. `release-6.6.0.json`
+records the final packed artifact and confirms identical CSS bytes; publication
+and final published-package consumer acceptance remain pending.
 
 ## Baseline and integration fixture
 

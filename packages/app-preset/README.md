@@ -492,6 +492,8 @@ swap only changes anything on SDK 56/57.
 
 ### Web document scrolling versus a bounded host
 
+The document-scroll stylesheet is available from app-preset 6.6.0.
+
 The base stylesheet preserves Expo's bounded host: `body` cannot scroll and a
 bounded `ScrollView`/Bloom `Screen` owns its region. Keep that default for apps
 whose routes fit the viewport.
