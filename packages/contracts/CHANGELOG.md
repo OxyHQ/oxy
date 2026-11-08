@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.23.0
+
+A platform confirms the credentials it receives (ADR 0058 R8, 2026-11-08).
+
+### Added
+
+- `platformSession.ts`: `platformClientSchema`'s optional `confirms: true`. A platform that sends it receives its credential pending: it proves nothing until `POST /session/device/platform/confirm` confirms it, and is gone ten minutes after the QR's claim or the sign-in; the credential the sign-in's device proof presented is retired only by the confirmation. Without it, nothing changes.
+- `devicePlatformConfirmRequestSchema` (`{ deviceId, deviceSecret }`, strict), `devicePlatformConfirmResponseSchema` (`{ confirmed: true }`), their types, and `PLATFORM_CREDENTIAL_PENDING_MS` (ten minutes).
+
 ## 6.22.0
 
 A QR redemption repeats with its key (ADR 0058 R7, 2026-11-08).

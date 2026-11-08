@@ -73943,7 +73943,7 @@
           "Sessions"
         ],
         "summary": "A platform's credential from the QR approval it just claimed",
-        "description": "(`services/platformPromotion.service.ts`).\n\nPublic like `/token`: no bearer; the claim's holder credential is the proof,\nspent once. `platformClient` is resolved first, from the request and the\nregistry alone (no browser context, the registry's `platformHost`), and an\nunhonoured one is the ordinary invalid-request answer before anything is\nlooked up. Then the device id's own budget (counted whether or not the\ndevice exists), the proof, the account's budget (before the proof is spent)\nand the platform's sign-in, exactly as the password sign-in issues it. Every\nproof that is not redeemable gets the same 401; nothing logged carries a\nsecret.\n\n`redemptionKey` (R7): sent with the first redemption by the platform service\nalone, it lets the same proof and the same key be redeemed again within the\nclaim's ten minutes, each repetition revoking the platform credential the\nprevious one issued. Without it, or with another, a spent proof is the same\n401.\n\nAnswers 200 with the password sign-in's `LoginResult`, its `deviceSecret`\nthe platform credential.",
+        "description": "(`services/platformPromotion.service.ts`).\n\nPublic like `/token`: no bearer; the claim's holder credential is the proof,\nspent once. `platformClient` is resolved first, from the request and the\nregistry alone (no browser context, the registry's `platformHost`), and an\nunhonoured one is the ordinary invalid-request answer before anything is\nlooked up. Then the device id's own budget (counted whether or not the\ndevice exists), the proof, the account's budget (before the proof is spent)\nand the platform's sign-in, exactly as the password sign-in issues it. Every\nproof that is not redeemable gets the same 401; nothing logged carries a\nsecret.\n\n`redemptionKey` (R7): sent with the first redemption by the platform service\nalone, it lets the same proof and the same key be redeemed again within the\nclaim's ten minutes, each repetition revoking the platform credential the\nprevious one issued. Without it, or with another, a spent proof is the same\n401.\n\nR8: a repetition with its key is budgeted by neither the device id nor the\naccount, a proven redemption gives its device-id attempt back, and the IP\nlimiter counts refusals only (see the budgets above); a platform that\nconfirms (`platformClient.confirms`) receives the credential pending until\n`POST /session/device/platform/confirm`.\n\nAnswers 200 with the password sign-in's `LoginResult`, its `deviceSecret`\nthe platform credential.",
         "parameters": [],
         "responses": {
           "200": {
@@ -74034,6 +74034,12 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 256
+                      },
+                      "confirms": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
                       }
                     },
                     "required": [
@@ -74057,6 +74063,92 @@
           }
         },
         "operationId": "postSessionDevicePlatform"
+      }
+    },
+    "/session/device/platform/confirm": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "A pending platform credential confirmed by its holder",
+        "description": "(`deviceSession.service.ts` `confirmPlatformCredential`).\n\nPublic like `/token`: no bearer; the credential itself is the proof, and the\nonly thing a pending credential can do is this. Confirming clears its\npending state and retires the credential it replaces (the sign-in's device\nproof), in one transaction under the device's row lock. Idempotent: a\ncredential already confirmed is the same answer. Every other proof\n(unknown, expired, an ordinary holder's, another device's) is one 401\n`invalid_grant`. A refusal counts against the device id's budget and the\nIP's; a confirmation gives its attempt back.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/sessionDevice.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Not the contract's body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_grant`: nothing to confirm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; Retry-After present.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "deviceSecret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "deviceId",
+                  "deviceSecret"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "operationId": "postSessionDevicePlatformConfirm"
       }
     },
     "/session/device/register": {

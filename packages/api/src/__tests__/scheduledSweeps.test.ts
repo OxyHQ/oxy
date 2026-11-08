@@ -242,6 +242,13 @@ describe('the spend-anomaly sweep is registered', () => {
    * until the spend spike it was built for goes unnoticed. It is a LAUNCH GATE in
    * #972 section 12, so inert is worse here than for most sweeps.
    */
+  it('schedules sweepUnconfirmedPlatformCredentials on its own interval (ADR 0058 R8)', () => {
+    expect(SERVER_CODE).toContain('sweepUnconfirmedPlatformCredentials()');
+    expect(registrationOf('UNCONFIRMED_PLATFORM_CREDENTIAL_SWEEP_INTERVAL_MS')).toContain(
+      'sweepUnconfirmedPlatformCredentials()',
+    );
+  });
+
   it('schedules sweepSpendAnomalies on its own interval', () => {
     expect(SERVER_CODE).toContain("from './services/spendAnomaly.service'");
     expect(SERVER_CODE).toContain('sweepSpendAnomalies()');

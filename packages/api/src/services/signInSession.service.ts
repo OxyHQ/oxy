@@ -37,6 +37,7 @@ import {
   SIGN_IN_ERROR_CODES,
   SIGNIN_SECOND_FACTOR_MAX_ATTEMPTS,
   SIGNIN_SECOND_FACTOR_TTL_MS,
+  PLATFORM_CREDENTIAL_PENDING_MS,
   type DeviceProof,
   type LoginResult,
   type SecondFactorRequired,
@@ -148,6 +149,15 @@ export async function mintSignInSession(
             // Promotion retires the proof only when it proved THIS device.
             ...(deviceId && envelope.device ? { retireSecret: envelope.device.deviceSecret } : {}),
             ...(envelope.redemption ? { redemption: envelope.redemption } : {}),
+            // A platform that confirms gets it pending (R8): until the QR's
+            // window ends, or ten minutes after this sign-in.
+            ...(platformClient.confirms
+              ? {
+                  pendingUntil: envelope.redemption
+                    ? envelope.redemption.pendingUntil
+                    : new Date(Date.now() + PLATFORM_CREDENTIAL_PENDING_MS),
+                }
+              : {}),
           },
         }
       : {}),

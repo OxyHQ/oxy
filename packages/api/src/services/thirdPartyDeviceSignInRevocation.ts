@@ -146,7 +146,9 @@ async function readAccess(db: DatabaseOrTransaction, deviceId: string): Promise<
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(deviceCredentials)
-    .where(eq(deviceCredentials.deviceSessionId, device.id));
+    .where(
+      and(eq(deviceCredentials.deviceSessionId, device.id), isNull(deviceCredentials.pendingUntil)),
+    );
   return {
     deviceSessionId: device.id,
     activeSessionUserIds: active.map((row) => row.userId),

@@ -48,6 +48,11 @@ export async function finalizeDeviceLogin(opts: {
     retireSecret?: string;
     /** A QR redemption's attempt (ADR 0058 R7): only the claim's latest issues. */
     redemption?: ProofRedemption;
+    /**
+     * A platform that confirms (R8): the credential is pending until then, and
+     * the one `retireSecret` proved is retired only by the confirmation.
+     */
+    pendingUntil?: Date;
   };
 }): Promise<{ deviceSecret?: string }> {
   const { session, userId, operatedByUserId, issueSecret = true, platform } = opts;
@@ -73,6 +78,7 @@ export async function finalizeDeviceLogin(opts: {
             { platform: platform.platform, applicationId: platform.applicationId },
             platform.retireSecret,
             platform.redemption,
+            platform.pendingUntil,
           )
         : await deviceSessionService.issueDeviceSecret(session.deviceId);
       if (deviceSecret) result.deviceSecret = deviceSecret;

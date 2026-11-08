@@ -52,6 +52,13 @@ interface RateLimitOptions {
    */
   skip?: (req: Request) => boolean;
   /**
+   * Count only refused requests (a status of 400 or more): a budget against
+   * GUESSING, where a request that proved something is not a guess
+   * (`POST /session/device/platform`, ADR 0058 R8). Every failure counts as
+   * before; a success gives its count back when its response finishes.
+   */
+  skipSuccessfulRequests?: boolean;
+  /**
    * What a limited request is answered with, for a surface whose refusals have
    * a contract of their own (the grant API answers a public inference error;
    * {@link rateLimitRetryAfterMs} gives it the wait). Absent: the API's typed
@@ -149,6 +156,7 @@ export function rateLimit(options: RateLimitOptions) {
     passOnStoreError: failOpen,
     windowMs: options.windowMs,
     max: options.max,
+    ...(options.skipSuccessfulRequests ? { skipSuccessfulRequests: true } : {}),
     handler: (req: Request, res: Response) => {
       res.locals[REFUSING_LIMITER] = options.prefix;
       refuse(req, res);

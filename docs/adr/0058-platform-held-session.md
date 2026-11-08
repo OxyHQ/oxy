@@ -10,7 +10,7 @@
   started.
 - Date: 2026-10-30; accepted 2026-11-06; amended 2026-11-08 (R6, the QR
   approval issues the platform credential; R7, a QR redemption repeats with
-  its key)
+  its key; R8, a platform confirms the credentials it receives)
 - Decided by: the owner (product direction, 2026-10-30). The open questions
   were resolved, and the mechanism refined, under the owner's delegation on
   2026-11-06 (see "Resolved questions" and "Refinements made in accepting it")
@@ -695,7 +695,98 @@ repeated, without weakening R6 for anyone who holds only the proof.
 - Budgets are R6's and count every attempt, repetitions included (per device id
   5, per account 10, per hashed IP 20, in 15 minutes): a platform retries a
   transient failure a few times, with backoff, and an `invalid_grant` on a
-  repetition means the person signs in again.
+  repetition means the person signs in again (R8 changes these budgets).
+
+**R8. A platform confirms the credentials it receives (amended 2026-11-08, by
+the owner).** R7 left two ways for a setup to fail that a retry cannot mend.
+First, a platform credential whose answer was lost, by every route that issues
+one, stayed live with nobody holding it: every repetition after it failed and
+the setup was abandoned, or a password route's answer (the setup's, or the
+online check's rotation) never arrived, so the account stayed signed in on a
+device nothing held. A lost rotation answer was worse: Oxy had already deleted
+the credential the machine still held, so the machine was signed out. Second,
+a 429 on the redemption ended the setup: R6's budgets counted every attempt,
+proven or not, over fifteen minutes, longer than the QR's ten.
+
+- **Opt-in.** `platformClient` takes `confirms: true` (`@oxy.so/contracts`
+  6.23.0), on all three routes that name it (`POST /auth/signin/password`,
+  `/auth/signin/second-factor`, `/session/device/platform`). A platform that
+  sends it confirms what it receives; one that does not is served exactly as
+  before R8, so platforms deployed before it keep working. Once every deployed
+  platform confirms, `confirms` becomes required (deferred: it waits for the
+  OxyOS builds that confirm to replace those that do not).
+- **Pending.** For a platform that confirms, the platform credential is issued
+  PENDING (`device_credentials.pending_until`, migrations 0250–0252): until
+  the claim's window ends (its `consumed_at` plus ten minutes) on the
+  device-proof route, or ten minutes after the sign-in on the password and
+  second-factor routes. A pending credential proves nothing and mints nothing:
+  every lookup excludes it (`/token`, `/app-token`, the device state, the
+  holder evidence, the join code, host-token verification, the credential
+  count of third-party revocation); its only use is its confirmation. The
+  credential the sign-in's device proof presented is NOT deleted when it is
+  issued but recorded as the one it replaces (`replaces_credential_id`): the
+  setup client's credential on the password route, or the machine's own
+  platform credential on a rotation. So a lost answer leaves the old
+  credential working, never a new one nobody holds. The device-proof route
+  still spends its proof when it redeems (R6, R7): its credential replaces
+  nothing.
+- **`POST /session/device/platform/confirm`** `{ deviceId, deviceSecret }`:
+  public, as `/token` is, with no bearer. The credential itself is the proof.
+  In one transaction holding the device's row lock, a pending, unexpired
+  platform credential of that device is confirmed (`pending_until` cleared)
+  and the credential it replaces is deleted. It answers 200
+  `{ confirmed: true }`. A credential already confirmed gets the same 200
+  (idempotent: a platform whose confirmation answer was lost confirms again).
+  Every other proof (unknown, expired, an ordinary holder's, another device's)
+  gets one identical 401 `invalid_grant`.
+- **Expiry.** An expired pending credential is absent to every lookup, as it
+  was never issued. A sweep (`sweepUnconfirmedPlatformCredentials`, every
+  minute) deletes it. If the device is then left with nothing holding it, the
+  sweep signs the device out (`signout`, every account). Nothing holding it
+  means no confirmed or ordinary credential, no pending one still in its
+  window, and no live background secret. So an account is not left signed in
+  on a device whose setup never finished. No platform ever has to "redeem to
+  revoke".
+- **What is listed.** A credential is never listed anywhere a person sees
+  their devices: device and session lists show devices and sessions. The
+  device and the session a redemption touches existed since the QR's claim
+  (the setup client's sign-in), as they did before R8. What R8 adds is that a
+  device whose setup never confirms stops being signed in once its window
+  ends, instead of staying listed until its sessions idle out.
+- **Repetitions (R7) unchanged.** A keyed repetition still revokes the
+  credential the previous attempt issued, pending or confirmed. A claim's
+  proof has at most ten redemptions, the first included; after that it is
+  the same 401.
+- **Budgets against guessing, never against a proof.** Each window is now the
+  QR's own ten minutes, so no Retry-After outlasts a claim (each is at most
+  600 s). Each rate per minute is at least as strict as before:
+  - per hashed IP: 13 refusals in ten minutes, against 20 in fifteen (1.3 a
+    minute against 1.33);
+  - per device id: 3 in ten minutes, against 5 in fifteen (0.3 against 0.33);
+  - per account: 6 first redemptions in ten minutes, against 10 in fifteen
+    (0.6 against 0.67).
+
+  A request that proves something is not a guess:
+  - the IP limiter counts refusals only;
+  - a redemption whose proof was real gives back its device-id attempt (one
+    attempt, never the whole count, so a guesser's failures still lock
+    whatever proven requests come between them);
+  - a repetition whose proof and key match a recorded redemption (two 256-bit
+    secrets, hash lookups only) is budgeted by neither device id nor account,
+    so a device id locked by guesses still answers the platform that holds
+    them.
+
+  Every other request is counted before any proof is looked up, exactly as
+  before. Guesses therefore lock at the same count or sooner, a locked device
+  id still refuses every wrong secret, and the confirmation route has the same
+  budgets (per hashed IP and per device id, refusals only, ten minutes).
+  OxyOS waits out a 429 that fits in the QR's window and signs in again
+  otherwise.
+- **The password route too.** Confirming applies to the password and
+  second-factor routes as to the device-proof route, for the same reason. A
+  lost answer there orphans a platform credential the same way, and a lost
+  rotation answer used to sign the machine out. One rule for every route that
+  issues a platform credential.
 
 ## Enforcement
 
@@ -729,7 +820,27 @@ repeated, without weakening R6 for anyone who holds only the proof.
   another, of a redemption that sent none, or outside the window is the same
   refusal as an unknown proof; a redemption whose issuing failed is completed
   by its key; a superseded attempt issues nothing, and concurrent keyed
-  redemptions leave exactly one live platform credential.
+  redemptions leave exactly one live platform credential. For a platform that
+  confirms (R8), the same file shows:
+  - the QR's credential is issued pending until the claim's window ends, and
+    neither `/token`, `/app-token` nor the device-state lookups take it until
+    it is confirmed;
+  - the confirmation is idempotent, takes its body strictly and answers
+    everything else with one refusal;
+  - an expired pending credential is refused, swept, and its device signed
+    out, while a device something still holds is not;
+  - a repetition revokes the previous attempt's pending credential;
+  - the password route keeps the credential it presented until the new one is
+    confirmed, and a lost rotation answer leaves the machine's credential
+    working;
+  - a platform that does not confirm is served as before.
+
+  The budgets lock guesses at three per device id, let a keyed repetition
+  through a device id locked by guesses (still refusing a wrong secret, with
+  a Retry-After of at most 600 s), give a proven redemption's attempt back,
+  cap a claim at ten redemptions, and count refused confirmations.
+  `services/__tests__/loginLockout.service.test.ts` gives back one attempt,
+  never more; `__tests__/scheduledSweeps.test.ts` shows the sweep scheduled.
 - **Assertion tests.** A host token gets an assertion for its own application
   and platform only (the same file).
 - **Kaana grant tests.** A host token is attributed to its `azp` only under

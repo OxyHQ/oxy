@@ -52,6 +52,31 @@ const publicClientIdSchema = z.string().check(utf16MinLength(1)).check(utf16MaxL
 export const platformClientSchema = z.strictObject({
   platform: platformHostSchema,
   clientId: publicClientIdSchema,
+  /**
+   * R8: the platform confirms every credential it receives
+   * (`POST /session/device/platform/confirm`). The credential is then PENDING
+   * until confirmed: it proves nothing, and is gone ten minutes after the QR's
+   * claim (the device-proof route) or the sign-in (the password and second
+   * factor routes); the credential the sign-in's device proof presented is
+   * retired only by the confirmation. Without it, as before R8.
+   */
+  confirms: z.literal(true).optional(),
+});
+
+/** How long a pending platform credential waits for its confirmation (R8). */
+export const PLATFORM_CREDENTIAL_PENDING_MS = 10 * 60 * 1000;
+
+/**
+ * `POST /session/device/platform/confirm` (R8): the pending platform credential
+ * confirmed by its own holder proof, nothing else. Idempotent: a credential
+ * already confirmed is the same answer. Every other proof (unknown, expired,
+ * not a platform's) is one 401 `invalid_grant`.
+ */
+export const devicePlatformConfirmRequestSchema = z.strictObject(deviceProofSchema.shape);
+
+/** The confirmation's answer. */
+export const devicePlatformConfirmResponseSchema = z.strictObject({
+  confirmed: z.literal(true),
 });
 
 /**
@@ -157,6 +182,8 @@ export type PlatformHost = (typeof PLATFORM_HOSTS)[number];
 export type DeviceAppTokenErrorCode = (typeof DEVICE_APP_TOKEN_ERROR_CODES)[number];
 export type PlatformClient = z.infer<typeof platformClientSchema>;
 export type DevicePlatformRequest = z.infer<typeof devicePlatformRequestSchema>;
+export type DevicePlatformConfirmRequest = z.infer<typeof devicePlatformConfirmRequestSchema>;
+export type DevicePlatformConfirmResponse = z.infer<typeof devicePlatformConfirmResponseSchema>;
 export type DeviceAppTokenAttestation = z.infer<typeof deviceAppTokenAttestationSchema>;
 export type DeviceAppTokenRequest = z.infer<typeof deviceAppTokenRequestSchema>;
 export type DeviceAppTokenResponse = z.infer<typeof deviceAppTokenResponseSchema>;
