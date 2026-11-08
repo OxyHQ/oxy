@@ -1,5 +1,11 @@
 # Surface header actions compatibility
 
+The original package-build and Nilo-install receipts in this file describe the
+14.15.3 candidate and are retained as historical evidence. The release candidate
+has since been rebased onto current Oxy main and bumped to 14.18.0. Its current
+source has been revalidated below; the old Nilo install receipt does not prove
+acceptance of 14.18.0.
+
 Observed while adopting registry Bloom17.23.0/app-preset6.6.0 in Nilo202.
 Services14.14.0 and current Oxy main14.15.2 directly read accessibilityLabel on
 the whole DialogHeaderConfig.actions union. The new semantic branch has id/label,
@@ -73,4 +79,15 @@ frames and2 table keyboard-focus frames (320/390), errors=[] and unexpected=[] i
 both reports. After the probe, the original published-only manifests/lock were
 restored through a frozen Bun install:Bloom17.23.0,preset6.6.0,Services14.14.0,
 core7.42.0,contracts6.19.0. No file dependency remains in the Nilo checkout.
-Services14.15.3 must be published before the final upgrade/typecheck is accepted.
+Services14.18.0 must be published and installed before final Nilo acceptance.
+
+## Current 14.18.0 candidate revalidation
+
+After rebasing the candidate onto current Oxy main, the release version is
+14.18.0 (the intervening main release is 14.17.0). On this exact source,
+`bun run test --runInBand` passed 178 suites / 1,524 tests, `bun run typescript`
+passed, `bun run check:icon-fonts` passed, and `bun run build` passed its
+packaging gate: 3,105 files, 2,667 under `lib/`, and all 48 export targets.
+An `--ignore-scripts` tarball was created from that built output and contains
+the 14.18.0 manifest. This does not replace the old Nilo consumer receipt above:
+the final published-dependency Nilo typecheck remains pending publication.
