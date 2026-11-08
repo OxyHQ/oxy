@@ -25,9 +25,11 @@ export type Translate = (key: string, vars?: Record<string, string | number>) =>
  *
  * Anything that reads or mutates session state uses `useOxy()`, which throws.
  */
-export function useI18n() {
+export function useI18n(locale?: string) {
   const oxy = useOptionalOxy();
-  const currentLanguage = oxy?.currentLanguage ?? FALLBACK_LOCALE;
+  // A surface the host pins to a language of its own (a platform's setup, in the system's
+  // language before and after the sign-in) speaks it; anything else, the runtime's.
+  const currentLanguage = locale ?? oxy?.currentLanguage ?? FALLBACK_LOCALE;
   // Core's non-English dictionaries load on demand; re-translate when one lands.
   const localesVersion = useSyncExternalStore(
     subscribeLocales,

@@ -93,6 +93,12 @@ export interface OxySetupFlowProps {
   /** Back is offered on the current step only when this is given. */
   onBack?: () => void;
   /** Default: the SDK's own "Back". */
+  /**
+   * The language the flow's own words speak (its progress, its announcements, the default Back),
+   * a BCP 47 tag. A platform's setup passes its system's: the flow then stays in it after the
+   * sign-in, when the runtime turns to the account's own language. Default: the runtime's.
+   */
+  locale?: string;
   backLabel?: string;
   /** "Step 2 of 5" and the dots. Default `true`. */
   showProgress?: boolean;
@@ -181,10 +187,11 @@ export const OxySetupFlow: React.FC<OxySetupFlowProps> = ({
   current,
   onBack,
   backLabel,
+  locale,
   showProgress = true,
   onMaxWidthChange,
 }) => {
-  const { t } = useI18n();
+  const { t } = useI18n(locale);
   const theme = useTheme();
   const reducedMotion = usePrefersReducedMotion();
   const index = steps.findIndex((candidate) => candidate.id === current);
