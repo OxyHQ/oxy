@@ -34,7 +34,7 @@ import {
 } from 'react';
 import { OxyServices, logger as loggerUtil } from '@oxy.so/core';
 import type { AccountNode, CreateAccountInput, User } from '@oxy.so/core';
-import type { OxyHostRequest, OxySessionHost } from '@oxy.so/core/host';
+import type { OxyHostAccount, OxyHostRequest, OxySessionHost } from '@oxy.so/core/host';
 import type { AccountDialogView } from '@oxy.so/core/session';
 import { createUserEventSocket, type UserEventSocket } from '@oxy.so/core/session';
 import { useQueryClient } from '@tanstack/react-query';
@@ -72,7 +72,13 @@ import {
   registerAccountDialogControls,
   notifyAccountDialogVisibility,
 } from '../navigation/accountDialogManager';
-import { createHostSession, HostedSessionError, type HostSession } from '../session/hostSession';
+import {
+  createHostSession,
+  HostedSessionError,
+  readHostSnapshot,
+  userFromHostAccount,
+  type HostSession,
+} from '../session/hostSession';
 import { AppAssertionProvider } from '../appAssertion/AppAssertionContext';
 import type { LogoutResult, OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
 import {
@@ -107,6 +113,18 @@ const NO_DEVICE: RuntimeSessionClient = {
   },
 };
 const NO_DEVICE_HOST = { setCurrentAccountId: () => undefined };
+
+/**
+ * What the host's snapshot says of the account's languages, as a stable value
+ * for `useSyncExternalStore`: `''` when nobody is signed in (the guest or
+ * device language is the answer), the account as JSON when it carries its
+ * languages, or `null` while only the account's own profile can tell.
+ */
+function languageAccountOf(host: OxySessionHost): string | null {
+  const snapshot = readHostSnapshot(host);
+  if (snapshot.status !== 'signed_in') return '';
+  return snapshot.account?.languages ? JSON.stringify(snapshot.account) : null;
+}
 
 /**
  * Which of the platform's screens an `openAccountDialog(view)` asks for: its
@@ -307,6 +325,26 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
     onAuthStateChangeRef.current?.(runtime.getSnapshot().account);
   }, [authResolved, userId, runtime]);
 
+  // The account's languages as the platform's snapshot gives them (ADR 0022 on a
+  // session host): the language is known from the first render, offline too,
+  // while the account itself is published only with its token (ADR 0058).
+  const subscribeHost = useCallback(
+    (listener: () => void) => (host ? host.subscribe(listener) : () => undefined),
+    [host],
+  );
+  const readLanguageAccount = useCallback(() => (host ? languageAccountOf(host) : null), [host]);
+  const languageAccount = useSyncExternalStore(
+    subscribeHost,
+    readLanguageAccount,
+    readLanguageAccount,
+  );
+  const languageUser = useMemo(() => {
+    if (user) return user;
+    if (!languageAccount) return null;
+    return userFromHostAccount(JSON.parse(languageAccount) as OxyHostAccount, null);
+  }, [languageAccount, user]);
+  const isAccountLanguageKnown = languageAccount !== null;
+
   const entryLink = useEntryLink({
     storage,
     storageKey: `${storageKeyPrefix}_campaign_attribution`,
@@ -328,7 +366,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
     entryUrl: entryLink.url,
     entryLinkReady: entryLink.ready,
     legacyLanguageKeys,
-    user,
+    user: languageUser,
     onError,
     logger,
   });
@@ -524,6 +562,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
       error,
       currentLanguage,
       isLanguageReady: isLanguageReady && entryLink.campaignReady,
+      isAccountLanguageKnown,
       campaignAttribution: entryLink.campaignAttribution,
       currentLanguages,
       currentLanguageMetadata,
@@ -583,6 +622,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
       error,
       currentLanguage,
       isLanguageReady,
+      isAccountLanguageKnown,
       entryLink.campaignReady,
       entryLink.campaignAttribution,
       currentLanguages,

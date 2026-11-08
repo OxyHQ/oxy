@@ -1842,6 +1842,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       error,
       currentLanguage,
       isLanguageReady: isLanguageReady && entryLink.campaignReady,
+      isAccountLanguageKnown: false,
       campaignAttribution: entryLink.campaignAttribution,
       currentLanguages,
       currentLanguageMetadata,

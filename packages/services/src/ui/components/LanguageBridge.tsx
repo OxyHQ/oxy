@@ -13,7 +13,10 @@ export function LanguageBridge({
   accountReady?: boolean;
   children: ReactNode;
 }) {
-  const { currentLanguage, isLanguageReady, isAuthResolved } = useOxy();
+  const { currentLanguage, isLanguageReady, isAuthResolved, isAccountLanguageKnown } = useOxy();
+  // On a session host whose snapshot names the account's languages, the
+  // language is known before the account is published with its token.
+  const isAccountResolved = isAuthResolved || isAccountLanguageKnown;
   const resolvedLocale = config
     ? coerceToSupportedLocale(currentLanguage, config.supportedLocales, config.fallbackLocale)
     : currentLanguage;
@@ -23,7 +26,7 @@ export function LanguageBridge({
   const [prepared, setPrepared] = useState(false);
 
   useEffect(() => {
-    if (!isLanguageReady || !isAuthResolved || !accountReady) return;
+    if (!isLanguageReady || !isAccountResolved || !accountReady) return;
     let active = true;
     // A slow earlier catalog must finish before a later locale is committed.
     // Children stay mounted after boot: changing language never destroys route state.
@@ -47,7 +50,7 @@ export function LanguageBridge({
     return () => {
       active = false;
     };
-  }, [accountReady, isAuthResolved, isLanguageReady, resolvedLocale]);
+  }, [accountReady, isAccountResolved, isLanguageReady, resolvedLocale]);
 
   return !config || prepared ? children : null;
 }

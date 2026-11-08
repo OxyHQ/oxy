@@ -5,11 +5,13 @@ import { LanguageBridge } from '../LanguageBridge';
 let mockCurrentLanguage = 'en-US';
 let mockLanguageReady = true;
 let mockAuthResolved = true;
+let mockAccountLanguageKnown = false;
 jest.mock('../../context/oxyRuntimeContext', () => ({
   useOxy: () => ({
     currentLanguage: mockCurrentLanguage,
     isLanguageReady: mockLanguageReady,
     isAuthResolved: mockAuthResolved,
+    isAccountLanguageKnown: mockAccountLanguageKnown,
   }),
 }));
 const HOST_CATALOG = ['en-US', 'es-ES', 'fr-FR'] as const;
@@ -17,6 +19,7 @@ beforeEach(() => {
   mockCurrentLanguage = 'en-US';
   mockLanguageReady = true;
   mockAuthResolved = true;
+  mockAccountLanguageKnown = false;
 });
 
 it.each([
@@ -108,4 +111,18 @@ it('reports a failed catalog and initializes the fallback before showing childre
   await waitFor(() => expect(screen.getByText('App')).toBeTruthy());
   expect(onError).toHaveBeenCalledWith(failure, 'es-ES');
   expect(onChange.mock.calls.map(([locale]) => locale)).toEqual(['es-ES', 'en-US']);
+});
+
+it('paints before the session resolves when a session host already named the account language', async () => {
+  mockAuthResolved = false;
+  mockAccountLanguageKnown = true;
+  mockCurrentLanguage = 'es-ES';
+  const onChange = jest.fn();
+  const screen = render(
+    <LanguageBridge config={{ supportedLocales: HOST_CATALOG, fallbackLocale: 'en-US', onChange }}>
+      <span>App</span>
+    </LanguageBridge>,
+  );
+  await waitFor(() => expect(screen.getByText('App')).toBeTruthy());
+  expect(onChange.mock.calls).toEqual([['es-ES']]);
 });
