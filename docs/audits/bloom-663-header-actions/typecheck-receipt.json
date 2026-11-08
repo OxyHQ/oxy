@@ -1,0 +1,35 @@
+{
+  "typescript": "6.0.3",
+  "reports": [
+    {
+      "version": "17.15.0",
+      "packagePath": "/home/nate/Oxy/oxy/.worktrees/issue-663-services-actions/.local/header-action-min-types/node_modules/@oxy.so/bloom/package.json",
+      "packageSha256": "1507dd38cfc642a1ef956da4df69b9b6737ba8a3a9c7313b8911322bf515e467",
+      "dialogDeclaration": "/home/nate/Oxy/oxy/.worktrees/issue-663-services-actions/node_modules/.bun/@oxy.so+bloom@17.15.0/node_modules/@oxy.so/bloom/lib/typescript/module/dialog/index.web.d.ts",
+      "declarationSha256": "73abb9f1c1e138e833174d22994abe0f3067728ef15d28ea2db65afdc79190a0",
+      "candidateSourceSha256": "f9e98170ecff4a9cf56808737844d633b9525530fbc49c70f203654d95b06d0b",
+      "consumerSha256": "032cb3c158560935526d92f8983187af950786f73e77dcc2534244e5bb552664",
+      "typecheck": {
+        "exitCode": 0,
+        "output": ""
+      }
+    },
+    {
+      "version": "17.23.0",
+      "packagePath": "/home/nate/Oxy/oxy/.worktrees/issue-663-services-actions/.local/header-action-types/node_modules/@oxy.so/bloom/package.json",
+      "packageSha256": "db2964505c19f3aef7d22370947b8fccffcd8f43dc94199f0d0a920fc475e78d",
+      "dialogDeclaration": "/home/nate/Oxy/Nilo/.worktrees/issue-663-baseline/node_modules/@oxy.so/bloom/lib/typescript/module/dialog/index.web.d.ts",
+      "declarationSha256": "73abb9f1c1e138e833174d22994abe0f3067728ef15d28ea2db65afdc79190a0",
+      "candidateSourceSha256": "f9e98170ecff4a9cf56808737844d633b9525530fbc49c70f203654d95b06d0b",
+      "consumerSha256": "247e27ba518f111064e9f0bf9ce50abcb17f48089135f07a4a75210792418e70",
+      "typecheck": {
+        "exitCode": 0,
+        "output": ""
+      },
+      "baselineNegative": {
+        "exitCode": 2,
+        "output": ".local/header-action-types/useSurfaceHeader.ts(77,9): error TS2339: Property 'accessibilityLabel' does not exist on type 'HeaderAction | (Omit<HeaderAction, \"id\" | \"label\"> & { id?: string | undefined; accessibilityLabel: string; })'.\n  Property 'accessibilityLabel' does not exist on type 'HeaderAction'.\n.local/header-action-types/useSurfaceHeader.ts(77,34): error TS2339: Property 'accessibilityLabel' does not exist on type 'HeaderAction | (Omit<HeaderAction, \"id\" | \"label\"> & { id?: string | undefined; accessibilityLabel: string; })'.\n  Property 'accessibilityLabel' does not exist on type 'HeaderAction'.\n"
+      }
+    }
+  ]
+}

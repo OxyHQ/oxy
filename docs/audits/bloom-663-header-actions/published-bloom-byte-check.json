@@ -1,0 +1,14 @@
+{
+  "bloom": {
+    "version": "17.23.0",
+    "sha256": "180abfdf96f76da11a75518d1216f749b2577890675fac166df0cafd5f99671a",
+    "files": 27834,
+    "mismatches": []
+  },
+  "app-preset": {
+    "version": "6.6.0",
+    "sha256": "acc87bddeaeea22ca23d6cdc1f0a7741b2beace99018c0a5433aed5641c75616",
+    "files": 38,
+    "mismatches": []
+  }
+}

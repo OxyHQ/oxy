@@ -1,0 +1,13 @@
+{
+  "fontTools": "4.60.1",
+  "ioniconsChangedTables": [
+    "head"
+  ],
+  "ioniconsGlyphOrderEqual": true,
+  "ioniconsCmapEqual": true,
+  "ioniconsHeadModifiedBefore": 3876839056,
+  "ioniconsHeadModifiedAfter": 3876991592,
+  "newMaterialCommunityGlyph": "group",
+  "materialCommunityBytesBefore": 29268,
+  "materialCommunityBytesAfter": 29428
+}
