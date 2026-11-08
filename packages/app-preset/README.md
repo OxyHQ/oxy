@@ -419,8 +419,12 @@ module.exports = require('@oxy.so/app-preset/babel');
 In development this is exactly `babel-preset-expo`. Expo's oxc transformer,
 Noxcturnal, runs only when the Babel config resolves to the bare Expo preset;
 one extra plugin or preset option sends every file back to Babel. The config
-plugin turns the experiment (`experiments.noxcturnalTransformWorker`) on for
-development; `noxcturnal: false` opts out. Production builds stay on Babel,
+plugin leaves the experiment (`experiments.noxcturnalTransformWorker`) unset by
+default, following Expo's Babel default. Noxcturnal 0.1.11 with Expo Metro 58.0.21
+miscompiles a derived class with a private field and private method, causing
+TanStack Query 5.103.3 observers to throw during Nilo startup. `noxcturnal: true`
+opts into the experimental development transformer; `false` leaves it unset.
+An explicit app experiment keeps its own value. Preset-managed production builds stay on Babel,
 with the build-id inliner, because Noxcturnal keeps the requires of dead
 platform branches and pulls native-only packages into a web bundle.
 

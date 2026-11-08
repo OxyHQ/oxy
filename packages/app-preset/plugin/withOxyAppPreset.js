@@ -19,7 +19,7 @@
  *     ios: { deploymentTarget: '17.0' },    // false → skip iOS build properties
  *     android: { targetSdkVersion: 34 },    // false → skip Android build properties
  *     webgpu: true,                         // opt-in: react-native-webgpu's config plugin
- *     noxcturnal: false,                    // opt out of Expo's oxc transformer in development
+ *     noxcturnal: true,                     // opt in of Expo's oxc transformer in development
  *   }]
  *
  * Android never gets `android:sharedUserId`: each Oxy app has its own UID and
@@ -52,9 +52,10 @@
  * @param {boolean}       [options.webgpu=false] Apply `react-native-webgpu`'s
  *   config plugin (an app drawing with WebGPU on native). Needs
  *   `react-native-webgpu` installed in the app.
- * @param {boolean}       [options.noxcturnal=true] Bundle development builds with
+ * @param {boolean}       [options.noxcturnal=false] Bundle development builds with
  *   Noxcturnal, Expo's oxc transformer (`experiments.noxcturnalTransformWorker`),
- *   about twice as fast as Babel on a cold cache. It only runs when the app's
+ *   disabled by default: private-field lowering can break dependency code.
+ *   It only runs when the app's
  *   Babel config is the preset's (or none), and never in a production build: it
  *   keeps the requires of dead platform branches, pulling native-only packages
  *   into a web bundle. The Expo CLI sets NODE_ENV before it reads the config.
@@ -84,7 +85,7 @@ module.exports = function withOxyAppPreset(config, options = {}) {
     }
   }
 
-  const { keychainGroup, ios = {}, android = {}, webgpu = false, noxcturnal = true } = options;
+  const { keychainGroup, ios = {}, android = {}, webgpu = false, noxcturnal = false } = options;
 
   let next = config;
 
