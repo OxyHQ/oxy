@@ -8,6 +8,8 @@ import {
   deviceAppTokenRequestSchema,
   devicePlatformConfirmRequestSchema,
   devicePlatformConfirmResponseSchema,
+  devicePlatformWindowsSchema,
+  redemptionWindowSchema,
   devicePlatformRequestSchema,
   hostTokenClaimSchema,
   passwordSignInRequestSchema,
@@ -176,5 +178,23 @@ describe('a platform that holds the session (ADR 0058)', () => {
     expect(devicePlatformConfirmRequestSchema.safeParse({ deviceId: 'dev-1' }).success).toBe(false);
     expect(devicePlatformConfirmResponseSchema.safeParse({ confirmed: true }).success).toBe(true);
     expect(devicePlatformConfirmResponseSchema.safeParse({ confirmed: false }).success).toBe(false);
+  });
+
+  it("tells a known proof's windows as the server counts them (R9)", () => {
+    const window = { expiresAt: '2026-11-09T10:10:00.000Z', expiresInSeconds: 540 };
+    expect(redemptionWindowSchema.safeParse(window).success).toBe(true);
+    expect(redemptionWindowSchema.safeParse({ ...window, expiresInSeconds: -1 }).success).toBe(
+      false,
+    );
+    expect(redemptionWindowSchema.safeParse({ ...window, expiresInSeconds: 1.5 }).success).toBe(
+      false,
+    );
+    expect(redemptionWindowSchema.safeParse({ ...window, expiresAt: 'soon' }).success).toBe(false);
+    expect(devicePlatformWindowsSchema.safeParse({ redemptionWindow: window }).success).toBe(true);
+    expect(
+      devicePlatformWindowsSchema.safeParse({ redemptionWindow: window, confirmWindow: window })
+        .success,
+    ).toBe(true);
+    expect(devicePlatformWindowsSchema.safeParse({ confirmWindow: window }).success).toBe(false);
   });
 });

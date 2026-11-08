@@ -69,7 +69,7 @@
  */
 
 import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
-import type { DeviceProof } from '@oxy.so/contracts';
+import type { DeviceProof, RedemptionWindow } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { authSessions } from '../db/schema/authSessions';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
@@ -87,10 +87,30 @@ export const PROMOTION_WINDOW_MS = 10 * 60 * 1000;
 
 /** The account's promotion budget is spent; the proof was not. */
 export class PromotionRateLimitedError extends Error {
-  constructor() {
+  /**
+   * When the proof's claim window ends (R9): the account's budget is asked
+   * only once the proof is known to sign it in, so its refusal may say it.
+   */
+  readonly windowEndsAt: Date;
+
+  constructor(windowEndsAt: Date) {
     super('Too many attempts');
     this.name = 'PromotionRateLimitedError';
+    this.windowEndsAt = windowEndsAt;
   }
+}
+
+/**
+ * A window as `POST /session/device/platform` tells it (R9): its end, and the
+ * whole seconds left at `now`, never negative. A platform measures the seconds
+ * against its own monotonic clock from when the answer arrives, so no clock's
+ * setting matters.
+ */
+export function redemptionWindow(endsAt: Date, now: Date = new Date()): RedemptionWindow {
+  return {
+    expiresAt: endsAt.toISOString(),
+    expiresInSeconds: Math.max(0, Math.floor((endsAt.getTime() - now.getTime()) / 1000)),
+  };
 }
 
 /** The one answer to every proof that is not redeemable. */
@@ -284,7 +304,9 @@ export async function redeemDeviceProof(
       .limit(1);
     if (!account) return null;
     if (options.admitAccount && !(await options.admitAccount(account.id))) {
-      throw new PromotionRateLimitedError();
+      throw new PromotionRateLimitedError(
+        new Date(claim.consumedAt.getTime() + PROMOTION_WINDOW_MS),
+      );
     }
 
     let attempt: number;
