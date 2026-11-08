@@ -720,6 +720,17 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       clearingInvalidTokenRef.current = true;
       try {
         await clearSessionStateRef.current();
+        // A platform's setup client (`authStateStore`) handed its credential to
+        // the platform and keeps none, so once its session is over it holds no
+        // device either: the device's state and directory go with the session.
+        // Kept, the directory went on listing the account the setup had just
+        // lost, and the sign-in offered it as "Choose an account" — a device
+        // picker on a screen that is not a device's (OxyOS's login screen lists
+        // its own accounts) and that could only start the same sign-in again.
+        if (!usesSharedDeviceCredential) {
+          sessionClient.resetLocalState();
+          sessionClientHost.setDeviceCredential(null);
+        }
       } catch (clearError) {
         logger('Failed to clear invalidated auth session', clearError);
       } finally {
@@ -778,7 +789,16 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       unsubscribe();
       recovery.dispose();
     };
-  }, [logger, oxyServices, runtime, sessionClient, authStore, identity]);
+  }, [
+    logger,
+    oxyServices,
+    runtime,
+    sessionClient,
+    sessionClientHost,
+    authStore,
+    identity,
+    usesSharedDeviceCredential,
+  ]);
 
   // Unified in-session refresh (SDK-owned; every RP inherits it). Installs the
   // ONE core refresh handler (re-mint from the persisted zero-cookie device

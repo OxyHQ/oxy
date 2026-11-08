@@ -206,3 +206,73 @@ describe.each([
     expect(persisted.some((value) => value?.includes(SECRET))).toBe(false);
   });
 });
+
+/**
+ * OxyOS's login screen hands the credential to the platform at once and keeps
+ * none (`load` is always empty). When that session's token is then lost, the
+ * provider cannot re-mint and signs out — and it must not keep the device it no
+ * longer holds: its directory listed the lost account, and the sign-in screen
+ * offered it as "Choose an account" before the QR (2026-11-08, OxyOS).
+ */
+describe('OxyProvider authStateStore that keeps nothing', () => {
+  it('drops the device with the session once the token is lost', async () => {
+    Platform.OS = 'android';
+    const listeners = new Set<(token: string | null) => void>();
+    const services = stubServices();
+    let token: string | null = null;
+    Object.assign(services.session, {
+      onChange: (listener: (value: string | null) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      setAccessToken: (value: string) => {
+        token = value;
+      },
+      clear: () => {
+        token = null;
+      },
+    });
+    Object.defineProperty(services.session, 'accessToken', { get: () => token });
+    const store: AuthStateStore = {
+      load: jest.fn(async () => null),
+      save: jest.fn(async () => true),
+      clear: jest.fn(async () => undefined),
+    };
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <OxyRuntimeProvider
+          oxyServices={services as never}
+          baseURL={API}
+          clientId="oxyos_client"
+          authStateStore={store}
+        >
+          <Capture />
+        </OxyRuntimeProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(captured?.isAuthResolved).toBe(true));
+    await act(async () => {
+      await captured?.handleWebSession({
+        sessionId: 'sess_setup',
+        accessToken: 'setup.access.token',
+        deviceId: 'dev_setup',
+        deviceSecret: SECRET,
+        expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        user: { id: USER_ID, username: 'setup' },
+      } as never);
+    });
+    await waitFor(() => expect(captured?.isAuthenticated).toBe(true));
+    fakeSessionClient.resetLocalState.mockClear();
+    fakeSessionClientHost.setDeviceCredential.mockClear();
+
+    // A request drew a 401 the refresh could not answer: the bearer is cleared.
+    await act(async () => {
+      token = null;
+      for (const listener of listeners) listener(null);
+    });
+
+    await waitFor(() => expect(captured?.isAuthenticated).toBe(false));
+    expect(fakeSessionClient.resetLocalState).toHaveBeenCalled();
+    expect(fakeSessionClientHost.setDeviceCredential).toHaveBeenLastCalledWith(null);
+  });
+});
