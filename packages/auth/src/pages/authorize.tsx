@@ -30,6 +30,7 @@ import {
   mcpConsentFromBody,
 } from '@/lib/schemas';
 import { buildRelativeUrl, buildAuthUrl, buildApiUrl, getAvatarUrl } from '@/lib/oxy-api-client';
+import { showsAccountChoice } from '@/lib/authorize-account-choice';
 import { safeMcpRedirectUrl, safeRedirectUrl } from '@/lib/oauth-redirect';
 import { deliverOAuthResult, type OAuthResult } from '@/lib/oauth-web-message';
 import { buildCommonsOAuthBinding, type CommonsOAuthOutcome } from '@/lib/commons-oauth-request';
@@ -1020,10 +1021,13 @@ function AuthorizeRequest() {
   // are available. Selecting an account switches into it and resolves the exact
   // consent context. Completed requests never enter the chooser.
   if (
-    showActions &&
-    !chooserDismissed &&
-    activeContext !== null &&
-    (isMcpOAuth || contextCount > 1)
+    showsAccountChoice({
+      isMcpOAuth,
+      actionable: showActions,
+      chooserDismissed,
+      hasActiveContext: activeContext !== null,
+      contextCount,
+    })
   ) {
     return (
       <OxyAccountPicker
