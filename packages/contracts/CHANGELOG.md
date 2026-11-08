@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.21.0
+
+A platform's credential from the QR approval (ADR 0058 R6, amended 2026-11-08).
+
+### Added
+
+- `platformSession.ts`: `devicePlatformRequestSchema` (`{ device: { deviceId, deviceSecret }, platformClient }`, strict) and `DevicePlatformRequest`, the body of `POST /session/device/platform`. The answer is the password sign-in's `LoginResult`, its `deviceSecret` the platform credential.
+
 ## 6.20.0
 
 The Oxy Keychain's wire contract (ADR 0063, `docs/identity/keychain.md`).
