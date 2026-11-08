@@ -1,0 +1,6 @@
+$ jest --passWithNoTests --runInBand "--watchman=false" --silent __tests__/hooks/useSurfaceHeader.test.tsx __tests__/hooks/useSurfaceHeaderLoop.test.tsx __tests__/hooks/useSurfaceHeaderActions.test.js
+
+Test Suites: 3 passed, 3 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        0.592 s, estimated 1 s

@@ -1,0 +1,4 @@
+.local/header-action-types/useSurfaceHeader.ts(77,9): error TS2339: Property 'accessibilityLabel' does not exist on type 'HeaderAction | (Omit<HeaderAction, "id" | "label"> & { id?: string | undefined; accessibilityLabel: string; })'.
+  Property 'accessibilityLabel' does not exist on type 'HeaderAction'.
+.local/header-action-types/useSurfaceHeader.ts(77,34): error TS2339: Property 'accessibilityLabel' does not exist on type 'HeaderAction | (Omit<HeaderAction, "id" | "label"> & { id?: string | undefined; accessibilityLabel: string; })'.
+  Property 'accessibilityLabel' does not exist on type 'HeaderAction'.

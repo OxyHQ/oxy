@@ -3,7 +3,7 @@
 Observed while adopting registry Bloom17.23.0/app-preset6.6.0 in Nilo202.
 Services14.14.0 and current Oxy main14.15.2 directly read accessibilityLabel on
 the whole DialogHeaderConfig.actions union. The new semantic branch has id/label,
-so Nilo's real app typecheck fails with TS2339 twice. `types-negative.log` preserves
+so Nilo's real app typecheck fails with TS2339 twice. `types-negative.txt` preserves
 the same diagnostic with the main hook and published Bloom17.23 declarations.
 
 The candidate compares the fixed presentation vocabulary for both generations:

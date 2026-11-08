@@ -1,0 +1,58 @@
+
+   • turbo 2.11.10
+   • Packages in scope: @oxy.so/contracts, @oxy.so/core, @oxy.so/protocol, @oxy.so/services, @oxy.so/telemetry
+   • Running build in 5 packages
+   • Remote caching disabled, using shared worktree cache
+
+@oxy.so/contracts:build: cache miss, executing 98e6ca58f91226b7
+@oxy.so/telemetry:build: cache miss, executing 8e1ff03c6b9c8bcb
+@oxy.so/contracts:build: $ bun run check:profile-colors && bun run build:cjs && bun run build:esm && bun run build:types && node -e "const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())"
+@oxy.so/telemetry:build: $ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types && node -e "const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())"
+@oxy.so/contracts:build: $ node scripts/generate-profile-colors.mjs --check
+@oxy.so/telemetry:build: $ rm -rf dist
+@oxy.so/telemetry:build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/contracts:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/telemetry:build: $ tsc -p tsconfig.esm.json
+@oxy.so/contracts:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/telemetry:build: $ tsc -p tsconfig.types.json && node scripts/mark-types-cjs.mjs
+@oxy.so/contracts:build: ESM imports fixed
+@oxy.so/contracts:build: $ tsc -p tsconfig.types.json
+@oxy.so/protocol:build: cache miss, executing 495067d04e084af1
+@oxy.so/protocol:build: $ bun run build:cjs && bun run build:esm && bun run build:types && node -e "const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())"
+@oxy.so/protocol:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/protocol:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/protocol:build: ESM imports fixed
+@oxy.so/protocol:build: $ tsc -p tsconfig.types.json
+@oxy.so/core:build: cache miss, executing a0dd9eb00355351a
+@oxy.so/core:build: $ bun run check:compact-locales && node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs && node -e "const p='../app-preset/metro/source-stamp.js';require('node:fs').existsSync(p)&&require(p).writeStamp(process.cwd())"
+@oxy.so/core:build: $ bun scripts/generateCompactLocales.ts --check
+@oxy.so/core:build: Verified 15 compact locales and 44 shared values.
+@oxy.so/core:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/core:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/core:build: ESM imports fixed
+@oxy.so/core:build: $ tsc -p tsconfig.types.json
+@oxy.so/core:build: $ node scripts/verify-package-formats.mjs
+@oxy.so/services:build: cache miss, executing 76593d22fab69323
+@oxy.so/services:build: $ bun run check:icon-fonts && bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view
+@oxy.so/services:build: $ node scripts/check-icon-font-subsets.mjs
+@oxy.so/services:build: Services icon subsets match source usage, package version and recorded hashes.
+@oxy.so/services:build: ℹ [commonjs] Cleaning up previous build at lib/commonjs
+@oxy.so/services:build: ℹ [commonjs] Compiling 350 files in src with babel
+@oxy.so/services:build: ✔ [commonjs] Wrote files to lib/commonjs
+@oxy.so/services:build: ℹ [module] Cleaning up previous build at lib/module
+@oxy.so/services:build: ℹ [module] Compiling 350 files in src with babel
+@oxy.so/services:build: ✔ [module] Wrote files to lib/module
+@oxy.so/services:build: ℹ [typescript] Cleaning up previous build at lib/typescript
+@oxy.so/services:build: ℹ [typescript] Generating type definitions with tsc
+@oxy.so/services:build: ✔ [typescript] Wrote definition files to lib/typescript
+@oxy.so/services:build: $ copyfiles -u 1 "src/assets/**/*" lib/commonjs/assets && copyfiles -u 1 "src/assets/**/*" lib/module/assets
+@oxy.so/services:build: $ copyfiles -u 1 "src/**/*.d.ts" lib/typescript
+@oxy.so/services:build: $ find ./lib/commonjs ./lib/module \( -name '*.d.js*' -o -name '*.d.ts' \) -delete
+@oxy.so/services:build: $ rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true
+@oxy.so/services:build: $ node scripts/verify-package.mjs
+@oxy.so/services:build: [verify-package] ok — @oxy.so/services@14.15.3 packs 3086 files (2651 under lib/), all 48 exports targets resolve, every module declared (322 in lib/commonjs/, 322 in lib/module/), no unsubstituted dependency protocol
+
+ Tasks:    5 successful, 5 total
+Cached:    0 cached, 5 total
+  Time:    29.11s 
+
