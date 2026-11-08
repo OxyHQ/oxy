@@ -243,6 +243,7 @@ export const materialCommunityIconsGlyphMap = {
   "gift": 986692,
   "gift-outline": 983713,
   "grid": 983745,
+  "group": 983747,
   "heart": 983761,
   "heart-outline": 983765,
   "help-circle": 983767,

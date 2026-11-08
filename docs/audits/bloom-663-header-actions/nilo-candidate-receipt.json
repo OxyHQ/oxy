@@ -1,0 +1,13 @@
+{
+  "candidate": true,
+  "sha256": "80e264188569fd96e4732bdd535cac8e2a0c0e220bcb130ccac0fe9f2ebd7804",
+  "files": 3086,
+  "mismatches": [],
+  "resolved": {
+    "bloom": "17.23.0",
+    "app-preset": "6.6.0",
+    "services": "14.15.3",
+    "core": "7.44.0",
+    "contracts": "6.22.0"
+  }
+}

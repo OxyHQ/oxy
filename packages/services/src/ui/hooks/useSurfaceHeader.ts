@@ -65,23 +65,48 @@ function primaryActionEqual(
   return a.label === b.label && !!a.disabled === !!b.disabled && !!a.loading === !!b.loading;
 }
 
+// Bloom's legacy entries use accessibilityLabel; semantic entries use id/label.
+// Read the fixed presentation vocabulary structurally so this adapter also
+// compiles against the supported older Bloom declarations, before that union.
+const ACTION_PRESENTATION_KEYS = [
+  'id',
+  'label',
+  'accessibilityLabel',
+  'icon',
+  'group',
+  'priority',
+  'essential',
+  'overflow',
+  'visible',
+  'disabled',
+  'busy',
+  'selected',
+  'labelVisibility',
+] as const;
+function actionPresentationValue(
+  action: HeaderAction,
+  key: (typeof ACTION_PRESENTATION_KEYS)[number],
+): unknown {
+  const value: unknown = Reflect.get(action, key);
+  if (key === 'disabled' || key === 'busy' || key === 'essential') return !!value;
+  if (key === 'visible') return value !== false;
+  if (key === 'priority') return value ?? 0;
+  if (key === 'overflow' || key === 'labelVisibility') return value ?? 'auto';
+  return value;
+}
+
 function actionsEqual(a: HeaderAction[] | undefined, b: HeaderAction[] | undefined): boolean {
   if (a === b) return true;
   if (!a || !b || a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i += 1) {
-    const x = a[i];
-    const y = b[i];
-    if (!x || !y) return false;
-    // `icon` is a node (identity); `onPress` is ignored, like `primaryAction`'s.
-    if (
-      x.accessibilityLabel !== y.accessibilityLabel ||
-      !!x.disabled !== !!y.disabled ||
-      x.icon !== y.icon
-    ) {
-      return false;
-    }
-  }
-  return true;
+  return a.every((action, index) => {
+    const other = b[index];
+    return (
+      other !== undefined &&
+      ACTION_PRESENTATION_KEYS.every(
+        (key) => actionPresentationValue(action, key) === actionPresentationValue(other, key),
+      )
+    );
+  });
 }
 
 function searchEqual(a: HeaderSearch | undefined, b: HeaderSearch | undefined): boolean {
@@ -202,7 +227,17 @@ export function useSurfaceHeader(content: SurfaceHeaderContent | null | undefine
             ? {
                 actions: content.actions.map((action, index) => ({
                   ...action,
-                  onPress: () => liveContent.current?.actions?.[index]?.onPress(),
+                  onPress: () => {
+                    const current = liveContent.current?.actions;
+                    const id = actionPresentationValue(action, 'id');
+                    // Semantic commands keep identity when reordered; legacy
+                    // static lists retain their existing positional dispatch.
+                    const latest =
+                      id === undefined
+                        ? current?.[index]
+                        : current?.find((entry) => actionPresentationValue(entry, 'id') === id);
+                    latest?.onPress();
+                  },
                 })),
               }
             : {}),
