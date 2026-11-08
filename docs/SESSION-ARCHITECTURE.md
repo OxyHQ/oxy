@@ -546,6 +546,11 @@ moment a sign-in commits (email code, password, authenticator, sign-up; the "add
 password" flow is an API call on that session), and no platform store is built, the
 device-wide shared slot is never read or published, and the background credential is
 off. A registered host wins over it (it is ignored, with a dev warning).
+`save()`'s second argument (`SetupSignInContext`) says how the sign-in happened:
+`'qr'` (an approval from a device the person holds, passwordless: the platform's
+service redeems it for its own credential, `POST /session/device/platform`, ADR
+0058 R6), `'password'` with the password just typed (the platform may reuse it
+once), `'emailCode'` or `'signup'`. Only this store receives it.
 
 ### IdP exception
 

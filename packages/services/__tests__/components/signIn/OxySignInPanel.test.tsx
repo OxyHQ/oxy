@@ -372,7 +372,7 @@ describe('"Check your email" — the code or the link', () => {
       requestSecret: REQUEST.requestSecret,
       code: '123456',
     });
-    expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION, { method: 'emailCode' });
   });
 
   it('is six digit boxes until "Does your code have letters?", then ten characters in two groups, and back', async () => {
@@ -471,7 +471,7 @@ describe('"Check your email" — the code or the link', () => {
       await act(async () => {
         jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
       });
-      expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+      expect(handleWebSession).toHaveBeenCalledWith(SESSION, { method: 'emailCode' });
       expect(onSignedIn).toHaveBeenCalledTimes(1);
     } finally {
       jest.useRealTimers();
@@ -506,7 +506,7 @@ describe('"Check your email" — the code or the link', () => {
         handOver(SESSION);
       });
 
-      expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+      expect(handleWebSession).toHaveBeenCalledWith(SESSION, { method: 'emailCode' });
       expect(nextOnSignedIn).toHaveBeenCalledTimes(1);
       expect(oxyServices.auth.email.collect).toHaveBeenCalledTimes(1);
     } finally {
@@ -626,7 +626,7 @@ describe('an email that holds several accounts', () => {
       requestSecret: REQUEST.requestSecret,
       userId: 'user-2',
     });
-    expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION, { method: 'emailCode' });
   });
 
   it('after the link too (the collect poll), and the poll stops', async () => {
@@ -792,7 +792,34 @@ describe('the password, instead of the email', () => {
       identifier: 'ada',
       password: 'correct horse battery',
     });
-    expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+    // A platform's setup store is told it was the password, and given it once.
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION, {
+      method: 'password',
+      password: 'correct horse battery',
+    });
+  });
+
+  it('hands the password over after its second factor too, and drops it on a refusal', async () => {
+    oxyServices.auth.password.signIn
+      .mockRejectedValueOnce(apiError('SIGNIN_INVALID_CREDENTIALS'))
+      .mockResolvedValueOnce(CHALLENGE);
+    oxyServices.auth.completeSecondFactor.mockResolvedValueOnce(SESSION);
+    renderPanel();
+    await reachCheckEmail('ada');
+    press('signin-use-password');
+    type('signin-password', 'a wrong one');
+    press('signin-password-continue');
+    await waitFor(() => expect(oxyServices.auth.password.signIn).toHaveBeenCalledTimes(1));
+    type('signin-password', 'correct horse battery');
+    press('signin-password-continue');
+    await screen.findByTestId('signin-second-factor');
+    type('signin-second-factor', '123456');
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    expect(handleWebSession).toHaveBeenCalledTimes(1);
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION, {
+      method: 'password',
+      password: 'correct horse battery',
+    });
   });
 
   it('answers a wrong password without saying which half was wrong', async () => {
@@ -840,7 +867,7 @@ describe('the authenticator — the second step', () => {
       challengeId: CHALLENGE.challengeId,
       code: '654321',
     });
-    expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION, { method: 'emailCode' });
   });
 
   it('asks after the password too', async () => {

@@ -4,7 +4,8 @@ import type { AccountQueriesConfig } from '../hooks/accountQueryPersistence';
 import type { RouteName } from '../navigation/routes';
 import type { User } from '@oxy.so/core';
 import type { ClientSession } from '@oxy.so/core';
-import type { AuthStateStore, SessionMode } from '@oxy.so/core/session';
+import type { SessionMode } from '@oxy.so/core/session';
+import type { PlatformSetupAuthStateStore } from '../session/setupSignIn';
 import type { WebAuthMode } from '../oauth/types';
 import type { ProductAnalytics } from '../analytics/productAnalytics';
 
@@ -200,13 +201,16 @@ export interface OxyProviderProps {
    * off) and no background credential (`backgroundSession` is ignored). The
    * email-code, password and authenticator sign-ins and the "add a password"
    * flow (ADR 0030) run as usual; `save()` receives the credential the moment
-   * a sign-in commits, so the platform can take it over.
+   * a sign-in commits, so the platform can take it over, and, as its second
+   * argument, how the sign-in happened (`SetupSignInContext`: the QR's
+   * approval, a password with the password just typed, an email code, a
+   * sign-up). Only this store ever receives that context.
    *
    * Ordinary apps never pass it. Never combined with a session host: when a
    * platform has registered one (`@oxy.so/core/host`), the host wins and this
    * is ignored. Read once, at mount.
    */
-  authStateStore?: AuthStateStore;
+  authStateStore?: PlatformSetupAuthStateStore;
 }
 
 export interface OxyLanguageConfig {

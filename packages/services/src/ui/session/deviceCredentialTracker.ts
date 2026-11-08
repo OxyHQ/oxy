@@ -7,14 +7,15 @@
  * every load, save and clear passes through, so the press can read it at once.
  * The cold boot loads the store on mount, long before anyone presses sign-in.
  */
-import type { AuthStateStore, AuthStateWriteGuard, PersistedAuthState } from '@oxy.so/core/session';
+import type { AuthStateWriteGuard, PersistedAuthState } from '@oxy.so/core/session';
+import type { PlatformSetupAuthStateStore, SetupSignInContext } from './setupSignIn';
 
 export interface HeldDeviceCredential {
   deviceId: string;
   deviceSecret: string;
 }
 
-export interface CredentialTrackingAuthStateStore extends AuthStateStore {
+export interface CredentialTrackingAuthStateStore extends PlatformSetupAuthStateStore {
   /**
    * The credential last seen through this store; `undefined` until the store has
    * been read at least once (unknown — the caller should not guess).
@@ -30,7 +31,9 @@ function credentialOf(
     : null;
 }
 
-export function trackDeviceCredential(store: AuthStateStore): CredentialTrackingAuthStateStore {
+export function trackDeviceCredential(
+  store: PlatformSetupAuthStateStore,
+): CredentialTrackingAuthStateStore {
   let held: HeldDeviceCredential | null | undefined;
   return {
     ...store,
@@ -39,9 +42,11 @@ export function trackDeviceCredential(store: AuthStateStore): CredentialTracking
       held = credentialOf(state);
       return state;
     },
-    save: async (state) => {
+    // The setup context (how the sign-in happened) goes to the wrapped store
+    // only when the caller passed one, so a plain store sees its usual call.
+    save: async (state: PersistedAuthState, context?: SetupSignInContext) => {
       held = credentialOf(state);
-      return store.save(state);
+      return context ? store.save(state, context) : store.save(state);
     },
     ...(store.saveIfCurrent
       ? {

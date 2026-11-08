@@ -166,7 +166,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
         languages: [currentLanguage],
         ...(campaignAttribution ? { campaignAttribution } : {}),
       });
-      await handleWebSession(session);
+      await handleWebSession(session, { method: 'signup' });
       writeSignInFlow(flowOwner, SIGN_UP_FLOW_KEY, undefined);
     } catch (reason) {
       if (errorCode(reason) === SIGN_IN_ERROR_CODES.usernameTaken) {
