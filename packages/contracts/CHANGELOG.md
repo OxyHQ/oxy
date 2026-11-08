@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.22.0
+
+A QR redemption repeats with its key (ADR 0058 R7, 2026-11-08).
+
+### Added
+
+- `platformSession.ts`: `redemptionKeySchema` (base64url, 43 to 128 characters) and `devicePlatformRequestSchema`'s optional `redemptionKey`. Sent with the first redemption by the platform service alone, it lets the same proof and the same key be redeemed again within the claim's ten minutes, each repetition revoking the platform credential the previous one issued. Without it, or with another key, a spent proof is the same 401 `invalid_grant`.
+
 ## 6.21.0
 
 A platform's credential from the QR approval (ADR 0058 R6, amended 2026-11-08).

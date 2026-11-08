@@ -39,13 +39,14 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { COMMONS_DENY_REASONS } from '@oxy.so/contracts';
 import { applications } from './applications';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 import { sessions } from './sessions';
 import { deviceCredentials } from './deviceCredentials';
+import { deviceSessions } from './deviceSessions';
 
 /** The authoritative state machine. Delivery progress is never one of these. */
 export const AUTH_SESSION_STATUSES = [
@@ -187,6 +188,38 @@ export const authSessions = pgTable(
      * (redeemed, revoked, evicted) leaves nothing to redeem.
      */
     claimedCredentialId: text().references(() => deviceCredentials.id, { onDelete: 'set null' }),
+    /**
+     * The REDEMPTION of that proof (ADR 0058 R7). Redeeming deletes the proof's
+     * credential, so the setup client holds nothing that works; what makes the
+     * redemption repeatable lives here instead, on the claim, for the claim's
+     * own ten minutes:
+     *
+     * - `redeemedProofHash`: sha256 (hex) of the redeemed proof's secret;
+     * - `redeemedDeviceSessionId`: the device it was redeemed on. `SET NULL`:
+     *   a device deleted leaves nothing to repeat;
+     * - `redemptionKeyHash`: sha256 (hex) of the key the platform SERVICE sent
+     *   with the first redemption (never shown to its setup client). NULL when
+     *   it sent none: that redemption is never repeated;
+     * - `redemptionAttempt`: the latest redemption of the proof (1, then one
+     *   more per repetition). Only the latest issues: an earlier one still in
+     *   flight is superseded and issues nothing;
+     * - `redemptionCredentialId`: the platform credential the latest redemption
+     *   issued, revoked when a repetition issues the next. `SET NULL`: a
+     *   credential revoked otherwise leaves nothing to revoke.
+     *
+     * A repetition needs the same proof AND the same key, on the same device,
+     * by the same application, within ten minutes of the claim
+     * (`services/platformPromotion.service.ts`).
+     */
+    redeemedProofHash: text(),
+    redeemedDeviceSessionId: text().references(() => deviceSessions.id, {
+      onDelete: 'set null',
+    }),
+    redemptionKeyHash: text(),
+    redemptionAttempt: integer().notNull().default(0),
+    redemptionCredentialId: text().references(() => deviceCredentials.id, {
+      onDelete: 'set null',
+    }),
     expiresAt: timestamptz().notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -199,6 +232,18 @@ export const authSessions = pgTable(
     index('auth_sessions_expires_at_idx').on(t.expiresAt),
     // The platform promotion finds the claim by the credential its proof names.
     index('auth_sessions_claimed_credential_id_idx').on(t.claimedCredentialId),
+    // A repetition finds the redemption by the proof it presents (R7).
+    index('auth_sessions_redeemed_proof_hash_idx')
+      .on(t.redeemedProofHash)
+      .where(sql`${t.redeemedProofHash} is not null`),
+    // The foreign keys' own indexes: deleting a device or a credential finds
+    // the claims that name it.
+    index('auth_sessions_redeemed_device_session_id_idx')
+      .on(t.redeemedDeviceSessionId)
+      .where(sql`${t.redeemedDeviceSessionId} is not null`),
+    index('auth_sessions_redemption_credential_id_idx')
+      .on(t.redemptionCredentialId)
+      .where(sql`${t.redemptionCredentialId} is not null`),
     // No `(session_token, status)` index: it would be redundant.
     // `auth_sessions_session_token_key` is UNIQUE, so the lookup already lands
     // on one row and `status` is a free check on it.

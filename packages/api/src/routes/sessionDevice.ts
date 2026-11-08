@@ -704,6 +704,12 @@ const DEVICE_PLATFORM_WINDOW_SECONDS = 15 * 60;
  * proof that is not redeemable gets the same 401; nothing logged carries a
  * secret.
  *
+ * `redemptionKey` (R7): sent with the first redemption by the platform service
+ * alone, it lets the same proof and the same key be redeemed again within the
+ * claim's ten minutes, each repetition revoking the platform credential the
+ * previous one issued. Without it, or with another, a spent proof is the same
+ * 401.
+ *
  * Answers 200 with the password sign-in's `LoginResult`, its `deviceSecret`
  * the platform credential.
  *
@@ -736,6 +742,7 @@ router.post(
     let redeemed: Awaited<ReturnType<typeof redeemDeviceProof>>;
     try {
       redeemed = await redeemDeviceProof(body.device, client, {
+        ...(body.redemptionKey ? { redemptionKey: body.redemptionKey } : {}),
         admitAccount: async (userId) => {
           accountBudget = await reserveAttempt({
             scope: 'device-platform:account',
@@ -764,7 +771,7 @@ router.post(
         await mintSignInSession(
           req,
           { id: redeemed.userId, username: redeemed.username, avatar: redeemed.avatar },
-          { platformClient: client },
+          { platformClient: client, redemption: redeemed.redemption },
           redeemed.deviceId,
         ),
       );

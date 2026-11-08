@@ -18,6 +18,7 @@
 
 import { broadcastDeviceState } from '../utils/socket';
 import { logger } from '../utils/logger';
+import type { ProofRedemption } from './platformPromotion.service';
 
 /**
  * Finalize a fresh sign-in for the device-first lane: register the session into
@@ -45,6 +46,8 @@ export async function finalizeDeviceLogin(opts: {
     platform: 'oxyos' | 'astro';
     applicationId: string;
     retireSecret?: string;
+    /** A QR redemption's attempt (ADR 0058 R7): only the claim's latest issues. */
+    redemption?: ProofRedemption;
   };
 }): Promise<{ deviceSecret?: string }> {
   const { session, userId, operatedByUserId, issueSecret = true, platform } = opts;
@@ -69,6 +72,7 @@ export async function finalizeDeviceLogin(opts: {
             session.deviceId,
             { platform: platform.platform, applicationId: platform.applicationId },
             platform.retireSecret,
+            platform.redemption,
           )
         : await deviceSessionService.issueDeviceSecret(session.deviceId);
       if (deviceSecret) result.deviceSecret = deviceSecret;

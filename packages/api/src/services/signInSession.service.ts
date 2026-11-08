@@ -52,6 +52,7 @@ import { ApiError, InternalServerError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { resolveProvenDeviceId } from './deviceJoin.service';
 import { finalizeDeviceLogin } from './deviceLogin.service';
+import type { ProofRedemption } from './platformPromotion.service';
 import type { ResolvedPlatformClient } from './platformClient.service';
 import securityActivityService from './securityActivityService';
 import sessionService from './session.service';
@@ -67,6 +68,12 @@ export interface SignInEnvelope {
    * by the route (`resolvePlatformClient`), never read from the body here.
    */
   platformClient?: ResolvedPlatformClient | null;
+  /**
+   * The QR redemption this platform sign-in completes (ADR 0058 R7,
+   * `platformPromotion.service.ts`): its credential is issued only while it is
+   * the claim's latest attempt, revoking the previous attempt's.
+   */
+  redemption?: ProofRedemption;
 }
 
 /** The `users` columns a session mint reads. */
@@ -140,6 +147,7 @@ export async function mintSignInSession(
             applicationId: platformClient.applicationId,
             // Promotion retires the proof only when it proved THIS device.
             ...(deviceId && envelope.device ? { retireSecret: envelope.device.deviceSecret } : {}),
+            ...(envelope.redemption ? { redemption: envelope.redemption } : {}),
           },
         }
       : {}),

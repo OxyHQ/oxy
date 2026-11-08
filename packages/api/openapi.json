@@ -73943,7 +73943,7 @@
           "Sessions"
         ],
         "summary": "A platform's credential from the QR approval it just claimed",
-        "description": "(`services/platformPromotion.service.ts`).\n\nPublic like `/token`: no bearer; the claim's holder credential is the proof,\nspent once. `platformClient` is resolved first, from the request and the\nregistry alone (no browser context, the registry's `platformHost`), and an\nunhonoured one is the ordinary invalid-request answer before anything is\nlooked up. Then the device id's own budget (counted whether or not the\ndevice exists), the proof, the account's budget (before the proof is spent)\nand the platform's sign-in, exactly as the password sign-in issues it. Every\nproof that is not redeemable gets the same 401; nothing logged carries a\nsecret.\n\nAnswers 200 with the password sign-in's `LoginResult`, its `deviceSecret`\nthe platform credential.",
+        "description": "(`services/platformPromotion.service.ts`).\n\nPublic like `/token`: no bearer; the claim's holder credential is the proof,\nspent once. `platformClient` is resolved first, from the request and the\nregistry alone (no browser context, the registry's `platformHost`), and an\nunhonoured one is the ordinary invalid-request answer before anything is\nlooked up. Then the device id's own budget (counted whether or not the\ndevice exists), the proof, the account's budget (before the proof is spent)\nand the platform's sign-in, exactly as the password sign-in issues it. Every\nproof that is not redeemable gets the same 401; nothing logged carries a\nsecret.\n\n`redemptionKey` (R7): sent with the first redemption by the platform service\nalone, it lets the same proof and the same key be redeemed again within the\nclaim's ten minutes, each repetition revoking the platform credential the\nprevious one issued. Without it, or with another, a spent proof is the same\n401.\n\nAnswers 200 with the password sign-in's `LoginResult`, its `deviceSecret`\nthe platform credential.",
         "parameters": [],
         "responses": {
           "200": {
@@ -74041,6 +74041,10 @@
                       "clientId"
                     ],
                     "additionalProperties": false
+                  },
+                  "redemptionKey": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43,128}$"
                   }
                 },
                 "required": [

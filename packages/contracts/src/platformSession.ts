@@ -55,6 +55,13 @@ export const platformClientSchema = z.strictObject({
 });
 
 /**
+ * The key that makes a QR redemption repeatable (ADR 0058 R7): at least 256
+ * random bits, base64url, chosen by the platform SERVICE for one setup and
+ * never shown to its setup client. Oxy keeps only its hash.
+ */
+export const redemptionKeySchema = z.string().regex(/^[A-Za-z0-9_-]{43,128}$/);
+
+/**
  * `POST /session/device/platform`: a platform's credential from the QR
  * approval (ADR 0058 2.1, amended 2026-11-08). `device` is the holder
  * credential a device-sign-in claim (`POST /auth/session/claim`) issued to the
@@ -64,10 +71,18 @@ export const platformClientSchema = z.strictObject({
  * proof is spent once; the answer is the password sign-in's (`LoginResult`),
  * its `deviceSecret` the platform credential. Every proof that is not
  * redeemable gets the same 401 (`invalid_grant`).
+ *
+ * `redemptionKey` (R7, optional): sent with the first redemption, it lets the
+ * same proof AND the same key be redeemed again within the claim's original
+ * ten minutes, should the answer be lost or the platform's own setup fail:
+ * each repetition revokes the platform credential the previous one issued and
+ * issues another. Without a key, or with another one, a spent proof is the
+ * same 401.
  */
 export const devicePlatformRequestSchema = z.strictObject({
   device: z.strictObject(deviceProofSchema.shape),
   platformClient: platformClientSchema,
+  redemptionKey: redemptionKeySchema.optional(),
 });
 
 /**

@@ -9,7 +9,8 @@
   (OxyOS) is being built against the contracts below; step 5 (Astro) has not
   started.
 - Date: 2026-10-30; accepted 2026-11-06; amended 2026-11-08 (R6, the QR
-  approval issues the platform credential)
+  approval issues the platform credential; R7, a QR redemption repeats with
+  its key)
 - Decided by: the owner (product direction, 2026-10-30). The open questions
   were resolved, and the mechanism refined, under the owner's delegation on
   2026-11-06 (see "Resolved questions" and "Refinements made in accepting it")
@@ -638,7 +639,7 @@ the password sign-in issues (`mintSignInSession` with the platform client): a
 fresh session replacing the setup client's, and a platform credential with its
 rotation and revocation; revoking the device or the account revokes it. If
 issuing fails after the proof is spent, the redemption fails closed and the
-setup starts again with a new QR.
+setup starts again with a new QR (unless it was keyed: R7).
 
 Budgets: per hashed IP (20 in 15 minutes); per device id as sent, counted
 whether or not it exists (5 in 15 minutes); per account, asked once the proof
@@ -646,6 +647,55 @@ is known to sign it in and before it is spent (10 in 15 minutes). Each
 redemption is logged with the account, the device id's prefix, the platform
 and the application, never a secret; the session's sign-in is recorded as
 every sign-in is.
+
+**R7. A QR redemption repeats with its key (amended 2026-11-08, by the
+owner).** R6 spends the proof once, and the platform cannot always finish its
+own side in the same breath. On the owner's ThinkPad (2026-11-08) OxyOS's
+`oxyos-accountd` redeemed a QR's proof, then could not make the account's user
+(a home directory it could not write), undid it, and ended the platform
+credential it had just been issued; the person's retry was refused, because
+the proof was spent, and the QR had to be scanned again. An answer lost on the
+way (the redemption committed, the connection dropped) would end the same way.
+The rule: **a QR is never scanned twice for a transient failure.** The
+platform orders its own setup so that what can fail locally fails before it
+redeems (OxyOS ADR 0020), and keeps a credential it was issued while it
+retries; what is left is a redemption whose answer never arrived, or whose
+issuing failed after the proof was spent. For those, a redemption may be
+repeated, without weakening R6 for anyone who holds only the proof.
+
+- in: R6's body and, optionally, `redemptionKey`: at least 256 random bits,
+  base64url, 43 to 128 characters (`@oxy.so/contracts` 6.22.0,
+  `redemptionKeySchema`). The platform SERVICE chooses it for one setup and
+  never shows it to its setup client: the client's JavaScript saw the proof,
+  never the key.
+- The first redemption still deletes the proof's credential (the setup client
+  holds nothing that works afterwards, and no credential lookup changes). The
+  redemption is recorded on the claim instead (`auth_sessions`, migrations
+  0248–0249): the proof's hash, the device it was redeemed on, the key's hash
+  (none when no key was sent), the attempt number and the platform credential
+  the latest attempt issued.
+- A later request with the same proof AND the same key, on the same device,
+  for the same application, within the claim's ORIGINAL ten minutes, the
+  account still signed in there and active, is a repetition: it re-issues,
+  exactly as the first redemption did (a fresh session replacing the account's,
+  one session for the account), and revokes the platform credential the
+  previous attempt issued, whose answer may have been lost.
+- Only the latest attempt issues. Each redemption (first or repeated) numbers
+  itself on the claim under the device's row lock; issuing checks, under the
+  same lock, that its attempt is still the latest, so an earlier request still
+  in flight issues nothing (it fails as an issuing failure, 500: its caller has
+  already repeated it). At most one platform credential from a redemption is
+  ever live.
+- Everything else is R6's one refusal, 401 `invalid_grant`: a spent proof
+  without a key, with another key, from a redemption that sent no key, outside
+  the window, for another client or device. So whoever saw only the proof (the
+  setup client, or anyone who read it there) gains nothing, and nobody learns
+  whether a key exists. A proof stolen BEFORE the first redemption can be
+  front-run exactly as under R6; the key does not change that.
+- Budgets are R6's and count every attempt, repetitions included (per device id
+  5, per account 10, per hashed IP 20, in 15 minutes): a platform retries a
+  transient failure a few times, with backoff, and an `invalid_grant` on a
+  repetition means the person signs in again.
 
 ## Enforcement
 
@@ -673,7 +723,13 @@ every sign-in is.
   credential, those three with one identical answer; an unhonoured
   `platformClient` is refused identically for known and unknown identifiers
   with no lockout reservation or password work; the second factor completes
-  only with the same platform client.
+  only with the same platform client. The same file repeats a keyed redemption
+  (R7): the repetition re-issues and the first answer's credential no longer
+  mints, one session for the account; a repetition without the key, with
+  another, of a redemption that sent none, or outside the window is the same
+  refusal as an unknown proof; a redemption whose issuing failed is completed
+  by its key; a superseded attempt issues nothing, and concurrent keyed
+  redemptions leave exactly one live platform credential.
 - **Assertion tests.** A host token gets an assertion for its own application
   and platform only (the same file).
 - **Kaana grant tests.** A host token is attributed to its `azp` only under

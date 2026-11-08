@@ -26,20 +26,41 @@
  * - the approved account is still signed in on that device, and is a personal,
  *   active account.
  *
- * Redeeming deletes the proof in that same transaction, so a proof is spent
- * once: a replay, or a second request racing the first, finds nothing. Every
- * refusal is the same answer (`invalid_grant`, 401), whatever failed, so the
- * route says nothing about which devices, credentials or accounts exist.
+ * Redeeming deletes the proof's credential in that same transaction, so the
+ * setup client (whose JavaScript saw it) holds nothing that works afterwards,
+ * and a replay of the proof alone, or a second request racing the first, finds
+ * nothing. Every refusal is the same answer (`invalid_grant`, 401), whatever
+ * failed, so the route says nothing about which devices, credentials or
+ * accounts exist.
+ *
+ * **Repeating a redemption (R7).** The platform SERVICE may send a
+ * `redemptionKey` with the first redemption: 256 random bits or more, never
+ * shown to its setup client. The redemption is then recorded on the claim
+ * (`auth_sessions.redeemed_proof_hash`, `redeemed_device_session_id`,
+ * `redemption_key_hash`, `redemption_attempt`), and the same proof AND the same
+ * key may be redeemed again, on the same device, by the same application,
+ * within the claim's ORIGINAL ten minutes, the account still signed in there
+ * and active: an answer lost on the way, or a setup the platform could not
+ * finish on its side, is retried without a new QR. Without a key, or with
+ * another, a spent proof is the same refusal: whoever saw only the proof (the
+ * setup client) gains nothing. Each redemption is an ATTEMPT, numbered on the
+ * claim, and only the latest issues: `issuePlatformCredential` revokes the
+ * platform credential the previous attempt issued (its answer may have been
+ * lost) and refuses an attempt a later one superseded (one still in flight),
+ * so at most one platform credential from a redemption is ever live. The
+ * budgets count every attempt.
  *
  * What is issued is exactly what the platform's password sign-in issues
  * (`mintSignInSession` with the platform client): a fresh session for the
  * account on the device, replacing the one the setup client held, and a
  * platform credential (`issuePlatformCredential`) with its rotation and
- * revocation. If issuing fails after the proof was spent, the redemption fails
- * closed and the setup starts again with a new QR.
+ * revocation. If issuing fails after the proof was spent, a keyed redemption is
+ * repeated with its key; one without a key fails closed, and the setup starts
+ * again with a new QR. A superseded attempt fails as an issuing failure does
+ * (500): its caller has already repeated it.
  */
 
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { DeviceProof } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { authSessions } from '../db/schema/authSessions';
@@ -86,11 +107,21 @@ export async function recordClaimedCredential(
     .where(and(eq(authSessions.id, authSessionId), eq(authSessions.purpose, 'device_sign_in')));
 }
 
+/**
+ * Which redemption of a claim's proof this is (R7): the claim, and the attempt
+ * number recorded on it. Only the claim's latest attempt issues a credential.
+ */
+export interface ProofRedemption {
+  authSessionId: string;
+  attempt: number;
+}
+
 export interface RedeemedDeviceProof {
   userId: string;
   deviceId: string;
   username: string | null;
   avatar: string | null;
+  redemption: ProofRedemption;
 }
 
 /**
@@ -107,11 +138,15 @@ export async function redeemDeviceProof(
      * redemption answers {@link PromotionRateLimitedError}.
      */
     admitAccount?: (userId: string) => Promise<boolean>;
+    /** The platform service's key (R7): the redemption may be repeated with it. */
+    redemptionKey?: string;
     now?: Date;
   } = {},
 ): Promise<RedeemedDeviceProof> {
   const now = options.now ?? new Date();
   const secretHash = sha256Hex(proof.deviceSecret);
+  const keyHash = options.redemptionKey ? sha256Hex(options.redemptionKey) : null;
+  const fresh = new Date(now.getTime() - PROMOTION_WINDOW_MS);
   const redeemed = await getDb().transaction(async (tx) => {
     // The device row is the lock every credential write on the device takes
     // (`issuePlatformCredential`, revocation): concurrent redemptions of one
@@ -123,8 +158,19 @@ export async function redeemDeviceProof(
       .for('update');
     if (!device) return null;
 
-    const [claim] = await tx
+    // The request answered for this application, consumed less than ten
+    // minutes ago: what both a first redemption and a repetition require.
+    const claimed = and(
+      eq(authSessions.purpose, 'device_sign_in'),
+      eq(authSessions.status, 'consumed'),
+      eq(authSessions.applicationId, client.applicationId),
+      gt(authSessions.consumedAt, fresh),
+    );
+
+    // A first redemption: the proof is a live credential the claim issued.
+    const [unspent] = await tx
       .select({
+        authSessionId: authSessions.id,
         credentialId: deviceCredentials.id,
         userId: authSessions.authorizedUserId,
       })
@@ -135,13 +181,33 @@ export async function redeemDeviceProof(
           eq(deviceCredentials.deviceSessionId, device.id),
           eq(deviceCredentials.secretHash, secretHash),
           isNull(deviceCredentials.platform),
-          eq(authSessions.purpose, 'device_sign_in'),
-          eq(authSessions.status, 'consumed'),
-          eq(authSessions.applicationId, client.applicationId),
-          gt(authSessions.consumedAt, new Date(now.getTime() - PROMOTION_WINDOW_MS)),
+          claimed,
         ),
       )
       .limit(1);
+
+    // A repetition (R7): the proof was spent by a redemption that sent this
+    // key, on this device. Never without a key.
+    const [repeated] =
+      unspent || !keyHash
+        ? []
+        : await tx
+            .select({
+              authSessionId: authSessions.id,
+              userId: authSessions.authorizedUserId,
+            })
+            .from(authSessions)
+            .where(
+              and(
+                eq(authSessions.redeemedProofHash, secretHash),
+                eq(authSessions.redeemedDeviceSessionId, device.id),
+                eq(authSessions.redemptionKeyHash, keyHash),
+                claimed,
+              ),
+            )
+            .limit(1);
+
+    const claim = unspent ?? repeated;
     if (!claim?.userId) return null;
 
     // The approved account must still be signed in on this device, and be a
@@ -166,26 +232,57 @@ export async function redeemDeviceProof(
       throw new PromotionRateLimitedError();
     }
 
-    // Spent here, once. The claim's reference goes with it (`SET NULL`).
-    const spent = await tx
-      .delete(deviceCredentials)
-      .where(eq(deviceCredentials.id, claim.credentialId))
-      .returning({ id: deviceCredentials.id });
-    if (spent.length !== 1) return null;
+    let attempt: number;
+    if (unspent) {
+      // Spent here, once. The claim's reference goes with it (`SET NULL`);
+      // what a repetition needs is recorded on the claim instead.
+      const spent = await tx
+        .delete(deviceCredentials)
+        .where(eq(deviceCredentials.id, unspent.credentialId))
+        .returning({ id: deviceCredentials.id });
+      if (spent.length !== 1) return null;
+      const [recorded] = await tx
+        .update(authSessions)
+        .set({
+          redeemedProofHash: secretHash,
+          redeemedDeviceSessionId: device.id,
+          redemptionKeyHash: keyHash,
+          redemptionAttempt: 1,
+          redemptionCredentialId: null,
+        })
+        .where(eq(authSessions.id, unspent.authSessionId))
+        .returning({ attempt: authSessions.redemptionAttempt });
+      if (!recorded) return null;
+      attempt = recorded.attempt;
+    } else {
+      // The latest attempt from now on: one still in flight issues nothing.
+      const [recorded] = await tx
+        .update(authSessions)
+        .set({ redemptionAttempt: sql`${authSessions.redemptionAttempt} + 1` })
+        .where(eq(authSessions.id, claim.authSessionId))
+        .returning({ attempt: authSessions.redemptionAttempt });
+      if (!recorded) return null;
+      attempt = recorded.attempt;
+    }
 
     return {
       userId: account.id,
       deviceId: device.deviceId,
       username: account.username,
       avatar: account.avatar,
+      redemption: { authSessionId: claim.authSessionId, attempt },
+      repeated: !unspent,
     };
   });
   if (!redeemed) throw invalidDeviceProof();
+  const { repeated, ...result } = redeemed;
   logger.info('[PlatformPromotion] Device proof redeemed', {
-    userId: redeemed.userId,
-    deviceId: redeemed.deviceId.substring(0, 8),
+    userId: result.userId,
+    deviceId: result.deviceId.substring(0, 8),
     platform: client.platform,
     applicationId: client.applicationId,
+    attempt: result.redemption.attempt,
+    repeated,
   });
-  return redeemed;
+  return result;
 }
