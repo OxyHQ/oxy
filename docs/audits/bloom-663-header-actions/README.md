@@ -67,3 +67,10 @@ installed Services files match the candidate archive; receipt and SHA256 are in
 `nilo-candidate-receipt.json`. The actual Nilo app typecheck now exits0, compared
 with the published14.14.0 adapter's TS2339 failure. This source candidate must be
 published and installed again before Nilo's final published-dependency acceptance.
+
+The same candidate also passes Nilo's synthetic browser suite:17 workspace/document
+frames and2 table keyboard-focus frames (320/390), errors=[] and unexpected=[] in
+both reports. After the probe, the original published-only manifests/lock were
+restored through a frozen Bun install:Bloom17.23.0,preset6.6.0,Services14.14.0,
+core7.42.0,contracts6.19.0. No file dependency remains in the Nilo checkout.
+Services14.15.3 must be published before the final upgrade/typecheck is accepted.

@@ -1,0 +1,1664 @@
+{
+  "sourceSha": "51df20c0e6bf2ae3d5a1640f402498585f90c818",
+  "presetVersion": "6.6.0",
+  "sourceDiff": "apps/app/package.json | 10 +++++-----\n bun.lock              | 36 ++++++++++++++++++------------------\n package.json          | 16 ++++++++--------\n 3 files changed, 31 insertions(+), 31 deletions(-)",
+  "bloomVersion": "17.23.0",
+  "observedAt": "2026-11-08T14:11:38.541Z",
+  "mode": "development Metro; synthetic account/API; seeded offline document; no production API traffic",
+  "origin": "http://localhost:8128",
+  "frames": [
+    {
+      "name": "database-populated-1440",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "documentWidth": 1440,
+      "body": "P\nProduct workspace\nSearch\nCtrl+K\nHome\nAsk Alia\nInbox\nSettings & members\nWelcome to Nilo\nAsk anything with Alia\nFind what you need\nSee all\nTeamspaces\nBrowse teamspaces\nCreate teamspace\nPrivate\nProject brief\nProjects\nTemplates\nTrash\nNew page\nCtrl+Alt+N\nB\nbaseline-user\nbaseline-user@oxy.so\nProjects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nMedium\nSmall\nMedium\nSmall\nMedium\nSmall\nMedium\nNew\nCALCULATE\nCALCULATE\n7 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 12,
+          "width": 1184,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 268,
+          "y": 112,
+          "width": 1136,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": 276,
+          "y": 120,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 244,
+          "y": 12,
+          "width": 1184,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 174,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "database-populated-1024",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 1024,
+        "height": 900,
+        "dpr": 1
+      },
+      "documentWidth": 1024,
+      "body": "P\nProduct workspace\nSearch\nCtrl+K\nHome\nAsk Alia\nInbox\nSettings & members\nWelcome to Nilo\nAsk anything with Alia\nFind what you need\nSee all\nTeamspaces\nBrowse teamspaces\nCreate teamspace\nPrivate\nProject brief\nProjects\nTemplates\nTrash\nNew page\nCtrl+Alt+N\nB\nbaseline-user\nbaseline-user@oxy.so\nProjects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nMedium\nSmall\nMedium\nSmall\nMedium\nSmall\nMedium\nNew\nCALCULATE\nCALCULATE\n7 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 12,
+          "width": 768,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 268,
+          "y": 112,
+          "width": 720,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": 276,
+          "y": 120,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 244,
+          "y": 12,
+          "width": 768,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 174,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "database-populated-768",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 768,
+        "height": 900,
+        "dpr": 1
+      },
+      "documentWidth": 768,
+      "body": "P\nProduct workspace\nSearch\nCtrl+K\nHome\nAsk Alia\nInbox\nSettings & members\nWelcome to Nilo\nAsk anything with Alia\nFind what you need\nSee all\nTeamspaces\nBrowse teamspaces\nCreate teamspace\nPrivate\nProject brief\nProjects\nTemplates\nTrash\nNew page\nCtrl+Alt+N\nB\nbaseline-user\nbaseline-user@oxy.so\nProjects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nMedium\nSmall\nMedium\nSmall\nMedium\nSmall\nMedium\nNew\nCALCULATE\nCALCULATE\n7 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 12,
+          "width": 512,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 260,
+          "y": 112,
+          "width": 480,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": 268,
+          "y": 120,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 244,
+          "y": 12,
+          "width": 512,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 174,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "database-populated-390",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 390,
+      "body": "Projects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nMedium\nSmall\nMedium\nSmall\nMedium\nSmall\nMedium\nNew\nCALCULATE\nCALCULATE\n7 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 36,
+          "width": 390,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 16,
+          "y": 136,
+          "width": 358,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": 24,
+          "y": 144,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 36,
+          "width": 390,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 198,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "database-populated-320",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 320,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 320,
+      "body": "Projects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nMedium\nSmall\nMedium\nSmall\nMedium\nSmall\nMedium\nNew\nCALCULATE\nCALCULATE\n7 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 36,
+          "width": 320,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 16,
+          "y": 136,
+          "width": 288,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": 24,
+          "y": 144,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 36,
+          "width": 320,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 198,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "database-populated-1440",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "documentWidth": 1440,
+      "body": "P\nProduct workspace\nSearch\nCtrl+K\nHome\nAsk Alia\nInbox\nSettings & members\nWelcome to Nilo\nAsk anything with Alia\nFind what you need\nSee all\nTeamspaces\nBrowse teamspaces\nCreate teamspace\nPrivate\nProject brief\nProjects\nTemplates\nTrash\nNew page\nCtrl+Alt+N\nB\nbaseline-user\nbaseline-user@oxy.so\nProjects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nMedium\nSmall\nMedium\nSmall\nMedium\nSmall\nMedium\nNew\nCALCULATE\nCALCULATE\n7 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 12,
+          "width": 1184,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 268,
+          "y": 112,
+          "width": 1136,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": 276,
+          "y": 120,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 244,
+          "y": 12,
+          "width": 1184,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 174,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "database-keyboard-320",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 320,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 320,
+      "body": "Projects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nMedium\nSmall\nMedium\nSmall\nMedium\nSmall\nMedium\nNew\nCALCULATE\nCALCULATE\n7 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 36,
+          "width": 320,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 16,
+          "y": 136,
+          "width": 288,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": -290,
+          "y": 144,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 36,
+          "width": 320,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 198,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "database-search-focus-320",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 320,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 320,
+      "body": "Projects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nMedium\nSmall\nMedium\nSmall\nMedium\nSmall\nMedium\nNew\nCALCULATE\nCALCULATE\n7 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 36,
+          "width": 320,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 16,
+          "y": 136,
+          "width": 288,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": -69,
+          "y": 144,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 36,
+          "width": 320,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 198,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "database-search-wheel-320",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 320,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 320,
+      "body": "Projects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nMedium\nSmall\nMedium\nSmall\nMedium\nSmall\nMedium\nNew\nCALCULATE\nCALCULATE\n7 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 36,
+          "width": 320,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 16,
+          "y": 136,
+          "width": 288,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": -26,
+          "y": 144,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 36,
+          "width": 320,
+          "height": 808,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 198,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "database-empty-1440",
+      "url": "http://localhost:8128/db/baseline-database",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "documentWidth": 1440,
+      "body": "P\nProduct workspace\nSearch\nCtrl+K\nHome\nAsk Alia\nInbox\nSettings & members\nWelcome to Nilo\nAsk anything with Alia\nFind what you need\nSee all\nTeamspaces\nBrowse teamspaces\nCreate teamspace\nPrivate\nProject brief\nProjects\nTemplates\nTrash\nNew page\nCtrl+Alt+N\nB\nbaseline-user\nbaseline-user@oxy.so\nProjects\nProjects\nTable\nFilter\nSort\nAdd property\nNew\nNAME\nEFFORT LEVEL\nNo rows yet\nNew\nCALCULATE\nCALCULATE\n0 rows",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 12,
+          "width": 1184,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "database-view-toolbar",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 268,
+          "y": 112,
+          "width": 1136,
+          "height": 52,
+          "padding": "8px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": "tablist",
+          "text": null,
+          "viewport": null,
+          "x": 276,
+          "y": 120,
+          "width": 113,
+          "height": 36,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 244,
+          "y": 12,
+          "width": 1184,
+          "height": 876,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": "table-title-header",
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 174,
+          "width": 280,
+          "height": 32,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "document-1440",
+      "url": "http://localhost:8128/p/baseline-document",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "documentWidth": 1440,
+      "body": "P\nProduct workspace\nSearch\nCtrl+K\nHome\nAsk Alia\nInbox\nSettings & members\nWelcome to Nilo\nAsk anything with Alia\nFind what you need\nSee all\nTeamspaces\nBrowse teamspaces\nCreate teamspace\nPrivate\nProject brief\nProjects\nTemplates\nTrash\nNew page\nCtrl+Alt+N\nB\nbaseline-user\nbaseline-user@oxy.so\nProject brief\nProject brief\nShare\nAdd icon\nAdd cover\nSaved\n+\n⋮⋮\n\nProject overview\n\n+\n⋮⋮\n\nSection 1: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 2: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 3: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 4: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 5: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 6: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 7: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 8: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 9: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 10: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 11: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 12: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 13: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 14: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 15: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 16: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 17: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 18: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 19: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 20: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 21: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 22: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 23: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 24: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 25: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 26: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 27: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 28: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 29: Define the scope, preserve the shared composition and verify the complete workflow.",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 56,
+          "width": 1184,
+          "height": 832,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 244,
+          "y": 56,
+          "width": 1184,
+          "height": 832,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "document-390",
+      "url": "http://localhost:8128/p/baseline-document",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 390,
+      "body": "Project brief\nProject brief\nAdd icon\nAdd cover\nSaved\n+\n⋮⋮\n\nProject overview\n\n+\n⋮⋮\n\nSection 1: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 2: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 3: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 4: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 5: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 6: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 7: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 8: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 9: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 10: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 11: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 12: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 13: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 14: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 15: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 16: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 17: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 18: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 19: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 20: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 21: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 22: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 23: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 24: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 25: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 26: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 27: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 28: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 29: Define the scope, preserve the shared composition and verify the complete workflow.",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "editor-selection-390",
+      "url": "http://localhost:8128/p/baseline-document",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 390,
+      "body": "Project brief\nProject brief\nAdd icon\nAdd cover\nSaved\n+\n⋮⋮\n\nProject overview\n\n+\n⋮⋮\n\nSection 1: Define the scope, preserve the shared composition and verify the complete workflow.\n\nB\nI\nU\nS\n</>\nLink\nA\n+\n⋮⋮\n\nSection 2: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 3: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 4: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 5: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 6: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 7: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 8: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 9: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 10: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 11: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 12: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 13: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 14: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 15: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 16: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 17: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 18: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 19: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 20: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 21: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 22: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 23: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 24: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 25: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 26: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 27: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 28: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 29: Define the scope, preserve the shared composition and verify the complete workflow.",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "editor-selection-tab-390",
+      "url": "http://localhost:8128/p/baseline-document",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 390,
+      "body": "Project brief\nProject brief\nAdd icon\nAdd cover\nSaved\n+\n⋮⋮\n\nProject overview\n\n+\n⋮⋮\n\nSection 1: Define the scope, preserve the shared composition and verify the complete workflow.\n\nB\nI\nU\nS\n</>\nLink\nA\n+\n⋮⋮\n\nSection 2: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 3: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 4: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 5: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 6: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 7: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 8: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 9: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 10: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 11: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 12: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 13: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 14: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 15: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 16: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 17: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 18: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 19: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 20: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 21: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 22: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 23: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 24: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 25: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 26: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 27: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 28: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 29: Define the scope, preserve the shared composition and verify the complete workflow.",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "editor-selection-shift-tab-390",
+      "url": "http://localhost:8128/p/baseline-document",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 390,
+      "body": "Project brief\nProject brief\nAdd icon\nAdd cover\nSaved\n+\n⋮⋮\n\nProject overview\n\n+\n⋮⋮\n\nSection 1: Define the scope, preserve the shared composition and verify the complete workflow.\n\nB\nI\nU\nS\n</>\nLink\nA\n+\n⋮⋮\n\nSection 2: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 3: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 4: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 5: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 6: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 7: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 8: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 9: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 10: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 11: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 12: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 13: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 14: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 15: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 16: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 17: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 18: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 19: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 20: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 21: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 22: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 23: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 24: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 25: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 26: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 27: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 28: Define the scope, preserve the shared composition and verify the complete workflow.\n\n+\n⋮⋮\n\nSection 29: Define the scope, preserve the shared composition and verify the complete workflow.",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "document-empty-390",
+      "url": "http://localhost:8128/p/baseline-document",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "dpr": 1
+      },
+      "documentWidth": 390,
+      "body": "Project brief\nProject brief\nAdd icon\nAdd cover\nSaved",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 0,
+          "y": 80,
+          "width": 390,
+          "height": 764,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    },
+    {
+      "name": "document-empty-1440",
+      "url": "http://localhost:8128/p/baseline-document",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "dpr": 1
+      },
+      "documentWidth": 1440,
+      "body": "P\nProduct workspace\nSearch\nCtrl+K\nHome\nAsk Alia\nInbox\nSettings & members\nWelcome to Nilo\nAsk anything with Alia\nFind what you need\nSee all\nTeamspaces\nBrowse teamspaces\nCreate teamspace\nPrivate\nProject brief\nProjects\nTemplates\nTrash\nNew page\nCtrl+Alt+N\nB\nbaseline-user\nbaseline-user@oxy.so\nProject brief\nProject brief\nShare\nAdd icon\nAdd cover\nSaved",
+      "regions": [
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": null,
+          "x": 244,
+          "y": 56,
+          "width": 1184,
+          "height": 832,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        },
+        {
+          "tag": "DIV",
+          "testID": null,
+          "role": null,
+          "text": null,
+          "viewport": "element",
+          "x": 244,
+          "y": 56,
+          "width": 1184,
+          "height": 832,
+          "padding": "0px",
+          "fontSize": "16px",
+          "lineHeight": "24px",
+          "scrollTop": 0
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "unexpected": [],
+  "requests": [
+    "GET https://api.oxy.so/auth/oauth/client/fixture-nilo",
+    "GET https://api.oxy.so/session/device/directory",
+    "GET https://api.oxy.so/users/me",
+    "GET https://api.oxy.so/auth/oauth/client/fixture-nilo",
+    "GET https://api.oxy.so/safety/supervision",
+    "GET https://api.oxy.so/users/me",
+    "GET https://api.oxy.so/accounts",
+    "GET https://api.oxy.so/session/device/directory",
+    "POST https://api.oxy.so/session/device/add",
+    "POST https://api.oxy.so/apps/assertions",
+    "GET https://nilo-fixture.invalid/databases/baseline-database",
+    "GET https://nilo-fixture.invalid/workspaces",
+    "GET https://nilo-fixture.invalid/workspaces/baseline-workspace/teamspaces",
+    "GET https://nilo-fixture.invalid/notifications/unread-count",
+    "GET https://nilo-fixture.invalid/pages",
+    "GET https://nilo-fixture.invalid/databases",
+    "GET https://nilo-fixture.invalid/pages/recent",
+    "GET https://nilo-fixture.invalid/pages/shared",
+    "GET https://nilo-fixture.invalid/pages",
+    "GET https://nilo-fixture.invalid/workspaces/baseline-workspace/members",
+    "GET https://nilo-fixture.invalid/notifications/vapid-public-key",
+    "GET https://nilo-fixture.invalid/databases/baseline-database/automations",
+    "GET https://nilo-fixture.invalid/databases/baseline-database/templates",
+    "GET https://nilo-fixture.invalid/databases/baseline-database/rows",
+    "GET https://nilo-fixture.invalid/databases/baseline-database/rows",
+    "GET https://api.oxy.so/auth/oauth/client/fixture-nilo",
+    "GET https://api.oxy.so/session/device/directory",
+    "GET https://api.oxy.so/accounts",
+    "GET https://api.oxy.so/auth/oauth/client/fixture-nilo",
+    "GET https://api.oxy.so/users/me",
+    "POST https://api.oxy.so/session/device/token",
+    "POST https://api.oxy.so/apps/assertions",
+    "GET https://nilo-fixture.invalid/databases/baseline-database",
+    "GET https://nilo-fixture.invalid/notifications/unread-count",
+    "GET https://nilo-fixture.invalid/workspaces/baseline-workspace/members",
+    "GET https://nilo-fixture.invalid/notifications/vapid-public-key",
+    "GET https://nilo-fixture.invalid/databases/baseline-database/automations",
+    "GET https://nilo-fixture.invalid/databases/baseline-database/templates",
+    "GET https://nilo-fixture.invalid/databases/baseline-database/rows",
+    "GET https://api.oxy.so/auth/oauth/client/fixture-nilo",
+    "GET https://api.oxy.so/session/device/directory",
+    "GET https://api.oxy.so/accounts",
+    "GET https://api.oxy.so/auth/oauth/client/fixture-nilo",
+    "GET https://api.oxy.so/users/me",
+    "POST https://api.oxy.so/session/device/token",
+    "POST https://api.oxy.so/apps/assertions",
+    "GET https://nilo-fixture.invalid/pages/baseline-document",
+    "GET https://nilo-fixture.invalid/pages/baseline-document/comments",
+    "GET https://nilo-fixture.invalid/notifications/unread-count",
+    "GET https://nilo-fixture.invalid/workspaces/baseline-workspace/members",
+    "GET https://nilo-fixture.invalid/notifications/vapid-public-key",
+    "GET https://nilo-fixture.invalid/pages/baseline-document/breadcrumb",
+    "GET https://nilo-fixture.invalid/pages/baseline-document/follow",
+    "GET https://nilo-fixture.invalid/pages/baseline-document/backlinks",
+    "GET https://nilo-fixture.invalid/pages/baseline-document/permissions",
+    "POST https://nilo-fixture.invalid/pages/baseline-document/visit",
+    "GET https://nilo-fixture.invalid/pages/recent",
+    "GET https://api.oxy.so/auth/oauth/client/fixture-nilo",
+    "GET https://api.oxy.so/session/device/directory",
+    "GET https://api.oxy.so/accounts",
+    "GET https://api.oxy.so/auth/oauth/client/fixture-nilo",
+    "GET https://api.oxy.so/users/me",
+    "POST https://api.oxy.so/session/device/token",
+    "POST https://api.oxy.so/apps/assertions",
+    "GET https://nilo-fixture.invalid/workspaces/baseline-workspace/members",
+    "GET https://nilo-fixture.invalid/pages/baseline-document/permissions",
+    "GET https://nilo-fixture.invalid/pages/baseline-document/comments",
+    "GET https://nilo-fixture.invalid/notifications/unread-count",
+    "GET https://nilo-fixture.invalid/notifications/vapid-public-key"
+  ],
+  "checks": {
+    "searchDraftAndNodeSurviveResize": true,
+    "toolbarKeyboardStops320": [
+      {
+        "clipLeft": 24,
+        "clipRight": 201,
+        "fullyInsideScrollClip": true,
+        "label": "New view",
+        "x": 24,
+        "width": 36,
+        "visible": true
+      },
+      {
+        "clipLeft": 24,
+        "clipRight": 201,
+        "fullyInsideScrollClip": true,
+        "label": "Search",
+        "x": 68,
+        "width": 32,
+        "visible": true
+      },
+      {
+        "clipLeft": 24,
+        "clipRight": 201,
+        "fullyInsideScrollClip": true,
+        "label": "Filter",
+        "x": 108,
+        "width": 74,
+        "visible": true
+      },
+      {
+        "clipLeft": 24,
+        "clipRight": 201,
+        "fullyInsideScrollClip": true,
+        "label": "Sort",
+        "x": 134,
+        "width": 67,
+        "visible": true
+      },
+      {
+        "clipLeft": 24,
+        "clipRight": 201,
+        "fullyInsideScrollClip": true,
+        "label": "Add property",
+        "x": 72,
+        "width": 129,
+        "visible": true
+      },
+      {
+        "clipLeft": 0,
+        "clipRight": 320,
+        "fullyInsideScrollClip": true,
+        "label": "New",
+        "x": 209,
+        "width": 51,
+        "visible": true
+      },
+      {
+        "clipLeft": 0,
+        "clipRight": 320,
+        "fullyInsideScrollClip": true,
+        "label": "Row templates",
+        "x": 264,
+        "width": 32,
+        "visible": true
+      },
+      {
+        "clipLeft": 0,
+        "clipRight": 320,
+        "fullyInsideScrollClip": true,
+        "label": "Effort level",
+        "x": 145,
+        "width": 175,
+        "visible": true
+      },
+      {
+        "clipLeft": 0,
+        "clipRight": 320,
+        "fullyInsideScrollClip": true,
+        "label": "Improve website copy",
+        "x": 0,
+        "width": 280,
+        "visible": true
+      },
+      {
+        "clipLeft": 0,
+        "clipRight": 320,
+        "fullyInsideScrollClip": true,
+        "label": "Name",
+        "x": 12,
+        "width": 255,
+        "visible": true
+      },
+      {
+        "clipLeft": 0,
+        "clipRight": 320,
+        "fullyInsideScrollClip": true,
+        "label": "Effort level",
+        "x": 251,
+        "width": 69.203125,
+        "visible": false
+      },
+      {
+        "clipLeft": 0,
+        "clipRight": 320,
+        "fullyInsideScrollClip": true,
+        "label": "Create new illustrations",
+        "x": 0,
+        "width": 280,
+        "visible": true
+      }
+    ],
+    "searchAfterHorizontalWheel": {
+      "x": 139,
+      "width": 32,
+      "clipLeft": 24,
+      "clipRight": 201,
+      "fullyInsideScrollClip": true
+    },
+    "editorSelectionButtons": [
+      "",
+      "Project brief",
+      "",
+      "",
+      "",
+      "Add icon",
+      "Add cover",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "B",
+      "I",
+      "U",
+      "S",
+      "</>",
+      "Link",
+      "A",
+      "",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      "+",
+      "⋮⋮",
+      ""
+    ],
+    "editorFirstTab": {
+      "label": "Type '/' for commands",
+      "role": "textbox",
+      "selected": "Section"
+    },
+    "editorShiftTab": {
+      "label": "Type '/' for commands",
+      "role": "textbox",
+      "selected": "Section"
+    },
+    "editorLinkButtonsAfterShiftTab": 1
+  },
+  "editorInputs": [
+    {
+      "tag": "TEXTAREA",
+      "role": null,
+      "label": "Title",
+      "value": "Project brief",
+      "content": "Project brief"
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": "Heading",
+      "content": "Project overview"
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 1: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 2: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 3: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 4: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 5: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 6: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 7: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 8: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 9: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 10: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 11: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 12: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 13: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 14: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 15: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 16: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 17: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 18: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 19: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 20: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 21: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 22: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 23: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 24: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 25: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 26: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 27: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 28: Define the scope, preserve the shared composition and verify the complete workflow."
+    },
+    {
+      "tag": "DIV",
+      "role": "textbox",
+      "label": null,
+      "content": "Section 29: Define the scope, preserve the shared composition and verify the complete workflow."
+    }
+  ],
+  "status": "captured"
+}
