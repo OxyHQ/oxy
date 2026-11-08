@@ -208,6 +208,12 @@ describe('progress', () => {
     expect(dots.getAttribute('data-count')).toBe('4');
   });
 
+  it('speaks the locale the host pins it to, whatever the runtime speaks', async () => {
+    render(flow({ current: 'create-pin', locale: 'es-ES' }));
+    // Spanish loads on demand; the flow re-translates once it lands.
+    expect(await screen.findByText('Paso 3 de 4')).toBeTruthy();
+  });
+
   it('is left out with showProgress false', () => {
     render(flow({ current: 'create-pin', showProgress: false }));
     expect(screen.queryByTestId('oxy-setup-progress')).toBeNull();

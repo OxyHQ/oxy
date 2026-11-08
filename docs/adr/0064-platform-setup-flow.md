@@ -61,6 +61,12 @@ would have been written twice, drifting apart.
    on native, queued on iOS; a polite live region on the web). The dots are
    hidden from assistive technology. The change is Bloom's `ScreenTransition`,
    none under Bloom's reduced-motion reading.
+6. **The flow's words speak the host's language when it names one**
+   (`locale`, services 14.17.0). Once signed in, the runtime follows the
+   account's own language (ADR 0022); a platform's setup is in its system's
+   language from the first step to the last (OxyOS ADR 0040), so its host
+   passes that locale and the flow's progress, announcements and default Back
+   keep it after the sign-in. Without `locale`, the runtime's.
 
 ## Alternatives rejected
 

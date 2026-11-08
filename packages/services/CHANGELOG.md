@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.17.0
+
+### Added
+
+- **`OxySetupFlow` takes `locale`** (ADR 0064): the language its own words speak (its progress, its announcements, the default Back), a BCP 47 tag. A platform's setup passes its system's language, so the flow does not turn to the signed-in account's language halfway (the runtime follows the account once signed in, ADR 0022). `useI18n(locale?)` takes the same override. Without it, nothing changes.
+
 ## 14.16.0
 
 ### Added
