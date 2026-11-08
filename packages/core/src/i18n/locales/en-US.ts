@@ -1189,6 +1189,7 @@ const dict = {
   },
   common: {
     stepOf: 'Step {{step}} of {{total}}',
+    stepAnnouncement: '{{title}}, step {{step}} of {{total}}',
     errors: {
       signOutFailed: 'There was a problem signing you out. Please try again.',
       signOutAllFailed: 'There was a problem signing out of all accounts. Please try again.',

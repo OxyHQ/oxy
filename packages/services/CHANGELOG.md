@@ -1,5 +1,17 @@
 # Changelog
 
+## 14.16.0
+
+### Added
+
+- **`OxySetupFlow`: a platform's setup in the sign-in's own frame** (ADR 0064). A controlled, presentational multi-step frame: the host passes its `steps` (`OxySetupStep`: `id`, `title`, `description`, `icon`, `content`, `aside`, `initialFocus`, `primary`, `secondary`) and the `current` id, and owns what every action does. Each step is drawn in the SDK sign-in's shell (the icon or the Oxy mark, the 48/800 title, blocks 24 apart, 448 wide; with an `aside`, the split card from `md`, asking for 880), with Back leading and the secondary and primary actions trailing, quiet progress ("Step 2 of 5" and decorative dots), Bloom's `ScreenTransition` between steps (none under reduced motion), focus moved to the new step's title (or left to its content), and the change said politely ("Create a PIN, step 3 of 5"). `onMaxWidthChange` reports the width the current step asks, as `OxySurfaceFrame` does.
+- **`oxySignInStep()`**: the SDK's sign-in as a step — `OxyAuthChooser`, unchanged, inside the flow's surface-width context, so the card grows to the QR split's 880 for that step and returns after. The host still learns the sign-in through `authStateStore` (`PlatformSetupAuthStateStore`); there is no second seam.
+- `OxyAuthScreenHeader` takes `icon` (in place of the Oxy mark) and `titleRef`.
+
+### Consumers
+
+No API removed. Needs `@oxy.so/core` 7.45.0 (the announcement's words). OxyOS's login screen composes its setup with it.
+
 ## 14.15.2
 
 ### Added

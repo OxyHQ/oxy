@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.45.0
+
+### Added
+
+- `common.stepAnnouncement` ("{{title}}, step {{step}} of {{total}}"; Spanish too): what a multi-step flow says when it moves to a step (`OxySetupFlow`, services 14.16.0).
+
 ## 7.44.0
 
 The Oxy Keychain's client (ADR 0063 step 2): the `/keychain` routes as `oxy.keychain`, and `KeychainClient`, one device's side of the vault, over the 7.43 cryptography. Shape and flows in docs/identity/keychain.md#sdk.
