@@ -90,4 +90,6 @@ passed, `bun run check:icon-fonts` passed, and `bun run build` passed its
 packaging gate: 3,105 files, 2,667 under `lib/`, and all 48 export targets.
 An `--ignore-scripts` tarball was created from that built output and contains
 the 14.18.0 manifest. This does not replace the old Nilo consumer receipt above:
-the final published-dependency Nilo typecheck remains pending publication.
+the final published-dependency Nilo typecheck remains pending publication. Exact
+commands, results, tarball SHA256 and pending consumer acceptance are recorded
+in [services-candidate-receipt-14.18.0.json](./services-candidate-receipt-14.18.0.json).
