@@ -18,7 +18,7 @@ function withNodeEnv(nodeEnv, create) {
   }
 }
 
-test('development is the bare Expo preset, so Noxcturnal runs; production adds the build id', () => {
+test('development is the bare Expo preset, so an explicit Noxcturnal opt-in can run; production adds the build id', () => {
   const development = withNodeEnv('development', () => oxyBabelPreset(api));
   assert.deepEqual(development, { presets: ['babel-preset-expo'], plugins: [] });
   assert.deepEqual(
@@ -69,4 +69,39 @@ test('a misspelt option fails loudly instead of being ignored', () => {
     /is a list of strings/,
   );
   assert.throws(() => create({ workletsBundleMode: 'yes' }), /is a boolean or an object/);
+});
+
+test('default Expo Babel preserves derived private fields and methods (Nilo observer regression)', () => {
+  const { createRequire } = require('node:module');
+  const { runInNewContext } = require('node:vm');
+  const expoRequire = createRequire(require.resolve('expo/package.json'));
+  const babel = expoRequire('@babel/core');
+  // Noxcturnal 0.1.11 shadows the lowered #result key with a constructor local
+  // for this shape; the private method is necessary to reproduce the collision.
+  const source = `class Base {}
+    var Observer = class extends Base {
+      #result;
+      constructor() { super(); this.#result = []; }
+      #read() { return this.#result; }
+      read() { return this.#read(); }
+    };
+    globalThis.observed = new Observer().read();`;
+  for (const platform of ['web', 'android', 'ios']) {
+    const config = withNodeEnv('development', () => oxyBabelPreset(api));
+    const result = babel.transformSync(source, {
+      ...config,
+      presets: config.presets.map((preset) => [
+        expoRequire.resolve(preset),
+        { enableBabelRuntime: false },
+      ]),
+      babelrc: false,
+      configFile: false,
+      filename: '/tmp/observer-fixture.js',
+      caller: { name: 'metro', platform, isDev: true, engine: 'hermes' },
+    });
+    const context = {};
+    runInNewContext(result.code, context);
+    assert.ok(Array.isArray(context.observed), platform);
+    assert.equal(context.observed.length, 0, platform);
+  }
 });

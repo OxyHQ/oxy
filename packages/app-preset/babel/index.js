@@ -3,7 +3,7 @@
  *
  * In development the config is exactly `babel-preset-expo`, nothing else.
  * Expo's oxc transformer (Noxcturnal, `experiments.noxcturnalTransformWorker`,
- * which the preset's config plugin turns on) runs only when the project's Babel
+ * enabled explicitly with `noxcturnal: true`) runs only when the project's Babel
  * config resolves to the bare Expo preset; one extra plugin or preset option
  * sends every file back to Babel. Everything the config used to add is covered
  * without it in SDK 58: `babel-preset-expo` adds `react-native-worklets/plugin`

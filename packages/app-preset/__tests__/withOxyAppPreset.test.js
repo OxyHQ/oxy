@@ -157,7 +157,7 @@ test('`webgpu: true` without react-native-webgpu installed says what to install'
   }
 });
 
-test('Noxcturnal is on in development only, and an app can opt out or set it itself', () => {
+test('Noxcturnal is opt-in, development-only, and explicit app experiments take precedence', () => {
   const root = fakeApp();
   const saved = process.env.NODE_ENV;
   try {
@@ -167,12 +167,30 @@ test('Noxcturnal is on in development only, and an app can opt out or set it its
         ?.noxcturnalTransformWorker;
 
     process.env.NODE_ENV = 'development';
-    assert.equal(flag(base), true);
+    assert.equal(flag(base), undefined);
+    assert.equal(flag(base, { noxcturnal: true }), true);
     assert.equal(flag(base, { noxcturnal: false }), undefined);
     assert.equal(flag({ ...base, experiments: { noxcturnalTransformWorker: false } }), false);
 
     process.env.NODE_ENV = 'production';
-    assert.equal(flag(base), false);
+    assert.equal(flag(base), undefined);
+    assert.equal(flag(base, { noxcturnal: true }), false);
+
+    for (const env of [undefined, 'development', 'production']) {
+      if (env === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = env;
+      assert.equal(flag(base), undefined);
+      for (const explicit of [true, false]) {
+        for (const options of [{}, { noxcturnal: true }, { noxcturnal: false }]) {
+          const experiments = { typedRoutes: true, noxcturnalTransformWorker: explicit };
+          const result = withOxyAppPreset(
+            { ...base, experiments },
+            { ios: false, android: false, ...options },
+          );
+          assert.deepEqual(result.experiments, experiments);
+        }
+      }
+    }
   } finally {
     if (saved === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = saved;

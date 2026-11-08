@@ -1,5 +1,15 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.5.1
+
+### Fixed
+
+- Leave Expo's experimental Noxcturnal transformer opt-in. With Expo Metro 58.0.21
+  and Noxcturnal 0.1.11, private-field lowering breaks TanStack Query 5.103.3
+  observers during development startup. Default apps now use Babel again.
+  Explicit `noxcturnal: true` still enables development transforms, and explicit
+  `experiments.noxcturnalTransformWorker` values remain authoritative.
+
 ## 6.5.0
 
 ### Security
