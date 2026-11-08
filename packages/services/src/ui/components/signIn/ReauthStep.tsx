@@ -38,7 +38,8 @@ export interface ReauthStepProps {
   allowPassword?: boolean;
   /**
    * The account has an email, and this change accepts a code sent to it.
-   * Without it the proof is the password alone.
+   * Without it the proof is the password alone; with neither, the change is
+   * not offered (there is no proof the account could give).
    */
   allowEmail?: boolean;
   /** The account has an authenticator: its code is required too. */
@@ -136,6 +137,30 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
   };
 
   const needsCode = mode === 'email' && !verificationId;
+
+  // No proof this account can give: no email to send a code to, and no password
+  // this change accepts. Offering either anyway sends a code nowhere or asks for
+  // a password that does not exist, so the change is not offered at all; the
+  // account needs an email first (the API refuses both, `reauth.service`).
+  if (!allowPassword && !allowEmail) {
+    return (
+      <OxyAuthScreen>
+        <OxyAuthScreenHeader title={title} />
+        <AccountFlowNote>{t('signInSecurity.email.noneDescription')}</AccountFlowNote>
+        {secondary ? (
+          <Button
+            appearance="plain"
+            tone="neutral"
+            size="lg"
+            onPress={secondary.onPress}
+            testID="reauth-cancel"
+          >
+            {secondary.label}
+          </Button>
+        ) : null}
+      </OxyAuthScreen>
+    );
+  }
 
   return (
     <OxyAuthScreen>

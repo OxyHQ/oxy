@@ -276,3 +276,67 @@ describe('OxyProvider authStateStore that keeps nothing', () => {
     expect(fakeSessionClientHost.setDeviceCredential).toHaveBeenLastCalledWith(null);
   });
 });
+
+/**
+ * How the sign-in happened reaches a platform's setup store with the
+ * credential (`SetupSignInContext`): OxyOS asks no password after the QR and
+ * reuses the one just typed after a password sign-in. Only a store the app
+ * provided receives it.
+ */
+describe('OxyProvider authStateStore: how the sign-in happened', () => {
+  const session = {
+    sessionId: 'sess_setup',
+    accessToken: 'setup.access.token',
+    deviceId: 'dev_setup',
+    deviceSecret: SECRET,
+    expiresAt: new Date(Date.now() + 900_000).toISOString(),
+    user: { id: USER_ID, username: 'setup' },
+  };
+
+  async function commitWith(store: AuthStateStore | undefined, setup?: unknown) {
+    Platform.OS = 'android';
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <OxyRuntimeProvider
+          oxyServices={stubServices() as never}
+          baseURL={API}
+          clientId="oxyos_client"
+          {...(store ? { authStateStore: store } : {})}
+        >
+          <Capture />
+        </OxyRuntimeProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(captured?.isAuthResolved).toBe(true));
+    await act(async () => {
+      await captured?.handleWebSession(session as never, setup as never);
+    });
+  }
+
+  it("hands the setup store the password sign-in's password with the credential", async () => {
+    const store = handingOverStore();
+    await commitWith(store, { method: 'password', password: 'just typed' });
+    expect(store.save).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: 'dev_setup', deviceSecret: SECRET }),
+      { method: 'password', password: 'just typed' },
+    );
+  });
+
+  it('tells the setup store a QR approval was passwordless', async () => {
+    const store = handingOverStore();
+    await commitWith(store, { method: 'qr' });
+    expect(store.save).toHaveBeenCalledWith(expect.objectContaining({ userId: USER_ID }), {
+      method: 'qr',
+    });
+  });
+
+  it("never hands it to the platform's own store", async () => {
+    const platformStore = handingOverStore();
+    mockCreatePlatformAuthStateStore.mockReturnValue(platformStore);
+    await commitWith(undefined, { method: 'password', password: 'just typed' });
+    await waitFor(() => expect(platformStore.save).toHaveBeenCalled());
+    for (const call of platformStore.save.mock.calls) {
+      expect(call).toHaveLength(1);
+    }
+  });
+});

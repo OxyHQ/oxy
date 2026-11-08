@@ -78,6 +78,7 @@ import {
   isCompleteSignInCode,
 } from './accountFlowParts';
 import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
+import type { SetupSignInContext } from '../../session/setupSignIn';
 import { resolveSignInMethods } from './signInMethods';
 import { describeApiError, errorCode, retryAfterSeconds } from '../../utils/apiErrorMessage';
 import { withoutWhitespace } from '../../utils/withoutWhitespace';
@@ -244,6 +245,16 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
 
   // One sign-in ends once: the typed code and the opened link can race.
   const finishingRef = useRef(false);
+  // How this sign-in's first factor went, for a platform's setup store
+  // (`SetupSignInContext`): kept only until the sign-in commits or fails, so
+  // the password typed is held no longer than the request that uses it.
+  const firstFactorRef = useRef<SetupSignInContext | null>(null);
+  useEffect(
+    () => () => {
+      firstFactorRef.current = null;
+    },
+    [],
+  );
   const finish = useCallback(
     async (
       result: EmailSignInStepResult,
@@ -273,8 +284,10 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       }
       finishingRef.current = true;
       writeSignInFlow(flowOwner, SIGN_IN_FLOW_KEY, undefined);
+      const setup = firstFactorRef.current ?? undefined;
+      firstFactorRef.current = null;
       try {
-        await handleWebSession(result as LoginResult);
+        await handleWebSession(result as LoginResult, setup);
       } catch (reason) {
         finishingRef.current = false;
         throw reason;
@@ -332,6 +345,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setError(null);
     setNotice(null);
     setPending(true);
+    firstFactorRef.current = { method: 'emailCode' };
     oxyServices.auth.email
       .confirm({
         requestId: request.requestId,
@@ -353,6 +367,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setError(null);
     setPending(true);
     setChoosingId(account.id);
+    firstFactorRef.current = { method: 'emailCode' };
     oxyServices.auth.email
       .choose({
         requestId: request.requestId,
@@ -376,10 +391,14 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     const name = step.identifier;
     setError(null);
     setPending(true);
+    firstFactorRef.current = { method: 'password', password };
     oxyServices.auth.password
       .signIn({ identifier: name, password })
       .then((result) => finish(result, name))
-      .catch(fail)
+      .catch((reason: unknown) => {
+        firstFactorRef.current = null;
+        fail(reason);
+      })
       .finally(() => setPending(false));
   };
 
@@ -427,6 +446,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       try {
         const result = await oxyServices.auth.email.collect({ requestId, requestSecret });
         if (!('status' in result)) {
+          firstFactorRef.current = { method: 'emailCode' };
           await finishRef.current(result, requestIdentifier, { requestId, requestSecret });
           return;
         }

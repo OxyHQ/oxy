@@ -1,5 +1,19 @@
 # Changelog
 
+## 14.15.2
+
+### Added
+
+- **A platform's setup store is told how the sign-in happened.** `authStateStore.save(state, context)`: `context` is `SetupSignInContext`, `{ method: 'qr' | 'password' | 'emailCode' | 'signup', password? }`. `'qr'` is an approval from a device the person already holds (the QR, the Commons identity), passwordless, so OxyOS asks no password and its service redeems the approval for its credential (`POST /session/device/platform`, ADR 0058 R6). `'password'` carries the password just typed, after its second factor too, so the platform can reuse it once instead of asking again. Only a store the app provided receives the context; the platform's own stores never do. The SDK drops the password once the sign-in commits or fails, and never persists or logs it. `handleWebSession(session, setup?)` takes it; `PlatformSetupAuthStateStore`, `SetupSignInContext` and `SetupSignInMethod` are exported.
+
+### Fixed
+
+- **No route an account cannot use.** A change that needs "confirm it's you" (`ReauthStep`: set or change the password, the email, the authenticator, deleting the account) offered an account with neither an email nor a password a "current password" field for a password it does not have. It now offers neither and says the account needs an email first. An account without an email is never offered the email code (unchanged), and one with an email but no password is never asked for a password.
+
+### Consumers
+
+No API removed. OxyOS bumps.
+
 ## 14.15.1
 
 ### Fixed

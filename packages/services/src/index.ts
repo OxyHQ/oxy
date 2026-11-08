@@ -84,6 +84,11 @@ export { IdentityBoundSessionError } from './ui/session/identityBinding';
 // Thrown by an operation that a platform holding the session (a session host,
 // ADR 0058) does itself: a sign-in this app would commit, device management.
 export { HostedSessionError } from './ui/session/hostSession';
+export type {
+  PlatformSetupAuthStateStore,
+  SetupSignInContext,
+  SetupSignInMethod,
+} from './ui/session/setupSignIn';
 
 // ---------------------------------------------------------------------------
 // Zustand stores

@@ -120,6 +120,7 @@ import {
   useBackgroundSessionSync,
   type IdentitySessionBinding,
 } from '../session';
+import type { SetupSignInContext } from '../session/setupSignIn';
 import type { OxyContextState, OxyRuntimeProviderProps, CommitInput } from './oxyContextTypes';
 import { DEFAULT_SESSION_VALIDITY_MS } from './oxyContextHelpers';
 import { useFollow } from '../hooks/useFollow';
@@ -847,7 +848,15 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // Used by the QR device flow (`handleWebSession`), password sign-in, 2FA
   // completion, and the cold boot.
   const commitSession = useCallback(
-    async (input: CommitInput, options: { activate: boolean; oauth?: boolean }): Promise<void> => {
+    async (
+      input: CommitInput,
+      options: {
+        activate: boolean;
+        oauth?: boolean;
+        /** How the sign-in happened, for a platform's setup store only. */
+        setup?: SetupSignInContext;
+      },
+    ): Promise<void> => {
       const isolatedOAuth = options.oauth === true && !input.deviceId && !input.deviceSecret;
       if (isolatedOAuth || hasIsolatedOAuthSession(runtime)) {
         sessionClient.resetLocalState();
@@ -881,7 +890,13 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
             ...(input.accessToken ? { accessToken: input.accessToken } : {}),
             ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
           };
-          await authStore.save(next);
+          // A platform's setup store (`authStateStore`) is also told how the
+          // sign-in happened; the platform's own stores never are.
+          if (options.setup && !usesSharedDeviceCredential && authStoreRef.current) {
+            await authStoreRef.current.save(next, options.setup);
+          } else {
+            await authStore.save(next);
+          }
           sessionClientHost.setDeviceCredential({
             deviceId: input.deviceId,
             deviceSecret: input.deviceSecret,
@@ -962,6 +977,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       logger,
       clientId,
       identity,
+      usesSharedDeviceCredential,
     ],
   );
   const commitSessionRef = useRef(commitSession);
@@ -970,7 +986,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // Public `handleWebSession`: commit a session from the QR device flow. It is a
   // deliberate sign-in on THIS device, so it activates the account.
   const handleWebSession = useCallback(
-    async (session: SessionLoginResponse | LoginSessionResult): Promise<void> => {
+    async (
+      session: SessionLoginResponse | LoginSessionResult,
+      setup?: SetupSignInContext,
+    ): Promise<void> => {
       if (!session?.user || !session?.sessionId || !session.accessToken) {
         throw new Error('Session response did not include a usable session');
       }
@@ -984,7 +1003,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
           userId: session.user.id,
           user: session.user,
         },
-        { activate: true },
+        { activate: true, ...(setup ? { setup } : {}) },
       );
     },
     [commitSession],
@@ -1103,7 +1122,9 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       oxyServices,
       sessionClient,
       clientId,
-      commitSession: (session) => handleWebSessionRef.current(session),
+      // The controller's sign-ins are approvals from a device the person holds
+      // (the QR, the Commons identity): passwordless.
+      commitSession: (session) => handleWebSessionRef.current(session, { method: 'qr' }),
       onSignedIn: () => {
         // Close the dialog: pop the morphed frame back to its host surface, or
         // dismiss the detached surface (whose settle flips `accountDialogOpen`).

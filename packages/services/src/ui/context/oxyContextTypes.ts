@@ -17,11 +17,11 @@ import type {
 import type {
   AccountDialogController,
   AccountDialogView,
-  AuthStateStore,
   SessionClient,
   SessionMode,
 } from '@oxy.so/core/session';
 import type { UseFollowHook } from '../hooks/useFollow.types';
+import type { PlatformSetupAuthStateStore, SetupSignInContext } from '../session/setupSignIn';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
 import type { RouteName } from '../navigation/routes';
 import type { StartWebOAuthSignInOptions } from '../oauth/browserAuthTransport';
@@ -118,7 +118,15 @@ export interface OxyContextState {
    * code exchange, an email code or link, a password, a sign-up — as the
    * active one.
    */
-  handleWebSession: (session: SessionLoginResponse | LoginSessionResult) => Promise<void>;
+  handleWebSession: (
+    session: SessionLoginResponse | LoginSessionResult,
+    /**
+     * How the sign-in happened, handed to a platform's setup store
+     * (`authStateStore`) with the credential, and to no other store
+     * (`SetupSignInContext`).
+     */
+    setup?: SetupSignInContext,
+  ) => Promise<void>;
 
   /**
    * Run a WEB third-party OAuth sign-in (authorization code + PKCE) end to end
@@ -259,7 +267,7 @@ export interface OxyRuntimeProviderProps {
   /** Storage instance owned by the public provider; internal composition seam. */
   platformStorage?: StorageInterface | null;
   /** See `OxyProviderProps.authStateStore`. Read once, at mount. */
-  authStateStore?: AuthStateStore;
+  authStateStore?: PlatformSetupAuthStateStore;
   /** See `OxyProviderProps.accountQueries`. Read once, at mount. */
   accountQueries?: AccountQueriesConfig;
 }

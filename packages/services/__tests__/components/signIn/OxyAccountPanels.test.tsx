@@ -202,7 +202,7 @@ describe('creating an account', () => {
       languages: ['es-ES'],
       campaignAttribution: { utmSource: 'newsletter' },
     });
-    expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION, { method: 'signup' });
   });
 
   it('stops at a taken username', async () => {
@@ -537,6 +537,32 @@ describe('the password', () => {
         revokeOtherSessions: true,
       }),
     );
+  });
+
+  it('offers nothing an account without an email or a password could confirm', () => {
+    // No email to send a code to and no password to give: the API refuses a
+    // set-password without one of them, so the panel never offers the email
+    // code (it would go nowhere) or a "current password" that does not exist.
+    methods = { ...methods, hasEmail: false, hasPassword: false };
+    render(<OxyPasswordPanel />);
+    expect(screen.getByText('Set a password')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Add an email to sign in with a code or a link, and to get your account back if you forget your password.',
+      ),
+    ).toBeTruthy();
+    for (const id of ['reauth-send-code', 'reauth-password', 'reauth-submit', 'password-new']) {
+      expect(screen.queryByTestId(id)).toBeNull();
+    }
+    expect(oxyServices.auth.requestReauthCode).not.toHaveBeenCalled();
+  });
+
+  it('confirms with the password alone when the account has no email', () => {
+    methods = { ...methods, hasEmail: false, hasPassword: true };
+    render(<OxyPasswordPanel />);
+    expect(screen.getByTestId('reauth-password')).toBeTruthy();
+    expect(screen.queryByTestId('reauth-send-code')).toBeNull();
+    expect(screen.queryByTestId('reauth-switch-method')).toBeNull();
   });
 
   it('refuses a short one or two that differ, before sending anything', () => {
