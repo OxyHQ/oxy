@@ -69,7 +69,11 @@ import { storePassword } from '../../services/password.service';
 import sessionService from '../../services/session.service';
 import { sha256Hex } from '../../services/oauthCode.service';
 import deviceSessionService from '../../services/deviceSession.service';
-import { PROMOTION_WINDOW_MS, redeemDeviceProof } from '../../services/platformPromotion.service';
+import {
+  MAX_REDEMPTION_ATTEMPTS,
+  PROMOTION_WINDOW_MS,
+  redeemDeviceProof,
+} from '../../services/platformPromotion.service';
 import authRouter from '../auth';
 import sessionRouter from '../session';
 import sessionDeviceRouter from '../sessionDevice';
@@ -431,13 +435,14 @@ describe('POST /session/device/platform — the QR approval redeemed once', () =
     expect((await promote(proof)).status).toBe(200);
   });
 
-  it("counts a device id's attempts whether or not it exists", async () => {
+  it("counts a device id's attempts whether or not it exists: three in ten minutes (R8)", async () => {
     const unknown = `dev-${randomUUID()}`;
     const statuses: number[] = [];
-    for (let attempt = 0; attempt < 6; attempt += 1) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
       statuses.push((await promote({ deviceId: unknown, deviceSecret: `x${tag()}` })).status);
     }
-    expect(statuses).toEqual([401, 401, 401, 401, 401, 429]);
+    // Locked at the fourth, not the sixth as before R8 (five in fifteen minutes).
+    expect(statuses).toEqual([401, 401, 401, 429, 429]);
   });
 
   it('records the claimed credential on the request it answers', async () => {
@@ -456,6 +461,7 @@ describe('POST /session/device/platform — a redemption repeated with its key (
     platform: 'oxyos' as const,
     clientId: oxyos.clientId,
     applicationId: oxyos.applicationId,
+    confirms: false,
   });
 
   it('re-issues for the same proof and key, revoking the credential the first answer carried', async () => {
@@ -633,5 +639,295 @@ describe('POST /session/device/platform — a redemption repeated with its key (
     }
     // Still one session for the account on the device.
     expect(await liveSessionsOf(person.id, proof.deviceId)).toHaveLength(1);
+  });
+});
+
+describe('a platform that confirms (R8)', () => {
+  const confirming = () => ({ platform: 'oxyos', clientId: oxyos.clientId, confirms: true });
+
+  async function promoteConfirming(
+    proof: { deviceId: string; deviceSecret: string },
+    key?: string,
+  ) {
+    const device = { deviceId: proof.deviceId, deviceSecret: proof.deviceSecret };
+    return post('/session/device/platform', {
+      device,
+      platformClient: confirming(),
+      ...(key ? { redemptionKey: key } : {}),
+    });
+  }
+
+  async function confirm(deviceId: string, deviceSecret: string) {
+    return post('/session/device/platform/confirm', { deviceId, deviceSecret });
+  }
+
+  async function freshConfirmBudget(deviceId: string): Promise<void> {
+    await clearFailures({ scope: 'device-platform-confirm:device', identifier: deviceId });
+  }
+
+  async function mintsToken(deviceId: string, deviceSecret: string): Promise<number> {
+    return (await post('/session/device/token', { deviceId, deviceSecret })).status;
+  }
+
+  async function pendingOf(deviceId: string, deviceSecret: string) {
+    const [row] = await getDb()
+      .select({
+        pendingUntil: deviceCredentials.pendingUntil,
+        replacesCredentialId: deviceCredentials.replacesCredentialId,
+      })
+      .from(deviceCredentials)
+      .innerJoin(deviceSessions, eq(deviceSessions.id, deviceCredentials.deviceSessionId))
+      .where(
+        and(
+          eq(deviceSessions.deviceId, deviceId),
+          eq(deviceCredentials.secretHash, sha256Hex(deviceSecret)),
+        ),
+      );
+    return row;
+  }
+
+  async function expire(deviceId: string, deviceSecret: string) {
+    const [device] = await getDb()
+      .select({ id: deviceSessions.id })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, deviceId));
+    await getDb()
+      .update(deviceCredentials)
+      .set({ pendingUntil: new Date(Date.now() - 1000) })
+      .where(
+        and(
+          eq(deviceCredentials.deviceSessionId, device.id),
+          eq(deviceCredentials.secretHash, sha256Hex(deviceSecret)),
+        ),
+      );
+  }
+
+  it("issues the QR's credential pending until the claim's window ends: it proves nothing until confirmed", async () => {
+    const person = await personOnPhone();
+    const proof = await claimedQr(person);
+    const promoted = await promoteConfirming(proof, redemptionKey());
+    expect(promoted.status).toBe(200);
+    const secret = promoted.body.deviceSecret as string;
+
+    const [claim] = await getDb()
+      .select({ consumedAt: authSessions.consumedAt })
+      .from(authSessions)
+      .where(eq(authSessions.sessionToken, proof.sessionToken));
+    const pending = await pendingOf(proof.deviceId, secret);
+    expect(pending.pendingUntil?.getTime()).toBe(
+      (claim.consumedAt as Date).getTime() + PROMOTION_WINDOW_MS,
+    );
+    // Nothing mints from it, and nothing takes it for the device's proof.
+    expect(await mintsAppToken(proof.deviceId, secret)).toBe(401);
+    expect(await mintsToken(proof.deviceId, secret)).toBe(401);
+    expect(await deviceSessionService.getStateBySecret(proof.deviceId, secret)).toBeNull();
+    expect(await deviceSessionService.readCredentialBySecret(proof.deviceId, secret)).toBeNull();
+
+    const confirmed = await confirm(proof.deviceId, secret);
+    expect(confirmed).toEqual({ status: 200, body: { confirmed: true } });
+    expect((await pendingOf(proof.deviceId, secret)).pendingUntil).toBeNull();
+    expect(await mintsAppToken(proof.deviceId, secret)).toBe(200);
+    // Idempotent: the same answer for a credential already confirmed.
+    expect(await confirm(proof.deviceId, secret)).toEqual(confirmed);
+  });
+
+  it('confirms nothing else, with one answer', async () => {
+    const person = await personOnPhone();
+    const proof = await claimedQr(person);
+    const promoted = await promoteConfirming(proof, redemptionKey());
+    const secret = promoted.body.deviceSecret as string;
+    // An ordinary holder credential (the phone's QR sign-in elsewhere).
+    const other = await claimedQr(await personOnPhone());
+    const answers = [
+      await confirm(proof.deviceId, `x${tag()}`),
+      await confirm(`dev-${randomUUID()}`, secret),
+      await confirm(other.deviceId, other.deviceSecret),
+    ];
+    await freshConfirmBudget(proof.deviceId);
+    await expire(proof.deviceId, secret);
+    answers.push(await confirm(proof.deviceId, secret));
+    for (const answer of answers) {
+      expect(answer.status).toBe(401);
+      expect(answer.body).toEqual(answers[0].body);
+    }
+    expect(answers[0].body).toMatchObject({ message: 'invalid_grant' });
+  });
+
+  it('takes the confirmation strictly', async () => {
+    const answer = await post('/session/device/platform/confirm', {
+      deviceId: 'd',
+      deviceSecret: 's',
+      platformClient: confirming(),
+    });
+    expect(answer.status).toBe(400);
+  });
+
+  it('forgets an expired pending credential, and the sweep signs out the device nothing holds', async () => {
+    const person = await personOnPhone();
+    const proof = await claimedQr(person);
+    const promoted = await promoteConfirming(proof, redemptionKey());
+    const secret = promoted.body.deviceSecret as string;
+    expect(await liveSessionsOf(person.id, proof.deviceId)).toHaveLength(1);
+
+    await expire(proof.deviceId, secret);
+    expect(await mintsAppToken(proof.deviceId, secret)).toBe(401);
+    await freshConfirmBudget(proof.deviceId);
+    expect((await confirm(proof.deviceId, secret)).status).toBe(401);
+
+    const swept = await deviceSessionService.sweepUnconfirmedPlatformCredentials();
+    expect(swept.deleted).toBeGreaterThanOrEqual(1);
+    expect(await credentialsOf(proof.deviceId)).toHaveLength(0);
+    // The account is not left signed in on a device whose setup never finished.
+    expect(await liveSessionsOf(person.id, proof.deviceId)).toHaveLength(0);
+  });
+
+  it('never signs out a device something still holds', async () => {
+    const person = await personOnPhone();
+    const proof = await claimedQr(person);
+    const first = await promoteConfirming(proof, redemptionKey());
+    expect((await confirm(proof.deviceId, first.body.deviceSecret as string)).status).toBe(200);
+    // A pending credential beside the confirmed one (another setup's, say) expires.
+    const pendingSecret = await deviceSessionService.issuePlatformCredential(
+      proof.deviceId,
+      { platform: 'oxyos', applicationId: oxyos.applicationId },
+      undefined,
+      undefined,
+      new Date(Date.now() - 1000),
+    );
+    expect(pendingSecret).toBeTruthy();
+    await deviceSessionService.sweepUnconfirmedPlatformCredentials();
+    expect(await pendingOf(proof.deviceId, pendingSecret as string)).toBeUndefined();
+    expect(await liveSessionsOf(person.id, proof.deviceId)).toHaveLength(1);
+    expect(await mintsAppToken(proof.deviceId, first.body.deviceSecret as string)).toBe(200);
+  });
+
+  it("revokes a repeated redemption's previous credential, pending or not", async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const key = redemptionKey();
+    const lost = (await promoteConfirming(proof, key)).body.deviceSecret as string;
+    const kept = (await promoteConfirming(proof, key)).body.deviceSecret as string;
+    expect(kept).not.toBe(lost);
+    expect((await confirm(proof.deviceId, lost)).status).toBe(401);
+    expect((await confirm(proof.deviceId, kept)).status).toBe(200);
+    expect(await mintsAppToken(proof.deviceId, kept)).toBe(200);
+  });
+
+  it("keeps the credential a platform's password sign-in presented until the new one is confirmed", async () => {
+    // A machine's account, with its confirmed platform credential: its online
+    // check signs in with the password again, presenting it, and rotates it.
+    const username = `rot${tag()}`;
+    const [row] = await getDb().insert(users).values({ username }).returning({ id: users.id });
+    await storePassword(row.id, 'a long enough password');
+    const signedIn = await post('/auth/signin/password', {
+      identifier: username,
+      password: 'a long enough password',
+    });
+    const holder = {
+      deviceId: signedIn.body.deviceId as string,
+      deviceSecret: signedIn.body.deviceSecret as string,
+    };
+    const platformSignIn = (device: typeof holder) =>
+      post('/auth/signin/password', {
+        identifier: username,
+        password: 'a long enough password',
+        device,
+        platformClient: confirming(),
+      });
+    const first = await platformSignIn(holder);
+    expect(first.status).toBe(200);
+    const firstSecret = first.body.deviceSecret as string;
+    const pending = await pendingOf(holder.deviceId, firstSecret);
+    expect(pending.pendingUntil).not.toBeNull();
+    expect(pending.replacesCredentialId).not.toBeNull();
+    // Until confirmed, the credential it presented still works, and it does not.
+    expect(await mintsToken(holder.deviceId, holder.deviceSecret)).toBe(200);
+    expect(await mintsAppToken(holder.deviceId, firstSecret)).toBe(401);
+    expect((await confirm(holder.deviceId, firstSecret)).status).toBe(200);
+    expect(await mintsToken(holder.deviceId, holder.deviceSecret)).toBe(401);
+    expect(await mintsAppToken(holder.deviceId, firstSecret)).toBe(200);
+
+    // The rotation's answer is lost: the platform credential the machine holds keeps working.
+    const rotated = await platformSignIn({ deviceId: holder.deviceId, deviceSecret: firstSecret });
+    expect(rotated.status).toBe(200);
+    const lost = rotated.body.deviceSecret as string;
+    expect(await mintsAppToken(holder.deviceId, firstSecret)).toBe(200);
+    await expire(holder.deviceId, lost);
+    await deviceSessionService.sweepUnconfirmedPlatformCredentials();
+    expect(await mintsAppToken(holder.deviceId, firstSecret)).toBe(200);
+    expect(await liveSessionsOf(row.id, holder.deviceId)).toHaveLength(1);
+  });
+
+  it('issues as before R8 to a platform that does not confirm', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const promoted = await promote(proof);
+    const secret = promoted.body.deviceSecret as string;
+    expect((await pendingOf(proof.deviceId, secret)).pendingUntil).toBeNull();
+    expect(await mintsAppToken(proof.deviceId, secret)).toBe(200);
+  });
+});
+
+describe('the budgets count guesses, never a proof (R8)', () => {
+  it('lets a repetition with its key through a device id locked by guesses', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const key = redemptionKey();
+    expect((await promoteWithKey(proof, key)).status).toBe(200);
+    const guesses: number[] = [];
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      guesses.push((await promote({ deviceId: proof.deviceId, deviceSecret: `x${tag()}` })).status);
+    }
+    expect(guesses).toEqual([401, 401, 401, 429]);
+    // Locked against guesses, still answering the platform that holds both secrets.
+    expect((await promoteWithKey(proof, key)).status).toBe(200);
+    expect((await promoteWithKey(proof, key)).status).toBe(200);
+    // And still refusing a wrong secret.
+    const refused = await request(app)
+      .post('/session/device/platform')
+      .send({
+        device: { deviceId: proof.deviceId, deviceSecret: `x${tag()}` },
+        platformClient: { platform: 'oxyos', clientId: oxyos.clientId },
+      });
+    expect(refused.status).toBe(429);
+    const wait = Number(refused.headers['retry-after']);
+    expect(wait).toBeGreaterThan(0);
+    expect(wait).toBeLessThanOrEqual(600);
+  });
+
+  it("gives a proven redemption's device attempt back: successes do not count", async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const statuses: number[] = [];
+    statuses.push((await promote({ deviceId: proof.deviceId, deviceSecret: `x${tag()}` })).status);
+    statuses.push((await promote({ deviceId: proof.deviceId, deviceSecret: `x${tag()}` })).status);
+    statuses.push((await promote(proof)).status);
+    statuses.push((await promote({ deviceId: proof.deviceId, deviceSecret: `x${tag()}` })).status);
+    statuses.push((await promote({ deviceId: proof.deviceId, deviceSecret: `x${tag()}` })).status);
+    // Two guesses, a redemption that gave its attempt back, a third guess, then locked.
+    expect(statuses).toEqual([401, 401, 200, 401, 429]);
+  });
+
+  it('bounds a claim to ten redemptions, the first included', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const key = redemptionKey();
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < MAX_REDEMPTION_ATTEMPTS + 1; attempt += 1) {
+      statuses.push((await promoteWithKey(proof, key)).status);
+    }
+    expect(statuses.slice(0, MAX_REDEMPTION_ATTEMPTS).every((status) => status === 200)).toBe(true);
+    expect(statuses[MAX_REDEMPTION_ATTEMPTS]).toBe(401);
+  });
+
+  it('counts refused confirmations, three to a device id in ten minutes', async () => {
+    const unknown = `dev-${randomUUID()}`;
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      statuses.push(
+        (
+          await post('/session/device/platform/confirm', {
+            deviceId: unknown,
+            deviceSecret: `x${tag()}`,
+          })
+        ).status,
+      );
+    }
+    expect(statuses).toEqual([401, 401, 401, 429]);
   });
 });

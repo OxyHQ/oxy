@@ -145,6 +145,8 @@ import { sweepAllExpiredRows } from '@oxy.so/db/expiry';
 import { EXPIRY_SWEEP_INTERVAL_MS, EXPIRY_SWEEP_TARGETS } from './db/expiry';
 import { AUTO_RECHARGE_SWEEP_INTERVAL_MS } from './db/schema/billingAutoRechargeAttempts';
 import { RESERVATION_EXPIRY_SWEEP_INTERVAL_MS } from './db/schema/usageReservations';
+import { UNCONFIRMED_PLATFORM_CREDENTIAL_SWEEP_INTERVAL_MS } from './db/schema/deviceCredentials';
+import deviceSessionService from './services/deviceSession.service';
 import {
   SPEND_ANOMALY_SWEEP_INTERVAL_MS,
   sweepSpendAnomalies,
@@ -1505,6 +1507,23 @@ export async function bootstrap(
         logger.warn('Retention sweep hit its batch ceiling; rows remain', {
           tables: remaining.map((result) => result.table),
         });
+      }
+    },
+  });
+
+  // A platform credential issued pending (ADR 0058 R8) and never confirmed:
+  // deleted once its QR's window or its ten minutes end, and a device it leaves
+  // with nothing holding it signed out, so an account never stays signed in on
+  // a machine whose setup lost its answer. Lookups already treat it as absent
+  // (class A, `db/expiry.ts`); this bounds how long the device stays listed.
+  // Unref'd + failures logged, like the sweeps above.
+  schedulePeriodicJob({
+    failureMessage: 'Unconfirmed platform credential sweep failed',
+    intervalMs: UNCONFIRMED_PLATFORM_CREDENTIAL_SWEEP_INTERVAL_MS,
+    run: async () => {
+      const result = await deviceSessionService.sweepUnconfirmedPlatformCredentials();
+      if (result.deleted > 0) {
+        logger.info('Unconfirmed platform credentials swept', result);
       }
     },
   });

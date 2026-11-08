@@ -19,7 +19,7 @@
  * of its own, and the read is one indexed lookup per bearer.
  */
 
-import { and, eq, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import { applications } from '../db/schema/applications';
@@ -48,7 +48,10 @@ export async function verifyHostTokens(
         platformApplicationId: deviceCredentials.platformApplicationId,
       })
       .from(deviceCredentials)
-      .where(inArray(deviceCredentials.id, credentialIds)),
+      // A pending platform credential (R8) never minted one; never vouches.
+      .where(
+        and(inArray(deviceCredentials.id, credentialIds), isNull(deviceCredentials.pendingUntil)),
+      ),
     db
       .select({
         publicKey: applicationCredentials.publicKey,

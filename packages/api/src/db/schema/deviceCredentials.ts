@@ -42,13 +42,35 @@
  * `platform_application_id` CASCADE: the platform's own application. It is
  * soft-deleted, so this fires only when its owning account is erased, and a
  * platform credential of an application that no longer exists proves nothing.
+ *
+ * ## Pending platform credentials (ADR 0058 R8)
+ *
+ * A platform client that confirms (`platformClient.confirms`) receives its
+ * credential PENDING: `pending_until` set, ten minutes after the QR's claim
+ * (`POST /session/device/platform`) or after the sign-in (the password and
+ * second-factor routes). A pending credential proves nothing and mints nothing:
+ * every lookup but `POST /session/device/platform/confirm` excludes it, and
+ * once `pending_until` passes it is gone (lookups treat it as absent and the
+ * expiry sweep deletes it, signing out a device it leaves without a live
+ * credential: `sweepUnconfirmedPlatformCredentials`). Confirming it clears
+ * `pending_until`, and deletes the credential it replaces
+ * (`replaces_credential_id`, the one the sign-in's device proof presented) in
+ * the same transaction: a lost answer leaves the old credential working, never
+ * a new one nobody holds.
  */
 
 import { sql } from 'drizzle-orm';
-import { check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { applications } from './applications';
 import { deviceSessions } from './deviceSessions';
+
+/**
+ * How often unconfirmed platform credentials are swept (R8): their lookups
+ * already treat them as absent once expired, so this bounds only how long a
+ * device nothing holds stays signed in past its QR's window.
+ */
+export const UNCONFIRMED_PLATFORM_CREDENTIAL_SWEEP_INTERVAL_MS = 60_000;
 
 /** The platforms that hold the Oxy session (`@oxy.so/contracts` `PLATFORM_HOSTS`). */
 export const DEVICE_CREDENTIAL_PLATFORMS = ['oxyos', 'astro'] as const;
@@ -73,6 +95,20 @@ export const deviceCredentials = pgTable(
     platform: text({ enum: DEVICE_CREDENTIAL_PLATFORMS }),
     /** The platform's own application (its `platformHost` registry entry). */
     platformApplicationId: text().references(() => applications.id, { onDelete: 'cascade' }),
+    /**
+     * Set on a platform credential issued to a client that confirms (R8): it
+     * proves nothing until confirmed, and is gone once this passes. NULL:
+     * confirmed, or never pending.
+     */
+    pendingUntil: timestamptz(),
+    /**
+     * The credential a pending one replaces (the sign-in's device proof),
+     * deleted when this one is confirmed. `SET NULL`: gone first, nothing to
+     * retire.
+     */
+    replacesCredentialId: text().references((): AnyPgColumn => deviceCredentials.id, {
+      onDelete: 'set null',
+    }),
   },
   (t) => [
     unique('device_credentials_secret_hash_key').on(t.secretHash),
@@ -85,6 +121,18 @@ export const deviceCredentials = pgTable(
     check(
       'device_credentials_platform_application_check',
       sql`(${t.platform} is null) = (${t.platformApplicationId} is null)`,
+    ),
+    // The expiry sweep's scan, and confirm's lookup of what a credential replaces.
+    index('device_credentials_pending_until_idx')
+      .on(t.pendingUntil)
+      .where(sql`${t.pendingUntil} is not null`),
+    index('device_credentials_replaces_credential_id_idx')
+      .on(t.replacesCredentialId)
+      .where(sql`${t.replacesCredentialId} is not null`),
+    // Only a platform credential is ever pending, and only a pending one replaces.
+    check(
+      'device_credentials_pending_check',
+      sql`(${t.pendingUntil} is null or ${t.platform} is not null) and (${t.replacesCredentialId} is null or ${t.pendingUntil} is not null)`,
     ),
   ],
 );

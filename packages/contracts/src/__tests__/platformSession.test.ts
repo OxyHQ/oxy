@@ -6,6 +6,8 @@ import {
   applicationRecognitionSchema,
   applicationRecognitionWriteSchema,
   deviceAppTokenRequestSchema,
+  devicePlatformConfirmRequestSchema,
+  devicePlatformConfirmResponseSchema,
   devicePlatformRequestSchema,
   hostTokenClaimSchema,
   passwordSignInRequestSchema,
@@ -154,5 +156,25 @@ describe('a platform that holds the session (ADR 0058)', () => {
       true,
     );
     expect(hostTokenClaimSchema.safeParse({ platform: 'oxyos' }).success).toBe(false);
+  });
+
+  it('lets a platform say it confirms, and takes the confirmation strictly (R8)', () => {
+    const named = { platform: 'oxyos', clientId: 'oxy_pub_1' };
+    expect(platformClientSchema.safeParse({ ...named, confirms: true }).success).toBe(true);
+    expect(platformClientSchema.safeParse(named).success).toBe(true);
+    expect(platformClientSchema.safeParse({ ...named, confirms: false }).success).toBe(false);
+    expect(
+      devicePlatformRequestSchema.safeParse({
+        device: proof,
+        platformClient: { ...named, confirms: true },
+      }).success,
+    ).toBe(true);
+    expect(devicePlatformConfirmRequestSchema.safeParse(proof).success).toBe(true);
+    expect(devicePlatformConfirmRequestSchema.safeParse({ ...proof, extra: 1 }).success).toBe(
+      false,
+    );
+    expect(devicePlatformConfirmRequestSchema.safeParse({ deviceId: 'dev-1' }).success).toBe(false);
+    expect(devicePlatformConfirmResponseSchema.safeParse({ confirmed: true }).success).toBe(true);
+    expect(devicePlatformConfirmResponseSchema.safeParse({ confirmed: false }).success).toBe(false);
   });
 });

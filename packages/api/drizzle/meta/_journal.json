@@ -1744,6 +1744,27 @@
       "when": 1794122835573,
       "tag": "0249_auth_session_validate_redemption",
       "breakpoints": true
+    },
+    {
+      "idx": 250,
+      "version": "7",
+      "when": 1794159754106,
+      "tag": "0250_platform_credential_pending",
+      "breakpoints": true
+    },
+    {
+      "idx": 251,
+      "version": "7",
+      "when": 1794159768424,
+      "tag": "0251_platform_credential_pending_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 252,
+      "version": "7",
+      "when": 1794159773619,
+      "tag": "0252_validate_platform_credential_pending",
+      "breakpoints": true
     }
   ]
 }

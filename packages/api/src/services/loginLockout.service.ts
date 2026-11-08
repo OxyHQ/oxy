@@ -262,6 +262,39 @@ export async function clearFailures(
   inMemoryBuckets.delete(key);
 }
 
+/**
+ * Give back ONE attempt {@link reserveAttempt} counted, for a request that
+ * turned out to prove something (not a guess). Unlike {@link clearFailures} it
+ * leaves every other attempt counted, so a guesser's failures still lock
+ * however many proven requests come between them. Never below zero.
+ */
+export async function releaseAttempt(
+  options: Pick<LockoutOptions, 'scope' | 'identifier'>,
+): Promise<void> {
+  const key = buildKey(options.scope, options.identifier);
+
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      // DECR only an existing, positive counter; the window's TTL is kept.
+      await redis.eval(
+        "local n = tonumber(redis.call('GET', KEYS[1]) or '0') if n > 0 then return redis.call('DECR', KEYS[1]) end return 0",
+        1,
+        key,
+      );
+      return;
+    } catch (error) {
+      logger.warn('[LoginLockout] Redis release failed, falling back to memory', {
+        error: error instanceof Error ? error.message : String(error),
+        scope: options.scope,
+      });
+    }
+  }
+
+  const bucket = inMemoryBuckets.get(key);
+  if (bucket && bucket.count > 0) bucket.count -= 1;
+}
+
 /** Test-only helper to wipe in-memory state between specs. */
 export function _resetInMemoryStateForTests(): void {
   inMemoryBuckets.clear();

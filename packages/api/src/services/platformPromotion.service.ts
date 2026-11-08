@@ -47,8 +47,16 @@
  * claim, and only the latest issues: `issuePlatformCredential` revokes the
  * platform credential the previous attempt issued (its answer may have been
  * lost) and refuses an attempt a later one superseded (one still in flight),
- * so at most one platform credential from a redemption is ever live. The
- * budgets count every attempt.
+ * so at most one platform credential from a redemption is ever live.
+ *
+ * **Confirming, and budgets (R8).** A platform that confirms
+ * (`platformClient.confirms`) receives the credential PENDING until the
+ * claim's window ends: it proves nothing until
+ * `POST /session/device/platform/confirm`, and an unconfirmed one is gone with
+ * the window (`deviceSession.service.ts`). A claim's proof has at most
+ * {@link MAX_REDEMPTION_ATTEMPTS} redemptions, the first included. A
+ * repetition the route recognises ({@link isRecordedRedemption}) is not a
+ * guess and spends no anti-guessing budget.
  *
  * What is issued is exactly what the platform's password sign-in issues
  * (`mintSignInSession` with the platform client): a fresh session for the
@@ -60,7 +68,7 @@
  * (500): its caller has already repeated it.
  */
 
-import { and, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import type { DeviceProof } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { authSessions } from '../db/schema/authSessions';
@@ -114,7 +122,15 @@ export async function recordClaimedCredential(
 export interface ProofRedemption {
   authSessionId: string;
   attempt: number;
+  /**
+   * When the claim's window ends (its `consumed_at` + {@link PROMOTION_WINDOW_MS}):
+   * how long the credential stays pending for a platform that confirms (R8).
+   */
+  pendingUntil: Date;
 }
+
+/** How many redemptions one claim's proof may have, the first and its repetitions (R8). */
+export const MAX_REDEMPTION_ATTEMPTS = 10;
 
 export interface RedeemedDeviceProof {
   userId: string;
@@ -122,6 +138,41 @@ export interface RedeemedDeviceProof {
   username: string | null;
   avatar: string | null;
   redemption: ProofRedemption;
+}
+
+/**
+ * Whether `proof` and `redemptionKey` name a redemption already recorded for
+ * `client` (R8): the same proof spent with the same key on the same device,
+ * its claim still in its window and under its attempt cap. Hash lookups alone,
+ * nothing locked or counted: the route lets such a repetition through without
+ * the per-device and per-account budgets, which are there against GUESSES, and
+ * a request that presents both 256-bit secrets is not one. Everything else is
+ * budgeted exactly as before.
+ */
+export async function isRecordedRedemption(
+  proof: DeviceProof,
+  client: ResolvedPlatformClient,
+  redemptionKey: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ id: authSessions.id })
+    .from(authSessions)
+    .innerJoin(deviceSessions, eq(deviceSessions.id, authSessions.redeemedDeviceSessionId))
+    .where(
+      and(
+        eq(authSessions.redeemedProofHash, sha256Hex(proof.deviceSecret)),
+        eq(authSessions.redemptionKeyHash, sha256Hex(redemptionKey)),
+        eq(deviceSessions.deviceId, proof.deviceId),
+        eq(authSessions.purpose, 'device_sign_in'),
+        eq(authSessions.status, 'consumed'),
+        eq(authSessions.applicationId, client.applicationId),
+        gt(authSessions.consumedAt, new Date(now.getTime() - PROMOTION_WINDOW_MS)),
+        lt(authSessions.redemptionAttempt, MAX_REDEMPTION_ATTEMPTS),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
 }
 
 /**
@@ -173,6 +224,7 @@ export async function redeemDeviceProof(
         authSessionId: authSessions.id,
         credentialId: deviceCredentials.id,
         userId: authSessions.authorizedUserId,
+        consumedAt: authSessions.consumedAt,
       })
       .from(deviceCredentials)
       .innerJoin(authSessions, eq(authSessions.claimedCredentialId, deviceCredentials.id))
@@ -195,6 +247,7 @@ export async function redeemDeviceProof(
             .select({
               authSessionId: authSessions.id,
               userId: authSessions.authorizedUserId,
+              consumedAt: authSessions.consumedAt,
             })
             .from(authSessions)
             .where(
@@ -202,13 +255,15 @@ export async function redeemDeviceProof(
                 eq(authSessions.redeemedProofHash, secretHash),
                 eq(authSessions.redeemedDeviceSessionId, device.id),
                 eq(authSessions.redemptionKeyHash, keyHash),
+                // R8: a claim's redemptions are bounded, the first included.
+                lt(authSessions.redemptionAttempt, MAX_REDEMPTION_ATTEMPTS),
                 claimed,
               ),
             )
             .limit(1);
 
     const claim = unspent ?? repeated;
-    if (!claim?.userId) return null;
+    if (!claim?.userId || !claim.consumedAt) return null;
 
     // The approved account must still be signed in on this device, and be a
     // personal, active account (a managed account is operated only through the
@@ -270,7 +325,11 @@ export async function redeemDeviceProof(
       deviceId: device.deviceId,
       username: account.username,
       avatar: account.avatar,
-      redemption: { authSessionId: claim.authSessionId, attempt },
+      redemption: {
+        authSessionId: claim.authSessionId,
+        attempt,
+        pendingUntil: new Date(claim.consumedAt.getTime() + PROMOTION_WINDOW_MS),
+      },
       repeated: !unspent,
     };
   });

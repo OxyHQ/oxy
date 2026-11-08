@@ -16,6 +16,9 @@ import {
   deviceJoinResponseSchema,
   deviceRegisterResponseSchema,
   deviceTokenMintRequestSchema,
+  devicePlatformConfirmRequestSchema,
+  devicePlatformConfirmResponseSchema,
+  type DevicePlatformConfirmRequest,
   devicePlatformRequestSchema,
   type DevicePlatformRequest,
 } from '@oxy.so/contracts';
@@ -30,10 +33,16 @@ import { resolvePlatformClient } from '../services/platformClient.service';
 import {
   PromotionRateLimitedError,
   invalidDeviceProof,
+  isRecordedRedemption,
   redeemDeviceProof,
 } from '../services/platformPromotion.service';
 import { holderContextEvidenceBudget } from '../middleware/security';
-import { clearFailures, type LockoutCheck, reserveAttempt } from '../services/loginLockout.service';
+import {
+  clearFailures,
+  type LockoutCheck,
+  releaseAttempt,
+  reserveAttempt,
+} from '../services/loginLockout.service';
 import {
   mintApplicationToken,
   provePlatformCredential,
@@ -677,18 +686,29 @@ router.post(
 // A platform's credential from the QR approval (ADR 0058 2.1, amended)
 // ---------------------------------------------------------------------------
 
-/** Per hashed IP: a setup redeems once; a few retries, never a stream of guesses. */
+/**
+ * The device-proof route's budgets against GUESSING (ADR 0058 R8). Each window
+ * is the QR's own ten minutes, so a Retry-After never outlasts a claim, and
+ * each rate is at least as strict as before R8 (per minute: IP 1.3 for 1.33,
+ * device id 0.3 for 0.33, account 0.6 for 0.67). A request that proves
+ * something is not a guess: the IP limiter counts refusals only, a proven
+ * redemption gives its device-id attempt back, and a repetition with its key
+ * ({@link isRecordedRedemption}) is not budgeted by device or account at all.
+ */
+const DEVICE_PLATFORM_WINDOW_SECONDS = 10 * 60;
+/** Per hashed IP: refusals in ten minutes. */
+const DEVICE_PLATFORM_IP_BUDGET = 13;
+/** Unproven redemptions one device id may be asked for in ten minutes, known or not. */
+const DEVICE_PLATFORM_DEVICE_BUDGET = 3;
+/** First redemptions one account may make in ten minutes, across its devices. */
+const DEVICE_PLATFORM_ACCOUNT_BUDGET = 6;
 const devicePlatformLimiter = rateLimit({
   prefix: 'rl:session:device-platform:',
-  windowMs: 15 * 60_000,
-  max: 20,
+  windowMs: DEVICE_PLATFORM_WINDOW_SECONDS * 1000,
+  max: DEVICE_PLATFORM_IP_BUDGET,
+  skipSuccessfulRequests: true,
   keyGenerator: (req: Request) => `session:device-platform:ip:${hashedIpKey(req)}`,
 });
-/** Redemptions one device id may be asked for in 15 minutes, known or not. */
-const DEVICE_PLATFORM_DEVICE_BUDGET = 5;
-/** Redemptions one account may make in 15 minutes, across its devices. */
-const DEVICE_PLATFORM_ACCOUNT_BUDGET = 10;
-const DEVICE_PLATFORM_WINDOW_SECONDS = 15 * 60;
 
 /**
  * A platform's credential from the QR approval it just claimed
@@ -710,6 +730,12 @@ const DEVICE_PLATFORM_WINDOW_SECONDS = 15 * 60;
  * previous one issued. Without it, or with another, a spent proof is the same
  * 401.
  *
+ * R8: a repetition with its key is budgeted by neither the device id nor the
+ * account, a proven redemption gives its device-id attempt back, and the IP
+ * limiter counts refusals only (see the budgets above); a platform that
+ * confirms (`platformClient.confirms`) receives the credential pending until
+ * `POST /session/device/platform/confirm`.
+ *
  * Answers 200 with the password sign-in's `LoginResult`, its `deviceSecret`
  * the platform credential.
  *
@@ -727,15 +753,23 @@ router.post(
     const client = await resolvePlatformClient(req, body.platformClient);
     if (!client) throw invalidDeviceProof();
 
-    const perDevice = await reserveAttempt({
-      scope: 'device-platform:device',
-      identifier: body.device.deviceId,
-      maxAttempts: DEVICE_PLATFORM_DEVICE_BUDGET,
-      windowSeconds: DEVICE_PLATFORM_WINDOW_SECONDS,
-    });
-    if (perDevice.locked) {
-      refuseLockedOut(res, perDevice);
-      return;
+    // A repetition with its key presents two 256-bit secrets: not a guess, and
+    // budgeted by neither the device id nor the account (R8). Everything else
+    // is counted before any proof is looked up, as before.
+    const repetition = body.redemptionKey
+      ? await isRecordedRedemption(body.device, client, body.redemptionKey)
+      : false;
+    const deviceScope = { scope: 'device-platform:device', identifier: body.device.deviceId };
+    if (!repetition) {
+      const perDevice = await reserveAttempt({
+        ...deviceScope,
+        maxAttempts: DEVICE_PLATFORM_DEVICE_BUDGET,
+        windowSeconds: DEVICE_PLATFORM_WINDOW_SECONDS,
+      });
+      if (perDevice.locked) {
+        refuseLockedOut(res, perDevice);
+        return;
+      }
     }
 
     let accountBudget: LockoutCheck | null = null;
@@ -743,15 +777,19 @@ router.post(
     try {
       redeemed = await redeemDeviceProof(body.device, client, {
         ...(body.redemptionKey ? { redemptionKey: body.redemptionKey } : {}),
-        admitAccount: async (userId) => {
-          accountBudget = await reserveAttempt({
-            scope: 'device-platform:account',
-            identifier: userId,
-            maxAttempts: DEVICE_PLATFORM_ACCOUNT_BUDGET,
-            windowSeconds: DEVICE_PLATFORM_WINDOW_SECONDS,
-          });
-          return !accountBudget.locked;
-        },
+        ...(repetition
+          ? {}
+          : {
+              admitAccount: async (userId: string) => {
+                accountBudget = await reserveAttempt({
+                  scope: 'device-platform:account',
+                  identifier: userId,
+                  maxAttempts: DEVICE_PLATFORM_ACCOUNT_BUDGET,
+                  windowSeconds: DEVICE_PLATFORM_WINDOW_SECONDS,
+                });
+                return !accountBudget.locked;
+              },
+            }),
       });
     } catch (error) {
       if (error instanceof PromotionRateLimitedError && accountBudget) {
@@ -760,6 +798,8 @@ router.post(
       }
       throw error;
     }
+    // The proof was real: its device-id attempt was no guess, and is given back.
+    if (!repetition) await releaseAttempt(deviceScope);
 
     // Loaded here, not at the top: the sign-in service reaches the session
     // controller and through it the whole app (`server.ts`), which this router
@@ -775,6 +815,69 @@ router.post(
           redeemed.deviceId,
         ),
       );
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// The platform confirms the credential it received (ADR 0058 R8)
+// ---------------------------------------------------------------------------
+
+/** Per hashed IP: refused confirmations in ten minutes (a platform confirms once, retried). */
+const devicePlatformConfirmLimiter = rateLimit({
+  prefix: 'rl:session:device-platform-confirm:',
+  windowMs: 10 * 60_000,
+  max: 13,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req: Request) => `session:device-platform-confirm:ip:${hashedIpKey(req)}`,
+});
+/** Refused confirmations one device id may be asked for in ten minutes, known or not. */
+const DEVICE_PLATFORM_CONFIRM_DEVICE_BUDGET = 3;
+const DEVICE_PLATFORM_CONFIRM_WINDOW_SECONDS = 10 * 60;
+
+/**
+ * A pending platform credential confirmed by its holder
+ * (`deviceSession.service.ts` `confirmPlatformCredential`).
+ *
+ * Public like `/token`: no bearer; the credential itself is the proof, and the
+ * only thing a pending credential can do is this. Confirming clears its
+ * pending state and retires the credential it replaces (the sign-in's device
+ * proof), in one transaction under the device's row lock. Idempotent: a
+ * credential already confirmed is the same answer. Every other proof
+ * (unknown, expired, an ordinary holder's, another device's) is one 401
+ * `invalid_grant`. A refusal counts against the device id's budget and the
+ * IP's; a confirmation gives its attempt back.
+ *
+ * @response 400 Error Not the contract's body.
+ * @response 401 Error `invalid_grant`: nothing to confirm.
+ * @response 429 Error Rate limited; Retry-After present.
+ */
+router.post(
+  '/platform/confirm',
+  devicePlatformConfirmLimiter,
+  validate({ body: devicePlatformConfirmRequestSchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    res.set('Cache-Control', 'no-store');
+    const body = req.body as DevicePlatformConfirmRequest;
+    const deviceScope = { scope: 'device-platform-confirm:device', identifier: body.deviceId };
+    const perDevice = await reserveAttempt({
+      ...deviceScope,
+      maxAttempts: DEVICE_PLATFORM_CONFIRM_DEVICE_BUDGET,
+      windowSeconds: DEVICE_PLATFORM_CONFIRM_WINDOW_SECONDS,
+    });
+    if (perDevice.locked) {
+      refuseLockedOut(res, perDevice);
+      return;
+    }
+    const confirmed = await deviceSessionService.confirmPlatformCredential(
+      body.deviceId,
+      body.deviceSecret,
+    );
+    if (!confirmed) throw invalidDeviceProof();
+    await releaseAttempt(deviceScope);
+    logger.info('device.platform_credential.confirmed', {
+      deviceId: body.deviceId.substring(0, 8),
+    });
+    res.status(200).json(devicePlatformConfirmResponseSchema.parse({ confirmed: true }));
   }),
 );
 

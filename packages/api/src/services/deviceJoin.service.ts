@@ -126,6 +126,8 @@ export class DeviceJoinService {
           and(
             eq(deviceCredentials.deviceSessionId, device.id),
             eq(deviceCredentials.secretHash, sha256Hex(input.deviceSecret)),
+            // A pending platform credential (R8) proves nothing.
+            isNull(deviceCredentials.pendingUntil),
           ),
         )
         .limit(1);

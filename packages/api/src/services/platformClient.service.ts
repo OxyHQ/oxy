@@ -38,6 +38,12 @@ export interface ResolvedPlatformClient {
   clientId: string;
   /** The platform's own application. */
   applicationId: string;
+  /**
+   * The platform confirms the credentials it receives (ADR 0058 R8): they are
+   * issued pending, and the device proof's credential is retired only by the
+   * confirmation.
+   */
+  confirms: boolean;
 }
 
 /** The answer `validate` gives a body that is not the contract's, for `platformClient`. */
@@ -95,5 +101,6 @@ export async function resolvePlatformClient(
     platform: platformClient.platform,
     clientId: platformClient.clientId,
     applicationId: row.applicationId,
+    confirms: platformClient.confirms === true,
   };
 }

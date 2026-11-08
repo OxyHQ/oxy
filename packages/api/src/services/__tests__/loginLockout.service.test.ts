@@ -19,6 +19,7 @@ import {
   reserveAttempt,
   isLockedOut,
   recordFailure,
+  releaseAttempt,
   clearFailures,
   _resetInMemoryStateForTests,
 } from '../loginLockout.service';
@@ -115,5 +116,16 @@ describe('reserveAttempt', () => {
     expect(results.filter((result) => result.locked)).toHaveLength(45);
     await clearFailures(options);
     expect((await reserveAttempt(options)).locked).toBe(false);
+  });
+
+  it('gives back one reserved attempt, never more, and never below zero (ADR 0058 R8)', async () => {
+    const opts = { scope: 'release', identifier: 'dev-1', maxAttempts: 2, windowSeconds: 600 };
+    await releaseAttempt(opts);
+    expect((await reserveAttempt(opts)).attempts).toBe(1);
+    expect((await reserveAttempt(opts)).attempts).toBe(2);
+    await releaseAttempt(opts);
+    // One given back: the next is the second again, and the one after is locked.
+    expect((await reserveAttempt(opts)).locked).toBe(false);
+    expect((await reserveAttempt(opts)).locked).toBe(true);
   });
 });

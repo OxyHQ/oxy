@@ -9,6 +9,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lte,
   notInArray,
   or,
   sql,
@@ -461,6 +462,8 @@ function holderContextBindingQuery(
       and(
         eq(deviceSessions.deviceId, deviceId),
         eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
+        // A pending platform credential (R8) proves nothing.
+        isNull(deviceCredentials.pendingUntil),
         eq(deviceSessions.activeAccountId, deviceAccountContexts.accountId),
         isNull(deviceAccountContexts.revokedAt),
         isNull(devicePrincipals.revokedAt),
@@ -2323,12 +2326,19 @@ class DeviceSessionService {
    * the platform credential the previous attempt issued, whose answer may have
    * been lost, and recording this one on the claim. At most one platform
    * credential from a redemption is ever live.
+   *
+   * `pendingUntil` (R8, a platform that confirms): the credential is issued
+   * PENDING until then, and the credential `retireSecret` proved is not deleted
+   * but recorded as the one it replaces, deleted by
+   * {@link confirmPlatformCredential}. A lost answer then leaves the old
+   * credential working, never a new one nobody holds.
    */
   async issuePlatformCredential(
     deviceId: string,
     platform: { platform: 'oxyos' | 'astro'; applicationId: string },
     retireSecret?: string,
     redemption?: ProofRedemption,
+    pendingUntil?: Date,
   ): Promise<string | null> {
     return getDb().transaction(async (tx) => {
       const [device] = await tx
@@ -2366,7 +2376,22 @@ class DeviceSessionService {
             );
         }
       }
-      if (retireSecret) {
+      let replaces: string | null = null;
+      if (retireSecret && pendingUntil) {
+        // Kept until the new credential is confirmed (R8).
+        const [proved] = await tx
+          .select({ id: deviceCredentials.id })
+          .from(deviceCredentials)
+          .where(
+            and(
+              eq(deviceCredentials.deviceSessionId, device.id),
+              eq(deviceCredentials.secretHash, sha256Hex(retireSecret)),
+              isNull(deviceCredentials.pendingUntil),
+            ),
+          )
+          .limit(1);
+        replaces = proved?.id ?? null;
+      } else if (retireSecret) {
         await tx
           .delete(deviceCredentials)
           .where(
@@ -2384,6 +2409,8 @@ class DeviceSessionService {
           secretHash: sha256Hex(rawSecret),
           platform: platform.platform,
           platformApplicationId: platform.applicationId,
+          pendingUntil: pendingUntil ?? null,
+          replacesCredentialId: replaces,
         })
         .returning({ id: deviceCredentials.id });
       if (redemption && issued) {
@@ -2394,6 +2421,155 @@ class DeviceSessionService {
       }
       return rawSecret;
     });
+  }
+
+  /**
+   * Confirms a pending platform credential by its own holder proof (ADR 0058
+   * R8, `POST /session/device/platform/confirm`): in one transaction holding
+   * the device's row lock, `pending_until` cleared and the credential it
+   * replaces deleted. True for a platform credential of that device that is
+   * pending and not expired, or already confirmed (idempotent); false for
+   * anything else (unknown, expired, an ordinary holder's, another device's).
+   */
+  async confirmPlatformCredential(
+    deviceId: string,
+    rawSecret: string,
+    now: Date = new Date(),
+  ): Promise<boolean> {
+    if (!deviceId || !rawSecret) return false;
+    return getDb().transaction(async (tx) => {
+      const [device] = await tx
+        .select({ id: deviceSessions.id })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.deviceId, deviceId))
+        .for('update');
+      if (!device) return false;
+      const [credential] = await tx
+        .select({
+          id: deviceCredentials.id,
+          pendingUntil: deviceCredentials.pendingUntil,
+          replacesCredentialId: deviceCredentials.replacesCredentialId,
+        })
+        .from(deviceCredentials)
+        .where(
+          and(
+            eq(deviceCredentials.deviceSessionId, device.id),
+            eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
+            isNotNull(deviceCredentials.platform),
+          ),
+        )
+        .limit(1);
+      if (!credential) return false;
+      if (!credential.pendingUntil) return true;
+      if (credential.pendingUntil.getTime() <= now.getTime()) return false;
+      if (credential.replacesCredentialId) {
+        await tx
+          .delete(deviceCredentials)
+          .where(
+            and(
+              eq(deviceCredentials.id, credential.replacesCredentialId),
+              eq(deviceCredentials.deviceSessionId, device.id),
+            ),
+          );
+      }
+      await tx
+        .update(deviceCredentials)
+        .set({ pendingUntil: null, replacesCredentialId: null })
+        .where(eq(deviceCredentials.id, credential.id));
+      return true;
+    });
+  }
+
+  /**
+   * Deletes the pending platform credentials whose confirmation never came
+   * (ADR 0058 R8), at most `limit` devices a run, and signs out every device
+   * that leaves without a live credential: the setup that redeemed the QR, or
+   * signed in, never finished, and nothing holds the device any more. Lookups
+   * already treat an expired pending credential as absent; this is what keeps
+   * the account from staying signed in on a device nobody holds. The number of
+   * devices signed out.
+   */
+  async sweepUnconfirmedPlatformCredentials(
+    now: Date = new Date(),
+    limit = 100,
+  ): Promise<{ deleted: number; signedOut: number }> {
+    const db = getDb();
+    const expired = await db
+      .selectDistinct({
+        deviceSessionId: deviceCredentials.deviceSessionId,
+        deviceId: deviceSessions.deviceId,
+      })
+      .from(deviceCredentials)
+      .innerJoin(deviceSessions, eq(deviceSessions.id, deviceCredentials.deviceSessionId))
+      .where(lte(deviceCredentials.pendingUntil, now))
+      .limit(limit);
+    let deleted = 0;
+    let signedOut = 0;
+    for (const device of expired) {
+      const orphaned = await db.transaction(async (tx) => {
+        const [locked] = await tx
+          .select({ id: deviceSessions.id })
+          .from(deviceSessions)
+          .where(eq(deviceSessions.id, device.deviceSessionId))
+          .for('update');
+        if (!locked) return false;
+        const gone = await tx
+          .delete(deviceCredentials)
+          .where(
+            and(
+              eq(deviceCredentials.deviceSessionId, locked.id),
+              lte(deviceCredentials.pendingUntil, now),
+            ),
+          )
+          .returning({ id: deviceCredentials.id });
+        deleted += gone.length;
+        if (gone.length === 0) return false;
+        return !(await this.holdsLiveCredential(tx, locked.id));
+      });
+      if (!orphaned) continue;
+      // Checked again just before: a sign-in may have issued one meanwhile.
+      if (await this.holdsLiveCredential(db, device.deviceSessionId)) continue;
+      await this.signout(device.deviceId, { all: true });
+      signedOut += 1;
+      logger.info('device.platform_credential.unconfirmed', {
+        deviceId: device.deviceId.substring(0, 8),
+      });
+    }
+    return { deleted, signedOut };
+  }
+
+  /**
+   * Whether anything still holds a device: a confirmed or ordinary credential,
+   * a pending one not yet expired (a setup under way), or a live background
+   * secret.
+   */
+  private async holdsLiveCredential(db: Queryable, deviceSessionId: string): Promise<boolean> {
+    const [background] = await db
+      .select({ id: deviceSessions.id })
+      .from(deviceSessions)
+      .where(
+        and(
+          eq(deviceSessions.id, deviceSessionId),
+          isNotNull(deviceSessions.backgroundSecretHash),
+          gt(deviceSessions.backgroundSecretExpiresAt, sql`now()`),
+        ),
+      )
+      .limit(1);
+    if (background) return true;
+    const [held] = await db
+      .select({ id: deviceCredentials.id })
+      .from(deviceCredentials)
+      .where(
+        and(
+          eq(deviceCredentials.deviceSessionId, deviceSessionId),
+          or(
+            isNull(deviceCredentials.pendingUntil),
+            gt(deviceCredentials.pendingUntil, sql`now()`),
+          ),
+        ),
+      )
+      .limit(1);
+    return Boolean(held);
   }
 
   /**
@@ -2424,6 +2600,8 @@ class DeviceSessionService {
         and(
           eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
           eq(deviceSessions.deviceId, deviceId),
+          // A pending platform credential (R8) proves nothing until confirmed.
+          isNull(deviceCredentials.pendingUntil),
         ),
       )
       .limit(1);
@@ -2476,6 +2654,8 @@ class DeviceSessionService {
         and(
           eq(deviceCredentials.secretHash, sha256Hex(rawSecret)),
           eq(deviceSessions.deviceId, deviceId),
+          // A pending platform credential (R8) proves nothing until confirmed.
+          isNull(deviceCredentials.pendingUntil),
         ),
       )
       .limit(1);
