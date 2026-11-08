@@ -29,6 +29,7 @@ import { deviceDirectorySchema, isOperatorSwitchTargetKind } from '@oxy.so/contr
 import { isUniqueViolation } from '@oxy.so/db';
 import { v7 as uuidv7 } from 'uuid';
 import { getDb, type Database, type Transaction } from '../config/postgres';
+import { authSessions } from '../db/schema/authSessions';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
 import { deviceCredentials } from '../db/schema/deviceCredentials';
 import { deviceJoinCodes } from '../db/schema/deviceJoinCodes';
@@ -44,6 +45,7 @@ import { sha256Hex, base64UrlEncode, timingSafeStringEqual } from './oauthCode.s
 import { effectivePermissionsForMember } from '../utils/accountRoles';
 import { formatUserNameResponse } from '../utils/displayName';
 import { logger } from '../utils/logger';
+import type { ProofRedemption } from './platformPromotion.service';
 import {
   classifyHolderBearer,
   holderContextEvidence,
@@ -2314,11 +2316,19 @@ class DeviceSessionService {
    * nothing that works afterwards, and a platform signing in again with its
    * previous platform credential replaces it. The only live secret is the one
    * this returns, to the platform service alone.
+   *
+   * `redemption` is a QR redemption's attempt (ADR 0058 R7,
+   * `platformPromotion.service.ts`): issued only while it is the claim's
+   * latest attempt (a superseded one throws, and nothing is issued), revoking
+   * the platform credential the previous attempt issued, whose answer may have
+   * been lost, and recording this one on the claim. At most one platform
+   * credential from a redemption is ever live.
    */
   async issuePlatformCredential(
     deviceId: string,
     platform: { platform: 'oxyos' | 'astro'; applicationId: string },
     retireSecret?: string,
+    redemption?: ProofRedemption,
   ): Promise<string | null> {
     return getDb().transaction(async (tx) => {
       const [device] = await tx
@@ -2327,6 +2337,35 @@ class DeviceSessionService {
         .where(eq(deviceSessions.deviceId, deviceId))
         .for('update');
       if (!device) return null;
+      if (redemption) {
+        const [claim] = await tx
+          .select({
+            attempt: authSessions.redemptionAttempt,
+            credentialId: authSessions.redemptionCredentialId,
+          })
+          .from(authSessions)
+          .where(
+            and(
+              eq(authSessions.id, redemption.authSessionId),
+              eq(authSessions.redeemedDeviceSessionId, device.id),
+            ),
+          )
+          .for('update');
+        if (claim?.attempt !== redemption.attempt) {
+          throw new Error('A later redemption of the proof superseded this one');
+        }
+        if (claim.credentialId) {
+          await tx
+            .delete(deviceCredentials)
+            .where(
+              and(
+                eq(deviceCredentials.id, claim.credentialId),
+                eq(deviceCredentials.deviceSessionId, device.id),
+                isNotNull(deviceCredentials.platform),
+              ),
+            );
+        }
+      }
       if (retireSecret) {
         await tx
           .delete(deviceCredentials)
@@ -2338,12 +2377,21 @@ class DeviceSessionService {
           );
       }
       const rawSecret = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
-      await tx.insert(deviceCredentials).values({
-        deviceSessionId: device.id,
-        secretHash: sha256Hex(rawSecret),
-        platform: platform.platform,
-        platformApplicationId: platform.applicationId,
-      });
+      const [issued] = await tx
+        .insert(deviceCredentials)
+        .values({
+          deviceSessionId: device.id,
+          secretHash: sha256Hex(rawSecret),
+          platform: platform.platform,
+          platformApplicationId: platform.applicationId,
+        })
+        .returning({ id: deviceCredentials.id });
+      if (redemption && issued) {
+        await tx
+          .update(authSessions)
+          .set({ redemptionCredentialId: issued.id })
+          .where(eq(authSessions.id, redemption.authSessionId));
+      }
       return rawSecret;
     });
   }

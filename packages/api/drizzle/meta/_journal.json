@@ -1730,6 +1730,20 @@
       "when": 1794106909488,
       "tag": "0247_auth_session_validate_claimed_credential",
       "breakpoints": true
+    },
+    {
+      "idx": 248,
+      "version": "7",
+      "when": 1794122818884,
+      "tag": "0248_auth_session_redemption",
+      "breakpoints": true
+    },
+    {
+      "idx": 249,
+      "version": "7",
+      "when": 1794122835573,
+      "tag": "0249_auth_session_validate_redemption",
+      "breakpoints": true
     }
   ]
 }

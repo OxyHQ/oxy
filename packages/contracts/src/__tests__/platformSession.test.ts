@@ -6,6 +6,7 @@ import {
   applicationRecognitionSchema,
   applicationRecognitionWriteSchema,
   deviceAppTokenRequestSchema,
+  devicePlatformRequestSchema,
   hostTokenClaimSchema,
   passwordSignInRequestSchema,
   platformClientSchema,
@@ -80,6 +81,21 @@ describe('a platform that holds the session (ADR 0058)', () => {
     ).toBe(true);
     expect(platformClientSchema.safeParse({ platform: 'web', clientId: 'x' }).success).toBe(false);
     expect(platformClientSchema.safeParse({ platform: 'oxyos', clientId: '' }).success).toBe(false);
+  });
+
+  it('redeems a QR proof with an optional redemption key of 256 bits or more (R7)', () => {
+    const platformClient = { platform: 'oxyos', clientId: 'oxy_dk_os' };
+    const parse = (extra: Record<string, unknown>) =>
+      devicePlatformRequestSchema.safeParse({ device: proof, platformClient, ...extra }).success;
+    expect(parse({})).toBe(true);
+    expect(parse({ redemptionKey: 'k'.repeat(43) })).toBe(true);
+    expect(parse({ redemptionKey: 'A-_9'.repeat(32) })).toBe(true);
+    expect(parse({ redemptionKey: 'k'.repeat(42) })).toBe(false);
+    expect(parse({ redemptionKey: 'k'.repeat(129) })).toBe(false);
+    expect(parse({ redemptionKey: `${'k'.repeat(42)}=` })).toBe(false);
+    expect(parse({ redemptionKey: `${'k'.repeat(42)}+` })).toBe(false);
+    expect(parse({ redemptionKey: null })).toBe(false);
+    expect(parse({ key: 'k'.repeat(43) })).toBe(false);
   });
 
   it('declares a platform host and OxyOS desktop entry ids on the registry, both optional to write', () => {

@@ -17,7 +17,7 @@
  * and the security-activity log. The lockout store is real.
  */
 
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import express, { type Request } from 'express';
 import request from 'supertest';
 import { and, eq } from 'drizzle-orm';
@@ -68,7 +68,8 @@ import { clearFailures } from '../../services/loginLockout.service';
 import { storePassword } from '../../services/password.service';
 import sessionService from '../../services/session.service';
 import { sha256Hex } from '../../services/oauthCode.service';
-import { PROMOTION_WINDOW_MS } from '../../services/platformPromotion.service';
+import deviceSessionService from '../../services/deviceSession.service';
+import { PROMOTION_WINDOW_MS, redeemDeviceProof } from '../../services/platformPromotion.service';
 import authRouter from '../auth';
 import sessionRouter from '../session';
 import sessionDeviceRouter from '../sessionDevice';
@@ -200,6 +201,40 @@ async function promote(
 ) {
   const device = { deviceId: proof.deviceId, deviceSecret: proof.deviceSecret };
   return post('/session/device/platform', { device, platformClient }, headers);
+}
+
+/** The platform service's redemption key (R7): 256 random bits, base64url. */
+const redemptionKey = () => randomBytes(32).toString('base64url');
+
+async function promoteWithKey(proof: { deviceId: string; deviceSecret: string }, key: string) {
+  const device = { deviceId: proof.deviceId, deviceSecret: proof.deviceSecret };
+  return post('/session/device/platform', {
+    device,
+    platformClient: { platform: 'oxyos', clientId: oxyos.clientId },
+    redemptionKey: key,
+  });
+}
+
+async function mintsAppToken(deviceId: string, deviceSecret: string): Promise<number> {
+  const minted = await post('/session/device/app-token', {
+    deviceId,
+    deviceSecret,
+    attestation: { platform: 'oxyos', desktopEntryId: dropseaEntry },
+  });
+  return minted.status;
+}
+
+async function liveSessionsOf(userId: string, deviceId: string) {
+  return getDb()
+    .select({ sessionId: sessions.sessionId })
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.userId, userId),
+        eq(sessions.deviceId, deviceId),
+        eq(sessions.isActive, true),
+      ),
+    );
 }
 
 async function credentialsOf(deviceId: string) {
@@ -413,5 +448,190 @@ describe('POST /session/device/platform — the QR approval redeemed once', () =
       .where(eq(authSessions.sessionToken, proof.sessionToken));
     const [credential] = await credentialsOf(proof.deviceId);
     expect(claim.claimedCredentialId).toBe(credential.id);
+  });
+});
+
+describe('POST /session/device/platform — a redemption repeated with its key (R7)', () => {
+  const oxyosClient = () => ({
+    platform: 'oxyos' as const,
+    clientId: oxyos.clientId,
+    applicationId: oxyos.applicationId,
+  });
+
+  it('re-issues for the same proof and key, revoking the credential the first answer carried', async () => {
+    const person = await personOnPhone();
+    const proof = await claimedQr(person);
+    const key = redemptionKey();
+
+    const first = await promoteWithKey(proof, key);
+    expect(first.status).toBe(200);
+    const lost = first.body.deviceSecret as string;
+    // The answer was lost on the way: the platform repeats the redemption.
+    await freshBudget(proof.deviceId);
+    const repeated = await promoteWithKey(proof, key);
+    expect(repeated.status).toBe(200);
+    expect((repeated.body.user as Body).id).toBe(person.id);
+    const kept = repeated.body.deviceSecret as string;
+    expect(kept).toBeTruthy();
+    expect(kept).not.toBe(lost);
+
+    // One platform credential, the repetition's; the first's no longer mints.
+    const platformRows = (await credentialsOf(proof.deviceId)).filter((row) => row.platform);
+    expect(platformRows.map((row) => row.secretHash)).toEqual([sha256Hex(kept)]);
+    expect(await mintsAppToken(proof.deviceId, lost)).toBe(401);
+    expect(await mintsAppToken(proof.deviceId, kept)).toBe(200);
+    // Still one session for the account on the device: the repetition's.
+    expect((await liveSessionsOf(person.id, proof.deviceId)).map((row) => row.sessionId)).toEqual([
+      repeated.body.sessionId,
+    ]);
+    // The setup client's proof stays dead: its holder credential is gone.
+    expect(
+      (await credentialsOf(proof.deviceId)).some(
+        (row) => row.secretHash === sha256Hex(proof.deviceSecret),
+      ),
+    ).toBe(false);
+  });
+
+  it('refuses a repetition without the key, or with another, as it refuses an unknown proof', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const key = redemptionKey();
+    expect((await promoteWithKey(proof, key)).status).toBe(200);
+    const unknown = await promote({ deviceId: `dev-${randomUUID()}`, deviceSecret: `x${tag()}` });
+
+    await freshBudget(proof.deviceId);
+    const withoutKey = await promote(proof);
+    const otherKey = await promoteWithKey(proof, redemptionKey());
+    for (const answer of [withoutKey, otherKey]) {
+      expect(answer.status).toBe(401);
+      expect(answer.body).toEqual(unknown.body);
+    }
+    // A key alone, with another secret of the device, is no proof either.
+    const keyAlone = await promoteWithKey(
+      { deviceId: proof.deviceId, deviceSecret: `x${tag()}` },
+      key,
+    );
+    expect(keyAlone.status).toBe(401);
+    expect(keyAlone.body).toEqual(unknown.body);
+    // None of them disturbed the platform's credential.
+    expect((await credentialsOf(proof.deviceId)).filter((row) => row.platform)).toHaveLength(1);
+  });
+
+  it('never repeats a redemption that sent no key', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    expect((await promote(proof)).status).toBe(200);
+    await freshBudget(proof.deviceId);
+    expect(await promoteWithKey(proof, redemptionKey())).toMatchObject(INVALID);
+    const [claim] = await getDb()
+      .select({ keyHash: authSessions.redemptionKeyHash })
+      .from(authSessions)
+      .where(eq(authSessions.sessionToken, proof.sessionToken));
+    expect(claim.keyHash).toBeNull();
+  });
+
+  it("repeats only within the claim's original ten minutes", async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const key = redemptionKey();
+    expect((await promoteWithKey(proof, key)).status).toBe(200);
+    await getDb()
+      .update(authSessions)
+      .set({ consumedAt: new Date(Date.now() - PROMOTION_WINDOW_MS - 1000) })
+      .where(eq(authSessions.sessionToken, proof.sessionToken));
+    await freshBudget(proof.deviceId);
+    expect(await promoteWithKey(proof, key)).toMatchObject(INVALID);
+  });
+
+  it('is refused once the account signed out of the device', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const key = redemptionKey();
+    expect((await promoteWithKey(proof, key)).status).toBe(200);
+    const [device] = await getDb()
+      .select({ id: deviceSessions.id })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, proof.deviceId));
+    await getDb()
+      .update(deviceAccountContexts)
+      .set({ revokedAt: new Date() })
+      .where(eq(deviceAccountContexts.deviceSessionId, device.id));
+    await freshBudget(proof.deviceId);
+    expect(await promoteWithKey(proof, key)).toMatchObject(INVALID);
+  });
+
+  it('completes a redemption whose issuing failed after the proof was spent', async () => {
+    const person = await personOnPhone();
+    const proof = await claimedQr(person);
+    const key = redemptionKey();
+    // The proof spent, nothing issued: what a failure after the redemption's
+    // transaction leaves.
+    const spent = await redeemDeviceProof(proof, oxyosClient(), { redemptionKey: key });
+    expect(spent.redemption.attempt).toBe(1);
+    expect((await credentialsOf(proof.deviceId)).filter((row) => row.platform)).toHaveLength(0);
+    expect(await promote(proof)).toMatchObject(INVALID);
+
+    await freshBudget(proof.deviceId);
+    const repeated = await promoteWithKey(proof, key);
+    expect(repeated.status).toBe(200);
+    expect(await mintsAppToken(proof.deviceId, repeated.body.deviceSecret as string)).toBe(200);
+  });
+
+  it('issues for the latest attempt only: one superseded while in flight issues nothing', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const key = redemptionKey();
+    const client = oxyosClient();
+    const platform = { platform: 'oxyos' as const, applicationId: oxyos.applicationId };
+    // Deterministic, not a race: attempts 1 and 2 both pass the redemption's
+    // transaction before either issues.
+    const stale = await redeemDeviceProof(proof, client, { redemptionKey: key });
+    const latest = await redeemDeviceProof(proof, client, { redemptionKey: key });
+    expect([stale.redemption.attempt, latest.redemption.attempt]).toEqual([1, 2]);
+
+    await expect(
+      deviceSessionService.issuePlatformCredential(
+        proof.deviceId,
+        platform,
+        undefined,
+        stale.redemption,
+      ),
+    ).rejects.toThrow(/superseded/);
+    expect((await credentialsOf(proof.deviceId)).filter((row) => row.platform)).toHaveLength(0);
+
+    const secret = await deviceSessionService.issuePlatformCredential(
+      proof.deviceId,
+      platform,
+      undefined,
+      latest.redemption,
+    );
+    expect(secret).toBeTruthy();
+    const platformRows = (await credentialsOf(proof.deviceId)).filter((row) => row.platform);
+    expect(platformRows.map((row) => row.secretHash)).toEqual([sha256Hex(secret as string)]);
+    const [claim] = await getDb()
+      .select({ credentialId: authSessions.redemptionCredentialId })
+      .from(authSessions)
+      .where(eq(authSessions.sessionToken, proof.sessionToken));
+    expect(claim.credentialId).toBe(platformRows[0].id);
+  });
+
+  it('leaves exactly one live platform credential after concurrent keyed redemptions', async () => {
+    const person = await personOnPhone();
+    const proof = await claimedQr(person);
+    const key = redemptionKey();
+    const outcomes = await Promise.all([
+      promoteWithKey(proof, key),
+      promoteWithKey(proof, key),
+      promoteWithKey(proof, key),
+    ]);
+    const answered = outcomes.filter((outcome) => outcome.status === 200);
+    expect(answered.length).toBeGreaterThanOrEqual(1);
+    const platformRows = (await credentialsOf(proof.deviceId)).filter((row) => row.platform);
+    expect(platformRows).toHaveLength(1);
+    // The live one is one of the answers; every other answer's is dead.
+    const secrets = answered.map((outcome) => outcome.body.deviceSecret as string);
+    const live = secrets.filter((secret) => sha256Hex(secret) === platformRows[0].secretHash);
+    expect(live).toHaveLength(1);
+    expect(await mintsAppToken(proof.deviceId, live[0])).toBe(200);
+    for (const dead of secrets.filter((secret) => secret !== live[0])) {
+      expect(await mintsAppToken(proof.deviceId, dead)).toBe(401);
+    }
+    // Still one session for the account on the device.
+    expect(await liveSessionsOf(person.id, proof.deviceId)).toHaveLength(1);
   });
 });
