@@ -32,7 +32,6 @@ import {
   invalidDeviceProof,
   redeemDeviceProof,
 } from '../services/platformPromotion.service';
-import { mintSignInSession } from '../services/signInSession.service';
 import { holderContextEvidenceBudget } from '../middleware/security';
 import { clearFailures, type LockoutCheck, reserveAttempt } from '../services/loginLockout.service';
 import {
@@ -755,6 +754,10 @@ router.post(
       throw error;
     }
 
+    // Loaded here, not at the top: the sign-in service reaches the session
+    // controller and through it the whole app (`server.ts`), which this router
+    // must not pull into every importer (and its tests).
+    const { mintSignInSession } = await import('../services/signInSession.service');
     res
       .status(200)
       .json(
