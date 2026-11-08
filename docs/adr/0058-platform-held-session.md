@@ -11,7 +11,8 @@
 - Date: 2026-10-30; accepted 2026-11-06; amended 2026-11-08 (R6, the QR
   approval issues the platform credential; R7, a QR redemption repeats with
   its key; R8, a platform confirms the credentials it receives); 2026-11-09
-  (R9, the QR's redemption tells its window)
+  (R9, the QR's redemption tells its window; R10, the snapshot carries the
+  account's languages)
 - Decided by: the owner (product direction, 2026-10-30). The open questions
   were resolved, and the mechanism refined, under the owner's delegation on
   2026-11-06 (see "Resolved questions" and "Refinements made in accepting it")
@@ -98,7 +99,13 @@ interface OxySessionHost {
 interface OxyHostSnapshot {
   status: 'signed_in' | 'signed_out' | 'unavailable';
   revision: number;                       // bumps on every account change
-  account: { id: string; handle: string; displayName?: string; avatar?: string } | null;
+  account: {
+    id: string;
+    handle: string;
+    displayName?: string;
+    avatar?: string;
+    languages?: string[];                 // R10
+  } | null;
   online: boolean;
 }
 ```
@@ -120,6 +127,8 @@ its session source is the host instead of the device:
   then publishes the account — ADR 0002's token-before-notify order.
 - `user`, `isAuthenticated` and the account come from the snapshot;
   `canUsePrivateApi` is true only while a token is held (decision 4).
+- The language (ADR 0022) comes from the snapshot's `account.languages` when
+  it carries them, from the first render (R10).
 
 **What host mode skips.** The auth-state store (nothing is persisted: no
 `deviceId`, no `deviceSecret`, no warm token), every cold-boot lane, the OAuth
@@ -359,7 +368,7 @@ On OxyOS the person signs in offline (OxyOS ADR 0020 decision 2), and their
 applications open with no network:
 
 - **The snapshot works offline.** `oxyos-accountd` keeps the account's id,
-  handle, name and picture from its last online read, so the SDK reports the
+  handle, name, picture and languages from its last online read, so the SDK reports the
   person as `signed_in`, `online: false`. An application shows what it cached
   itself, keyed by that account id: no other account's data shows.
 - **No private API offline.** `getAccessToken` returns null, `tokenStatus` is
@@ -827,6 +836,30 @@ it, wherever the answer concerns a proof it knows:
   once more, since a credential already confirmed is confirmed whatever the
   hour.
 
+**R10. The snapshot carries the account's languages (amended 2026-11-09).**
+An application that passes `OxyProvider`'s `language` (ADR 0022) paints
+nothing until the account's language is known. Under the order of decision 1
+that meant the boot token (a mint over the network, since a token lives five
+minutes) and then a `GET /users/me` for the account's languages: on OxyOS,
+Dropsea's local file list waited 1.4 to 9 s for them on a slow link, and stayed
+blank while either could not be reached. The platform already reads that
+profile online and keeps it for offline use, so it says the languages:
+
+- **What it says.** `account.languages`, the account's locales, primary first,
+  as the platform last read its profile; optional, contract 1 unchanged (a
+  host that omits it keeps the old behaviour).
+- **What the SDK does with them.** The language an app speaks is the
+  snapshot's from the first render, offline too: `isAccountLanguageKnown` is
+  true, and the language bridge waits for neither the token nor the profile
+  read. Signed out, or `unavailable`, the guest or device language is likewise
+  known at once. The account itself is still published only with its token,
+  in decision 1's order; it carries the snapshot's languages until the app's
+  own profile read (ADR 0022's read of the owner's preferences) replaces them,
+  which a later snapshot does not undo.
+- **What the platform does.** OxyOS's `oxyos-accountd` keeps the languages
+  `/users/me` answers with the account's profile and puts them in every
+  snapshot.
+
 ## Enforcement
 
 - **API tests** (`routes/__tests__/platformAppTokens.db.test.ts`,
@@ -892,6 +925,7 @@ it, wherever the answer concerns a proof it knows:
 - **SDK tests.** With a host registered:
   - no store write, no cold boot, no bridge, no `/session/device/*` call;
   - a revision change drops the token before the new account is published;
+  - the snapshot's languages are the app's language before the token (R10);
   - an unknown contract runs signed out;
   - `signIn`, switch and `logout` only call `request`.
 - **OxyOS scenarios.**

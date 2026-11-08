@@ -1,5 +1,16 @@
 # Changelog
 
+## 14.18.0
+
+### Changed
+
+- **On a session host, the language is the snapshot's from the first render** (ADR 0058 R10, ADR 0022). When the host's snapshot carries `account.languages`, an app that passes `OxyProvider`'s `language` paints at once in that language, offline too, instead of waiting for the boot token and a `GET /users/me` (OxyOS's Dropsea waited 1.4 to 9 s for them on a slow link, and stayed blank while either could not be reached). The account is still published only with its token; it carries the snapshot's languages until the app's own profile read replaces them. A host without `languages` keeps the old behaviour.
+- `useOxy().isAccountLanguageKnown`: whether the account's language is known before the session resolves (always `false` where the SDK holds the session itself).
+
+### Consumers
+
+Needs `@oxy.so/core` 7.46.0.
+
 ## 14.17.0
 
 ### Added

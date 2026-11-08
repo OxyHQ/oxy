@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.46.0
+
+### Added
+
+- **`OxyHostAccount.languages`** (ADR 0058 R10): a session host may say the account's languages, primary first, as the platform last read its profile. Optional; the host contract stays 1.
+
 ## 7.45.0
 
 ### Added

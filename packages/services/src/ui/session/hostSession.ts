@@ -97,6 +97,13 @@ function validAccount(account: unknown): OxyHostAccount | null {
     ...(typeof candidate.avatar === 'string' && candidate.avatar
       ? { avatar: candidate.avatar }
       : {}),
+    ...(Array.isArray(candidate.languages)
+      ? {
+          languages: candidate.languages.filter(
+            (language): language is string => typeof language === 'string' && language !== '',
+          ),
+        }
+      : {}),
   };
 }
 
@@ -140,6 +147,12 @@ export function userFromHostAccount(account: OxyHostAccount, base: User | null):
     publicKey: known?.publicKey ?? '',
     name,
     avatar: account.avatar ?? known?.avatar ?? null,
+    // The platform's last read of the languages until the profile is read here,
+    // which is the fresher of the two (ADR 0022's only read of the owner's own
+    // preferences).
+    ...(known?.languages === undefined && account.languages
+      ? { languages: [...account.languages] }
+      : {}),
   } as User;
 }
 
@@ -149,7 +162,8 @@ function sameProfile(user: User | null, account: OxyHostAccount): boolean {
     user.id === account.id &&
     user.username === account.handle &&
     (account.displayName === undefined || user.name?.displayName === account.displayName) &&
-    (account.avatar === undefined || user.avatar === account.avatar)
+    (account.avatar === undefined || user.avatar === account.avatar) &&
+    (account.languages === undefined || user.languages !== undefined)
   );
 }
 

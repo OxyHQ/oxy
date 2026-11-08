@@ -401,4 +401,80 @@ describe('OxyProvider host mode', () => {
     expect(oxy.session.accessToken).toBeNull();
     expect(captured?.canUsePrivateApi).toBe(false);
   });
+  // ADR 0022 on a session host: the language an app speaks comes from the
+  // platform's snapshot, so a slow mint or profile read never holds it.
+  it("speaks the account's languages from the host's snapshot before the token or the profile", async () => {
+    const fake = fakeHost(signedIn({ ...ALICE, languages: ['es-ES', 'en-US'] }));
+    fake.host.getAccessToken.mockImplementation(() => new Promise<OxyHostToken>(() => undefined));
+    renderHosted({ host: fake.host });
+
+    await waitFor(() => expect(captured?.isLanguageReady).toBe(true));
+    expect(captured?.isAccountLanguageKnown).toBe(true);
+    expect(captured?.currentLanguage).toBe('es-ES');
+    expect(captured?.currentLanguages).toEqual(['es-ES', 'en-US']);
+    // The account itself is still published only with its token (ADR 0058).
+    expect(captured?.isAuthResolved).toBe(false);
+    expect(captured?.user).toBeNull();
+    expect(calls.filter((call) => call.url.endsWith('/users/me'))).toEqual([]);
+  });
+
+  it('keeps the host languages on the published account, and the profile read wins over them', async () => {
+    const fake = fakeHost(signedIn({ ...ALICE, languages: ['es-ES'] }));
+    let answerProfile: (() => void) | null = null;
+    const profileRead = new Promise<void>((resolve) => {
+      answerProfile = resolve;
+    });
+    respond = (call) =>
+      call.url.endsWith('/users/me')
+        ? {
+            status: 200,
+            body: {
+              id: ALICE.id,
+              username: ALICE.handle,
+              name: {},
+              publicKey: '',
+              languages: ['fr-FR'],
+            },
+          }
+        : { status: 200, body: [] };
+    const fetchMock = globalThis.fetch as jest.Mock;
+    const answer = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/users/me')) await profileRead;
+      return answer?.(url, init);
+    });
+    renderHosted({ host: fake.host });
+
+    await waitFor(() => expect(captured?.canUsePrivateApi).toBe(true));
+    expect(captured?.user?.languages).toEqual(['es-ES']);
+    expect(captured?.currentLanguage).toBe('es-ES');
+
+    await act(async () => answerProfile?.());
+    await waitFor(() => expect(captured?.currentLanguage).toBe('fr-FR'));
+    // A snapshot of the same account (the platform going offline) does not take it back.
+    act(() => fake.set(signedIn({ ...ALICE, languages: ['es-ES'] }, 1, false)));
+    expect(captured?.currentLanguage).toBe('fr-FR');
+  });
+
+  it('waits for the session where the host gives no languages, and not at all signed out', async () => {
+    const withoutLanguages = fakeHost(signedIn(ALICE));
+    withoutLanguages.host.getAccessToken.mockImplementation(
+      () => new Promise<OxyHostToken>(() => undefined),
+    );
+    const first = renderHosted({ host: withoutLanguages.host });
+    await waitFor(() => expect(captured?.isLanguageReady).toBe(true));
+    expect(captured?.isAccountLanguageKnown).toBe(false);
+    first.view.unmount();
+
+    const signedOut = fakeHost({ status: 'signed_out', revision: 0, account: null, online: true });
+    renderHosted({ host: signedOut.host });
+    await waitFor(() => expect(captured?.isLanguageReady).toBe(true));
+    expect(captured?.isAccountLanguageKnown).toBe(true);
+  });
+
+  it('never calls the language known with a host it cannot speak to', async () => {
+    renderHosted({ unknownContract: true });
+    await waitFor(() => expect(captured?.isAuthResolved).toBe(true));
+    expect(captured?.isAccountLanguageKnown).toBe(false);
+  });
 });

@@ -34,6 +34,13 @@ export interface OxyHostAccount {
   handle: string;
   displayName?: string;
   avatar?: string;
+  /**
+   * The account's languages, primary first, as the platform last read its
+   * profile. With them the SDK knows the language an app speaks (ADR 0022)
+   * from the first render, offline too, without waiting for the token or a
+   * profile read; without them it waits for both.
+   */
+  languages?: string[];
 }
 
 /**
