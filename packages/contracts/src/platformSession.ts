@@ -111,6 +111,34 @@ export const devicePlatformRequestSchema = z.strictObject({
 });
 
 /**
+ * A window of the QR's redemption (R9), as the server counts it when it
+ * answers: `expiresInSeconds` (whole seconds, never negative) is what a
+ * platform measures against its own monotonic clock from the moment the
+ * answer arrives, so neither clock's setting matters; `expiresAt` (ISO 8601)
+ * is for logs and people.
+ */
+export const redemptionWindowSchema = z.strictObject({
+  expiresAt: z.string().datetime(),
+  expiresInSeconds: z.number().int().nonnegative(),
+});
+
+/**
+ * What `POST /session/device/platform` adds to an answer that concerns a
+ * known proof (R9): `redemptionWindow`, when the claim's ten minutes end (the
+ * proof may be redeemed, and redeemed again with its key, until then); and,
+ * on a 200 to a platform that confirms (R8), `confirmWindow`, when the pending
+ * credential it issued must be confirmed by. The 200 carries both beside the
+ * sign-in's `LoginResult`; a 429 asked once the proof is known to sign an
+ * account in (the account's budget) carries `redemptionWindow` beside its
+ * `retryAfterSeconds`. A refusal of a proof that is not redeemable carries
+ * neither: it stays the one identical 401.
+ */
+export const devicePlatformWindowsSchema = z.object({
+  redemptionWindow: redemptionWindowSchema,
+  confirmWindow: redemptionWindowSchema.optional(),
+});
+
+/**
  * Which application the token is for, as the platform vouches for it:
  *
  * - `{ platform: 'oxyos', desktopEntryId }`: an application OxyOS launched,
@@ -182,6 +210,8 @@ export type PlatformHost = (typeof PLATFORM_HOSTS)[number];
 export type DeviceAppTokenErrorCode = (typeof DEVICE_APP_TOKEN_ERROR_CODES)[number];
 export type PlatformClient = z.infer<typeof platformClientSchema>;
 export type DevicePlatformRequest = z.infer<typeof devicePlatformRequestSchema>;
+export type RedemptionWindow = z.infer<typeof redemptionWindowSchema>;
+export type DevicePlatformWindows = z.infer<typeof devicePlatformWindowsSchema>;
 export type DevicePlatformConfirmRequest = z.infer<typeof devicePlatformConfirmRequestSchema>;
 export type DevicePlatformConfirmResponse = z.infer<typeof devicePlatformConfirmResponseSchema>;
 export type DeviceAppTokenAttestation = z.infer<typeof deviceAppTokenAttestationSchema>;

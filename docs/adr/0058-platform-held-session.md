@@ -10,7 +10,8 @@
   started.
 - Date: 2026-10-30; accepted 2026-11-06; amended 2026-11-08 (R6, the QR
   approval issues the platform credential; R7, a QR redemption repeats with
-  its key; R8, a platform confirms the credentials it receives)
+  its key; R8, a platform confirms the credentials it receives); 2026-11-09
+  (R9, the QR's redemption tells its window)
 - Decided by: the owner (product direction, 2026-10-30). The open questions
   were resolved, and the mechanism refined, under the owner's delegation on
   2026-11-06 (see "Resolved questions" and "Refinements made in accepting it")
@@ -788,6 +789,44 @@ proven or not, over fifteen minutes, longer than the QR's ten.
   rotation answer used to sign the machine out. One rule for every route that
   issues a platform credential.
 
+**R9. The QR's redemption tells its window (amended 2026-11-09, by the
+owner).** R8 left the platform to guess when the QR's ten minutes end: OxyOS
+counted them from its own setup's start, later than the claim, so a wait it
+allowed could outlast the real window, and one it refused could have fitted.
+The server knows the end (the claim's `consumed_at` + ten minutes), so it says
+it, wherever the answer concerns a proof it knows:
+
+- **What it says.** `POST /session/device/platform`'s 200 carries
+  `redemptionWindow: { expiresAt, expiresInSeconds }`, the claim's end, and,
+  to a platform that confirms (R8), `confirmWindow` in the same shape, when
+  the pending credential it issued must be confirmed by (today the same end:
+  the credential is pending until the claim's window ends). A keyed
+  repetition's 200 says the same end, counted down. The 429 of the account's
+  budget, asked once the proof is known to sign that account in and before it
+  is spent, carries `redemptionWindow` beside its `Retry-After`
+  (`@oxy.so/contracts` 6.24.0, `devicePlatformWindowsSchema`).
+- **What it never says.** A refusal of a proof that is not redeemable stays
+  the one identical 401: nothing in it tells proofs apart. The 429s of the
+  device id's and the IP's budgets, asked before any proof is looked at, carry
+  no window either, since there is no proof known to them to tell.
+- **How it is counted.** `expiresInSeconds` is the server's own count, in
+  whole seconds, at the moment it answers. A platform measures it against its
+  own monotonic clock from when the answer arrives, less a margin for the way
+  back, so neither machine's clock setting matters; `expiresAt` is for logs and
+  people.
+- **The claim's answer** (`POST /auth/session/claim`, the SDK's) does not carry
+  it: the setup client that claims never redeems, and the platform service
+  that redeems never sees the claim's answer. Telling the client a deadline it
+  has no use for would only be another field to keep right.
+- **What a platform does with it** (OxyOS, ADR 0020's amendment): it makes no
+  window decision before an answer has told it one (the first redemption just
+  tries; a 429 without a window is waited out, its `Retry-After` at most
+  600 s); once told, it waits for a 429 only if the wait ends before the
+  window does, and otherwise asks the person to sign in again; it stops
+  retrying a confirmation at `confirmWindow`'s end, though it may still ask
+  once more, since a credential already confirmed is confirmed whatever the
+  hour.
+
 ## Enforcement
 
 - **API tests** (`routes/__tests__/platformAppTokens.db.test.ts`,
@@ -834,6 +873,11 @@ proven or not, over fifteen minutes, longer than the QR's ten.
     confirmed, and a lost rotation answer leaves the machine's credential
     working;
   - a platform that does not confirm is served as before.
+  The windows (R9): a 200 carries `redemptionWindow` (and `confirmWindow` to a
+  platform that confirms) whose end is the claim's and whose seconds count
+  down across a repetition; the account budget's 429 carries
+  `redemptionWindow` and leaves the proof unspent; a proof that is not
+  redeemable, spent or unknown, gets the same 401 body with no window.
 
   The budgets lock guesses at three per device id, let a keyed repetition
   through a device id locked by guesses (still refusing a wrong secret, with

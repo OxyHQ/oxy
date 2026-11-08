@@ -64,7 +64,7 @@ import { deviceSessions } from '../../db/schema/deviceSessions';
 import { sessions } from '../../db/schema/sessions';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import { clearFailures } from '../../services/loginLockout.service';
+import { clearFailures, reserveAttempt } from '../../services/loginLockout.service';
 import { storePassword } from '../../services/password.service';
 import sessionService from '../../services/session.service';
 import { sha256Hex } from '../../services/oauthCode.service';
@@ -929,5 +929,125 @@ describe('the budgets count guesses, never a proof (R8)', () => {
       );
     }
     expect(statuses).toEqual([401, 401, 401, 429]);
+  });
+});
+
+describe('the windows a known proof is told (R9)', () => {
+  const confirming = () => ({ platform: 'oxyos', clientId: oxyos.clientId, confirms: true });
+
+  async function claimWindowEnd(sessionToken: string): Promise<number> {
+    const [row] = await getDb()
+      .select({ consumedAt: authSessions.consumedAt })
+      .from(authSessions)
+      .where(eq(authSessions.sessionToken, sessionToken));
+    return (row.consumedAt as Date).getTime() + PROMOTION_WINDOW_MS;
+  }
+
+  function windowOf(body: Body, field: 'redemptionWindow' | 'confirmWindow') {
+    return body[field] as { expiresAt: string; expiresInSeconds: number } | undefined;
+  }
+
+  it("tells a 200 the claim's window and, to a platform that confirms, the confirmation's", async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const device = { deviceId: proof.deviceId, deviceSecret: proof.deviceSecret };
+    const answered = await post('/session/device/platform', {
+      device,
+      platformClient: confirming(),
+      redemptionKey: redemptionKey(),
+    });
+    expect(answered.status).toBe(200);
+    const end = await claimWindowEnd(proof.sessionToken);
+    for (const field of ['redemptionWindow', 'confirmWindow'] as const) {
+      const window = windowOf(answered.body, field);
+      expect(window).toBeDefined();
+      expect(Date.parse((window as { expiresAt: string }).expiresAt)).toBe(end);
+      const seconds = (window as { expiresInSeconds: number }).expiresInSeconds;
+      expect(Number.isInteger(seconds)).toBe(true);
+      expect(seconds).toBeGreaterThan(0);
+      expect(seconds).toBeLessThanOrEqual(PROMOTION_WINDOW_MS / 1000);
+      expect(Math.abs(seconds - (end - Date.now()) / 1000)).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('tells a platform that does not confirm no confirmation window', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const answered = await promote(proof);
+    expect(answered.status).toBe(200);
+    expect(windowOf(answered.body, 'redemptionWindow')).toBeDefined();
+    expect(windowOf(answered.body, 'confirmWindow')).toBeUndefined();
+  });
+
+  it('tells a repetition the same end, counted down', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const key = redemptionKey();
+    const first = await promoteWithKey(proof, key);
+    expect(first.status).toBe(200);
+    // Two minutes pass.
+    await getDb()
+      .update(authSessions)
+      .set({
+        consumedAt: new Date(
+          (await claimWindowEnd(proof.sessionToken)) - PROMOTION_WINDOW_MS - 120_000,
+        ),
+      })
+      .where(eq(authSessions.sessionToken, proof.sessionToken));
+    const again = await promoteWithKey(proof, key);
+    expect(again.status).toBe(200);
+    const before = windowOf(first.body, 'redemptionWindow') as { expiresInSeconds: number };
+    const after = windowOf(again.body, 'redemptionWindow') as {
+      expiresAt: string;
+      expiresInSeconds: number;
+    };
+    expect(Date.parse(after.expiresAt)).toBe(await claimWindowEnd(proof.sessionToken));
+    expect(after.expiresInSeconds).toBeLessThanOrEqual(before.expiresInSeconds - 119);
+  });
+
+  it("tells a 429 of the account's budget the window beside its wait", async () => {
+    const person = await personOnPhone();
+    const proof = await claimedQr(person);
+    for (let spent = 0; spent < 6; spent += 1) {
+      await reserveAttempt({
+        scope: 'device-platform:account',
+        identifier: person.id,
+        maxAttempts: 6,
+        windowSeconds: 600,
+      });
+    }
+    const limited = await request(app)
+      .post('/session/device/platform')
+      .send({
+        device: { deviceId: proof.deviceId, deviceSecret: proof.deviceSecret },
+        platformClient: { platform: 'oxyos', clientId: oxyos.clientId },
+      });
+    expect(limited.status).toBe(429);
+    const retryAfter = Number(limited.headers['retry-after']);
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(600);
+    const window = (limited.body as Body).redemptionWindow as {
+      expiresAt: string;
+      expiresInSeconds: number;
+    };
+    expect(Date.parse(window.expiresAt)).toBe(await claimWindowEnd(proof.sessionToken));
+    expect(window.expiresInSeconds).toBeGreaterThan(0);
+    // The proof was not spent: the budget is asked before.
+    await clearFailures({ scope: 'device-platform:account', identifier: person.id });
+    expect((await promote(proof)).status).toBe(200);
+  });
+
+  it('tells a proof that is not redeemable nothing: the one identical 401', async () => {
+    const proof = await claimedQr(await personOnPhone());
+    const wrong = await promote({ deviceId: proof.deviceId, deviceSecret: `x${tag()}` });
+    const unknown = await promote({ deviceId: `dev-${randomUUID()}`, deviceSecret: `x${tag()}` });
+    expect(wrong.status).toBe(401);
+    expect(wrong.body).toEqual(unknown.body);
+    expect(wrong.body).not.toHaveProperty('redemptionWindow');
+    expect(wrong.body).not.toHaveProperty('confirmWindow');
+    // A spent proof repeated without its key, too.
+    await freshBudget(proof.deviceId);
+    expect((await promote(proof)).status).toBe(200);
+    await freshBudget(proof.deviceId);
+    const spent = await promote(proof);
+    expect(spent.status).toBe(401);
+    expect(spent.body).toEqual(unknown.body);
   });
 });

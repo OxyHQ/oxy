@@ -21,6 +21,7 @@ import {
   type DevicePlatformConfirmRequest,
   devicePlatformRequestSchema,
   type DevicePlatformRequest,
+  type DevicePlatformWindows,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
@@ -35,6 +36,7 @@ import {
   invalidDeviceProof,
   isRecordedRedemption,
   redeemDeviceProof,
+  redemptionWindow,
 } from '../services/platformPromotion.service';
 import { holderContextEvidenceBudget } from '../middleware/security';
 import {
@@ -737,11 +739,16 @@ const devicePlatformLimiter = rateLimit({
  * `POST /session/device/platform/confirm`.
  *
  * Answers 200 with the password sign-in's `LoginResult`, its `deviceSecret`
- * the platform credential.
+ * the platform credential, and the windows (R9): `redemptionWindow`, when the
+ * claim's ten minutes end, and to a platform that confirms, `confirmWindow`,
+ * when its pending credential must be confirmed by, each `{ expiresAt,
+ * expiresInSeconds }` counted as the answer leaves. A 429 of the account's
+ * budget (the proof known) carries `redemptionWindow` too; the device id's and
+ * the IP's (the proof not looked at) and every 401 carry nothing of it.
  *
  * @response 400 Error Not the contract's body, or a platform client that is not honoured.
  * @response 401 Error `invalid_grant`: the proof is not redeemable.
- * @response 429 Error Rate limited; Retry-After may be present.
+ * @response 429 Error Rate limited; Retry-After may be present, and `redemptionWindow` once the proof is known.
  */
 router.post(
   '/platform',
@@ -793,7 +800,17 @@ router.post(
       });
     } catch (error) {
       if (error instanceof PromotionRateLimitedError && accountBudget) {
-        refuseLockedOut(res, accountBudget);
+        // The proof is known here: its window is told beside the wait (R9).
+        const refusal = new RateLimitedError('Too many attempts', {
+          retryAfterSeconds: (accountBudget as LockoutCheck).retryAfterSeconds,
+        });
+        if (refusal.retryAfterSeconds !== undefined) {
+          res.setHeader('Retry-After', String(refusal.retryAfterSeconds));
+        }
+        res.status(refusal.statusCode).json({
+          ...refusal.toJSON(),
+          redemptionWindow: redemptionWindow(error.windowEndsAt),
+        });
         return;
       }
       throw error;
@@ -805,16 +822,22 @@ router.post(
     // controller and through it the whole app (`server.ts`), which this router
     // must not pull into every importer (and its tests).
     const { mintSignInSession } = await import('../services/signInSession.service.js');
-    res
-      .status(200)
-      .json(
-        await mintSignInSession(
-          req,
-          { id: redeemed.userId, username: redeemed.username, avatar: redeemed.avatar },
-          { platformClient: client, redemption: redeemed.redemption },
-          redeemed.deviceId,
-        ),
-      );
+    const signedIn = await mintSignInSession(
+      req,
+      { id: redeemed.userId, username: redeemed.username, avatar: redeemed.avatar },
+      { platformClient: client, redemption: redeemed.redemption },
+      redeemed.deviceId,
+    );
+    // The windows, counted as the answer leaves (R9): the claim's, and the
+    // pending credential's confirmation's for a platform that confirms (R8).
+    const now = new Date();
+    const windows: DevicePlatformWindows = {
+      redemptionWindow: redemptionWindow(redeemed.redemption.pendingUntil, now),
+      ...(client.confirms
+        ? { confirmWindow: redemptionWindow(redeemed.redemption.pendingUntil, now) }
+        : {}),
+    };
+    res.status(200).json({ ...signedIn, ...windows });
   }),
 );
 

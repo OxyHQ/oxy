@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.24.0
+
+The QR's redemption tells its window (ADR 0058 R9, 2026-11-09).
+
+### Added
+
+- `platformSession.ts`: `redemptionWindowSchema` (`{ expiresAt, expiresInSeconds }`, the server's count when it answers) and `devicePlatformWindowsSchema`: `POST /session/device/platform`'s 200 carries `redemptionWindow` (the claim's ten minutes) and, to a platform that confirms, `confirmWindow`; its account-budget 429 carries `redemptionWindow`. A refusal of a proof that is not redeemable carries neither. Their types `RedemptionWindow`, `DevicePlatformWindows`.
+
 ## 6.23.0
 
 A platform confirms the credentials it receives (ADR 0058 R8, 2026-11-08).
