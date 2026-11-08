@@ -705,8 +705,9 @@ const DEVICE_PLATFORM_WINDOW_SECONDS = 15 * 60;
  * proof that is not redeemable gets the same 401; nothing logged carries a
  * secret.
  *
- * @requestBody devicePlatformRequestSchema
- * @response 200 LoginResult The session, and the platform credential as `deviceSecret`.
+ * Answers 200 with the password sign-in's `LoginResult`, its `deviceSecret`
+ * the platform credential.
+ *
  * @response 400 Error Not the contract's body, or a platform client that is not honoured.
  * @response 401 Error `invalid_grant`: the proof is not redeemable.
  * @response 429 Error Rate limited; Retry-After may be present.

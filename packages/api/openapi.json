@@ -73937,6 +73937,124 @@
         "operationId": "putSessionDeviceNameSessionId"
       }
     },
+    "/session/device/platform": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "A platform's credential from the QR approval it just claimed",
+        "description": "(`services/platformPromotion.service.ts`).\n\nPublic like `/token`: no bearer; the claim's holder credential is the proof,\nspent once. `platformClient` is resolved first, from the request and the\nregistry alone (no browser context, the registry's `platformHost`), and an\nunhonoured one is the ordinary invalid-request answer before anything is\nlooked up. Then the device id's own budget (counted whether or not the\ndevice exists), the proof, the account's budget (before the proof is spent)\nand the platform's sign-in, exactly as the password sign-in issues it. Every\nproof that is not redeemable gets the same 401; nothing logged carries a\nsecret.\n\nAnswers 200 with the password sign-in's `LoginResult`, its `deviceSecret`\nthe platform credential.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/sessionDevice.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Not the contract's body, or a platform client that is not honoured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_grant`: the proof is not redeemable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; Retry-After may be present.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "device": {
+                    "type": "object",
+                    "properties": {
+                      "deviceId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "deviceSecret": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "deviceId",
+                      "deviceSecret"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "platformClient": {
+                    "type": "object",
+                    "properties": {
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "oxyos",
+                          "astro"
+                        ]
+                      },
+                      "clientId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "platform",
+                      "clientId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "device",
+                  "platformClient"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "operationId": "postSessionDevicePlatform"
+      }
+    },
     "/session/device/register": {
       "post": {
         "tags": [
