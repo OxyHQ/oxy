@@ -757,7 +757,7 @@ router.post(
     // Loaded here, not at the top: the sign-in service reaches the session
     // controller and through it the whole app (`server.ts`), which this router
     // must not pull into every importer (and its tests).
-    const { mintSignInSession } = await import('../services/signInSession.service');
+    const { mintSignInSession } = await import('../services/signInSession.service.js');
     res
       .status(200)
       .json(
