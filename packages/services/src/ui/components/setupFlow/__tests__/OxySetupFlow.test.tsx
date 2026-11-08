@@ -42,7 +42,7 @@ const welcome: OxySetupStep = {
 };
 
 const pin = (overrides: Partial<OxySetupStep> = {}): OxySetupStep => ({
-  id: 'pin',
+  id: 'create-pin',
   title: 'Create a PIN',
   description: 'You will use it to unlock this computer.',
   content: <input aria-label="PIN" />,
@@ -77,7 +77,7 @@ describe('a step', () => {
     render(
       flow({
         steps: [pin({ icon: <span data-testid="pin-icon" /> }), appearance],
-        current: 'pin',
+        current: 'create-pin',
       }),
     );
     expect(screen.getByLabelText('Set up your account')).toBeTruthy();
@@ -92,7 +92,7 @@ describe('a step', () => {
     const { rerender } = render(
       flow({
         steps: [welcome, pin({ aside: <span data-testid="pin-aside" /> })],
-        current: 'pin',
+        current: 'create-pin',
         onMaxWidthChange,
       }),
     );
@@ -117,15 +117,15 @@ describe('a step', () => {
 
 describe('the footer', () => {
   it('offers Back only when onBack is given, in the SDK’s own words by default', () => {
-    const { rerender } = render(flow({ current: 'pin' }));
+    const { rerender } = render(flow({ current: 'create-pin' }));
     expect(screen.queryByTestId('oxy-setup-back')).toBeNull();
 
     const onBack = jest.fn();
-    rerender(flow({ current: 'pin', onBack }));
+    rerender(flow({ current: 'create-pin', onBack }));
     fireEvent.click(screen.getByText('Back'));
     expect(onBack).toHaveBeenCalledTimes(1);
 
-    rerender(flow({ current: 'pin', onBack, backLabel: 'Previous' }));
+    rerender(flow({ current: 'create-pin', onBack, backLabel: 'Previous' }));
     expect(screen.getByTestId('oxy-setup-back').textContent).toBe('Previous');
   });
 
@@ -164,7 +164,7 @@ describe('the footer', () => {
     render(
       flow({
         steps: [pin({ primary: { label: 'Continue', onPress, disabled: true } })],
-        current: 'pin',
+        current: 'create-pin',
       }),
     );
     const primary = screen.getByTestId('oxy-setup-primary') as HTMLButtonElement;
@@ -200,7 +200,7 @@ describe('the footer', () => {
 
 describe('progress', () => {
   it('says "Step N of M" under decorative dots hidden from assistive technology', () => {
-    render(flow({ current: 'pin' }));
+    render(flow({ current: 'create-pin' }));
     expect(screen.getByTestId('oxy-setup-progress').textContent).toBe('Step 3 of 4');
     const dots = screen.getByTestId('oxy-setup-dots');
     expect(dots.getAttribute('aria-hidden')).toBe('true');
@@ -209,7 +209,7 @@ describe('progress', () => {
   });
 
   it('is left out with showProgress false', () => {
-    render(flow({ current: 'pin', showProgress: false }));
+    render(flow({ current: 'create-pin', showProgress: false }));
     expect(screen.queryByTestId('oxy-setup-progress')).toBeNull();
     expect(screen.queryByTestId('oxy-setup-dots')).toBeNull();
   });
@@ -232,7 +232,7 @@ describe('a step change', () => {
     const { rerender } = render(
       flow({ steps: [welcome, pin({ initialFocus: 'content' })], current: 'welcome' }),
     );
-    rerender(flow({ steps: [welcome, pin({ initialFocus: 'content' })], current: 'pin' }));
+    rerender(flow({ steps: [welcome, pin({ initialFocus: 'content' })], current: 'create-pin' }));
     expect(document.activeElement).not.toBe(screen.getByText('Create a PIN'));
     expect(screen.getByTestId('oxy-setup-announcement').textContent).toBe(
       'Create a PIN, step 2 of 2',
@@ -254,7 +254,7 @@ describe('a step change', () => {
     expect(announce).not.toHaveBeenCalled();
     expect(screen.queryByTestId('oxy-setup-announcement')).toBeNull();
 
-    rerender(flow({ current: 'pin' }));
+    rerender(flow({ current: 'create-pin' }));
     expect(announce).toHaveBeenCalledTimes(1);
     expect(announce).toHaveBeenCalledWith('Create a PIN, step 3 of 4');
   });
@@ -264,13 +264,13 @@ describe('a step change', () => {
     const queued = jest.fn();
     Object.assign(AccessibilityInfo, { announceForAccessibilityWithOptions: queued });
     const { rerender } = render(flow({ current: 'welcome' }));
-    rerender(flow({ current: 'pin' }));
+    rerender(flow({ current: 'create-pin' }));
     expect(queued).toHaveBeenCalledWith('Create a PIN, step 3 of 4', { queue: true });
   });
 
   it('travels forward to a later step and backward to an earlier one', () => {
     const { rerender } = render(flow({ current: 'welcome' }));
-    rerender(flow({ current: 'pin' }));
+    rerender(flow({ current: 'create-pin' }));
     expect(screen.getByTestId('screen-transition').getAttribute('data-direction')).toBe('forward');
     rerender(flow({ current: 'oxy-sign-in' }));
     expect(screen.getByTestId('screen-transition').getAttribute('data-direction')).toBe('backward');
@@ -279,7 +279,7 @@ describe('a step change', () => {
   it('does not move under reduced motion', () => {
     mockReducedMotion = true;
     const { rerender } = render(flow({ current: 'welcome' }));
-    rerender(flow({ current: 'pin' }));
+    rerender(flow({ current: 'create-pin' }));
     expect(screen.queryByTestId('screen-transition')).toBeNull();
     expect(screen.getByTestId('oxy-setup-step')).toBeTruthy();
     expect(screen.getByText('Create a PIN')).toBeTruthy();
@@ -305,7 +305,7 @@ describe('oxySignInStep', () => {
     expect(onMaxWidthChange).toHaveBeenLastCalledWith(880);
 
     act(() => {
-      rerender(flow({ current: 'pin', onMaxWidthChange }));
+      rerender(flow({ current: 'create-pin', onMaxWidthChange }));
     });
     expect(onMaxWidthChange).toHaveBeenLastCalledWith(null);
   });

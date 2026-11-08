@@ -251,8 +251,9 @@ export const OxySetupFlow: React.FC<OxySetupFlowProps> = ({
   const body = <StepBody step={step} titleRef={titleRef} />;
 
   return (
+    // A labelled region: the setup is a place a reader can name and jump to.
     <View
-      role="group"
+      role="region"
       accessibilityLabel={label}
       className={`w-full self-center gap-6 max-w-[448px] ${wide ? 'md:max-w-[880px]' : ''}`}
     >
