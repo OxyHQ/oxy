@@ -1,5 +1,15 @@
 # Changelog
 
+## 14.15.1
+
+### Fixed
+
+- **A setup client keeps no device once its session is over.** A platform's setup client (`authStateStore`, OxyOS's login screen) hands its credential to the platform and keeps none, so a lost token cannot be re-minted and the provider signs out. It now drops the device with the session (its state, directory and credential). Kept, the device directory went on listing the account just lost, and the sign-in offered it as "Choose an account" before the QR, a device picker on a screen that is not a device's and that could only start the same sign-in again (OxyOS, 2026-11-08). Apps with their own store are unchanged.
+
+### Consumers
+
+No API change. OxyOS bumps.
+
 ## 14.15.0
 
 ### Changed
