@@ -71,6 +71,18 @@ io.use(oxy.middleware.socket());
 io.on('connection', (socket) => socket.join(`user:${socket.user.id}`));
 ```
 
+`createOxySocketCors` admits a socket handshake with no `Origin`, with the
+server's own origin, or with an origin `createOxyCors` allows. The own origin
+is the request's `Host` with the scheme of the first `X-Forwarded-Proto` value
+(else of the connection being TLS); port and scheme are part of it. That case
+is a same-origin request, and it is what native WebSockets send: React
+Native's `fetch` sends no `Origin`, but its WebSocket (Android's
+WebSocketModule, iOS's SocketRocket) and OxyOS's send the socket URL's own
+origin. Every other origin is refused, the opaque `null` included, so a mobile
+app never needs an `appOrigins` entry. A proxy in front must pass the client's
+`Host` through. Long-polling's `Access-Control-Allow-*` headers follow the
+allow-list alone: a same-origin request needs none.
+
 Read the caller with `getRequiredOxyUserId(req)` / `getOxyUserId(req)`, never
 by re-parsing `Authorization`. Socket rooms come from `socket.user.id`, with an
 ownership check before joining any other room. `createOptionalOxyAuth(oxy)` is

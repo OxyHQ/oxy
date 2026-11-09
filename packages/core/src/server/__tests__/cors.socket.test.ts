@@ -14,9 +14,15 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
+import { Server as SocketServer } from 'socket.io';
 import { configureLogger, resetLoggerConfig } from '../../logger';
 import type { LogEntry } from '../../logger';
-import { createOxyCors, matchesAllowedOrigin, normalizeAppOrigins } from '../cors';
+import {
+  createOxyCors,
+  createOxySocketCors,
+  matchesAllowedOrigin,
+  normalizeAppOrigins,
+} from '../cors';
 import type { OxyCorsOptions } from '../cors';
 
 interface CorsResponse {
@@ -221,5 +227,94 @@ describe('matchesAllowedOrigin (match side)', () => {
 
   it('NEGATIVE CONTROL: a literal `null` never reaches the set lookup either', () => {
     expect(matchesAllowedOrigin(poisoned, 'null')).toBe(false);
+  });
+});
+
+/**
+ * `createOxySocketCors` in a real Socket.IO server, answering the WebSocket
+ * handshake a native client sends (OxyOS issue #477): `Origin` is the socket
+ * URL's own origin. Engine.io refuses a handshake `allowRequest` declines with
+ * `400`, and upgrades an admitted one with `101`.
+ */
+describe('createOxySocketCors over a real Socket.IO server', () => {
+  let server: http.Server;
+  let io: SocketServer;
+  let port: number;
+
+  beforeAll(async () => {
+    server = http.createServer();
+    io = new SocketServer(server, {
+      ...createOxySocketCors({ appOrigins: ['https://app.example.com'] }),
+    });
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    port = (server.address() as AddressInfo).port;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => {
+      io.close(() => resolve());
+    });
+  });
+
+  /** Send a WebSocket handshake with these headers and return the status it gets. */
+  function upgrade(headers: Record<string, string>): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const req = http.request({
+        host: '127.0.0.1',
+        port,
+        path: '/socket.io/?EIO=4&transport=websocket',
+        headers: {
+          Connection: 'Upgrade',
+          Upgrade: 'websocket',
+          'Sec-WebSocket-Version': '13',
+          'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==',
+          ...headers,
+        },
+      });
+      req.on('upgrade', (res, socket) => {
+        socket.destroy();
+        resolve(res.statusCode ?? 0);
+      });
+      req.on('response', (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      });
+      req.on('error', reject);
+      req.end();
+    });
+  }
+
+  it("upgrades a handshake whose Origin is the server's own, behind an https proxy", async () => {
+    await expect(
+      upgrade({
+        Host: 'api.example.net',
+        Origin: 'https://api.example.net',
+        'X-Forwarded-Proto': 'https',
+      }),
+    ).resolves.toBe(101);
+  });
+
+  it("upgrades one whose Origin is the server's own on a plain connection, port included", async () => {
+    const host = `127.0.0.1:${port}`;
+    await expect(upgrade({ Host: host, Origin: `http://${host}` })).resolves.toBe(101);
+  });
+
+  it('refuses another origin, and the same host on another scheme or port', async () => {
+    const proxied = { Host: 'api.example.net', 'X-Forwarded-Proto': 'https' };
+    await expect(upgrade({ ...proxied, Origin: 'https://evil.example' })).resolves.toBe(400);
+    await expect(upgrade({ ...proxied, Origin: 'http://api.example.net' })).resolves.toBe(400);
+    await expect(upgrade({ ...proxied, Origin: 'https://api.example.net:8443' })).resolves.toBe(
+      400,
+    );
+    await expect(upgrade({ ...proxied, Origin: 'null' })).resolves.toBe(400);
+  });
+
+  it('CONTROLS: no Origin and an allowed origin upgrade, as before', async () => {
+    const proxied = { Host: 'api.example.net', 'X-Forwarded-Proto': 'https' };
+    await expect(upgrade(proxied)).resolves.toBe(101);
+    await expect(upgrade({ ...proxied, Origin: 'https://app.example.com' })).resolves.toBe(101);
+    await expect(upgrade({ ...proxied, Origin: 'https://auth.oxy.so' })).resolves.toBe(101);
   });
 });

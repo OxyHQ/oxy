@@ -123,8 +123,10 @@ function isOxyFamilyOrigin(candidate: string): boolean {
  * string instead. Admitting a custom-scheme browsing context to a CREDENTIALED
  * allowlist is a distinct decision with its own threat model, and it must not
  * arrive as a side effect of someone adding one line to `appOrigins`. Note
- * also that a native client is not subject to CORS at all — React Native sends
- * no `Origin` header — so a mobile app never needs an entry here.
+ * also that a native client is not subject to CORS at all, so a mobile app
+ * never needs an entry here: React Native's `fetch` sends no `Origin`, and its
+ * WebSocket (like iOS's SocketRocket and OxyOS) sends the URL's own origin,
+ * which `createOxySocketCors` admits as same-origin.
  */
 const OPAQUE_ORIGIN = 'null';
 
@@ -221,15 +223,109 @@ export interface OxySocketCorsOptions {
 }
 
 /**
+ * The part of a Socket.IO handshake request (`http.IncomingMessage`) that
+ * `allowRequest` reads. `socket` is `unknown` because only a TLS socket has
+ * `encrypted`, and a plain `net.Socket` must still be assignable here.
+ */
+export interface OxySocketHandshakeRequest {
+  headers: Record<string, string | string[] | undefined>;
+  socket?: unknown;
+}
+
+/** A `Host` header that is an authority and nothing else: no userinfo, path, query or fragment. */
+const HOST_HEADER_PATTERN = /^[^\s/?#@\\]+$/;
+
+/**
+ * The scheme the client used to reach this server: the first
+ * `X-Forwarded-Proto` value when a proxy in front says (it saw the client's
+ * connection; the connection here is the proxy's), else `https` when this
+ * connection is TLS, else `http`. A forwarded value other than `http` or
+ * `https` names no scheme an origin can have, so the answer is "unknown".
+ */
+function requestScheme(req: OxySocketHandshakeRequest): 'http' | 'https' | null {
+  const forwarded = req.headers['x-forwarded-proto'];
+  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  if (raw !== undefined) {
+    const first = raw.split(',')[0]?.trim().toLowerCase();
+    return first === 'https' || first === 'http' ? first : null;
+  }
+  const socket = req.socket;
+  const encrypted =
+    typeof socket === 'object' && socket !== null && 'encrypted' in socket
+      ? socket.encrypted === true
+      : false;
+  return encrypted ? 'https' : 'http';
+}
+
+/**
+ * The server's own origin as this request addressed it: the scheme from
+ * {@link requestScheme} and the `Host` header, normalized like any origin (so
+ * `api.example.com:443` over https is `https://api.example.com`, and a
+ * non-default port stays part of it). `null` when the request does not say:
+ * no `Host`, a `Host` that is more than an authority, or an unknown scheme.
+ */
+function requestOwnOrigin(req: OxySocketHandshakeRequest): string | null {
+  const host = req.headers.host;
+  if (typeof host !== 'string' || !HOST_HEADER_PATTERN.test(host)) return null;
+  const scheme = requestScheme(req);
+  if (scheme === null) return null;
+  const origin = normalizeOrigin(`${scheme}://${host}`);
+  return origin === OPAQUE_ORIGIN ? null : origin;
+}
+
+/**
+ * Whether a handshake carrying `origin` comes from the server's own origin.
+ * That is not a cross-origin request, so there is nothing for an allowlist to
+ * decide: a browser page served by this very origin may open a socket to it,
+ * and a native WebSocket client sends exactly this (see below).
+ *
+ * The comparison cannot be forged by a hostile page. A browser sets `Origin`
+ * to the page's origin and `Host` to the socket URL's host, and a script can
+ * set neither, nor `X-Forwarded-Proto`; for the two to match, the page must
+ * already be this origin. A non-browser client can send any headers it likes,
+ * and was never what `allowRequest` keeps out. The scheme is part of the
+ * match, so an `http://` page of the same host does not open the `https://`
+ * server's socket, and so is the port.
+ *
+ * It assumes a proxy in front passes the client's `Host` through (Cloudflare
+ * and AWS load balancers do). One that rewrites it to an internal name only
+ * stops the match, which leaves the origin to the allowlist as before.
+ */
+function isSameOriginHandshake(req: OxySocketHandshakeRequest, origin: string): boolean {
+  const normalized = normalizeOrigin(origin);
+  if (normalized === null || normalized === OPAQUE_ORIGIN) return false;
+  return normalized === requestOwnOrigin(req);
+}
+
+/**
  * The Socket.IO server options that admit exactly the origins `createOxyCors`
  * admits — spread them into `new Server(httpServer, { ...createOxySocketCors(…) })`.
  *
  * Two halves, because Socket.IO has two transports: `cors` answers the
  * long-polling requests (which browsers check), and `allowRequest` refuses a
  * handshake from any other browser origin, which is the only check a WebSocket
- * upgrade gets — browsers apply no CORS to it. A request with no `Origin`
- * header (a native app, a server) is not a browser cross-origin request and is
- * admitted; authenticate it with `oxy.middleware.socket()` as every socket.
+ * upgrade gets — browsers apply no CORS to it.
+ *
+ * `allowRequest` admits a handshake with:
+ *   - no `Origin` header (a server, a native `fetch`/XHR long-polling client),
+ *   - an `Origin` that is the server's OWN origin — the request's `Host` with
+ *     the scheme of `X-Forwarded-Proto`, or of the connection being TLS. That
+ *     is a same-origin request, not a cross-origin one, and it is what every
+ *     native WebSocket client sends when its caller gives no `Origin`: React
+ *     Native's Android WebSocketModule, iOS's SocketRocket and OxyOS all send
+ *     the socket URL's own origin. Refusing it refused every native app's
+ *     socket, and
+ *   - an `Origin` `createOxyCors` allows (the Oxy apex family, the exact
+ *     `appOrigins`).
+ * Anything else is refused, the opaque origin (`null`, `exp://`, `file:`…)
+ * included. Admission is not authentication: authenticate every socket with
+ * `oxy.middleware.socket()`.
+ *
+ * `cors.origin` needs no same-origin rule. It only decides whether the
+ * polling response carries `Access-Control-Allow-*` headers; the request is
+ * served either way. A browser applies no CORS check to a same-origin request,
+ * and a native client applies none at all, so those headers matter only to a
+ * cross-origin page, which the allowlist answers.
  */
 export function createOxySocketCors(options: OxySocketCorsOptions = {}): {
   cors: {
@@ -241,7 +337,7 @@ export function createOxySocketCors(options: OxySocketCorsOptions = {}): {
     methods: string[];
   };
   allowRequest: (
-    req: { headers: Record<string, string | string[] | undefined> },
+    req: OxySocketHandshakeRequest,
     callback: (error: string | null | undefined, success: boolean) => void,
   ) => void;
 } {
@@ -254,7 +350,11 @@ export function createOxySocketCors(options: OxySocketCorsOptions = {}): {
       credentials: options.allowCredentials ?? true,
       methods: ['GET', 'POST'],
     },
-    allowRequest: (req, callback) => callback(null, admits(req.headers.origin)),
+    allowRequest: (req, callback) => {
+      const origin = req.headers.origin;
+      const sameOrigin = typeof origin === 'string' && isSameOriginHandshake(req, origin);
+      callback(null, sameOrigin || admits(origin));
+    },
   };
 }
 

@@ -221,7 +221,7 @@ export type {
 
 // Strict CORS allowlist (Oxy apex family + explicit app origins).
 export { createOxyCors, createOxyOriginCheck, createOxySocketCors } from './cors';
-export type { OxyCorsOptions, OxySocketCorsOptions } from './cors';
+export type { OxyCorsOptions, OxySocketCorsOptions, OxySocketHandshakeRequest } from './cors';
 
 // Shared Helmet + Content-Security-Policy baseline (Cloudflare Insights beacon,
 // Oxy API/CDN origins) with additive, per-app extensions.

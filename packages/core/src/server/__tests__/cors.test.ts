@@ -195,3 +195,171 @@ describe('createOxySocketCors', () => {
     await expect(handshake(undefined)).resolves.toBe(true);
   });
 });
+
+describe("createOxySocketCors: a handshake from the server's own origin", () => {
+  const { cors, allowRequest } = createOxySocketCors({ appOrigins: ['https://app.example.com'] });
+  const handshake = (headers: Record<string, string>, socket?: unknown) =>
+    new Promise<boolean>((resolve) =>
+      allowRequest({ headers, socket }, (_error, ok) => resolve(ok)),
+    );
+  const TLS = { encrypted: true };
+  const PLAIN = {};
+
+  it('admits Origin = the Host over a TLS connection (what a native WebSocket sends)', async () => {
+    await expect(
+      handshake({ origin: 'https://api.example.net', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(true);
+  });
+
+  it('admits it behind a proxy that says https in X-Forwarded-Proto', async () => {
+    await expect(
+      handshake(
+        {
+          origin: 'https://api.example.net',
+          host: 'api.example.net',
+          'x-forwarded-proto': 'https',
+        },
+        PLAIN,
+      ),
+    ).resolves.toBe(true);
+    // The first value is the client's own hop; later ones are proxies'.
+    await expect(
+      handshake(
+        {
+          origin: 'https://api.example.net',
+          host: 'api.example.net',
+          'x-forwarded-proto': 'https, http',
+        },
+        PLAIN,
+      ),
+    ).resolves.toBe(true);
+  });
+
+  it('admits plain http when the connection is plain and no proxy says otherwise', async () => {
+    await expect(
+      handshake({ origin: 'http://localhost:4000', host: 'localhost:4000' }, PLAIN),
+    ).resolves.toBe(true);
+    await expect(
+      handshake({ origin: 'http://localhost:4000', host: 'localhost:4000' }),
+    ).resolves.toBe(true);
+  });
+
+  it('compares normalized origins: a default port and letter case are not differences', async () => {
+    await expect(
+      handshake({ origin: 'https://api.example.net', host: 'API.Example.net:443' }, TLS),
+    ).resolves.toBe(true);
+    await expect(
+      handshake({ origin: 'https://API.example.net:443', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(true);
+  });
+
+  it('the port is part of the origin', async () => {
+    await expect(
+      handshake({ origin: 'https://api.example.net:8443', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(false);
+    await expect(
+      handshake({ origin: 'https://api.example.net', host: 'api.example.net:8443' }, TLS),
+    ).resolves.toBe(false);
+    await expect(
+      handshake({ origin: 'https://api.example.net:8443', host: 'api.example.net:8443' }, TLS),
+    ).resolves.toBe(true);
+  });
+
+  it('the scheme is part of the origin: an http page of the same host is refused by an https server', async () => {
+    await expect(
+      handshake({ origin: 'http://api.example.net', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(false);
+    await expect(
+      handshake(
+        { origin: 'http://api.example.net', host: 'api.example.net', 'x-forwarded-proto': 'https' },
+        PLAIN,
+      ),
+    ).resolves.toBe(false);
+    // A proxy that says http is believed over a TLS hop to it, both ways.
+    await expect(
+      handshake(
+        { origin: 'https://api.example.net', host: 'api.example.net', 'x-forwarded-proto': 'http' },
+        TLS,
+      ),
+    ).resolves.toBe(false);
+    // Behind a TLS-terminating proxy that sends no X-Forwarded-Proto, the hop is plain.
+    await expect(
+      handshake({ origin: 'https://api.example.net', host: 'api.example.net' }, PLAIN),
+    ).resolves.toBe(false);
+  });
+
+  it('a forwarded scheme that is neither http nor https decides nothing', async () => {
+    await expect(
+      handshake(
+        { origin: 'https://api.example.net', host: 'api.example.net', 'x-forwarded-proto': 'wss' },
+        TLS,
+      ),
+    ).resolves.toBe(false);
+  });
+
+  it('refuses another host, and a Host/Origin mismatch', async () => {
+    await expect(
+      handshake({ origin: 'https://evil.example', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(false);
+    await expect(
+      handshake({ origin: 'https://api.example.net', host: 'evil.example' }, TLS),
+    ).resolves.toBe(false);
+    await expect(
+      handshake({ origin: 'https://example.net', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(false);
+    await expect(
+      handshake({ origin: 'https://api.example.net.evil.example', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(false);
+  });
+
+  it('a Host that is more than an authority matches nothing', async () => {
+    for (const host of [
+      'evil.example@api.example.net',
+      'api.example.net/x',
+      'api.example.net?x',
+      'api.example.net#x',
+      'api.example.net\\x',
+      'api.example.net x',
+      '',
+    ]) {
+      await expect(handshake({ origin: 'https://api.example.net', host }, TLS)).resolves.toBe(
+        false,
+      );
+    }
+    await expect(handshake({ origin: 'https://api.example.net' }, TLS)).resolves.toBe(false);
+  });
+
+  it('refuses the opaque origin whatever the Host says', async () => {
+    for (const origin of [
+      'null',
+      'file://',
+      'exp://api.example.net',
+      'capacitor://api.example.net',
+    ]) {
+      await expect(handshake({ origin, host: 'api.example.net' }, TLS)).resolves.toBe(false);
+    }
+  });
+
+  it('leaves the allow-list as it was: no Origin, an allowed origin, a refused one', async () => {
+    await expect(handshake({ host: 'api.example.net' }, TLS)).resolves.toBe(true);
+    await expect(handshake({ origin: '', host: 'api.example.net' }, TLS)).resolves.toBe(true);
+    await expect(
+      handshake({ origin: 'https://app.example.com', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(true);
+    await expect(
+      handshake({ origin: 'https://mention.oxy.so', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(true);
+    await expect(
+      handshake({ origin: 'http://mention.oxy.so', host: 'api.example.net' }, TLS),
+    ).resolves.toBe(false);
+  });
+
+  it('polling CORS headers are unchanged: the own origin is not added to the allow-list', async () => {
+    const decide = (origin: string) =>
+      new Promise<boolean | undefined>((resolve) =>
+        cors.origin(origin, (_error, allow) => resolve(allow)),
+      );
+    await expect(decide('https://api.example.net')).resolves.toBe(false);
+    await expect(decide('https://app.example.com')).resolves.toBe(true);
+  });
+});
