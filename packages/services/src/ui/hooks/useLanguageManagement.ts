@@ -27,6 +27,13 @@ export interface UseLanguageManagementOptions {
    * `null` the device locale (or a locally-chosen guest override) is used.
    */
   user: User | null;
+  /**
+   * The platform's preferred languages, primary first, where the platform names
+   * them (a session host's `preferredLanguages`, ADR 0058 R11). When present
+   * they are the app's language, signed in or out, and ready from the first
+   * render: neither the account, the guest override nor storage is waited for.
+   */
+  platformLanguages?: readonly string[] | null;
   onError?: (error: ApiError) => void;
   logger?: (message: string, error?: unknown) => void;
 }
@@ -92,6 +99,21 @@ export function setPrimaryLocale(languages: readonly string[], locale: string): 
 }
 
 /**
+ * The first of `candidates` that resolves to a supported catalog locale, either
+ * exactly or by base-language match (`fr-BE` → `fr-FR`), or `undefined`.
+ */
+function firstSupportedLocale(candidates: readonly string[]): string | undefined {
+  for (const candidate of candidates) {
+    const exact = normalizeLocale(candidate);
+    if (exact) return exact;
+    const base = getBaseLanguage(candidate);
+    const byBase = SUPPORTED_LANGUAGES.find((entry) => entry.language === base);
+    if (byBase) return byBase.code;
+  }
+  return undefined;
+}
+
+/**
  * Resolve the device/browser locale, mapped to a supported catalog locale.
  *
  * Reads the platform's ordered locale preferences (`navigator.languages` /
@@ -123,15 +145,7 @@ function resolveDeviceLocale(): string {
     // navigator-provided candidates (or the fallback locale below).
   }
 
-  for (const candidate of candidates) {
-    const exact = normalizeLocale(candidate);
-    if (exact) return exact;
-    const base = getBaseLanguage(candidate);
-    const byBase = SUPPORTED_LANGUAGES.find((entry) => entry.language === base);
-    if (byBase) return byBase.code;
-  }
-
-  return FALLBACK_LOCALE;
+  return firstSupportedLocale(candidates) ?? FALLBACK_LOCALE;
 }
 
 /**
@@ -143,6 +157,9 @@ function resolveDeviceLocale(): string {
  *    follow the account's language automatically.
  *  - Signed out → a locally-chosen guest override if one exists, otherwise the
  *    device locale.
+ *  - On a platform that names its preferred languages (ADR 0058 R11) → those,
+ *    signed in or out, from the first render, as a Mac app follows the
+ *    system's preferred languages.
  *
  * The only external system this hook synchronizes with is local storage (the
  * guest override), which is loaded once on mount.
@@ -154,6 +171,7 @@ export const useLanguageManagement = ({
   entryLinkReady = true,
   legacyLanguageKeys,
   user,
+  platformLanguages = null,
   onError,
   logger,
 }: UseLanguageManagementOptions): UseLanguageManagementResult => {
@@ -279,19 +297,36 @@ export const useLanguageManagement = ({
 
   const setLanguage = useCallback((locale: string) => setLanguages([locale]), [setLanguages]);
 
+  // The platform's languages as supported locales, primary first; `null` where
+  // the platform names none. Keyed by value: a new snapshot of the same
+  // languages changes nothing.
+  const platformKey = platformLanguages ? JSON.stringify(platformLanguages) : null;
+  const platform = useMemo<string[] | null>(() => {
+    if (platformKey === null) return null;
+    const tags: string[] = JSON.parse(platformKey);
+    const supported = tags.flatMap((tag) => firstSupportedLocale([tag]) ?? []);
+    return supported.length ? [...new Set(supported)] : [FALLBACK_LOCALE];
+  }, [platformKey]);
+
   const languages = useMemo<string[]>(() => {
+    if (platform) {
+      return platform;
+    }
     if (user) {
       return getUserLanguages(user);
     }
     return guestLanguages;
-  }, [user, guestLanguages]);
+  }, [platform, user, guestLanguages]);
 
   const currentLanguage = useMemo<string>(() => {
+    if (platform) {
+      return platform[0] ?? FALLBACK_LOCALE;
+    }
     if (user) {
       return getPrimaryLanguage(user) ?? FALLBACK_LOCALE;
     }
     return guestLanguages[0] ?? deviceLanguage;
-  }, [user, guestLanguages, deviceLanguage]);
+  }, [platform, user, guestLanguages, deviceLanguage]);
 
   const metadata = useMemo(() => getLanguageMetadata(currentLanguage), [currentLanguage]);
   const languageName = useMemo(() => getLanguageName(currentLanguage), [currentLanguage]);
@@ -302,7 +337,7 @@ export const useLanguageManagement = ({
 
   return {
     currentLanguage,
-    isLanguageReady,
+    isLanguageReady: platform !== null || isLanguageReady,
     languages,
     metadata,
     languageName,

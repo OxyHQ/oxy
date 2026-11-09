@@ -13,12 +13,14 @@ export function AccountLanguageBoundary({
   language?: OxyLanguageConfig;
   children: ReactNode;
 }) {
-  const { canUsePrivateApi, user, currentLanguage } = useOxy();
+  const { canUsePrivateApi, user, currentLanguage, isAccountLanguageKnown } = useOxy();
   const profile = useCurrentUser({ enabled: canUsePrivateApi });
   // The query mirrors its result into the account runtime in an effect. Wait for
   // that projection as well as the request, so the bridge never publishes the
   // compact session's fallback locale in the frame before its real preference.
+  // A session host that names the language (ADR 0058 R10, R11) is never waited on.
   const accountReady =
+    isAccountLanguageKnown ||
     !user ||
     !canUsePrivateApi ||
     profile.fetchStatus === 'paused' ||

@@ -107,6 +107,15 @@ function validAccount(account: unknown): OxyHostAccount | null {
   };
 }
 
+/** The platform's preferred languages (R11): the non-empty tags, or none at all. */
+function validPreferredLanguages(languages: unknown): { preferredLanguages?: string[] } {
+  if (!Array.isArray(languages)) return {};
+  const kept = languages.filter(
+    (language): language is string => typeof language === 'string' && language !== '',
+  );
+  return kept.length > 0 ? { preferredLanguages: kept } : {};
+}
+
 /**
  * The host's snapshot, checked. A host that throws or answers something that is
  * not a snapshot is `unavailable` — signed out, never a reason to sign in here.
@@ -124,13 +133,20 @@ export function readHostSnapshot(host: OxySessionHost): OxyHostSnapshot {
     return UNAVAILABLE;
   }
   const online = candidate.online === true;
+  const preferred = validPreferredLanguages(candidate.preferredLanguages);
   if (candidate.status === 'signed_in') {
     const account = validAccount(candidate.account);
     if (!account) return UNAVAILABLE;
-    return { status: 'signed_in', revision: candidate.revision, account, online };
+    return { status: 'signed_in', revision: candidate.revision, account, online, ...preferred };
   }
   if (candidate.status === 'signed_out' || candidate.status === 'unavailable') {
-    return { status: candidate.status, revision: candidate.revision, account: null, online };
+    return {
+      status: candidate.status,
+      revision: candidate.revision,
+      account: null,
+      online,
+      ...preferred,
+    };
   }
   return UNAVAILABLE;
 }

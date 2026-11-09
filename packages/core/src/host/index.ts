@@ -36,9 +36,10 @@ export interface OxyHostAccount {
   avatar?: string;
   /**
    * The account's languages, primary first, as the platform last read its
-   * profile. With them the SDK knows the language an app speaks (ADR 0022)
-   * from the first render, offline too, without waiting for the token or a
-   * profile read; without them it waits for both.
+   * profile. With them, on a host that does not name its own
+   * {@link OxyHostSnapshot.preferredLanguages}, the SDK knows the language an
+   * app speaks (ADR 0022) from the first render, offline too, without waiting
+   * for the token or a profile read; without either it waits for both.
    */
   languages?: string[];
 }
@@ -52,12 +53,23 @@ export interface OxyHostAccount {
  *   as one context transition (ADR 0002's token-before-notify order).
  * - `account` — present while signed in, online or not.
  * - `online` — offline, the person is still `signed_in` and the token is null.
+ * - `preferredLanguages` — the platform's own languages (ADR 0058 R11).
  */
 export interface OxyHostSnapshot {
   status: 'signed_in' | 'signed_out' | 'unavailable';
   revision: number;
   account: OxyHostAccount | null;
   online: boolean;
+  /**
+   * The platform's preferred languages, primary first, as BCP 47 tags: the
+   * language the person chose for the whole system (OxyOS's Language &
+   * Region, as a Mac's preferred languages). Where the platform names them
+   * they are the language every app speaks, signed in or out, online or not,
+   * from the first render: the account's languages are never consulted for it
+   * and nothing waits for the token or a profile read (R11). A change is a new
+   * snapshot of the same revision. Optional; contract 1 is unchanged.
+   */
+  preferredLanguages?: string[];
 }
 
 /** A token the platform minted for this application, and its own `exp` (ISO-8601). */
