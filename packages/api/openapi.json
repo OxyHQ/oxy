@@ -75320,6 +75320,16 @@
                     },
                     "minItems": 1,
                     "maxItems": 100
+                  },
+                  "include": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "counts",
+                        "links"
+                      ]
+                    }
                   }
                 },
                 "required": [
