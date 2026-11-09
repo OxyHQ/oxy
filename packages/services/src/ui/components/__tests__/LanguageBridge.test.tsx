@@ -126,3 +126,58 @@ it('paints before the session resolves when a session host already named the acc
   await waitFor(() => expect(screen.getByText('App')).toBeTruthy());
   expect(onChange.mock.calls).toEqual([['es-ES']]);
 });
+
+it('shows the app in the same commit when the language is known at mount and applied synchronously', () => {
+  mockAuthResolved = false;
+  mockAccountLanguageKnown = true;
+  mockCurrentLanguage = 'es-ES';
+  const applied: string[] = [];
+  function Page() {
+    applied.push(`rendered after ${applied.join(',')}`);
+    return <span>App</span>;
+  }
+  const onChange = jest.fn((locale: string) => {
+    applied.push(locale);
+  });
+  const screen = render(
+    <LanguageBridge config={{ supportedLocales: HOST_CATALOG, fallbackLocale: 'en-US', onChange }}>
+      <Page />
+    </LanguageBridge>,
+  );
+  // No promise turn: the app is there as soon as the first render is committed.
+  expect(screen.getByText('App')).toBeTruthy();
+  expect(applied[0]).toBe('es-ES');
+  expect(applied[1]).toBe('rendered after es-ES');
+});
+
+it('applies a later locale only after a slow earlier catalog finished', async () => {
+  mockCurrentLanguage = 'es-ES';
+  let finishSpanish: (() => void) | undefined;
+  const order: string[] = [];
+  const onChange = jest.fn((locale: string) => {
+    order.push(`start ${locale}`);
+    if (locale !== 'es-ES') return undefined;
+    return new Promise<void>((resolve) => {
+      finishSpanish = () => {
+        order.push('end es-ES');
+        resolve();
+      };
+    });
+  });
+  const config = { supportedLocales: HOST_CATALOG, fallbackLocale: 'en-US', onChange };
+  const screen = render(
+    <LanguageBridge config={config}>
+      <span>App</span>
+    </LanguageBridge>,
+  );
+  mockCurrentLanguage = 'fr-FR';
+  screen.rerender(
+    <LanguageBridge config={config}>
+      <span>App</span>
+    </LanguageBridge>,
+  );
+  expect(order).toEqual(['start es-ES']);
+  await act(async () => finishSpanish?.());
+  await waitFor(() => expect(screen.getByText('App')).toBeTruthy());
+  expect(order).toEqual(['start es-ES', 'end es-ES', 'start fr-FR']);
+});

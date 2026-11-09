@@ -5,6 +5,7 @@
 ### Changed
 
 - **On a session host that names the platform's languages, they are the app's language, and nothing waits for the account** (ADR 0058 R11, ADR 0022). R10 needed the account's languages in the snapshot, which a real account often lacks (the platform keeps them only after a profile read, and an account may have none): OxyOS's Dropsea still showed a blank window for 6 to 15 s on the owner's ThinkPad, waiting for the boot token and `GET /users/me`, then spoke the fallback rather than the system's language. Where the host's snapshot carries `preferredLanguages`, `currentLanguage` is the platform's from the first render, signed in or out, online or not, over the account's and the profile's; `isLanguageReady` and `isAccountLanguageKnown` are true at once and `OxyProvider`'s `language` bridge waits for neither the token, the profile, the guest override nor storage. A host without them keeps R10.
+- **The language bridge shows the app in the commit that knows its language.** When the language is known at mount and the app's `language.onChange` applies it synchronously (an in-memory locale store), the bridge's children are in the same commit, so the app's first frame is its own content rather than an empty window; an asynchronous `onChange` is still awaited, and a later locale still waits for an earlier catalog.
 
 ### Consumers
 
