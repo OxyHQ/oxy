@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.47.1
+
+### Fixed
+
+- **`createOxySocketCors` admits a WebSocket handshake from the server's own origin.** A native WebSocket client sends the socket URL's own origin when its caller gives none (React Native's Android WebSocketModule, iOS's SocketRocket, OxyOS), and `allowRequest` admitted only no `Origin` or an allow-listed one, so every native app's socket to a service outside the Oxy apex family was refused with `400` (OxyOS#477: Alia's realtime socket on OxyOS, Android and iOS). An `Origin` equal to the request's `Host` with the scheme of the first `X-Forwarded-Proto` value (else of the connection being TLS) is same-origin and admitted; scheme and port are part of the comparison. Every other origin keeps the allow-list rules, the opaque `null` still refused. The long-polling `cors` answer is unchanged: a same-origin request needs no CORS headers. New type `OxySocketHandshakeRequest`.
+
 ## 7.47.0
 
 ### Added
