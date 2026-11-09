@@ -47,6 +47,7 @@ jest.mock('../../src/ui/navigation/surfaces', () => ({
 }));
 
 import { OxyHostedRuntimeProvider } from '../../src/ui/context/OxyHostedContext';
+import { AccountLanguageBoundary } from '../../src/ui/components/AccountLanguageBoundary';
 import { useOxy, type OxyContextState } from '../../src/ui/context/OxyContext';
 import { useAuth } from '../../src/ui/hooks/useAuth';
 import { useOxyEvent } from '../../src/ui/hooks/useOxyEvent';
@@ -470,6 +471,93 @@ describe('OxyProvider host mode', () => {
     renderHosted({ host: signedOut.host });
     await waitFor(() => expect(captured?.isLanguageReady).toBe(true));
     expect(captured?.isAccountLanguageKnown).toBe(true);
+  });
+
+  // R11: a platform that names its own languages (OxyOS's Language & Region)
+  // is the app's language, as a Mac app follows the system's; the account's
+  // never gates a render.
+  it("speaks the platform's languages from the first render, the account having none", async () => {
+    const fake = fakeHost({ ...signedIn(ALICE), preferredLanguages: ['es-ES'] });
+    fake.host.getAccessToken.mockImplementation(() => new Promise<OxyHostToken>(() => undefined));
+    renderHosted({ host: fake.host });
+
+    expect(captured?.isLanguageReady).toBe(true);
+    expect(captured?.isAccountLanguageKnown).toBe(true);
+    expect(captured?.currentLanguage).toBe('es-ES');
+    expect(captured?.currentLanguages).toEqual(['es-ES']);
+    expect(captured?.user).toBeNull();
+    expect(calls.filter((call) => call.url.endsWith('/users/me'))).toEqual([]);
+  });
+
+  it("shows the app at once with the platform's language, before the token or the profile", async () => {
+    const fake = fakeHost({ ...signedIn(ALICE), preferredLanguages: ['es-MX', 'en-US'] });
+    fake.host.getAccessToken.mockImplementation(() => new Promise<OxyHostToken>(() => undefined));
+    const onChange = jest.fn();
+    const oxy = new OxyServices({ baseURL: API, enableCache: false });
+    const view = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <OxyHostedRuntimeProvider
+          session={{ host: fake.host }}
+          oxyServices={oxy}
+          clientId="app-client"
+          platformStorage={createMemoryStorage()}
+        >
+          <AccountLanguageBoundary
+            language={{ supportedLocales: ['en-US', 'es-ES'], fallbackLocale: 'en-US', onChange }}
+          >
+            <span>Files</span>
+          </AccountLanguageBoundary>
+        </OxyHostedRuntimeProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(view.getByText('Files')).toBeTruthy());
+    expect(onChange.mock.calls).toEqual([['es-ES']]);
+    expect(oxy.session.accessToken).toBeNull();
+  });
+
+  it("keeps the platform's language over the account's, and follows the platform's", async () => {
+    const fake = fakeHost({
+      ...signedIn({ ...ALICE, languages: ['fr-FR'] }),
+      preferredLanguages: ['es-ES'],
+    });
+    respond = (call) =>
+      call.url.endsWith('/users/me')
+        ? {
+            status: 200,
+            body: {
+              id: ALICE.id,
+              username: ALICE.handle,
+              name: {},
+              publicKey: '',
+              languages: ['de-DE'],
+            },
+          }
+        : { status: 200, body: [] };
+    renderHosted({ host: fake.host });
+
+    await waitFor(() => expect(captured?.canUsePrivateApi).toBe(true));
+    expect(captured?.currentLanguage).toBe('es-ES');
+    act(() =>
+      fake.set({ ...signedIn({ ...ALICE, languages: ['fr-FR'] }), preferredLanguages: ['en-US'] }),
+    );
+    expect(captured?.currentLanguage).toBe('en-US');
+    expect(captured?.user?.id).toBe(ALICE.id);
+  });
+
+  it("speaks the platform's languages signed out, and drops tags that are not strings", async () => {
+    const fake = fakeHost({
+      status: 'signed_out',
+      revision: 0,
+      account: null,
+      online: false,
+      preferredLanguages: [7, '', 'xx-YY', 'es-AR'] as unknown as string[],
+    });
+    renderHosted({ host: fake.host });
+
+    expect(captured?.isLanguageReady).toBe(true);
+    expect(captured?.currentLanguage).toBe('es-AR');
+    expect(captured?.currentLanguages).toEqual(['es-AR']);
   });
 
   it('never calls the language known with a host it cannot speak to', async () => {

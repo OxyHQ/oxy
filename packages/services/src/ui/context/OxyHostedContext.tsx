@@ -9,7 +9,8 @@
  *
  *  - WIRED: the token (`session/hostSession.ts`), the account from the host's
  *    snapshot, every API namespace, `createLinkedClient`, the user socket
- *    (bearer only, `user:<id>`), the account cache, the language.
+ *    (bearer only, `user:<id>`), the account cache, the language (the
+ *    platform's own where it names it, R11).
  *  - SKIPPED: the auth-state store (nothing persisted), every cold-boot lane,
  *    the OAuth return lane, the identity pin, `SessionClient` and the device
  *    directory, the switcher, `setDeviceCredentialProvider`, the browser bridge,
@@ -124,6 +125,15 @@ function languageAccountOf(host: OxySessionHost): string | null {
   const snapshot = readHostSnapshot(host);
   if (snapshot.status !== 'signed_in') return '';
   return snapshot.account?.languages ? JSON.stringify(snapshot.account) : null;
+}
+
+/**
+ * The platform's preferred languages (R11) as a stable value for
+ * `useSyncExternalStore`: JSON, or `null` where the platform names none.
+ */
+function platformLanguagesOf(host: OxySessionHost): string | null {
+  const languages = readHostSnapshot(host).preferredLanguages;
+  return languages ? JSON.stringify(languages) : null;
 }
 
 /**
@@ -343,7 +353,22 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
     if (!languageAccount) return null;
     return userFromHostAccount(JSON.parse(languageAccount) as OxyHostAccount, null);
   }, [languageAccount, user]);
-  const isAccountLanguageKnown = languageAccount !== null;
+  // The platform's own languages (R11), where it names them, are the app's: the
+  // account's are not consulted, and nothing waits for the session.
+  const readPlatformLanguages = useCallback(
+    () => (host ? platformLanguagesOf(host) : null),
+    [host],
+  );
+  const platformLanguagesJson = useSyncExternalStore(
+    subscribeHost,
+    readPlatformLanguages,
+    readPlatformLanguages,
+  );
+  const platformLanguages = useMemo<string[] | null>(
+    () => (platformLanguagesJson ? (JSON.parse(platformLanguagesJson) as string[]) : null),
+    [platformLanguagesJson],
+  );
+  const isAccountLanguageKnown = platformLanguages !== null || languageAccount !== null;
 
   const entryLink = useEntryLink({
     storage,
@@ -367,6 +392,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
     entryLinkReady: entryLink.ready,
     legacyLanguageKeys,
     user: languageUser,
+    platformLanguages,
     onError,
     logger,
   });

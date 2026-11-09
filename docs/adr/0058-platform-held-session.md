@@ -12,7 +12,7 @@
   approval issues the platform credential; R7, a QR redemption repeats with
   its key; R8, a platform confirms the credentials it receives); 2026-11-09
   (R9, the QR's redemption tells its window; R10, the snapshot carries the
-  account's languages)
+  account's languages; R11, the platform's language is the app's)
 - Decided by: the owner (product direction, 2026-10-30). The open questions
   were resolved, and the mechanism refined, under the owner's delegation on
   2026-11-06 (see "Resolved questions" and "Refinements made in accepting it")
@@ -107,6 +107,7 @@ interface OxyHostSnapshot {
     languages?: string[];                 // R10
   } | null;
   online: boolean;
+  preferredLanguages?: string[];          // R11
 }
 ```
 
@@ -127,8 +128,9 @@ its session source is the host instead of the device:
   then publishes the account — ADR 0002's token-before-notify order.
 - `user`, `isAuthenticated` and the account come from the snapshot;
   `canUsePrivateApi` is true only while a token is held (decision 4).
-- The language (ADR 0022) comes from the snapshot's `account.languages` when
-  it carries them, from the first render (R10).
+- The language (ADR 0022) is the platform's `preferredLanguages` where the
+  host names them (R11), else the snapshot's `account.languages` when it
+  carries them, from the first render (R10).
 
 **What host mode skips.** The auth-state store (nothing is persisted: no
 `deviceId`, no `deviceSecret`, no warm token), every cold-boot lane, the OAuth
@@ -860,6 +862,34 @@ profile online and keeps it for offline use, so it says the languages:
   `/users/me` answers with the account's profile and puts them in every
   snapshot.
 
+**R11. The platform's language is the app's (amended 2026-11-09).** R10
+did not reach the account it was written for: `oxyos-accountd` keeps the
+languages only from a `/users/me` read made after it, and an account may have
+none set at all. The owner's own account (profile `{id, username, displayName,
+avatar}`, no languages) still opened Dropsea on a blank window for 6.1 s on
+the ThinkPad (launch 04:25:48.12, first frame 26 ms after it with nothing in
+it, the listing at 04:25:54.25) and 8.3, 9.1 and 15.5 s on other launches,
+waiting for the boot token and the profile; signed in without languages, the
+SDK then spoke the fallback, not the system's language. On a Mac an
+application speaks the system's preferred languages, and nothing about the
+person's account decides or delays it. So:
+
+- **What the host says.** `preferredLanguages`, at the snapshot's top level:
+  the platform's preferred languages, primary first, as BCP 47 tags (OxyOS's
+  Language & Region). It is the platform's, so it is there signed in, signed
+  out and `unavailable`, online or not; a change is a new snapshot of the same
+  revision. Optional; contract 1 unchanged.
+- **What the SDK does with it.** Where the host names it, it is the language
+  the app speaks (`currentLanguage`, `currentLanguages`), from the first
+  render: `isLanguageReady` and `isAccountLanguageKnown` are true at once, and
+  the language bridge waits for neither the token, the profile read, the guest
+  override nor storage. The account's languages (the snapshot's or the
+  profile's) are never consulted for it; they remain the account's, on `user`.
+  A host that does not name it keeps R10.
+- **What the platform does.** OxyOS's session host puts its locale (the one
+  `Intl` defaults to, ADR 0040 of OxyOS) in every snapshot and tells a new one
+  when Language & Region changes.
+
 ## Enforcement
 
 - **API tests** (`routes/__tests__/platformAppTokens.db.test.ts`,
@@ -926,6 +956,10 @@ profile online and keeps it for offline use, so it says the languages:
   - no store write, no cold boot, no bridge, no `/session/device/*` call;
   - a revision change drops the token before the new account is published;
   - the snapshot's languages are the app's language before the token (R10);
+  - the platform's `preferredLanguages` are the app's language from the first
+    render, signed in without account languages, signed out, over the
+    account's and the profile's, and follow the platform's changes; with them
+    an app passing `language` renders before the token (R11);
   - an unknown contract runs signed out;
   - `signIn`, switch and `logout` only call `request`.
 - **OxyOS scenarios.**

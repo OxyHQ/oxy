@@ -97,15 +97,20 @@ export interface OxyContextState {
   /** How web third-party sign-in reaches the IdP (see `OxyProviderProps.webAuthMode`). */
   webAuthMode: WebAuthMode;
   error: string | null;
-  /** Active UI locale (`language-REGION`): the account's primary locale when signed in, else the guest/device locale. */
+  /**
+   * Active UI locale (`language-REGION`): the platform's preferred language where
+   * a session host names it (ADR 0058 R11), else the account's primary locale
+   * when signed in, else the guest/device locale.
+   */
   currentLanguage: string;
   isLanguageReady: boolean;
   /**
-   * Whether the account's language is known before the session resolves: on a
-   * session host (ADR 0058) whose snapshot carries the account's languages, or
-   * says nobody is signed in, from the first render. The language bridge then
-   * waits for neither the token nor a profile read (ADR 0022). Always `false`
-   * where this SDK holds the session itself.
+   * Whether the app's language is known without the session: on a session host
+   * (ADR 0058) that names the platform's preferred languages (R11), or whose
+   * snapshot carries the account's languages (R10) or says nobody is signed in,
+   * from the first render. The language bridge then waits for neither the token
+   * nor a profile read (ADR 0022). Always `false` where this SDK holds the
+   * session itself.
    */
   isAccountLanguageKnown: boolean;
   campaignAttribution?: CampaignAttribution;

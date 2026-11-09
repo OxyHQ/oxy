@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.47.0
+
+### Added
+
+- **`OxyHostSnapshot.preferredLanguages`** (ADR 0058 R11): a session host may name the platform's preferred languages, primary first (OxyOS's Language & Region); where it does, they are the language every app speaks. Optional; the host contract stays 1.
+
 ## 7.46.0
 
 ### Added
