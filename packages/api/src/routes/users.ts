@@ -57,6 +57,7 @@ import {
   identityExportQuerySchema,
   updatePrivacyBodySchema,
   usersByIdsBodySchema,
+  type UsersByIdsInclude,
 } from '../schemas/users.schemas';
 import { sanitizePlainText } from '../utils/sanitize';
 import { rateLimit } from '../middleware/rateLimiter';
@@ -653,11 +654,15 @@ router.post(
   optionalUserOrServiceAuth,
   validate({ body: usersByIdsBodySchema }),
   asyncHandler(async (req, res) => {
-    const { ids } = req.body as { ids: string[] };
+    const { ids, include } = req.body as { ids: string[]; include?: UsersByIdsInclude[] };
 
-    const users = await userService.getUsersByIds(ids);
+    const users = await userService.getUsersByIds(ids, include);
 
-    logger.debug('POST /users/by-ids', { requested: ids.length, resolved: users.length });
+    logger.debug('POST /users/by-ids', {
+      requested: ids.length,
+      resolved: users.length,
+      include: include ?? 'all',
+    });
     sendSuccess(res, users);
   }),
 );

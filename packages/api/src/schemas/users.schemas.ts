@@ -17,11 +17,21 @@ export const searchUsersBodySchema = z.object({
 export const MAX_USERS_BY_IDS = 100;
 
 // POST /users/by-ids
+export const USERS_BY_IDS_INCLUDES = ['counts', 'links'] as const;
+export type UsersByIdsInclude = (typeof USERS_BY_IDS_INCLUDES)[number];
+
 export const usersByIdsBodySchema = z.object({
   ids: z
     .array(z.string().trim().check(utf16MinLength(1)))
     .min(1, 'ids must not be empty')
     .max(MAX_USERS_BY_IDS, `Cannot request more than ${MAX_USERS_BY_IDS} users at once`),
+  /**
+   * The expensive parts to compute for each user. Omitted = both, exactly as
+   * before, so no caller changes. `counts` = follower/following totals;
+   * `links` = profile link documents. A part not asked for is ABSENT from the
+   * response, never an empty stand-in.
+   */
+  include: z.array(z.enum(USERS_BY_IDS_INCLUDES)).optional(),
 });
 
 // POST /users/verify/request

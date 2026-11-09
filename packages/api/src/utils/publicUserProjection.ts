@@ -206,7 +206,8 @@ export interface PublicUserRow {
   bio: string | null;
   pronouns: string;
   description: string | null;
-  linksMetadata: ProfileLinkRow[];
+  /** Absent when the read did not ask for links (see `include`). */
+  linksMetadata?: ProfileLinkRow[];
   verified: boolean;
   type: string;
   federationActorUri: string | null;
@@ -227,6 +228,15 @@ export interface PublicUserRow {
  * hands back as a STRING — a silent `"42"` on the wire where the contract
  * promises a number.
  */
+/**
+ * {@link publicUserColumns} minus the profile-links aggregate: a read that does
+ * not ask for links must not pay its correlated subquery on every row.
+ */
+export const publicUserColumnsWithoutLinks = (() => {
+  const { linksMetadata: _links, ...columns } = publicUserColumns;
+  return columns;
+})();
+
 export const publicUserFollowCounts = {
   followersCount: sql<number>`(select count(*)::int from ${userFollows} where ${qualified(userFollows.followedId)} = ${qualified(users.id)})`,
   followingCount: sql<number>`(select count(*)::int from ${userFollows} where ${qualified(userFollows.followerId)} = ${qualified(users.id)})`,
@@ -257,8 +267,12 @@ function optional<T>(value: T | null): T | undefined {
  * data: the subdocument is absent on a local account and `formatUserResponse`
  * tests it for truthiness.
  */
-export async function toPublicUserView(row: PublicUserRow): Promise<PublicUserView> {
-  const linksMetadata = await hydrateProfileLinks(row.linksMetadata);
+export async function toPublicUserView(
+  row: PublicUserRow,
+  options: { links?: boolean } = {},
+): Promise<PublicUserView> {
+  const wantLinks = options.links !== false;
+  const linksMetadata = wantLinks ? await hydrateProfileLinks(row.linksMetadata ?? []) : undefined;
   const federation =
     row.federationActorUri !== null || row.federationDomain !== null
       ? {
@@ -288,7 +302,8 @@ export async function toPublicUserView(row: PublicUserRow): Promise<PublicUserVi
     pronouns: row.pronouns,
     description: optional(row.description),
     // Emitted only when the profile has links, as the column was before.
-    links: linksMetadata.length > 0 ? linksMetadata.map((link) => link.url) : undefined,
+    links:
+      linksMetadata && linksMetadata.length > 0 ? linksMetadata.map((link) => link.url) : undefined,
     linksMetadata,
     verified: row.verified,
     type: row.type,
