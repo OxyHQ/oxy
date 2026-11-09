@@ -42,6 +42,26 @@ describe('users.lookupMany', () => {
     expect(requestSpy).not.toHaveBeenCalled();
   });
 
+  it('sends the requested `include` parts with each chunk, and none when omitted', async () => {
+    requestSpy.mockResolvedValueOnce([rawUser('a')]);
+    await oxy.users.lookupMany(['a'], { include: ['counts'] });
+    expect(requestSpy).toHaveBeenLastCalledWith(
+      'POST',
+      '/users/by-ids',
+      { ids: ['a'], include: ['counts'] },
+      { cache: false },
+    );
+
+    requestSpy.mockResolvedValueOnce([rawUser('a')]);
+    await oxy.users.lookupMany(['a']);
+    expect(requestSpy).toHaveBeenLastCalledWith(
+      'POST',
+      '/users/by-ids',
+      { ids: ['a'] },
+      { cache: false },
+    );
+  });
+
   it('all found: every id answered, nothing missing or failed, no error', async () => {
     requestSpy.mockResolvedValueOnce([rawUser('a'), rawUser('b')]);
 

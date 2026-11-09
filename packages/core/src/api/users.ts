@@ -40,6 +40,18 @@ const SEARCH_TTL = 2 * 60 * 1000;
 const USERS_BY_IDS_CHUNK_SIZE = 100;
 
 /** A non-local user to find or create (`PUT /users/resolve`). */
+/** The parts `users.lookupMany` can ask the server to compute. */
+export type UsersByIdsInclude = 'counts' | 'links';
+
+export interface LookupManyOptions {
+  /**
+   * Only these parts are computed and returned; a part not named is ABSENT from
+   * each user (`_count`, `linksMetadata`), never an empty stand-in. Omit it for
+   * the full profile.
+   */
+  include?: readonly UsersByIdsInclude[];
+}
+
 export interface ResolveExternalUserInput {
   type: 'federated' | 'agent' | 'automated';
   username: string;
@@ -100,8 +112,11 @@ export class UsersApi {
    * charged to its shared NAT address's per-IP budget — and everywhere else
    * over the user bearer. Not cached.
    */
-  async lookupMany(ids: string[]): Promise<BatchLookup<User>> {
+  async lookupMany(ids: string[], options: LookupManyOptions = {}): Promise<BatchLookup<User>> {
     const service = this.ctx.service?.available ? this.ctx.service : null;
+    // `include` names the expensive parts the server computes (`counts`,
+    // `links`). Omitted, the server answers the full profile, as before.
+    const body = options.include ? { include: options.include } : {};
     return runBatchLookup<User>({
       method: 'users.lookupMany',
       keys: Array.from(
@@ -110,8 +125,13 @@ export class UsersApi {
       chunkSize: USERS_BY_IDS_CHUNK_SIZE,
       fetchChunk: (chunk) =>
         service
-          ? service.request<User[]>('POST', '/users/by-ids', { ids: chunk })
-          : this.ctx.request<User[]>('POST', '/users/by-ids', { ids: chunk }, { cache: false }),
+          ? service.request<User[]>('POST', '/users/by-ids', { ids: chunk, ...body })
+          : this.ctx.request<User[]>(
+              'POST',
+              '/users/by-ids',
+              { ids: chunk, ...body },
+              { cache: false },
+            ),
       mapItem: (user) => normalizeUserIdentity(user),
       keyOf: (user) => (user?.id === undefined || user?.id === null ? undefined : String(user.id)),
       logContext: { mode: service ? 'service' : 'user' },
