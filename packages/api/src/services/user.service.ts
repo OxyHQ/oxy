@@ -1,4 +1,5 @@
 import { externalIdentities, externalIdentityActors } from '../db/schema/externalIdentities';
+import { USERS_BY_IDS_INCLUDES, type UsersByIdsInclude } from '../schemas/users.schemas';
 /**
  * User Service
  *
@@ -80,6 +81,7 @@ import type {
 } from '../types/user.types';
 import {
   publicUserColumns,
+  publicUserColumnsWithoutLinks,
   publicUserFollowCounts,
   toPublicUserView,
   type LinkMetadataDto,
@@ -2145,7 +2147,10 @@ export class UserService {
    * @param ids - Candidate user ids.
    * @returns Array of public user DTOs, each with `_count`.
    */
-  async getUsersByIds(ids: string[]): Promise<PublicUserProfile[]> {
+  async getUsersByIds(
+    ids: string[],
+    include: readonly UsersByIdsInclude[] = USERS_BY_IDS_INCLUDES,
+  ): Promise<PublicUserProfile[]> {
     const identityUsers = await resolveExternalIdentityUsers(
       ids.filter((id) => typeof id === 'string' && id.length > 0),
     );
@@ -2156,8 +2161,13 @@ export class UserService {
       return [];
     }
 
+    const wantCounts = include.includes('counts');
+    const wantLinks = include.includes('links');
     const rows = await getDb()
-      .select({ ...publicUserColumns, ...publicUserFollowCounts })
+      .select({
+        ...(wantLinks ? publicUserColumns : publicUserColumnsWithoutLinks),
+        ...(wantCounts ? publicUserFollowCounts : {}),
+      })
       .from(users)
       .where(and(inArray(users.id, candidateIds), discoverableUserPredicate()));
 
@@ -2167,11 +2177,12 @@ export class UserService {
     return Promise.all(
       rows.map(async (row) => {
         const identity = identityByCanonical.get(row.id);
+        const stats =
+          row.followersCount !== undefined && row.followingCount !== undefined
+            ? { followers: row.followersCount, following: row.followingCount }
+            : undefined;
         return {
-          ...this.formatUserResponse(await toPublicUserView(row), {
-            followers: row.followersCount,
-            following: row.followingCount,
-          }),
+          ...this.formatUserResponse(await toPublicUserView(row, { links: wantLinks }), stats),
           externalIdentities: identity?.externalIdentities ?? [],
           redirectedUserIds: identity?.redirectedUserIds ?? [],
         };

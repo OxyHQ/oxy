@@ -643,3 +643,41 @@ describe('portable display currency', () => {
     expect(untouched.currency).toBeNull();
   });
 });
+
+describe('by-ids answers only the parts it was asked for', () => {
+  it('omits counts and links when include is empty, and computes only what is asked', async () => {
+    const subjectId = await makeUser();
+    const followerId = await makeUser();
+    await getDb().insert(userFollows).values({ followerId, followedId: subjectId });
+    await getDb().insert(userLinkMetadata).values({
+      userId: subjectId,
+      position: 0,
+      url: 'https://example.test',
+      title: 'Example',
+      description: 'An example',
+      image: null,
+    });
+
+    const [bare] = await userService.getUsersByIds([subjectId], []);
+    expect(bare._count).toBeUndefined();
+    expect(bare.linksMetadata).toBeUndefined();
+    expect(bare.links).toBeUndefined();
+
+    const [countsOnly] = await userService.getUsersByIds([subjectId], ['counts']);
+    expect(countsOnly._count).toEqual({ followers: 1, following: 0 });
+    expect(countsOnly.linksMetadata).toBeUndefined();
+
+    const [linksOnly] = await userService.getUsersByIds([subjectId], ['links']);
+    expect(linksOnly._count).toBeUndefined();
+    expect(linksOnly.linksMetadata).toEqual([
+      expect.objectContaining({ url: 'https://example.test' }),
+    ]);
+  });
+
+  it('answers the full profile when include is omitted, exactly as before', async () => {
+    const subjectId = await makeUser();
+    const [full] = await userService.getUsersByIds([subjectId]);
+    expect(full._count).toEqual({ followers: 0, following: 0 });
+    expect(full.linksMetadata).toEqual([]);
+  });
+});

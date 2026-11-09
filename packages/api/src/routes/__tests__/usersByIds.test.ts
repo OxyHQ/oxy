@@ -171,6 +171,36 @@ describe('POST /users/by-ids (A1)', () => {
     expect(mockGetUsersByIds).not.toHaveBeenCalled();
   });
 
+  it('passes the requested `include` parts through to the service', async () => {
+    mockGetUsersByIds.mockResolvedValue([]);
+
+    const res = await requestJson(server, 'POST', '/users/by-ids', {
+      ids: ['u-1'],
+      include: ['counts'],
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockGetUsersByIds).toHaveBeenCalledWith(['u-1'], ['counts']);
+  });
+
+  it('keeps the full answer when `include` is omitted, as before', async () => {
+    mockGetUsersByIds.mockResolvedValue([]);
+
+    await requestJson(server, 'POST', '/users/by-ids', { ids: ['u-1'] });
+
+    expect(mockGetUsersByIds).toHaveBeenCalledWith(['u-1'], undefined);
+  });
+
+  it('rejects an unknown `include` part with 400 and never queries', async () => {
+    const res = await requestJson(server, 'POST', '/users/by-ids', {
+      ids: ['u-1'],
+      include: ['everything'],
+    });
+
+    expect(res.status).toBe(400);
+    expect(mockGetUsersByIds).not.toHaveBeenCalled();
+  });
+
   it('rejects a missing ids field with 400', async () => {
     const res = await requestJson(server, 'POST', '/users/by-ids', {});
 
@@ -194,7 +224,8 @@ describe('POST /users/by-ids (A1)', () => {
 
     expect(res.status).toBe(200);
     expect(mockGetUsersByIds).toHaveBeenCalledTimes(1);
-    expect(mockGetUsersByIds).toHaveBeenCalledWith(['u1', 'u2']);
+    // `include` is omitted, so the service gets its full default.
+    expect(mockGetUsersByIds).toHaveBeenCalledWith(['u1', 'u2'], undefined);
     expect(res.body.data).toEqual([dto]);
     // Canonical, server-owned display name + counts ride along in the DTO.
     const data = res.body.data as Array<{ name: { displayName: string }; _count: unknown }>;
