@@ -566,7 +566,7 @@
     },
     "packages/db": {
       "name": "@oxy.so/db",
-      "version": "1.5.0",
+      "version": "1.6.0",
       "bin": {
         "oxy-db-check-migration-locks": "dist/cjs/bin/check-migration-locks.js",
         "oxy-db-rebase-migrations": "dist/cjs/bin/rebase-migrations.js",

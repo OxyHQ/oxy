@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/db`
 
+## 1.6.0
+
+### `entityIdParam`: one route-param guard for entity ids
+
+`entityIdParam(name | names, { status })` is an Express middleware (typed
+structurally, no `express` dependency) that answers `{ error: { code, message } }`
+when a route param is not a live entity id (`isLiveEntityId`: legacy 24-hex or
+uuid v7). `status` is `400` (default, `bad_request`) or `404` (`not_found`) for
+routes that must not distinguish a malformed id from a missing row. It replaces
+the hand-rolled `if (!isLiveEntityId(id)) return ...` guards. Additive.
+
 ## 1.5.0
 
 ### The migration gate checks the folder, and a branch's migrations rebase in one command

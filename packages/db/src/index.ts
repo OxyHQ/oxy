@@ -42,7 +42,12 @@ export {
   type OxyBunSqlQueryResultHKT,
   type RawSqlClient,
 } from './driver';
-export { isLiveEntityId } from './ids';
+export {
+  type EntityIdParamOptions,
+  type EntityIdParamStatus,
+  entityIdParam,
+  isLiveEntityId,
+} from './ids';
 export {
   CHECK_VIOLATION,
   DEADLOCK_DETECTED,
