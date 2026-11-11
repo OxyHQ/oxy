@@ -403,6 +403,7 @@ describe('reviewed host map', () => {
         'clarity.surf',
         'fairco.in',
         'homiio.com',
+        'inbo.sh',
         'mercaria.co',
         'moovo.now',
         'nilo.so',

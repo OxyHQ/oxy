@@ -545,7 +545,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Oxy Inbox',
     trustedPublishers: [otaPublisher('OxyHQ/Inbox', '1329784826')],
     description: 'Official Oxy email/inbox app.',
-    websiteUrl: 'https://inbox.oxy.so',
+    websiteUrl: 'https://inbo.sh',
     // Inbosh moves to inbo.sh; inbox.oxy.so stays registered while it redirects there.
     webOrigins: ['https://inbox.oxy.so', 'https://inbo.sh'],
     oxyosDesktopEntryIds: ['so.oxy.inbox'],
