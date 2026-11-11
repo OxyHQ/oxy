@@ -1,0 +1,104 @@
+name: Refresh app image cache
+
+# THE weekly no-cache rebuild of an app's production image(s), called by each
+# repository's own refresh workflow (the caller keeps the schedule, its
+# concurrency group and, for a repository that builds for two architectures,
+# one calling job per runner). It rebuilds each target with NO cache and writes
+# the fresh layers into the same GitHub Actions cache scope the deploy reads.
+#
+# The deploy reuses cached layers, so without this an `apt-get`/`apk` layer
+# would stay as old as the last time its inputs changed and stop picking up OS
+# security patches. This re-runs every step, then overwrites the scope; the next
+# real deploy builds on those fresh layers. A base image pinned by digest does
+# NOT move with `--pull`: a patched base arrives only through a reviewed digest
+# bump (`reviewed-image` `pin`).
+#
+# It builds only: no AWS credentials, no ECR push, no deploy. It runs on the
+# default branch (schedule) or a dispatch from main, so it writes main's cache,
+# which only main-branch deploys read; no pull_request workflow writes a scope.
+#
+# A target with a `recipe` is built from the reviewed-image guard's outputs, as
+# the deploy builds it (unreviewed inputs stop here, before anything is built or
+# cached); one without takes its Dockerfile, context and target as given.
+#
+# `targets` is a JSON array of objects:
+#   name        shown in the job name (required)
+#   scope       the cache scope the deploy reads (required)
+#   recipe      reviewed-images.json recipe to guard and build from (optional)
+#   dockerfile  Dockerfile path, when there is no recipe
+#   context     build context, when there is no recipe (default `.`)
+#   target      build target, when there is no recipe (default: the last stage)
+
+on:
+  workflow_call:
+    inputs:
+      targets:
+        description: JSON array of {name, scope, recipe?, dockerfile?, context?, target?}.
+        type: string
+        required: true
+      runs_on:
+        description: Runner label; the cache is per architecture, so it matches the deploy's.
+        type: string
+        default: ubuntu-24.04-arm
+      platform:
+        description: Build platform, the one the deploy builds for.
+        type: string
+        default: linux/arm64
+      buildkit_image:
+        description: Pinned moby/buildkit image for the buildx builder; empty for the action's default.
+        type: string
+        default: ''
+      timeout_minutes:
+        description: Job timeout, per target.
+        type: number
+        default: 45
+
+permissions: {}
+
+jobs:
+  rebuild:
+    name: Rebuild ${{ matrix.target.name }} without cache
+    # Only main's cache is readable by the deploys and the merge queue.
+    if: github.ref == 'refs/heads/main' && github.repository_owner == 'OxyHQ'
+    runs-on: ${{ inputs.runs_on }}
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      # One at a time: this is maintenance, and the org shares its runners.
+      max-parallel: 1
+      matrix:
+        target: ${{ fromJSON(inputs.targets) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: ${{ inputs.buildkit_image != '' && format('image={0}', inputs.buildkit_image) || '' }}
+
+      - name: Refuse unreviewed image build inputs
+        id: reviewed
+        if: matrix.target.recipe != ''
+        uses: OxyHQ/oxy/.github/actions/reviewed-image@main
+        with:
+          phase: guard
+          recipe: ${{ matrix.target.recipe }}
+
+      # No output: the result lives only in the exported cache. A failed export
+      # fails the job, since writing the cache is the whole point.
+      - name: Rebuild (no cache) into the shared cache scope
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.target.recipe != '' && steps.reviewed.outputs.context || matrix.target.context || '.' }}
+          file: ${{ matrix.target.recipe != '' && steps.reviewed.outputs.dockerfile || matrix.target.dockerfile }}
+          target: ${{ matrix.target.recipe != '' && steps.reviewed.outputs.target || matrix.target.target }}
+          platforms: ${{ inputs.platform }}
+          pull: true
+          no-cache: true
+          push: false
+          outputs: type=cacheonly
+          cache-to: type=gha,mode=max,scope=${{ matrix.target.scope }}

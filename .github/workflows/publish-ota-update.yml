@@ -1,0 +1,125 @@
+name: Publish OTA update (app)
+
+# THE OTA publish of a first-party app, called by each app repository's own
+# `.github/workflows/publish-update.yml` (the caller keeps the `on.push.paths`,
+# the concurrency group and, for a repository with several apps, the matrix).
+# It exports the app's JS bundle and assets with the env of its native build and
+# publishes them to Oxy Updates (oxy-api) on one channel; the binary polls its
+# manifest and accepts an update only for its own runtime, the app `version`.
+#
+# No secret. Authentication is GitHub trusted publishing (ADR 0057): the job
+# asks GitHub for an OIDC token addressed to https://api.oxy.so, and oxy-api
+# exchanges it for a five-minute `updates:publish` token of the app, only for the
+# CALLING repository, `refs/heads/main` and the CALLING workflow's path
+# (`workflow_ref` names the caller, never this file), registered in
+# seedOxyApplicationsSpecs.ts. So the caller's file must stay
+# `.github/workflows/publish-update.yml`, and the caller grants `id-token: write`
+# and `contents: read` on its calling job.
+#
+# The update must be built with the binary's environment, so it comes from the
+# same place android-release.yml reads it: the eas.json `production` profile's
+# `env` (following `extends`), plus NODE_ENV=production.
+
+on:
+  workflow_call:
+    inputs:
+      app_dir:
+        description: The app's directory (holds eas.json and app config), e.g. packages/frontend.
+        type: string
+        required: true
+      client_id:
+        description: The application's PUBLIC `oxy_dk_...` client id, the one in the manifest URL. Not a secret.
+        type: string
+        required: true
+      channel:
+        description: The Oxy Updates channel to publish to.
+        type: string
+        default: production
+      node_version:
+        description: Node version for setup-node.
+        type: string
+        default: '24'
+      install_args:
+        description: Extra arguments for `bun install --frozen-lockfile --minimum-release-age=0`.
+        type: string
+        default: ''
+      node_options:
+        description: NODE_OPTIONS for the export (e.g. --max-old-space-size=4096); empty for none.
+        type: string
+        default: ''
+      timeout_minutes:
+        description: Job timeout.
+        type: number
+        default: 30
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Publish ${{ inputs.app_dir }} to ${{ inputs.channel }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      APP_DIR: ${{ inputs.app_dir }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ inputs.node_version }}
+          package-manager-cache: false
+
+      - name: Install dependencies
+        env:
+          INSTALL_ARGS: ${{ inputs.install_args }}
+        # Word splitting of the extra arguments is the point.
+        # shellcheck disable=SC2086
+        run: bun install --frozen-lockfile --minimum-release-age=0 $INSTALL_ARGS
+
+      - name: Build environment from eas.json
+        run: |
+          node - <<'JS' >> "$GITHUB_ENV"
+          const { readFileSync } = require('node:fs');
+          const { join } = require('node:path');
+          const eas = JSON.parse(readFileSync(join(process.env.APP_DIR, 'eas.json'), 'utf8'));
+          const resolve = (name, seen = new Set()) => {
+            const profile = eas.build?.[name];
+            if (!profile) throw new Error(`eas.json has no build profile "${name}"`);
+            if (seen.has(name)) throw new Error(`eas.json profile "${name}" extends itself`);
+            seen.add(name);
+            const base = profile.extends ? resolve(profile.extends, seen) : {};
+            return { ...base, ...profile.env };
+          };
+          for (const [key, value] of Object.entries(resolve('production'))) {
+            if (!/^[A-Z_][A-Z0-9_]*$/.test(key) || /[\r\n]/.test(String(value))) {
+              throw new Error(`eas.json env ${key} cannot be exported`);
+            }
+            console.log(`${key}=${value}`);
+          }
+          console.log('NODE_ENV=production');
+          JS
+
+      - name: Publish to Oxy Updates
+        working-directory: ${{ inputs.app_dir }}
+        env:
+          OXY_SHIP_CLIENT_ID: ${{ inputs.client_id }}
+          OXY_API_URL: https://api.oxy.so
+          CHANNEL: ${{ inputs.channel }}
+          NODE_OPTIONS: ${{ inputs.node_options }}
+          SHIP_MESSAGE: ${{ github.event.head_commit.message || format('Manual publish of {0}', github.sha) }}
+        # The update's message is the commit's subject line: oxy-api takes at
+        # most 500 characters, and a squash merge's body is the whole PR.
+        run: |
+          subject="${SHIP_MESSAGE%%$'\n'*}"
+          bunx --no-install oxy-ship publish \
+            --channel "$CHANNEL" \
+            --platform all \
+            --git-commit "$GITHUB_SHA" \
+            --message "${subject:0:500}"

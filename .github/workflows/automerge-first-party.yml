@@ -1,0 +1,33 @@
+name: Auto-merge first-party bumps
+
+# THE auto-merge of a dependency PR that moves only first-party packages, called
+# by each repository's own `.github/workflows/automerge-first-party.yml` on
+# `pull_request`. The Oxy SDKs should always be on their latest release:
+# Dependabot opens the group PR, the caller decides WHICH PR that is (its job
+# `if:` names Dependabot and the group's branch prefix, which differs per
+# repository), and this turns on auto-merge for it. GitHub then merges once the
+# repository's required checks are green; a red check leaves the PR open for a
+# person. Third-party updates are never touched here.
+#
+# The caller grants `contents: write` and `pull-requests: write` on its calling
+# job; the job below needs exactly those two and nothing else.
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    # One API call. Without a bound, a hung job holds one of the org's
+    # concurrent job slots for GitHub's 360-minute default.
+    timeout-minutes: 5
+    steps:
+      - run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}

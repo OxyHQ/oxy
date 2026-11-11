@@ -1,0 +1,49 @@
+name: Reviewed image
+description: >-
+  The reviewed production image gate (reviewed-image.py): `check` at pull-request
+  time, `guard` immediately before an image build. Runs in the caller's checkout
+  against its own .github/scripts/reviewed-images.json; one implementation for
+  every Oxy repository.
+
+inputs:
+  phase:
+    description: '`check` (every recipe matches its pin and is guarded) or `guard` (refuse a recipe whose inputs differ from the pin and hand the build its inputs).'
+    required: true
+  recipe:
+    description: 'The recipe to guard (phase guard only), as named in reviewed-images.json.'
+    required: false
+    default: ''
+
+outputs:
+  dockerfile:
+    description: The recipe's Dockerfile (guard).
+    value: ${{ steps.run.outputs.dockerfile }}
+  context:
+    description: The recipe's build context (guard).
+    value: ${{ steps.run.outputs.context }}
+  target:
+    description: The recipe's build target, empty for none (guard).
+    value: ${{ steps.run.outputs.target }}
+  ecr_repository:
+    description: The recipe's ECR repository (guard).
+    value: ${{ steps.run.outputs.ecr_repository }}
+  build_inputs_sha256:
+    description: The verified build-inputs pin, for the io.oxy.build-inputs.sha256 label (guard).
+    value: ${{ steps.run.outputs.build_inputs_sha256 }}
+  source_tree:
+    description: The checked-out source tree hash, for the io.oxy.source.tree label (guard).
+    value: ${{ steps.run.outputs.source_tree }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        PHASE: ${{ inputs.phase }}
+        RECIPE: ${{ inputs.recipe }}
+      run: |
+        set -euo pipefail
+        args=("$PHASE")
+        if [ -n "$RECIPE" ]; then args+=(--recipe "$RECIPE"); fi
+        python3 -B "$GITHUB_ACTION_PATH/reviewed-image.py" "${args[@]}"
