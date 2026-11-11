@@ -942,6 +942,13 @@ jobs:
           node scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs
           node scripts/check-kaana-catalogue-bootstrap-workflow.mjs
 
+      # The reviewed-image gate every Oxy repository runs through
+      # `.github/actions/reviewed-image`: its fixtures prove it can fail.
+      - name: 'Reviewed Image: fixture tests'
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        run: python3 -B -m unittest discover -s .github/actions/reviewed-image -p test_reviewed_image.py
+
       # ── Phase 2: installed ─────────────────────────────────────────────────
 
       - name: Setup Node.js
