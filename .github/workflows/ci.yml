@@ -947,7 +947,7 @@ jobs:
       - name: 'Reviewed Image: fixture tests'
         if: ${{ !cancelled() }}
         timeout-minutes: 2
-        run: python3 -B -m unittest discover -s .github/actions/reviewed-image -p test_reviewed_image.py
+        run: python3 -B -m unittest discover -s .github/actions/reviewed-image -p 'test_*.py'
 
       # ── Phase 2: installed ─────────────────────────────────────────────────
 
