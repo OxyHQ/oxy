@@ -19,6 +19,8 @@
  */
 
 jest.unmock('socket.io');
+// The run-wide setup stubs `jsonwebtoken`; this suite needs real tokens end to end.
+jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 
 process.env.ACCESS_TOKEN_SECRET ??= 'inbosh-role-access-token-secret-32-chars';
 process.env.REFRESH_TOKEN_SECRET ??= 'inbosh-role-refresh-token-secret-32-chars';
