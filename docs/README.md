@@ -125,6 +125,14 @@ topics and remain authoritative for their areas:
 
 ---
 
+## Guides
+
+- [npm-releases.md](npm-releases.md) — shipping a package: bump, merge, trusted publisher, a brand-new package
+- [postgres-and-drizzle.md](postgres-and-drizzle.md) — the entity-id shapes and `isLiveEntityId`, migration locks, timeouts, Drizzle binding traps
+- [mongo-to-postgres-ports.md](mongo-to-postgres-ports.md) — the checklist for porting a domain off MongoDB
+
+---
+
 ## Engineering notes (moved out of `AGENTS.md`)
 
 `AGENTS.md` is one short page: what the repo is, the commands CI runs, each
@@ -158,6 +166,9 @@ audit has aged. Each file names its commit in its own header.
   — inference/billing attribution, `Application.ownerAccountId`, account-graph
   permissions and Console account switching, at `215b12fe` (OxyHQ/oxy#972
   workstream 1)
+- [audits/2026-10-31-session-socket-actor-audit.md](audits/2026-10-31-session-socket-actor-audit.md)
+  — HISTORICAL: a same-subject actor change delivered over the device socket leaves the old bearer,
+  at `29ff6016d`; with its unbuilt [design](audits/2026-10-31-account-context-sync-design.md)
 - [EMAIL.md](EMAIL.md) — native email (`username@oxy.so`), DKIM/SPF/DMARC, inbound webhook
 
 For the authoritative rules and version matrix, see the repo
