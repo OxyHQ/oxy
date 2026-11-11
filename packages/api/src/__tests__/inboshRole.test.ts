@@ -131,9 +131,9 @@ describe('auth on the email backend is the platform’s', () => {
       bearerOnly: await call({}),
       withSessionHeader: await call({ 'x-session-id': session.sessionId }),
     };
-    expect(results).toMatchObject({
-      bearerOnly: { status: 200 },
-      withSessionHeader: { status: 200 },
+    expect(results).toEqual({
+      bearerOnly: { status: 200, body: expect.any(String) },
+      withSessionHeader: { status: 200, body: expect.any(String) },
     });
   });
 
