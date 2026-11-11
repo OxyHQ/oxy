@@ -5,7 +5,7 @@ inference API; Oxy is the platform plus the Oxy Console, where every API key
 (Alia, Kaana, Mention) is issued; Alia is the assistant with its own permanent
 product API.
 
-Read `docs/README.md` first; `docs/adr/` binds; org rules: `~/Oxy/AGENTS.md`. Budgeted: one line per rule, evidence at its pointer.
+Read `docs/README.md` first; `docs/adr/` binds. Budgeted by `bun run validate:agents-md`: one line per rule, evidence at its pointer. Org-wide standards: [engineering standards](https://github.com/OxyHQ/oxy/blob/main/docs/engineering/standards.md).
 
 ## Commands (CI)
 
@@ -73,3 +73,15 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Auth, sessions, IdP: `docs/auth/index.md`, then `auth-and-identity.md`
 - Inference/agents: `docs/inference/request-routing.md` — one-shot AI: Oxy → Kaana; agents/chat: Alia → Oxy → Kaana; provider credentials only in Kaana; sole signed origin `https://kaana.ai`
 - In `docs/engineering/`: packaging/Docker/AWS `package-rules.md`, `build-and-deploy.md` · SDK internals `sdk-patterns.md` · local dev `local-dev-cursor-cloud.md` · git diffs/rebases `measurement-traps.md`
+
+## Testing, PRs, secrets
+
+- Run `bun run lint` and the touched package's `bun run test` before pushing; `bun run validate:agents-md` after editing any `AGENTS.md`.
+- Open a PR from a branch; merge with the repo's flow (bare `gh pr merge <n> --squash`, never `--delete-branch` with a merge queue).
+- Secrets come from the deploy environment and `.env` files, never committed or printed; `*_DATABASE_URL` values are never echoed.
+
+## More
+
+- [SDK usage, i18n, publishing](docs/engineering/oxy-sdk-usage.md) · [npm releases](docs/npm-releases.md) · [lint and format](docs/engineering/lint-and-format.md) · [application roles](docs/auth/application-roles.md) · [Postgres and Drizzle](docs/postgres-and-drizzle.md) · [agent team](docs/engineering/agent-team-workflow.md)
+
+Owner: Oxy platform team. Last reviewed 2026-11-11.
