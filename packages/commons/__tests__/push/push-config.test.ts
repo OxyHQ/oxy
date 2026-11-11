@@ -7,7 +7,6 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// biome-ignore lint/style/noCommonJs: app.config.js and its helper are CommonJS by design.
 const { resolvePushConfig } = require('../../push-config.js') as {
   resolvePushConfig: (options: {
     env?: Record<string, string>;
