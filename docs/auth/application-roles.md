@@ -85,6 +85,27 @@ CrowdSource (`trust_safety.policy|appeals|evidence|security`), Oxy Website
 Homiio (`homiio.scraper.operate`) — all held by the owning organization's owners
 and admins.
 
+## Adopting it in an app
+
+Rules every app backend follows, own or third-party (the SDK reference is
+[`packages/core/docs/application-roles.mdx`](../../packages/core/docs/application-roles.mdx)):
+
+- **No operator allow-lists.** No `*_OPERATOR_OXY_USER_IDS`, `*_ADMIN_OXY_USER_IDS` or
+  `OXY_ADMIN_USER_IDS` environment list and no local staff table for operators. To migrate one,
+  in this order: declare the key (an Oxy app: registry entry, merge, seed run, dry run first;
+  a third-party app: the Console), deploy the `requireAppPermission` gate, then delete the
+  variable from code, infrastructure and docs. The people in the old list need the role the key
+  names.
+- **Mount the surface always** and let the gate answer `404` (the default) to non-holders; never
+  "empty list = not mounted".
+- **Record `req.oxyAppPermissions.operatorId` as the actor.** It is the person even when they act
+  as their organization (`req.userId` is then the organization).
+- **Use `fresh: true` on writes and irreversible actions**; reads reuse an answer for up to 30 s.
+- **Keep the app's own key constant** (`APPLICATION_PERMISSIONS` or similar) equal to the registry
+  entry. A key renamed in only one place locks everybody out.
+- A service-token request never holds an app permission; operator powers are exercised by a
+  person in a session.
+
 ## Data model
 
 | Table | Holds | Lifecycle |
