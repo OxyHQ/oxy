@@ -546,10 +546,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     trustedPublishers: [otaPublisher('OxyHQ/Inbox', '1329784826')],
     description: 'Official Oxy email/inbox app.',
     websiteUrl: 'https://inbox.oxy.so',
-    webOrigins: ['https://inbox.oxy.so'],
+    // Inbosh moves to inbo.sh; inbox.oxy.so stays registered while it redirects there.
+    webOrigins: ['https://inbox.oxy.so', 'https://inbo.sh'],
     oxyosDesktopEntryIds: ['so.oxy.inbox'],
     type: 'first_party',
-    redirectUris: ['https://inbox.oxy.so'],
+    redirectUris: ['https://inbox.oxy.so', 'https://inbo.sh'],
     scopes: ['user:read', 'inference:invoke', 'catalogs:write', 'capability-events:publish'],
     capabilities: [catalogApplicationCapability('inbox')],
   },
