@@ -1,12 +1,11 @@
-# OxyHQServices
+# oxy (the Oxy SDK, formerly OxyHQServices)
 
 Oxy platform monorepo (`@oxy.so/sdk`), Bun workspaces + Turbo. Kaana is the
 inference API; Oxy is the platform plus the Oxy Console, where every API key
 (Alia, Kaana, Mention) is issued; Alia is the assistant with its own permanent
 product API.
 
-Read `docs/README.md` first; `docs/adr/` binds; org rules: `~/AGENTS.md`,
-`~/Oxy/AGENTS.md`. Budgeted: one line per rule, evidence at its pointer.
+Read `docs/README.md` first; `docs/adr/` binds; org rules: `~/Oxy/AGENTS.md`. Budgeted: one line per rule, evidence at its pointer.
 
 ## Commands (CI)
 

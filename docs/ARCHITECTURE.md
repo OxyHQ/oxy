@@ -2,6 +2,8 @@
 
 Complete architecture documentation for the Oxy ecosystem: identity, authentication, and services.
 
+> Parts of this overview predate the Postgres port and the device-session model; where it disagrees with `docs/adr/` or the code, the ADRs and code win. The database section now points at the Drizzle schema instead of the old Mongo sketches.
+
 ## Table of Contents
 
 1. [Core Concepts](#core-concepts)
@@ -436,105 +438,18 @@ DELETE /auth/link/:type           # Unlink auth method
 
 ## Database Schema
 
-### User Collection
+The tables are PostgreSQL, defined with Drizzle in
+[`packages/api/src/db/schema/`](../packages/api/src/db/schema/) (ids are uuid
+v7; see [`docs/adr/`](adr/) for the migration decisions). The Mongo/ObjectId
+document sketches that used to be here described the pre-Postgres model and
+were removed; read the schema files, which are the source of truth:
 
-```javascript
-{
-  // Identity
-  _id: ObjectId,
-  publicKey: String,           // sparse unique index
-  username: String,            // sparse unique index
-  email: String,               // sparse unique index
-
-  // Auth
-  password: String,            // bcrypt hash, select: false
-  twoFactorAuth: {
-    enabled: Boolean,
-    secret: String,            // TOTP secret, select: false
-    backupCodes: [String],     // select: false
-    verifiedAt: Date
-  },
-
-  // Auth methods tracking
-  authMethods: [{
-    type: String,              // 'identity' | 'password' | 'google' | etc.
-    linkedAt: Date,
-    metadata: Mixed            // type-specific data
-  }],
-
-  // Profile
-  name: { first: String, last: String, displayName: String },  // displayName optional
-  bio: String,
-  avatar: String,              // file ID
-  verified: Boolean,
-  language: String,
-
-  // Social
-  following: [ObjectId],
-  followers: [ObjectId],
-  _count: { followers: Number, following: Number },
-
-  // Privacy
-  privacySettings: { ... },
-
-  // Timestamps
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-### Session Collection
-
-```javascript
-{
-  _id: ObjectId,
-  userId: ObjectId,            // ref: User
-  deviceId: String,
-  deviceName: String,
-  deviceFingerprint: String,
-  platform: String,            // 'ios' | 'android' | 'web'
-  ip: String,
-  userAgent: String,
-  expiresAt: Date,
-  lastActiveAt: Date,
-  createdAt: Date
-}
-```
-
-### DeviceSession Collection (server session authority)
-
-```javascript
-{
-  _id: ObjectId,
-  deviceId: String,            // unique
-  accounts: [{
-    accountId: ObjectId,       // ref: User
-    sessionId: ObjectId,       // ref: Session
-    authuser: Number,          // stable per-device slot index
-    operatedByUserId: ObjectId // set for managed/org accounts (audit)
-  }],
-  activeAccountId: ObjectId,   // ref: User, nullable
-  revision: Number             // bumped on every mutation; drives socket sync
-}
-// device_credentials: one row per holder — { deviceSessionId, secretHash (unique), lastUsedAt }
-```
-
-### AuthSession Collection (QR / cross-app flow)
-
-```javascript
-{
-  _id: ObjectId,
-  sessionToken: String,        // unique, short-lived, NEVER in the QR
-  status: String,              // 'pending' | 'authorized' | 'expired' | 'cancelled'
-  appId: String,
-  userId: ObjectId,            // set when authorized
-  authorizedSessionId: ObjectId,
-  deviceName: String,
-  deviceFingerprint: String,
-  expiresAt: Date,
-  createdAt: Date
-}
-```
+| Concept | Schema file |
+|---|---|
+| Users and accounts | `users.ts` |
+| Sessions | `sessions.ts` |
+| Device session authority (accounts per device, active account, revision) | `deviceSessions.ts`, `deviceSessionAccounts.ts`, `deviceCredentials.ts` |
+| QR / cross-app flow | `authSessions.ts` |
 
 ---
 

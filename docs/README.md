@@ -1,7 +1,7 @@
-# OxyHQServices — Platform Documentation
+# oxy (formerly OxyHQServices) — Platform Documentation
 
 Dependency health: [`@oxy.so/doctor`](../packages/doctor/README.md) is the
-read-only CLI for local and CI checks; pair it with Renovate-managed update PRs.
+read-only CLI for local and CI checks; pair it with the dependabot and autobump update PRs.
 
 Comprehensive developer documentation for the Oxy platform: the identity
 provider, the SDK, the "Oxy ID" self-sovereign identity + civic layer, and the
@@ -11,7 +11,7 @@ decentralization (user data nodes) layer.
 
 ## What Oxy is, on one screen
 
-OxyHQServices (`@oxy.so/sdk`) is the platform layer for the whole Oxy ecosystem. It
+oxy (`@oxy.so/sdk`, formerly OxyHQServices) is the platform layer for the whole Oxy ecosystem. It
 is four things in one Bun-workspaces monorepo:
 
 1. **An API + a device-first, zero-cookie session model.** `api.oxy.so` owns
