@@ -252,6 +252,35 @@ describe('emitEmailNew', () => {
   });
 });
 
+describe('realtime room contract', () => {
+  it('emits to the room a client socket joins on connect, whichever service handled the write', async () => {
+    // The inbosh service emits through ITS `getIO()`; the Socket.IO Redis adapter
+    // (server.ts, shared Redis, default key) carries the broadcast to clients whose
+    // socket sits on the platform service. That only works if both sides name the
+    // same room, so pin the emitter to the room `socketRoomsFor` joins.
+    const { socketRoomsFor } =
+      jest.requireActual<typeof import('../../utils/socket')>('../../utils/socket');
+    const userId = await account();
+    const mailboxId = await folder(userId, '\\Inbox', 'INBOX');
+    const { to } = captureSocket();
+
+    await emitEmailNew({
+      userId,
+      id: unique(),
+      messageId: '<room@example.com>',
+      mailboxId,
+      receivedAt: new Date('2024-01-01T00:00:00.000Z'),
+      from: { name: '', address: 'alice@example.com' },
+      subject: 'Room',
+      text: 'room',
+    });
+
+    const joined = socketRoomsFor({ user: { id: userId } });
+    expect(joined).toContain(`user:${userId}`);
+    expect(to).toHaveBeenCalledWith(joined[0]);
+  });
+});
+
 describe('emitEmailChanged', () => {
   it('announces both the source and the destination of a move', async () => {
     const userId = await account();

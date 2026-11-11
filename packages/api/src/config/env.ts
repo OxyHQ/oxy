@@ -191,6 +191,12 @@ export interface RequiredEnvVars {
   INBOX_EVENT_OUTBOX_POLL_INTERVAL_MS?: string;
   INBOX_EVENT_OUTBOX_BATCH_SIZE?: string;
 
+  // Which part of the API this process serves (`platform` by default, or `inbosh`:
+  // only the email backend) and whether it runs the 60 s email maintenance. See
+  // `config/apiRole.ts`.
+  OXY_API_ROLE?: string;
+  EMAIL_MAINTENANCE_ENABLED?: string;
+
   // Server
   PORT?: string;
   NODE_ENV?: string;

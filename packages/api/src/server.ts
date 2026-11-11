@@ -194,6 +194,7 @@ import {
   stopNormalizedEventOutboxWorker,
 } from './services/normalizedAppEventOutbox.worker';
 import { startBackgroundJobs, stopBackgroundJobs } from './queue/backgroundJobs';
+import { getApiRole, isEmailMaintenanceEnabled } from './config/apiRole';
 import { startNodeIngestJobs, stopNodeIngestJobs } from './queue/nodeIngest.queue';
 import {
   startTransparencyCheckpointJobs,
@@ -271,6 +272,13 @@ app.set('trust proxy', oxyTrustProxy);
 // repository (axios encodes arrays as `key[]`) have always been parsed with
 // `qs`, so the API keeps that wire contract.
 app.set('query parser', 'extended');
+
+// Which part of the API this process serves (`config/apiRole.ts`). Everything that is
+// not the email backend is mounted on `platform`: the app itself in the default role,
+// and a detached router that never receives a request in the `inbosh` role.
+const apiRole = getApiRole();
+const platform: express.Application | express.Router =
+  apiRole === 'platform' ? app : express.Router();
 
 // Per-route request metrics (CloudWatch EMF). First, so every response is
 // measured, including those the MCP mounts and the limiters below answer.
@@ -435,11 +443,13 @@ const server = http.createServer(app);
 // A WebSocket upgrade on its own path, beside Socket.IO's: each listener handles
 // only its own path. Configured from the same Kaana binding as the `/v1` router,
 // and refusing with a typed `service_unavailable` when there is none.
-const realtimeKaanaClient = createKaanaRealtimeClient();
-attachRealtimeEdge(server, {
-  ...(configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient }),
-  ...(realtimeKaanaClient === undefined ? {} : { kaanaRealtimeClient: realtimeKaanaClient }),
-});
+if (apiRole === 'platform') {
+  const realtimeKaanaClient = createKaanaRealtimeClient();
+  attachRealtimeEdge(server, {
+    ...(configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient }),
+    ...(realtimeKaanaClient === undefined ? {} : { kaanaRealtimeClient: realtimeKaanaClient }),
+  });
+}
 
 // Setup Socket.IO with centralized CORS config
 const io = new SocketIOServer(server, {
@@ -451,9 +461,11 @@ initializeIO(io);
 // processing region, a bounded route group and a k-anonymous bucket count —
 // never an IP, user, raw path or other request-level value. The Redis adapter
 // fans buckets out across API tasks.
-const platformActivityNamespace = io.of('/platform-activity');
-initializePlatformActivity(platformActivityNamespace);
-initializePlatformInfrastructure(platformActivityNamespace, () => server.listening);
+if (apiRole === 'platform') {
+  const platformActivityNamespace = io.of('/platform-activity');
+  initializePlatformActivity(platformActivityNamespace);
+  initializePlatformInfrastructure(platformActivityNamespace, () => server.listening);
+}
 
 // Attach Redis adapter for multi-instance broadcast (if Redis available)
 const redis = getRedisClient();
@@ -834,13 +846,13 @@ app.use((req, _res, next) => {
 
 // Count completed platform requests into short anonymous buckets. Mount after
 // the /api normaliser so the exclusion set sees canonical paths.
-app.use(platformActivityMiddleware);
+platform.use(platformActivityMiddleware);
 
 // Public signing metadata is cacheable and must remain reachable by every Oxy
 // service verifier. It carries public keys only and sits outside the shared-IP
 // application limiter so a busy NAT cannot turn valid service tokens into an
 // authentication outage.
-app.get('/.well-known/jwks.json', (_request, response) => {
+platform.get('/.well-known/jwks.json', (_request, response) => {
   response.set('cache-control', 'public, max-age=300, must-revalidate');
   response.json({ keys: serviceTokenPublicJwks() });
 });
@@ -878,21 +890,21 @@ app.use((request, response, next) => {
   next();
 });
 // Apply stricter rate limiting to auth routes
-app.use(mcpOAuthDiscoveryRouter);
-app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
-app.use('/auth', authRateLimiter, authRoutes);
-app.use('/auth/agent', authRateLimiter, agentAuthRoutes);
-app.use('/_oxy/capabilities', foregroundProfilesRouter);
-app.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
-app.use('/v1/products', productAccessRoutes);
-app.use('/v1/products', productCatalogueRoutes);
-app.use('/auth', userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
-app.use('/assets', assetRoutes);
+platform.use(mcpOAuthDiscoveryRouter);
+platform.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
+platform.use('/auth', authRateLimiter, authRoutes);
+platform.use('/auth/agent', authRateLimiter, agentAuthRoutes);
+platform.use('/_oxy/capabilities', foregroundProfilesRouter);
+platform.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
+platform.use('/v1/products', productAccessRoutes);
+platform.use('/v1/products', productCatalogueRoutes);
+platform.use('/auth', userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
+platform.use('/assets', assetRoutes);
 // Public by-id resolver behind cloud.oxy.so/<id> (ADR 0047). No auth — serves
 // ONLY public CDN-backed assets via 302; 404 otherwise. Skipped by rl:general
 // and slowDown (`isCdnResolverPath`), so its own per-visitor limiter MUST stay
 // on this mount.
-app.use('/cdn', cdnResolverLimiter, cdnRoutes);
+platform.use('/cdn', cdnResolverLimiter, cdnRoutes);
 // Oxy Updates (self-hosted expo-updates). The PUBLIC manifest endpoint has NO
 // auth — devices fetch it with only expo-updates headers — so it is mounted
 // here with its own limiter. The admin router (bearer/service-token
@@ -900,11 +912,11 @@ app.use('/cdn', cdnResolverLimiter, cdnRoutes);
 // base; Express falls through to it for any path the manifest router does not
 // own. `/updates/v1` is namespaced strictly under `/updates` so it never clashes
 // with the bare `/v1` alia-compat mount below.
-app.use('/updates/v1', updatesManifestRoutes);
-app.use('/updates/v1', updatesAdminRoutes);
-app.use('/storage', userRateLimiter, storageRoutes);
-app.use('/search', searchRoutes);
-app.use('/profiles', profilesRouter);
+platform.use('/updates/v1', updatesManifestRoutes);
+platform.use('/updates/v1', updatesAdminRoutes);
+platform.use('/storage', userRateLimiter, storageRoutes);
+platform.use('/search', searchRoutes);
+platform.use('/profiles', profilesRouter);
 // Mount the user app-data KV store BEFORE the generic /users mount so the
 // `/users/me/app-data/:namespace[/:key]` paths are owned by their dedicated
 // router. Mounting after /users would still work in practice (no route inside
@@ -913,11 +925,11 @@ app.use('/profiles', profilesRouter);
 // Password and authenticator of the signed-in account (`routes/accountSecurity.ts`).
 // Its own per-account limiters; not behind `userRateLimiter`, which `/users`
 // below applies, so no request is counted twice.
-app.use('/users/me', accountSecurityRoutes);
-app.use('/users/me/app-data', userRateLimiter, userDataRouter);
-app.use('/users', userRateLimiter, usersRouter); // Per-user rate limiting for authenticated routes
-app.use('/session/device', userRateLimiter, sessionDeviceRouter);
-app.use('/session', userRateLimiter, sessionRouter);
+platform.use('/users/me', accountSecurityRoutes);
+platform.use('/users/me/app-data', userRateLimiter, userDataRouter);
+platform.use('/users', userRateLimiter, usersRouter); // Per-user rate limiting for authenticated routes
+platform.use('/session/device', userRateLimiter, sessionDeviceRouter);
+platform.use('/session', userRateLimiter, sessionRouter);
 // `authMiddleware` FIRST, not after `userRateLimiter`: `userRateLimiter`'s
 // keyGenerator/skip both read `(req as AuthRequest).user`, which privacyRoutes'
 // own internal `router.use(authMiddleware)` does not set until AFTER this
@@ -930,33 +942,33 @@ app.use('/session', userRateLimiter, sessionRouter);
 // because Mention fans every signed-in user's privacy-list read through one
 // shared backend NAT egress IP and the general 1000/15min budget has no
 // per-account attribution to fall back on once it is shared like that.
-app.use('/privacy', authMiddleware, userRateLimiter, privacyRoutes);
-app.use('/analytics', userRateLimiter, authMiddleware, analyticsRoutes);
-app.use('/payments', userRateLimiter, paymentRoutes);
-app.use('/notifications', userRateLimiter, notificationsRouter);
+platform.use('/privacy', authMiddleware, userRateLimiter, privacyRoutes);
+platform.use('/analytics', userRateLimiter, authMiddleware, analyticsRoutes);
+platform.use('/payments', userRateLimiter, paymentRoutes);
+platform.use('/notifications', userRateLimiter, notificationsRouter);
 // Mounted BEFORE `/reputation` so the more specific prefix wins: the parent
 // router applies `authMiddleware` to everything after its own public reads, and
 // the bridge's service-credential routes must not pass through it.
-app.use('/reputation/moderation', moderationReputationRoutes);
-app.use('/reputation', reputationRoutes);
-app.use('/wallet', userRateLimiter, walletRoutes);
+platform.use('/reputation/moderation', moderationReputationRoutes);
+platform.use('/reputation', reputationRoutes);
+platform.use('/wallet', userRateLimiter, walletRoutes);
 // The app store. Mounted bare because the router serves both a public
 // storefront and authenticated writes, so auth is declared per route
 // inside it — a blanket middleware here would lock the storefront or leave the
 // reviews open.
-app.use('/store', storeRoutes);
+platform.use('/store', storeRoutes);
 // Stickers: the same shape — a public catalogue and per-route guards for the
 // signed-in picker and the staff tools.
-app.use('/stickers', stickerRoutes);
-app.use('/location-search', locationSearchRoutes);
-app.use('/applications', applicationRoutes);
+platform.use('/stickers', stickerRoutes);
+platform.use('/location-search', locationSearchRoutes);
+platform.use('/applications', applicationRoutes);
 // An application has Oxy send one fixed-template invitation email for it
 // (`invitations:email`). Service tokens only, so no `userRateLimiter`: the
 // router keys its own limiter on the calling credential.
-app.use('/apps/invitations', appInvitationRoutes);
+platform.use('/apps/invitations', appInvitationRoutes);
 // An Oxy app proves which app it is (ADR 0045): the person's bearer, a platform
 // proof, an Oxy-signed `OXY-APP+JWT` back.
-app.use('/apps', userRateLimiter, appAssertionRoutes);
+platform.use('/apps', userRateLimiter, appAssertionRoutes);
 // Service-to-service only. The router gates ITSELF on a valid service token AND
 // a platform-trusted calling application (`routes/internal.ts`), so the mount
 // adds no middleware of its own — putting the gate in the router means an
@@ -968,37 +980,37 @@ app.use('/apps', userRateLimiter, appAssertionRoutes);
 // Kaana's control plane (Kaana ADR 0002): grants and settlements for
 // kaana.ai/v1. Its own gate (Kaana's workload, audience oxy-api:kaana-control),
 // mounted BEFORE `/internal`, whose gate accepts only `oxy-api` tokens.
-app.use('/internal/kaana/v1', internalKaanaRoutes);
-app.use('/internal', internalRoutes);
+platform.use('/internal/kaana/v1', internalKaanaRoutes);
+platform.use('/internal', internalRoutes);
 // Account events (OxyHQ/Mention#1169): the pull feed each relying application
 // reconciles erasures from. Service tokens only, scoped to the caller's own
 // events, limited per calling application inside the router.
-app.use('/account-events', accountEventRoutes);
+platform.use('/account-events', accountEventRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
-app.use('/accounts', agentKeysRoutes);
-app.use('/accounts', organizationIdentityKeyRoutes);
-app.use('/accounts', accountRoutes);
+platform.use('/accounts', agentKeysRoutes);
+platform.use('/accounts', organizationIdentityKeyRoutes);
+platform.use('/accounts', accountRoutes);
 // Oxy Family membership (organizer + member personal accounts). Per-route
 // rate limiters (rl:families:*) live inside the router, same as `/accounts`.
-app.use('/families', familyRoutes);
-app.use('/organizations', organizationRoutes);
-app.use('/safety', supervisionRoutes);
-app.use('/safety', safetyRoutes);
+platform.use('/families', familyRoutes);
+platform.use('/organizations', organizationRoutes);
+platform.use('/safety', supervisionRoutes);
+platform.use('/safety', safetyRoutes);
 // Content claims (ADR 0043 D10): the public "Report content / rights claim"
 // intake (`POST /`, no session needed, limited per IP and per claimant email
 // inside the router) and the staff review behind `content:claims`.
-app.use('/content-claims', contentClaimRoutes);
-app.use('/capabilities', userRateLimiter, capabilityRoutes);
-app.use('/devices', userRateLimiter, devicesRouter);
-app.use('/security', userRateLimiter, securityRoutes);
+platform.use('/content-claims', contentClaimRoutes);
+platform.use('/capabilities', userRateLimiter, capabilityRoutes);
+platform.use('/devices', userRateLimiter, devicesRouter);
+platform.use('/security', userRateLimiter, securityRoutes);
 // Linked external accounts (Mastodon-API, Bluesky) proven by OAuth. The router
 // owns its auth per route: user session for start/list/revoke, a service token
 // with `linked-accounts:read` for `/by-user/:userId`, and NONE for the OAuth
 // callback, which the spent challenge row authenticates (a top-level redirect
 // from the other network carries no Oxy bearer). Its own limiters live inside.
-app.use('/linked-accounts', userRateLimiter, linkedAccountsRoutes);
-app.use('/subscription', userRateLimiter, subscriptionRoutes);
+platform.use('/linked-accounts', userRateLimiter, linkedAccountsRoutes);
+platform.use('/subscription', userRateLimiter, subscriptionRoutes);
 app.use('/email/proxy', emailProxyRoutes); // public, no auth — must be before /email
 app.use('/email/inbound', emailInboundRoutes); // Cloudflare Email Routing webhook — must be before /email
 // Bounce/complaint ingestion from SES (SNS) and Brevo. Unauthenticated by
@@ -1013,105 +1025,105 @@ app.use('/email', userRateLimiter, emailRoutes);
 // `userRateLimiter`: its callers are application credentials, not users, and it
 // applies its own per-credential and per-application budgets (`rl:machine:*`,
 // `rl:inference:edge:`) keyed on the credential rather than on an IP.
-app.use('/v1', inferenceEdgeRoutes);
+platform.use('/v1', inferenceEdgeRoutes);
 // The SAME catalogue router that serves `/models`, so `GET /v1/models` and
 // `GET /models` can never diverge — one selectability predicate, one audience
 // rule, one code path.
-app.use('/v1/models', inferenceCatalogueRoutes);
-app.use('/credits', userRateLimiter, creditsRoutes);
+platform.use('/v1/models', inferenceCatalogueRoutes);
+platform.use('/credits', userRateLimiter, creditsRoutes);
 // Account-scoped billing (issue #972, sections 7.1/7.4/7.5). Mounted BEFORE
 // `/billing`, or Express hands `accounts` and `cost-centers` to the
 // personal-billing router as ordinary paths and every route below 404s. The
 // pre-existing `/billing` routes stay exactly as they are: they key on the
 // bearer's own subject, which is correct for a person managing their own
 // API-credit product, and these are the account-scoped INFERENCE money surface.
-app.use('/billing/accounts', accountBillingRoutes);
-app.use('/billing/cost-centers', costCenterRoutes);
-app.use('/billing/peable/events', peableEventRoutes);
-app.use('/billing', billingRoutes);
+platform.use('/billing/accounts', accountBillingRoutes);
+platform.use('/billing/cost-centers', costCenterRoutes);
+platform.use('/billing/peable/events', peableEventRoutes);
+platform.use('/billing', billingRoutes);
 // The canonical model catalogue (issue #972, ADR 0008). The mount path is
 // unchanged because Console still calls `GET /models/stats`; what it serves is
 // now real catalogue data instead of four hardcoded product tiers.
-app.use('/models', inferenceCatalogueRoutes);
+platform.use('/models', inferenceCatalogueRoutes);
 // The staff-only commercial-permission workflow. A separate mount rather than a
 // path under `/models`, because approving a route is not a catalogue read and
 // must never be reachable by widening a read route's matcher.
-app.use('/inference/admin', inferenceAdminRoutes);
+platform.use('/inference/admin', inferenceAdminRoutes);
 // The customer's own routing configuration (issue #972, workstream 6). NOT under
 // `/models`: a routing POLICY is a per-account constraint set, while the
 // catalogue's routing PROFILES are shared objects Oxy publishes — ADR 0008 keeps
 // the two apart, and one mount serving both would be the first place they blur.
-app.use('/inference/routing-policies', inferenceRoutingPolicyRoutes);
+platform.use('/inference/routing-policies', inferenceRoutingPolicyRoutes);
 // BYOK provider connections (issue #972, workstream 10). Its own mount for the
 // same reason the routing policies have one: a customer's own upstream
 // credential is not a catalogue object, and Oxy holds only a REFERENCE to it —
 // never the credential, in any table, response or log.
-app.use('/inference/provider-connections', inferenceProviderConnectionRoutes);
+platform.use('/inference/provider-connections', inferenceProviderConnectionRoutes);
 // The customer's own usage, spend, balance and budgets (issue #972, workstream
 // 8). Its own mount, and NOT under `/billing`: that surface is the Stripe and
 // credits lane, while this one reads the exact inference ledger and the usage
 // rollups. One mount serving both would be the first place "what Stripe
 // charged" and "what the ledger recorded" blur, which is the distinction the
 // whole workstream exists to keep.
-app.use('/inference/reporting', inferenceReportingRoutes);
-app.use('/platform-stats', platformStatsRoutes);
-app.get('/platform-infrastructure', async (_req, res) => {
+platform.use('/inference/reporting', inferenceReportingRoutes);
+platform.use('/platform-stats', platformStatsRoutes);
+platform.get('/platform-infrastructure', async (_req, res) => {
   try {
     res.set('Cache-Control', 'no-store').json(await refreshInfrastructure());
   } catch {
     res.status(503).json({ error: 'Infrastructure snapshot unavailable' });
   }
 });
-app.use('/topics', topicsRoutes);
+platform.use('/topics', topicsRoutes);
 // The follow graph. `/v2` because these are new operations rather than a new
 // spelling of the legacy toggle — the two coexist while applications migrate.
-app.use('/v2/follows', userRateLimiter, followsV2Routes);
-app.use('/v2/me', userRateLimiter, meFollowsRouter);
+platform.use('/v2/follows', userRateLimiter, followsV2Routes);
+platform.use('/v2/me', userRateLimiter, meFollowsRouter);
 // The registry an application talks to: namespaces, kinds, targets. Separate
 // from `/v2/follows` because it is authorized on the application's ownership of
 // a namespace rather than on the user's own graph.
-app.use('/v2/follow-targets', userRateLimiter, followRegistryV2Routes);
-app.use('/contacts', userRateLimiter, contactsRouter);
-app.use('/addresses', userRateLimiter, postalAddressesRouter);
-app.use('/console/onboarding', userRateLimiter, consoleOnboardingRouter);
+platform.use('/v2/follow-targets', userRateLimiter, followRegistryV2Routes);
+platform.use('/contacts', userRateLimiter, contactsRouter);
+platform.use('/addresses', userRateLimiter, postalAddressesRouter);
+platform.use('/console/onboarding', userRateLimiter, consoleOnboardingRouter);
 // Service-token-only cross-app signal ingest (endorsements + interests).
-app.use('/app-signals', appSignalsRouter);
-app.use('/application-accounts', applicationAccountsRouter);
+platform.use('/app-signals', appSignalsRouter);
+platform.use('/application-accounts', applicationAccountsRouter);
 // Encrypted off-device identity backup (b3 Feature 1). Mixed private (bearer
 // upsert/status/delete) + public (restore-by-locator) routes; each gates its own
 // auth. Mounted
 // BEFORE `/identity` so the more specific `/identity/backup` prefix wins.
-app.use('/identity/backup', identityBackupRoutes);
+platform.use('/identity/backup', identityBackupRoutes);
 // The Oxy Keychain (ADR 0063): an end-to-end encrypted vault per personal
 // account; Oxy keeps ciphertext, public keys and signatures only. Bearer only,
 // the account's own device sessions or the platform's `host.self` token; each
 // route checks the signed roster's rules on every write.
-app.use('/keychain', keychainRoutes);
+platform.use('/keychain', keychainRoutes);
 // Linking Commons to an account without a key from two devices (ADR 0030): a
 // relay for the root proof Commons signs, confirmed by an email code. Before
 // `/identity`.
-app.use('/identity/link', identityLinkRoutes);
+platform.use('/identity/link', identityLinkRoutes);
 // One-use challenges for root proofs (ADR 0024 D7), root readiness metadata and
 // a personal account's key history. Bearer only; a challenge authorizes nothing
 // until a root signs it, and neither read carries ciphertext. Three exact paths,
 // before `/identity`.
-app.use('/identity', identityProofRoutes);
+platform.use('/identity', identityProofRoutes);
 // Self-sovereign identity layer: signed records + verified-domain badges.
 // Mixed public/private routes (each gates its own auth); writes are
 // Bearer-authenticated.
-app.use('/identity', identityRoutes);
+platform.use('/identity', identityRoutes);
 // Civic / Commons layer: public signed DNI card (more routes in Fase 2/3).
 // Public read (each route gates its own auth).
 // App-authored chain writes: a SERVICE credential appending to a person's chain
 // on behalf of an Oxy app. Service-token authenticated. Deliberately NOT under
 // /identity — that router binds a record's subject to the authenticated user,
 // which is the opposite of what this does.
-app.use('/chains', chainsRoutes);
-app.use('/civic', civicRoutes);
+platform.use('/chains', chainsRoutes);
+platform.use('/civic', civicRoutes);
 // User nodes (F5a decentralization): the caller's node status + revoke. Bearer-
 // authenticated (each route gates its own auth). Node registration itself
 // flows through POST /identity/records.
-app.use('/nodes', nodeRoutes);
+platform.use('/nodes', nodeRoutes);
 
 // ActivityPub endpoints — serves actor profiles and public keys for federation.
 import {
@@ -1179,7 +1191,7 @@ async function findFederatableUserByUsername(username: string) {
 }
 
 // Instance actor
-app.get('/ap/actor', async (_req: any, res: Response) => {
+platform.get('/ap/actor', async (_req: any, res: Response) => {
   try {
     const actor = await getInstanceActor();
     res.setHeader('Content-Type', 'application/activity+json');
@@ -1191,7 +1203,7 @@ app.get('/ap/actor', async (_req: any, res: Response) => {
 });
 
 // Per-user actor profiles
-app.get('/ap/users/:username', async (req: any, res: Response) => {
+platform.get('/ap/users/:username', async (req: any, res: Response) => {
   try {
     const { username } = req.params;
 
@@ -1241,7 +1253,7 @@ app.get('/ap/users/:username', async (req: any, res: Response) => {
 });
 
 // NodeInfo — required by some servers (e.g. Threads) to validate federation
-app.get('/.well-known/nodeinfo', (_req: any, res: Response) => {
+platform.get('/.well-known/nodeinfo', (_req: any, res: Response) => {
   res.json({
     links: [
       {
@@ -1252,7 +1264,7 @@ app.get('/.well-known/nodeinfo', (_req: any, res: Response) => {
   });
 });
 
-app.get('/nodeinfo/2.0', async (_req: any, res: Response) => {
+platform.get('/nodeinfo/2.0', async (_req: any, res: Response) => {
   try {
     const [{ value: total }] = await getDb()
       .select({ value: count() })
@@ -1272,7 +1284,7 @@ app.get('/nodeinfo/2.0', async (_req: any, res: Response) => {
 });
 
 // WebFinger endpoint
-app.get(
+platform.get(
   '/.well-known/webfinger',
   createWebfingerHandler({
     domain: AP_DOMAIN,
@@ -1299,22 +1311,22 @@ app.get(
 // — which a backfill would exhaust in seconds → 429 → silent federation outage —
 // and capped instead by this dedicated high-ceiling limiter. Mounted before the
 // router so it also bounds unauthenticated floods.
-app.use('/federation', federationServiceLimiter, federationRoutes);
+platform.use('/federation', federationServiceLimiter, federationRoutes);
 
 // Self-sovereign DID documents (did:web). Public, cacheable, CORS-open, no
 // auth — served at the API root beside the WebFinger/ActivityPub handlers
 // (the apex proxy must forward `/u/*/did.json` + `/.well-known/did.json`).
-app.use('/', didRoutes);
+platform.use('/', didRoutes);
 
 // Transparency log — signed checkpoints over every subject's chain head, plus
 // the inclusion proofs that let anyone audit their own history WITHOUT trusting
 // this server. Public, cacheable, CORS-open, no auth (an audit trail nobody
 // can read is not an audit trail); own rate-limit prefix inside the router.
-app.use('/transparency', transparencyRoutes);
+platform.use('/transparency', transparencyRoutes);
 
 // Swagger API documentation (non-production only)
 if (process.env.NODE_ENV !== 'production') {
-  app.use(
+  platform.use(
     '/docs',
     swaggerUi.serve,
     swaggerUi.setup(swaggerSpec, {
@@ -1322,7 +1334,7 @@ if (process.env.NODE_ENV !== 'production') {
     }),
   );
   // Serve raw OpenAPI spec as JSON
-  app.get('/docs.json', (_req, res) => {
+  platform.get('/docs.json', (_req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
   });
@@ -1373,6 +1385,10 @@ export async function bootstrap(
   // the server. This prevents queries from executing before the database is
   // ready.
   await waitForDatabaseConnection(startupTimeoutMs);
+  if (apiRole === 'inbosh') {
+    await bootstrapInbosh();
+    return;
+  }
   // Never fails the boot: purchases stay unavailable and it retries (see there).
   await startPeablePersonalRuntime();
 
@@ -1612,15 +1628,7 @@ export async function bootstrap(
   // nothing.
   startCloudflareWebActivityPoller();
 
-  // Outbound relay readiness. Say it at boot: without a relay every send is
-  // refused, and the failure is otherwise only discoverable by a user trying to
-  // send a message and being told it was queued.
-  if (!isOutboundRelayConfigured()) {
-    logger.error(
-      'Outbound email is DISABLED: SMTP_RELAY_HOST is unset. Every send will be refused with 503. ' +
-        'Configure SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS.',
-    );
-  }
+  warnIfOutboundRelayUnconfigured();
 
   // Start SMTP inbound server if enabled
   if (getEnvBoolean('SMTP_ENABLED', false)) {
@@ -1664,8 +1672,14 @@ export async function bootstrap(
   // schedule, never by a person choosing whose standing to touch.
 
   // Start background jobs: durable BullMQ scheduling when REDIS_URL is set,
-  // otherwise the in-process cron fallback. Never throws.
-  await startBackgroundJobs();
+  // otherwise the in-process cron fallback. Never throws. This is the email
+  // maintenance (snooze, reminders, scheduled send, outbox): it runs here unless
+  // `EMAIL_MAINTENANCE_ENABLED=false` hands it to the inbosh service.
+  if (isEmailMaintenanceEnabled('platform')) {
+    await startBackgroundJobs();
+  } else {
+    logger.info('Email maintenance disabled on this service (EMAIL_MAINTENANCE_ENABLED=false)');
+  }
 
   // Start the F5b node-ingest subsystem (node → Oxy two-way sync): a
   // fleet-wide pull sweep + on-demand per-user ingests, BullMQ when REDIS_URL
@@ -1701,7 +1715,25 @@ export async function bootstrap(
   // mirror is a permanent default avatar. Never throws.
   await startFederatedAvatarRetryJobs();
 
-  await new Promise<void>((resolve) => {
+  await listen();
+}
+
+/**
+ * Outbound relay readiness. Say it at boot: without a relay every send is
+ * refused, and the failure is otherwise only discoverable by a user trying to
+ * send a message and being told it was queued.
+ */
+function warnIfOutboundRelayUnconfigured(): void {
+  if (!isOutboundRelayConfigured()) {
+    logger.error(
+      'Outbound email is DISABLED: SMTP_RELAY_HOST is unset. Every send will be refused with 503. ' +
+        'Configure SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS.',
+    );
+  }
+}
+
+function listen(): Promise<void> {
+  return new Promise<void>((resolve) => {
     server.listen(PORT, '0.0.0.0', () => {
       logger.info(`Server running on port ${PORT}`, {
         database: 'connected',
@@ -1709,6 +1741,35 @@ export async function bootstrap(
       resolve();
     });
   });
+}
+
+/**
+ * The `inbosh` role's boot (`config/apiRole.ts`): the email backend only, after the
+ * same database gate. It reads the origin registry (CORS and the socket need it) but
+ * writes nothing the platform owns, starts none of the platform's schedules and
+ * workers, and runs the email maintenance only when `EMAIL_MAINTENANCE_ENABLED=true`
+ * says this is the service that owns it. The Inbox event outbox worker keeps its own
+ * gate, `INBOX_EVENT_OUTBOX_WORKER_ENABLED`, and stays off unless set.
+ */
+async function bootstrapInbosh(): Promise<void> {
+  await refreshOriginRegistry({ required: true });
+  warnIfOutboundRelayUnconfigured();
+  // Realtime: a write handled here emits through THIS process's Socket.IO, and the
+  // clients are connected to the platform service. Only the shared Redis adapter
+  // (above, same REDIS_URL as the platform service) carries that broadcast across;
+  // without it the events reach nobody.
+  if (!redis) {
+    logger.error(
+      'inbosh role without REDIS_URL: email realtime events will not reach clients connected to the platform service',
+    );
+  }
+  if (isEmailMaintenanceEnabled('inbosh')) {
+    await startBackgroundJobs();
+  } else {
+    logger.info('Email maintenance disabled on this service (inbosh role default)');
+  }
+  startNormalizedEventOutboxWorker();
+  await listen();
 }
 
 // Only boot if this module is run directly.
