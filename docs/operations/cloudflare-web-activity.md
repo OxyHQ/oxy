@@ -89,6 +89,7 @@ Zone resources: **Include** these specific zones:
 - `allo.you`
 - `clarity.surf`
 - `homiio.com`
+- `inbo.sh`
 - `mercaria.co`
 - `moovo.now`
 - `nilo.so`

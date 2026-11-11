@@ -57,6 +57,7 @@ export const CLOUDFLARE_WEB_HOSTS: readonly CloudflareWebHost[] = Object.freeze(
   { host: 'homiio.com', zone: 'homiio.com', service: 'homiio' },
   // OxyHQ/Inbox — Worker oxy-inbox.
   { host: 'inbox.oxy.so', zone: 'oxy.so', service: 'inbox' },
+  { host: 'inbo.sh', zone: 'inbo.sh', service: 'inbox' },
   // OxyHQ/Mercaria — Workers mercaria, mercaria-dashboard, mercaria-pos.
   { host: 'mercaria.co', zone: 'mercaria.co', service: 'mercaria' },
   { host: 'dashboard.mercaria.co', zone: 'mercaria.co', service: 'mercaria' },
