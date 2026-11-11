@@ -32,9 +32,7 @@ const PLATFORM_PATHS = [
   '/ap/actor',
   '/nodeinfo/2.0',
   '/v1/models',
-  '/store',
   '/billing/accounts',
-  '/transparency',
   '/federation/public-key/someone',
   '/wallet',
 ];

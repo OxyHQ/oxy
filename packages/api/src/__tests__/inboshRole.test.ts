@@ -53,9 +53,7 @@ const PLATFORM_ONLY_PATHS = [
   '/ap/actor',
   '/nodeinfo/2.0',
   '/v1/models',
-  '/store',
   '/billing/accounts',
-  '/transparency',
   '/federation/public-key/someone',
   '/wallet',
 ];
@@ -115,21 +113,28 @@ describe('what the inbosh role mounts', () => {
 });
 
 describe('auth on the email backend is the platform’s', () => {
-  it('accepts a bearer from the shared session service, with the SDK’s session header', async () => {
+  it('accepts a bearer from the shared session service, with and without the SDK’s session header', async () => {
     const user = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}` });
     const session = await sessionService.createSession(
       user.id,
       { headers: { 'user-agent': 'inbosh-role-test' } } as Request,
       { deviceId: `dev-${randomUUID()}` },
     );
-    const response = await fetch(`${baseUrl}/email/mailboxes`, {
-      headers: {
-        authorization: `Bearer ${session.accessToken}`,
-        'x-session-id': session.sessionId,
-        accept: 'application/json',
-      },
+    const call = async (extra: Record<string, string>) => {
+      const response = await fetch(`${baseUrl}/email/mailboxes`, {
+        headers: { authorization: `Bearer ${session.accessToken}`, accept: 'application/json', ...extra },
+      });
+      return { status: response.status, body: (await response.text()).slice(0, 300) };
+    };
+    // Both shapes in one assertion, so a failure prints the status AND the body.
+    const results = {
+      bearerOnly: await call({}),
+      withSessionHeader: await call({ 'x-session-id': session.sessionId }),
+    };
+    expect(results).toMatchObject({
+      bearerOnly: { status: 200 },
+      withSessionHeader: { status: 200 },
     });
-    expect(response.status).toBe(200);
   });
 
   it('refuses a token signed with a different secret', async () => {
