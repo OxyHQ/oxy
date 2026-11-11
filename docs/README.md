@@ -129,6 +129,7 @@ topics and remain authoritative for their areas:
 
 - [npm-releases.md](npm-releases.md) — shipping a package: bump, merge, trusted publisher, a brand-new package
 - [postgres-and-drizzle.md](postgres-and-drizzle.md) — the entity-id shapes and `isLiveEntityId`, migration locks, timeouts, Drizzle binding traps
+- [android-signing-and-app-scaffolding.md](android-signing-and-app-scaffolding.md) — the one ecosystem Android release key and its fail-closed check, Android device discovery from WSL, `create-oxy-app`, and two `@oxy.so/core` publishing lessons
 - [mongo-to-postgres-ports.md](mongo-to-postgres-ports.md) — the checklist for porting a domain off MongoDB
 
 ---
