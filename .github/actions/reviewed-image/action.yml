@@ -7,7 +7,7 @@ description: >-
 
 inputs:
   phase:
-    description: '`check` (every recipe matches its pin and is guarded) or `guard` (refuse a recipe whose inputs differ from the pin and hand the build its inputs).'
+    description: '`check` (every recipe matches its pin and is guarded), `guard` (refuse a recipe whose inputs differ from the pin and hand the build its inputs) or `bump` (move the digest-pinned base images, re-pin, write $RUNNER_TEMP/body.md and set `moved`).'
     required: true
   recipe:
     description: 'The recipe to guard (phase guard only), as named in reviewed-images.json.'
@@ -15,6 +15,9 @@ inputs:
     default: ''
 
 outputs:
+  moved:
+    description: 'true when `bump` changed a file (bump).'
+    value: ${{ steps.run.outputs.moved }}
   dockerfile:
     description: The recipe's Dockerfile (guard).
     value: ${{ steps.run.outputs.dockerfile }}
@@ -44,6 +47,19 @@ runs:
         RECIPE: ${{ inputs.recipe }}
       run: |
         set -euo pipefail
-        args=("$PHASE")
-        if [ -n "$RECIPE" ]; then args+=(--recipe "$RECIPE"); fi
-        python3 -B "$GITHUB_ACTION_PATH/reviewed-image.py" "${args[@]}"
+        case "$PHASE" in
+          bump)
+            python3 -B "$GITHUB_ACTION_PATH/bump-base-digests.py" bump --summary "$RUNNER_TEMP/body.md" | tee "$RUNNER_TEMP/bump.json"
+            if git diff --quiet; then
+              echo "moved=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "moved=true" >> "$GITHUB_OUTPUT"
+              python3 -B "$GITHUB_ACTION_PATH/reviewed-image.py" check
+            fi
+            ;;
+          *)
+            args=("$PHASE")
+            if [ -n "$RECIPE" ]; then args+=(--recipe "$RECIPE"); fi
+            python3 -B "$GITHUB_ACTION_PATH/reviewed-image.py" "${args[@]}"
+            ;;
+        esac
