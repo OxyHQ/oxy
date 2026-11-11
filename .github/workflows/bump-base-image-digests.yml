@@ -1,0 +1,69 @@
+name: Bump base image digests (app)
+
+# THE scheduled base-image digest bump of an app repository, called by its own
+# `.github/workflows/bump-base-digests.yml` (the caller keeps the schedule, its
+# own slot, and the concurrency group).
+#
+# Every production Dockerfile pins its bases by digest, which also freezes the
+# base OS: a patched base reaches production only when someone moves the digest.
+# This does that weekly. It resolves each pinned tag on its registry, rewrites
+# only the digests that moved, re-pins the reviewed image (`phase: bump` of
+# `.github/actions/reviewed-image`) and opens or updates ONE pull request. It
+# never merges: the PR carries the owner sign-off banner, `check` holds the pin
+# to the files, and the deploy's `guard` refuses anything not pinned.
+#
+# A PR opened with GITHUB_TOKEN does not trigger `pull_request` workflows, so
+# the job dispatches CI on the branch itself (`gh workflow run`). Those runs
+# report their checks on the PR's head commit. The caller grants
+# `contents: write`, `pull-requests: write` and `actions: write` on its calling
+# job.
+
+on:
+  workflow_call:
+    inputs:
+      ci_workflow:
+        description: The caller's CI workflow file to dispatch on the bump branch.
+        type: string
+        default: ci.yml
+
+permissions: {}
+
+jobs:
+  bump:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      BRANCH: chore/base-image-digests
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Survey and bump the pinned bases
+        id: bump
+        uses: OxyHQ/oxy/.github/actions/reviewed-image@main
+        with:
+          phase: bump
+
+      - name: Open or update the pull request
+        if: steps.bump.outputs.moved == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_WORKFLOW: ${{ inputs.ci_workflow }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$BRANCH"
+          git commit -qam 'chore(image): bump base image digests and re-pin'
+          git push --force origin "$BRANCH"
+          title='chore(image): bump base image digests (owner review)'
+          if [ "$(gh pr list --head "$BRANCH" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --base main --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr edit "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi
+          gh workflow run "$CI_WORKFLOW" --ref "$BRANCH"

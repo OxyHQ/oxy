@@ -152,6 +152,10 @@ def guarded_recipes(text):
         if re.search(r'^\s*phase:\s*[\'"]?guard[\'"]?\s*$', body, re.M):
             for recipe in re.findall(r'^\s*recipe:\s*[\'"]?([a-z0-9-]+)[\'"]?\s*$', body, re.M):
                 found.add(recipe)
+            # `recipe: ${{ matrix.<key> }}` guards every value that key takes in
+            # this workflow's matrix entries (`- <key>: <value>`).
+            for key in re.findall(r'^\s*recipe:\s*\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}\}\s*$', body, re.M):
+                found.update(re.findall(r'^\s*(?:-\s+)?' + re.escape(key) + r':\s*[\'"]?([a-z0-9-]+)[\'"]?\s*$', text, re.M))
     return found
 
 
