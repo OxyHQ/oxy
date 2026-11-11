@@ -124,7 +124,11 @@ describe('auth on the email backend is the platform’s', () => {
     );
     const call = async (extra: Record<string, string>) => {
       const response = await fetch(`${baseUrl}/email/mailboxes`, {
-        headers: { authorization: `Bearer ${session.accessToken}`, accept: 'application/json', ...extra },
+        headers: {
+          authorization: `Bearer ${session.accessToken}`,
+          accept: 'application/json',
+          ...extra,
+        },
       });
       return { status: response.status, body: (await response.text()).slice(0, 300) };
     };
