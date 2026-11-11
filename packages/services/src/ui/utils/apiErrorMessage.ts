@@ -7,7 +7,13 @@
  */
 
 import { EMAIL_VERIFICATION_ERROR_CODES, SIGN_IN_ERROR_CODES } from '@oxy.so/contracts/client';
-import { ErrorCodes, getErrorStatus, isRateLimitError, isServerError } from '@oxy.so/core';
+import {
+  ErrorCodes,
+  getErrorStatus,
+  isRateLimitError,
+  isServerError,
+  retryAfterSecondsOf,
+} from '@oxy.so/core';
 import type { Translate } from '../hooks/useI18n';
 
 /** How long a screen waits after a 429 that names no wait of its own. */
@@ -32,9 +38,8 @@ export const OFFLINE_ERROR_CODES: ReadonlySet<string> = new Set([
 
 /** How long to wait after a 429, from the API's `retryAfterSeconds` when it sent one. */
 export function retryAfterSeconds(error: unknown): number {
-  const seconds = (error as { details?: { retryAfterSeconds?: unknown } } | undefined)?.details
-    ?.retryAfterSeconds;
-  return typeof seconds === 'number' && seconds > 0 ? Math.ceil(seconds) : RATE_LIMIT_SECONDS;
+  const seconds = retryAfterSecondsOf(error);
+  return seconds === undefined ? RATE_LIMIT_SECONDS : Math.ceil(seconds);
 }
 
 /**
