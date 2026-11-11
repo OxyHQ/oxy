@@ -1,5 +1,15 @@
 # Changelog
 
+## 14.19.1
+
+### Fixed
+
+- **A query waits out a 429's `Retry-After` instead of retrying blindly.** `createQueryClient`'s retry delay is the wait the refusal named (`retryAfterSecondsOf`, the `retryAfterSeconds` of its body) rather than a 1 s / 2 s backoff that Oxy would refuse again, spending the retry budget inside the same window. A refusal that asks for more than 30 s is not held silently: the query fails at once and the screen shows it (`shouldRetryQuery`). Without a named wait the backoff is unchanged. `retryAfterSeconds` of the sign-in messages reads the same helper, so the wait it shows and the wait a query holds are one.
+
+### Consumers
+
+Needs `@oxy.so/core` 7.47.0.
+
 ## 14.19.0
 
 ### Changed
