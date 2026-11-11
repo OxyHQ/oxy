@@ -10,7 +10,7 @@ inputs:
     description: '`check` (every recipe matches its pin and is guarded) or `guard` (refuse a recipe whose inputs differ from the pin and hand the build its inputs).'
     required: true
   recipe:
-    description: The recipe to guard (`phase: guard` only), as named in reviewed-images.json.
+    description: 'The recipe to guard (phase guard only), as named in reviewed-images.json.'
     required: false
     default: ''
 
