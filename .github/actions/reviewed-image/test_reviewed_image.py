@@ -154,6 +154,16 @@ class OneSourceOfTruth(Fixture):
                    '        uses: ' + ACTION + '\n        with:\n          recipe: api\n          phase: guard\n')
         self.assertEqual(self.run_check(), 0)
 
+    def test_a_matrix_recipe_guards_every_value_in_the_matrix(self):
+        self.write('.github/workflows/deploy.yml', 'jobs:\n  deploy:\n    strategy:\n      matrix:\n        include:\n          - app: api\n          - app: other\n'
+                   '    steps:\n      - id: reviewed\n        uses: ' + ACTION + '\n        with:\n          phase: guard\n          recipe: ${{ matrix.app }}\n')
+        self.assertEqual(self.run_check(), 0)
+
+    def test_a_matrix_recipe_does_not_guard_a_value_the_matrix_lacks(self):
+        self.write('.github/workflows/deploy.yml', 'jobs:\n  deploy:\n    strategy:\n      matrix:\n        include:\n          - app: other\n'
+                   '    steps:\n      - id: reviewed\n        uses: ' + ACTION + '\n        with:\n          phase: guard\n          recipe: ${{ matrix.app }}\n')
+        self.assertEqual(self.run_check(), 1)
+
     def test_unknown_field_is_refused(self):
         self.set_recipe(dockerfileSha256='0' * 64)
         self.assertEqual(self.run_check(), 1)
