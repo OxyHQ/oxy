@@ -657,3 +657,45 @@ OxyHQServices/
 └── packages/api/scripts/
     └── generate-dkim.js              # DKIM key generation utility (self-hosted)
 ```
+
+## The `inbosh` role (api.inbo.sh)
+
+The same `oxy-api` image can serve only the email backend, as a second ECS service
+(`inbosh-api`) at `https://api.inbo.sh`, against the same Postgres and Redis. It is
+selected at startup by `OXY_API_ROLE` (`packages/api/src/config/apiRole.ts`); nothing
+changes for a service that does not set it.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OXY_API_ROLE` | unset = `platform` | `platform`: today's API, every route and job. `inbosh`: the email backend only. Any other value stops the boot. |
+| `EMAIL_MAINTENANCE_ENABLED` | `true` on `platform`, `false` on `inbosh` | Whether this service runs the 60 s email maintenance (snooze, reminders, scheduled send, `processEmailOutbox`). |
+| `INBOX_EVENT_OUTBOX_WORKER_ENABLED` | off | Whether this service delivers the durable Inbox events. Unchanged: set it on one service only. |
+
+**Mounted in the `inbosh` role:** `GET /health` and `/`, `/metrics` (staff only),
+`/email/*` (`/email/ai`, `/email/proxy`, `/email/inbound`, `/email/feedback`, and the
+authenticated email API) and the Inbox MCP host. Everything else answers the global
+404. The global middleware is the same as the platform's: security headers, CORS from
+the Application registry, rate limits, and the `Authorization` bearer verified with the
+same `ACCESS_TOKEN_SECRET` and session lookup, so a client built with
+`createLinkedClient({ baseURL: 'https://api.inbo.sh' })` works unchanged.
+
+**Jobs run in one place.** The email maintenance and the event outbox must not run in
+both services, or scheduled sends and pushes are duplicated. Adding the role moves
+nothing: the `platform` service keeps both. To move them, set
+`EMAIL_MAINTENANCE_ENABLED=false` on `platform` and `true` on `inbosh` in the same
+deploy (and likewise the outbox flag). The `inbosh` role starts none of the platform's
+own schedules and workers, repairs nothing in the Application registry (it only reads
+it) and attaches neither the inference realtime edge nor the platform-activity stream.
+
+**Realtime.** An email write emits through the `getIO()` of the process that handled it,
+to the default namespace and the room `user:<id>` (the room `socketRoomsFor` makes a
+client's socket join on connect). Clients keep their socket on the platform service, so
+the broadcast reaches them only through the Socket.IO Redis adapter, which `server.ts`
+attaches in both roles to the same `REDIS_URL` with the default key. The `inbosh`
+service must therefore be given the SAME `REDIS_URL` as `platform`; it logs an error at
+boot without one. Check on a deploy: connect a client socket to `api.oxy.so`, write on
+`api.inbo.sh`, and see `email:new` arrive.
+
+**Not part of this change:** the ECS service, the load-balancer rule, the certificate
+and the DNS for `api.inbo.sh` (`oxy-infra`), and moving the inbound Worker's
+`API_URL`.
