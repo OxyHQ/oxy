@@ -57,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-28.2';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-11-12.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -411,7 +411,10 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       // Keep 4KiB below the reviewed 128Ki context; each route still qualifies
       // against its own context, output and quote.
       maxControlledInputBudget: 126_976,
-      maxOutputTokens: 2048,
+      // Reasoning and answer tokens share this bound. Alia's structured room
+      // planner exhausted the former 2,048 ceiling before producing any JSON.
+      // The per-request quote, route, daily and concurrency guards still apply.
+      maxOutputTokens: 8_192,
       maxPricePerRequestUsd: '0.05',
       deployments: [
         ...['cerebras', 'groq', 'openrouter'].map((provider) => ({
@@ -435,8 +438,9 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       // (today Kaana's direct Anthropic key). A standard-paid route of the same
       // model (OpenRouter's Claude) is never admitted, and spent, stale or
       // unknown evidence removes the route, leaving the XHigh routes above.
-      // USD 1.00 admits Opus 4.x/5 at the full 126,976-unit input plus 2048
-      // output ($0.686); the grant, not this ceiling, bounds the month.
+      // At the documented reference tariff, 126,976 input plus 8,192 output
+      // quotes $0.83968, below USD 1.00; actual admission uses current quotes.
+      // The grant, not this ceiling, bounds the month.
       promotionalCredit: {
         levels: ['pro', 'ultra'],
         fallbackLevel: 'xhigh',

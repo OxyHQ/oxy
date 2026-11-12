@@ -10,6 +10,8 @@
   ceiling. Builds on ADR 0036 decision 4 (funding class from Kaana's credential
   economics).
 
+The proposed [2026-11-12 output allowance](../inference/internal-metering.md#reasoning-output-allowance-proposed-2026-11-12) revises the shared 2,048-token ceiling to 8,192; all funding and quote constraints below remain in force. The numeric examples below record this ADR's original bounds.
+
 ## Context
 
 Alia's production traffic runs under the pilot. It admits four exact tuples

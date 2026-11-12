@@ -254,7 +254,7 @@ describe('speech terms (approved 2026-10-15)', () => {
     expect(microUsd).toBeLessThanOrEqual(Number(pilot.speech?.maxPricePerRequestUsd) * 1_000_000);
   });
 
-  it('binds speech to its own terms and every other operation to the unchanged text terms', () => {
+  it('binds speech to its own terms and other operations to the text reasoning allowance', () => {
     expect(pilotTermsFor(pilot, { kind: 'speech', characters: 1 })).toEqual({
       maxInput: 15_000,
       maxOutputTokens: undefined,
@@ -263,7 +263,7 @@ describe('speech terms (approved 2026-10-15)', () => {
     });
     expect(pilotTermsFor(pilot, COMPLETION)).toEqual({
       maxInput: pilot.maxControlledInputBudget,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 8192,
       maxPricePerRequestUsd: '0.05',
       deployments: pilot.deployments,
     });

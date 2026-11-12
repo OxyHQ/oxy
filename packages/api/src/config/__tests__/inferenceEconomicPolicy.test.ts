@@ -106,6 +106,20 @@ describe('alia-kaana grant terms for voice (Alia ADR 0017, Kaana ADR 0002)', () 
     (candidate) => candidate.relationshipId === 'alia-kaana',
   );
 
+  it('bounds reasoning and answer output without widening traffic or quote ceilings', () => {
+    expect(relationship?.capacity).toEqual({
+      maxConcurrentRequests: 32,
+      maxRequestsPerUtcDay: 5_000,
+    });
+    expect(relationship?.pilot).toMatchObject({
+      maxControlledInputBudget: 126_976,
+      maxOutputTokens: 8192,
+      maxPricePerRequestUsd: '0.05',
+      imageInput: { maxImages: 16, maxPricePerRequestUsd: '0.15' },
+      promotionalCredit: { maxPricePerRequestUsd: '1.00', levels: ['pro', 'ultra'] },
+    });
+  });
+
   it('admits realtime conversation and transcription sessions under a per-minute price ceiling, and nothing else', () => {
     expect(relationship?.pilot?.realtime).toEqual({
       sessionKinds: ['conversation', 'transcription'],
@@ -113,8 +127,8 @@ describe('alia-kaana grant terms for voice (Alia ADR 0017, Kaana ADR 0002)', () 
     });
   });
 
-  it('stamps the version that introduced transcription sessions', () => {
-    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-28.2');
+  it('stamps the current reviewed economic policy version', () => {
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-11-12.1');
   });
 
   it('admits transcriptions of at most Alia’s 5-minute clip under a per-request ceiling', () => {

@@ -49,7 +49,11 @@ import {
   usageReservations,
   users,
 } from '../../db/schema';
-import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
+import {
+  provisionBillingProfile,
+  quoteUnits,
+  recordTopUp,
+} from '../../services/inferenceLedger.service';
 import { reconcileMeteredReceipts } from '../../services/inferenceMeteredUsage.service';
 import type { KaanaClient, KaanaCompletion } from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
@@ -1584,6 +1588,57 @@ describe('approved production pilot admission', () => {
     });
   });
 
+  it('quotes the larger reasoning allowance below the unchanged ceiling using the reviewed High fixture', async () => {
+    const [deployment] = await getDb()
+      .select({ priceVersionId: inferenceDeployments.priceVersionId })
+      .from(inferenceDeployments)
+      .where(eq(inferenceDeployments.internalRouteId, approvedHigh.deployment_id));
+    if (deployment.priceVersionId === null) throw new Error('High fixture lacks price');
+    const quote = await quoteUnits(deployment.priceVersionId, {
+      requests: 1,
+      input_tokens: 126_976,
+      output_tokens: 512,
+      reasoning_tokens: 7_680,
+    });
+    // This is deterministic fixture evidence, not a claim about current live tariffs.
+    expect(quote).toEqual({ status: 'quoted', amount: '0.012415795200', currency: 'USD' });
+    expect(approvedHigh.max_context_tokens).toBeGreaterThanOrEqual(126_976 + 8192);
+    expect(approvedHigh.max_output_tokens).toBeGreaterThanOrEqual(8192);
+  });
+
+  it('carries an Auto structured planner allowance intact to the signed High route', async () => {
+    const response = await withInternalDefault(approvedCaller, () =>
+      post(
+        {
+          routingProfile: 'auto',
+          input: 'Choose the next useful contribution to this campaign discussion.',
+          maxOutputTokens: 8192,
+          responseFormat: {
+            type: 'json_schema',
+            name: 'room_decision',
+            strict: false,
+            schema: {
+              type: 'object',
+              properties: { choice: { type: 'string', enum: ['idle', 'person-request:member'] } },
+              required: ['choice'],
+            },
+          },
+        },
+        bearer(serviceToken(approvedCaller)),
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(pilotEnvelopes[0].maxOutputTokens).toBe(8192);
+    expect(pilotEnvelopes[0].authorizedRoutes.map((route) => route.deploymentId)).toEqual([
+      approvedHigh.deployment_id,
+    ]);
+    expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({
+      reservations: [],
+      receipts: [],
+      balances: [],
+    });
+  });
+
   it.each([
     'pending permission',
     'unreviewed legal',
@@ -1781,7 +1836,7 @@ describe('approved production pilot admission', () => {
             ),
           );
         const response = await post(
-          { model: approvedCaller.modelReference, input: 'Hello', maxOutputTokens: 2048 },
+          { model: approvedCaller.modelReference, input: 'Hello', maxOutputTokens: 8192 },
           bearer(serviceToken(approvedCaller)),
         );
         expect(response.status).toBe(status);
@@ -1855,7 +1910,7 @@ describe('approved production pilot admission', () => {
     const payload = { model: approvedCaller.modelReference, input, maxOutputTokens: 4096 };
     expect((await post(payload, headers)).status).toBe(200);
     expect(pilotEnvelopes).toHaveLength(1);
-    expect(pilotEnvelopes[0].maxOutputTokens).toBe(2048);
+    expect(pilotEnvelopes[0].maxOutputTokens).toBe(4096);
     expect(JSON.stringify(pilotEnvelopes[0].input)).toContain(input);
     expect((await post(payload, headers)).status).toBe(409);
     expect(executions).toBe(1);
@@ -1899,7 +1954,7 @@ describe('approved production pilot admission', () => {
     ).toEqual(before);
   });
 
-  it('keeps the selected model context bound below the product completion ceiling', async () => {
+  it('keeps a 128Ki context bound even when the product allows more reasoning output', async () => {
     const [model] = await getDb()
       .select()
       .from(inferenceModels)
@@ -1908,15 +1963,26 @@ describe('approved production pilot admission', () => {
       );
     await getDb()
       .update(inferenceModels)
-      .set({ maxContextTokens: 16_384 })
+      .set({ maxContextTokens: 131_072 })
       .where(eq(inferenceModels.id, model.id));
     try {
+      const input = 'x'.repeat(123_000);
+      expect(
+        (
+          await post(
+            { model: approvedCaller.modelReference, input, maxOutputTokens: 2048 },
+            bearer(serviceToken(approvedCaller)),
+          )
+        ).status,
+      ).toBe(200);
+      const before = await pilotClaims(approvedCaller);
       const response = await post(
-        { model: approvedCaller.modelReference, input: 'x'.repeat(32_000), maxOutputTokens: 2048 },
+        { model: approvedCaller.modelReference, input, maxOutputTokens: 8192 },
         bearer(serviceToken(approvedCaller)),
       );
       expect(response.status).toBeGreaterThanOrEqual(400);
-      expect(executions).toBe(0);
+      expect(executions).toBe(1);
+      expect(await pilotClaims(approvedCaller)).toEqual(before);
       expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({
         reservations: [],
         receipts: [],
@@ -1945,10 +2011,12 @@ describe('approved production pilot admission', () => {
     });
   });
   it.each([
-    [4096, 2048],
-    [3000, 2048],
+    [16_384, 8192],
+    [8192, 8192],
+    [4096, 4096],
+    [2560, 2560],
     [512, 512],
-    [undefined, 2048],
+    [undefined, 8192],
   ])('caps caller output ceiling %s to effective signed %s', async (requested, expected) => {
     const response = await post(
       {
@@ -2012,7 +2080,7 @@ describe('approved production pilot admission', () => {
     const results = await Promise.all([post(input, headers), post(input, headers)]);
     expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
     expect(executions).toBe(1);
-    expect(pilotEnvelopes[0].maxOutputTokens).toBe(2048);
+    expect(pilotEnvelopes[0].maxOutputTokens).toBe(4096);
   });
 
   it('excludes an unapproved alternate from the actual signed authorization set', async () => {
@@ -2121,7 +2189,7 @@ describe('approved production pilot speech', () => {
     expect(envelope.authorizedRoutes.map((route) => [route.deploymentId, route.provider])).toEqual([
       [KAANA_SPEECH_DEPLOYMENT_ID, 'xai'],
     ]);
-    // Speech generates no tokens: the pilot's 2048 text ceiling is not signed.
+    // Speech generates no tokens: the pilot's 8192 text ceiling is not signed.
     expect(envelope.maxOutputTokens).toBeUndefined();
     const added = (await speechClaims()).filter(
       (row) => !before.some((earlier) => earlier.id === row.id),

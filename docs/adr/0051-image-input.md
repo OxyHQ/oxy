@@ -9,6 +9,11 @@
 
 ## Context
 
+The proposed [2026-11-12 shared output allowance](../inference/internal-metering.md#reasoning-output-allowance-proposed-2026-11-12)
+raises the inherited Alia text/image ceiling to 8,192 tokens. It needs owner
+approval before deployment; the image count, routes and USD 0.15 limit here
+remain unchanged.
+
 The old edge refused every non-text part (`unsupported_modality`): an image has
 no character count, so a hold sized from the request could not bound it. The
 grant API did not refuse it and granted it as text, on lines that cannot see and

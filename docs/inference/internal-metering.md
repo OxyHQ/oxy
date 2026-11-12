@@ -94,9 +94,10 @@ prompts, framing or billable usage. No tokenizer or upstream consumption guarant
 is inferred. Strict provider-token enforcement requires a verified Kaana/provider
 contract and tokenizer evidence.
 
-Output uses `min(requested maxOutputTokens, 2048)`, or 2048 if omitted, before
+The proposed policy below (not yet approved or deployed) uses
+`min(requested maxOutputTokens, 8192)`, or 8192 if omitted, before
 capacity, price quotation and the signed attempt. An older Alia client requesting
-4096 remains compatible; smaller requests keep their upper bound. Commercial
+16384 remains compatible; smaller requests keep their upper bound. Commercial
 callers retain existing behavior. Real usage and cost provenance remain measured
 separately; these controls do not establish a monetary provider-spend ceiling or
 approve a tariff.
@@ -106,11 +107,45 @@ route set must be in USD and at most **0.05 USD**, compared with exact decimal
 arithmetic. A tighter application or classifier ceiling still wins. The readback
 tariff for the added High tuple was $0.0152 per million input/cached-input units
 and $1.28 per million output/reasoning units, with zero per-request amount. At
-126976 controlled-input units plus the shared 2048 output/reasoning ceiling,
-its quote is $0.0045514752. This is a tariff quotation, not an upstream invoice
+126976 controlled-input units plus the shared 8192 output/reasoning ceiling,
+its reference-fixture quote is $0.0124157952. This is a tariff quotation, not an upstream invoice
 or retry-spend guarantee; unknown provider costs remain unknown. Source and
 HTTP/SQL fixtures qualify admission, while production readiness and a real
 reply still require the operator's exact image, signed route and live receipt.
+
+### Reasoning output allowance (proposed 2026-11-12)
+
+Policy candidate `oxy-inference-economics/2026-11-12.1` raises only Alia's
+shared text output ceiling from 2,048 to 8,192. Approval of this cross-product
+policy and normal release are required before applying it in production.
+A bounded Alia room-selection diagnostic reproduced five failures in 30
+requests: each completed with `length`, zero text tokens and 2,048 reasoning
+tokens. Alia had requested 2,560; the economic pilot reduced that request to
+2,048 before routing, quotations and the signed Kaana envelope. The ceiling
+must accommodate reasoning before the structured answer, not only the answer.
+
+Alia's proposed general planner requests 8,192, while its binary reaction
+selector still requests 2,560. Smaller requests retain their limit. Existing
+Alia calls requesting 16,384 are capped at 8,192. The shared ceiling also
+applies to image completions and the named promotional-credit lane; their
+separate USD 0.15 and USD 1.00 quote limits remain unchanged. Ordinary text
+retains USD 0.05, 32 concurrent requests, 5,000 admissions per UTC day, the
+same exact route set, and every context/capability check. Speech, realtime,
+transcription and other products' policies are unchanged.
+
+The checked-in High-route fixture supports 8,192 output tokens and quotes
+USD 0.0124157952 at 126,976 input plus 8,192 output; the documented Opus
+reference tariff quotes USD 0.83968 at the same bounds. These are deterministic
+policy-test/reference calculations, not current production pricing evidence.
+Every admitted request must still pass the existing current-quote checks;
+a tighter application budget or a route's smaller context can refuse it.
+For a 131,072-token context, requesting 8,192 output leaves 122,880 for input,
+less than the product's 126,976 controlled-input ceiling; those large requests
+lose that route rather than having their output silently reduced. Larger
+allowances can increase quoted and actual usage within the unchanged caps.
+No provider or model is selected by this change, and no surface label grants
+an exception. Roll out the approved Oxy policy before evaluating or releasing
+Alia's larger planning allowance; a client-only increase remains clamped.
 
 ### Promotional credit at named Pro and Ultra (ADR 0037)
 
@@ -120,7 +155,7 @@ When an Alia completion **names** `pro` or `ultra`, a route outside the exact
 tuples above is admitted at that level only if its current scorecard says an
 `available`, in-window `promotional_credit` grant funds it — today Kaana's
 direct Anthropic key (ADR 0036). Its quote ceiling is **USD 1.00** instead of
-0.05 (Opus at the full 126976 input units and 2048 output quotes USD 0.686);
+0.05 (Opus at the full 126976 input units and 8192 output quotes USD 0.83968);
 a tighter application ceiling still wins. The same request also resolves
 `xhigh` at the next priority, admitting only the exact tuples at 0.05, so:
 
@@ -156,7 +191,7 @@ the text ones above:
 | --- | --- | --- |
 | Input measure | exact characters, `input.length` — the unit it is quoted, held and settled in | UTF-8 framing budget |
 | Input ceiling | **15,000** (`KAANA_SPEECH_MAX_INPUT_CHARACTERS`); one more is `context_length_exceeded` | 126976 |
-| Output ceiling | none: speech generates no tokens, so the 2048 cap is not applied or signed | 2048 |
+| Output ceiling | none: speech generates no tokens, so the text cap is not applied or signed | 8192 |
 | Quote ceiling | **USD 0.25** per request | USD 0.05 (1.00 on the ADR 0037 lane) |
 | Signed routes | only `dep_xai_tts_observed_2026_09_24` / `x-ai/text-to-speech@observed-2026-09-24` / `xai` | the exact text tuples above |
 
@@ -180,7 +215,7 @@ images answers to these terms, never to the text tuples:
 | --- | --- | --- |
 | Input measure | the text terms' UTF-8 budget with each image's bytes left out, plus each image at its line's declared `imageInput.maxInputTokensPerImage` | UTF-8 framing budget |
 | Image count | **16**; one more is `invalid_request` (`pilot-image-count`) | none |
-| Output ceiling | 2048, the text terms' | 2048 |
+| Output ceiling | 8192, the text terms' | 8192 |
 | Quote ceiling | **USD 0.15** per request | USD 0.05 (1.00 on the ADR 0037 lane) |
 | Signed routes | `dep_openrouter_openai_gpt_5_4_nano_observed_2026_09_01` (instant), `dep_openrouter_anthropic_claude_haiku_4_5_observed_2026_09_01` (medium), `dep_openrouter_anthropic_claude_sonnet_5_observed_2026_09_01` (high, xhigh) | the exact text tuples above |
 
@@ -188,7 +223,8 @@ Each line's bound is Kaana's declaration from the publisher's own rule: GPT-5.4
 nano 7,374 tokens (low detail's 6,144-patch budget × 1.2, plus one for billing
 rounding), Claude Haiku 4.5 1,568 (standard tier), Claude Sonnet 5 4,784
 (Claude 4.7 and later). At OpenRouter's list prices (2026-10-28), the full
-126,976 controlled input plus 16 images and 2048 output quotes USD 0.0516 on
+At the original 2,048-token output bound, 126,976 controlled input plus 16
+images quotes USD 0.0516 on
 nano (admitted), USD 0.1623 on Haiku (over: at the full text input it admits 8
 images) and USD 0.4275 on Sonnet 5 (over: admitted while the request quotes at
 most USD 0.15). The quote is the request's own size, so a typical Alia turn
