@@ -15,6 +15,7 @@ const OFFICIAL_APEXES = new Set([
   'mention.earth',
   'homiio.com',
   'alia.onl',
+  'gemies.ai',
   'syra.fm',
   'allo.you',
   'tnp.network',

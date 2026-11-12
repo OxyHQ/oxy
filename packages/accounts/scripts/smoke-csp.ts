@@ -104,6 +104,15 @@ record(
     !hasToken(connectSources, 'https://not-alia.example'),
   '',
 );
+// Alia's backend becomes Gemies (Gemies ADR 0034): the SDK must be able to reach
+// api.gemies.ai, over HTTP and its voice socket, before it moves there.
+record(
+  'connect-src allows the Gemies API and its voice socket',
+  hasToken(connectSources, 'https://api.gemies.ai') &&
+    hasToken(connectSources, 'wss://api.gemies.ai') &&
+    !hasToken(connectSources, 'https://api.not-gemies.example'),
+  '',
+);
 
 // The effect, not just the header: hydration is the reason the hash exists.
 record(

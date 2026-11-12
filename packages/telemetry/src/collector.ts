@@ -249,6 +249,7 @@ const OXY_API_SERVICES: Record<string, string> = {
   'api.mention.earth': 'mention',
   'api.mercaria.co': 'mercaria',
   'api.alia.onl': 'alia',
+  'api.gemies.ai': 'gemies',
   'kaana.ai': 'kaana',
   'api.homiio.com': 'homiio',
   'api.syra.fm': 'syra',

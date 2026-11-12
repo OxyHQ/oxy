@@ -437,6 +437,13 @@ export const KAANA_APPLICATION_ID = '68b7c4e19f2a6d0e3c8b5174';
 export { ALIA_APPLICATION_ID } from '../config/firstPartyApplications';
 import { ALIA_APPLICATION_ID } from '../config/firstPartyApplications';
 
+/**
+ * Gemies (gemies.ai), the agent platform split out of Alia on 2026-11-12
+ * (OxyHQ/Gemies ADR 0034). A new identity, so the seed mints it with this exact
+ * id rather than by name.
+ */
+export const GEMIES_APPLICATION_ID = 'a419815f0a04c0442edebc8a';
+
 /** Exact opaque identity already assigned to Homiio in production. */
 export const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';
 
@@ -735,6 +742,36 @@ export const SEED_APPS: SeedAppSpec[] = [
     // it is owned by its own project account rather than by the platform owner
     // every other official app shares. See `ownerAccountUsername`.
     ownerAccountUsername: ALIA_OWNER_ACCOUNT_USERNAME,
+  },
+  {
+    // Gemies (OxyHQ/Gemies ADR 0034): the agent platform split out of Alia — the
+    // same backend and database, renamed, with its API at api.gemies.ai. Alia
+    // becomes one official gemie and the Alia app a client of this API. This
+    // entry only ADDS the identity; Alia's entry above keeps every authority it
+    // has until the cut-over moves it (coordinator lane, billable product).
+    id: GEMIES_APPLICATION_ID,
+    name: 'Gemies',
+    description: 'Official Oxy agent platform: create your Gemies and let them work together.',
+    websiteUrl: 'https://gemies.ai',
+    // canvas.gemies.ai is the canvas web app, signed in with this same client,
+    // as canvas.alia.onl is for Alia.
+    webOrigins: ['https://gemies.ai', 'https://canvas.gemies.ai'],
+    // The agent runtime, so the same internal rollout tier as Alia (see there).
+    type: 'internal',
+    redirectUris: ['https://gemies.ai', 'https://canvas.gemies.ai'],
+    // The same backend under a new name holds exactly Alia's argued set; the
+    // argument for each scope, and against each one withheld, is
+    // ALIA_APPLICATION_SCOPES's.
+    scopes: [...ALIA_APPLICATION_SCOPES],
+    // One product, one line in the cost-centre report: Gemies's spend is the
+    // spend Alia's backend books today, so it is owned by the same project
+    // account until the billable product is renamed (as Clarity's client and
+    // backend share theirs).
+    ownerAccountUsername: ALIA_OWNER_ACCOUNT_USERNAME,
+    // ADR 0056: Gemies's operator keys are declared here, held by the owning
+    // organization's roles. Its backend checks none yet, so it declares none;
+    // the first operator surface adds its key here in the same change.
+    operatorPermissions: [],
   },
   {
     name: 'Syra',
