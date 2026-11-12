@@ -89,7 +89,7 @@ export const INTERNAL_COST_CENTERS: InternalCostCenterSpec[] = [
     label: 'Alia production chat',
     displayName: 'Alia Production Chat',
     description:
-      'Alia’s customer-facing chat, console, canvas and gateway surfaces — the spend of the ' +
+      'Alia’s customer-facing chat, console and gateway surfaces — the spend of the ' +
       'registered Alia application.',
   },
   {

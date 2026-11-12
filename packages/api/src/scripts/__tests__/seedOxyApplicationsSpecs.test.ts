@@ -293,8 +293,8 @@ describe('the canonical official-application registry', () => {
     expect(gemies).toMatchObject({
       id: GEMIES_APPLICATION_ID,
       websiteUrl: 'https://gemies.ai',
-      webOrigins: ['https://gemies.ai', 'https://canvas.gemies.ai'],
-      redirectUris: ['https://gemies.ai', 'https://canvas.gemies.ai'],
+      webOrigins: ['https://gemies.ai'],
+      redirectUris: ['https://gemies.ai'],
       type: 'internal',
       ownerAccountUsername: ALIA_OWNER_ACCOUNT_USERNAME,
       operatorPermissions: [],
@@ -318,7 +318,7 @@ describe('the canonical official-application registry', () => {
     // Adding Gemies takes nothing from Alia.
     expect(specNamed('Alia')).toMatchObject({
       id: ALIA_APPLICATION_ID,
-      webOrigins: ['https://alia.onl', 'https://canvas.alia.onl'],
+      webOrigins: ['https://alia.onl'],
       capabilities: [AGENCY_COORDINATE_CAPABILITY],
     });
   });

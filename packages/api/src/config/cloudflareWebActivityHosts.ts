@@ -41,13 +41,11 @@ export const CLOUDFLARE_WEB_HOSTS: readonly CloudflareWebHost[] = Object.freeze(
   { host: 'accounts.oxy.so', zone: 'oxy.so', service: 'accounts', activityType: 'identity' },
   { host: 'auth.oxy.so', zone: 'oxy.so', service: 'auth', activityType: 'identity' },
   { host: 'console.oxy.so', zone: 'oxy.so', service: 'console' },
-  // OxyHQ/Alia — Workers alia-app, alia-canvas.
+  // OxyHQ/Alia — Worker alia-app.
   { host: 'alia.onl', zone: 'alia.onl', service: 'alia' },
-  { host: 'canvas.alia.onl', zone: 'alia.onl', service: 'alia' },
-  // OxyHQ/Gemies — the agent platform split out of Alia (Gemies ADR 0034). Its
-  // web app and canvas are not attached yet; an unattached host costs nothing.
+  // OxyHQ/Gemies — the agent platform split out of Alia (Gemies ADR 0034),
+  // Worker gemies-app.
   { host: 'gemies.ai', zone: 'gemies.ai', service: 'gemies' },
-  { host: 'canvas.gemies.ai', zone: 'gemies.ai', service: 'gemies' },
   // OxyHQ/Allo — Worker allo-frontend.
   { host: 'allo.you', zone: 'allo.you', service: 'allo' },
   // OxyHQ/Atlas — Pages atlas.

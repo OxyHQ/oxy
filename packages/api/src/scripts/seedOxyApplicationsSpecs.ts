@@ -719,10 +719,9 @@ export const SEED_APPS: SeedAppSpec[] = [
     id: ALIA_APPLICATION_ID,
     name: 'Alia',
     trustedPublishers: [otaPublisher('OxyHQ/Alia', '1134050651')],
-    description: 'Official Oxy AI platform (chat app, console, canvas, gateway).',
+    description: 'Official Oxy AI platform (chat app, console, gateway).',
     websiteUrl: 'https://alia.onl',
-    // canvas.alia.onl is Alia's canvas web app, signed in with this same client.
-    webOrigins: ['https://alia.onl', 'https://canvas.alia.onl'],
+    webOrigins: ['https://alia.onl'],
     // Alia remains `internal` because rollout/canary gates distinguish the agent
     // runtime from customer-facing official products. Catalogue availability no
     // longer carries an Alia-specific identity: both `first_party` and `internal`
@@ -730,7 +729,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     // `computeSeedApplicationPlan` derives `isInternal` from this field, so the
     // flag follows without a second declaration.
     type: 'internal',
-    redirectUris: ['https://alia.onl', 'https://canvas.alia.onl'],
+    redirectUris: ['https://alia.onl'],
     // See ALIA_APPLICATION_SCOPES for the grant and, more importantly, for the
     // argument against each scope NOT granted.
     scopes: [...ALIA_APPLICATION_SCOPES],
@@ -753,12 +752,10 @@ export const SEED_APPS: SeedAppSpec[] = [
     name: 'Gemies',
     description: 'Official Oxy agent platform: create your Gemies and let them work together.',
     websiteUrl: 'https://gemies.ai',
-    // canvas.gemies.ai is the canvas web app, signed in with this same client,
-    // as canvas.alia.onl is for Alia.
-    webOrigins: ['https://gemies.ai', 'https://canvas.gemies.ai'],
+    webOrigins: ['https://gemies.ai'],
     // The agent runtime, so the same internal rollout tier as Alia (see there).
     type: 'internal',
-    redirectUris: ['https://gemies.ai', 'https://canvas.gemies.ai'],
+    redirectUris: ['https://gemies.ai'],
     // The same backend under a new name holds exactly Alia's argued set; the
     // argument for each scope, and against each one withheld, is
     // ALIA_APPLICATION_SCOPES's.
