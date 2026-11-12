@@ -6,6 +6,7 @@
  *
  *   `*.m3u8`        object; CORS; the origin's Cache-Control only (a master
  *                   playlist is rewritten in place, so never the immutable year)
+ *   `/updates/assets/<sha256>` object; CORS; immutable content-addressed OTA bundle or asset
  *   `/content/*`    object; CORS; immutable year when the object carries none
  *   `/variants/*`   same as `/content/*`
  *   `/oxy-website/*` object, from the website's own legacy bucket; CORS
@@ -95,6 +96,9 @@ export function routeFor(pathname: string): Route {
   const relative = path.replace(/^\/+/, '');
   if (relative === '') return { kind: 'resolver' };
   const key = `${PUBLIC_KEY_PREFIX}${relative}`;
+  if (/^\/updates\/assets\/[a-f0-9]{64}$/.test(path)) {
+    return { kind: 'object', bucket: 'files', key, defaultCacheControl: IMMUTABLE_CACHE_CONTROL };
+  }
   if (path.endsWith('.m3u8')) {
     return { kind: 'object', bucket: 'files', key, defaultCacheControl: null };
   }
