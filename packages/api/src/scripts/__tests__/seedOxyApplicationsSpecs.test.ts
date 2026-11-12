@@ -62,6 +62,7 @@ import {
   ALIA_OWNER_ACCOUNT_USERNAME,
   ASTRO_APPLICATION_ID,
   DROPSEA_APPLICATION_ID,
+  GEMIES_APPLICATION_ID,
   CLARITY_APPLICATION_ID,
   CLARITY_BACKEND_APPLICATION_ID,
   HOMIIO_APPLICATION_ID,
@@ -285,6 +286,41 @@ describe('the canonical official-application registry', () => {
       id: DROPSEA_APPLICATION_ID,
     });
     expect(seededPrincipal(dropsea)).toEqual({ type: 'first_party', isInternal: false });
+  });
+
+  it('registers Gemies by exact identity beside Alia, with Alia’s scopes and no coordinator capability yet (Gemies ADR 0034)', () => {
+    const gemies = specNamed('Gemies');
+    expect(gemies).toMatchObject({
+      id: GEMIES_APPLICATION_ID,
+      websiteUrl: 'https://gemies.ai',
+      webOrigins: ['https://gemies.ai', 'https://canvas.gemies.ai'],
+      redirectUris: ['https://gemies.ai', 'https://canvas.gemies.ai'],
+      type: 'internal',
+      ownerAccountUsername: ALIA_OWNER_ACCOUNT_USERNAME,
+      operatorPermissions: [],
+    });
+    // The same backend, renamed: exactly Alia's argued scope set, no more.
+    expect(gemies.scopes).toEqual([...ALIA_APPLICATION_SCOPES]);
+    // Moving the ADR 0018 coordinator capability is the cut-over's decision,
+    // not this registration's: Alia keeps it, Gemies does not hold it yet.
+    expect(gemies.capabilities).toBeUndefined();
+    expect(gemies.trustedPublishers).toBeUndefined();
+    expect(gemies.legacyNames).toBeUndefined();
+    expect(requiresPublicSeedCredential(gemies)).toBe(true);
+    expect(SEED_APPS.filter((spec) => spec.id === GEMIES_APPLICATION_ID)).toHaveLength(1);
+    expect(GEMIES_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    expect(GEMIES_APPLICATION_ID).not.toBe(ALIA_APPLICATION_ID);
+    expect(seedApplicationLookupIdentity(gemies, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: GEMIES_APPLICATION_ID,
+    });
+    expect(seededPrincipal(gemies)).toEqual(seededPrincipal(specNamed('Alia')));
+    // Adding Gemies takes nothing from Alia.
+    expect(specNamed('Alia')).toMatchObject({
+      id: ALIA_APPLICATION_ID,
+      webOrigins: ['https://alia.onl', 'https://canvas.alia.onl'],
+      capabilities: [AGENCY_COORDINATE_CAPABILITY],
+    });
   });
 
   it('pins a separate media worker with no sign-in redirects or write grants', () => {
@@ -609,7 +645,10 @@ describe('the canonical official-application registry', () => {
           (spec.capabilities ?? []).includes(AGENCY_COORDINATE_CAPABILITY) ||
           (spec.scopes ?? []).includes('capability-tickets:issue'),
       ).map((spec) => spec.name);
-      expect(coordinators).toEqual(['Mention', 'Alia']);
+      // Gemies holds Alia's scope set (the same backend, renamed: Gemies ADR
+      // 0034), `capability-tickets:issue` included, but not `agency:coordinate`
+      // until the cut-over moves the coordinator lane.
+      expect(coordinators).toEqual(['Mention', 'Alia', 'Gemies']);
     });
   });
 
@@ -836,6 +875,17 @@ describe('the canonical official-application registry', () => {
         ],
       ],
       [
+        'Gemies',
+        [
+          'files:read',
+          'files:app:write',
+          'files:app:delete',
+          'files:references:write',
+          'files:user-media:write',
+          'files:linked:read',
+        ],
+      ],
+      [
         'Homiio',
         [
           'files:read',
@@ -910,14 +960,21 @@ describe('the canonical official-application registry', () => {
       }
     });
 
-    it('only Alia and Clarity claim a dedicated owner account', () => {
+    it('only Alia, Gemies and Clarity claim a dedicated owner account', () => {
       // Not a style rule: two applications sharing an owner account are
       // indistinguishable in the cost-centre report, so every additional one
       // here is a reporting decision somebody has to make on purpose.
       // Clarity's two applications were created under Clarity's own project
       // account and stay there: one product, one line, client and backend.
       const dedicated = SEED_APPS.filter((spec) => spec.ownerAccountUsername !== undefined);
-      expect(dedicated.map((spec) => spec.name)).toEqual(['Clarity', 'Alia', 'Clarity Backend']);
+      // Gemies is Alia's backend renamed and shares Alia's account for the
+      // same reason: one product, one line.
+      expect(dedicated.map((spec) => spec.name)).toEqual([
+        'Clarity',
+        'Alia',
+        'Gemies',
+        'Clarity Backend',
+      ]);
     });
 
     it("Clarity's backend is pinned by id, has no public client, and carries its catalogue", () => {

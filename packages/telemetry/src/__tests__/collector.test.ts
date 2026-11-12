@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import {
   createTrafficCollector,
   instrumentTrafficFetch,
+  resolveOxyServiceEndpoint,
   trafficMiddleware,
   trafficType,
   type TrafficAggregate,
@@ -196,5 +197,21 @@ describe('ecosystem activity collector', () => {
   it('classifies versioned media and inference endpoints without retaining the path', () => {
     expect(trafficType('/api/v1/uploads/private-id?token=secret')).toBe('media');
     expect(trafficType('/v1/chat/completions')).toBe('ai');
+  });
+
+  it('attributes the Gemies API to gemies and keeps Alia’s API as alia', () => {
+    expect(resolveOxyServiceEndpoint(new URL('https://api.gemies.ai/v1/chat'))).toEqual({
+      service: 'gemies',
+      region: 'us-west-2',
+    });
+    expect(resolveOxyServiceEndpoint(new URL('https://api.alia.onl/v1/chat'))?.service).toBe(
+      'alia',
+    );
+    // Exact host only: neither the web app nor a lookalike claims the service.
+    expect(resolveOxyServiceEndpoint(new URL('https://gemies.ai/'))).toBeUndefined();
+    expect(
+      resolveOxyServiceEndpoint(new URL('https://api.gemies.ai.evil.example/')),
+    ).toBeUndefined();
+    expect(resolveOxyServiceEndpoint(new URL('http://api.gemies.ai/'))).toBeUndefined();
   });
 });

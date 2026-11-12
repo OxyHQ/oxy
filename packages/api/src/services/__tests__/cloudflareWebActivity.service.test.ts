@@ -402,6 +402,7 @@ describe('reviewed host map', () => {
         'allo.you',
         'clarity.surf',
         'fairco.in',
+        'gemies.ai',
         'homiio.com',
         'inbo.sh',
         'mercaria.co',

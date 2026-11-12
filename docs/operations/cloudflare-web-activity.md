@@ -86,6 +86,7 @@ Zone resources: **Include** these specific zones:
 
 - `oxy.so`
 - `alia.onl`
+- `gemies.ai`
 - `allo.you`
 - `clarity.surf`
 - `homiio.com`

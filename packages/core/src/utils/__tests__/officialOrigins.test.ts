@@ -11,6 +11,15 @@ describe('officialOrigins', () => {
     expect(isOfficialWebOrigin('https://evil.example')).toBe(false);
   });
 
+  it('allows Gemies (gemies.ai, its canvas and its API) beside Alia', () => {
+    expect(isOfficialWebOrigin('https://gemies.ai')).toBe(true);
+    expect(isOfficialWebOrigin('https://canvas.gemies.ai')).toBe(true);
+    expect(isOfficialWebOrigin('https://api.gemies.ai')).toBe(true);
+    expect(isOfficialWebOrigin('https://alia.onl')).toBe(true);
+    expect(isOfficialWebOrigin('https://gemies.ai.evil.example')).toBe(false);
+    expect(isOfficialWebOrigin('https://notgemies.ai')).toBe(false);
+  });
+
   it('flags loopback / local-dev origins on any port', () => {
     expect(isLoopbackOrigin('http://localhost:3000')).toBe(true);
     expect(isLoopbackOrigin('http://127.0.0.1:8081')).toBe(true);
