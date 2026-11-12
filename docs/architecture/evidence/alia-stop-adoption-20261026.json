@@ -632,11 +632,6 @@
         "job": "deploy-app",
         "versionId": "8ccda6b1-abec-4c1e-a048-7eecd0c2a051",
         "timestamp": "2026-10-26T10:02:55.1288324Z"
-      },
-      {
-        "job": "deploy-canvas",
-        "versionId": "7112ed3f-c3de-4906-aaad-e680779c896a",
-        "timestamp": "2026-10-26T10:02:22.1687289Z"
       }
     ],
     "privateReceiptSha256": "442d0415c8941ab7b4afee2f9ac7bcc266d7e5ea8c30bcb0f4d3deee3c6ec7c2",
