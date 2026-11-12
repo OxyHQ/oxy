@@ -186,6 +186,26 @@ session price includes it (xAI) never reports it. It settles on grants for
 `kaana.ai/v1` ([kaana-grants.md](./kaana-grants.md)); the old edge refuses input
 transcription.
 
+**`cache_write_input_tokens` is a third prompt-side sibling** (contract set
+4.1.0, `@kaana.ai/contracts` 8.4.0, migration 0253): input tokens WRITTEN to a
+prompt cache on this request, the first-request premium (Anthropic's default
+five-minute write is billed at 1.25 times its input price). A prompt token is
+written, read or neither, so the unit is in neither `input_tokens` nor
+`cached_input_tokens`: `input_tokens = prompt - cache reads - cache writes`.
+Only the default five-minute time to live is a unit. It is priced like any other
+unit by `computeCharge`; a price version that does not carry it refuses a
+settlement that reports it with 422 `unpriced_unit`, so no price list is
+changed by the unit existing. **Hold sizing is conditional on the price list:**
+for a text completion on a line whose price version carries a
+`cache_write_input_tokens` price (at any amount, zero included), the hold gains
+the third input vertex (the whole prompt ceiling on that unit), so a request
+that writes its whole prompt to the cache still settles inside its hold. A line
+whose price version lacks the unit is held exactly as before: demanding the
+price on every line would refuse every existing text grant. Realtime and the
+old edge's holds do not include the vertex. On the chat surface the OpenAI
+`prompt_tokens` includes the cache writes; the reporting totals and the charges
+CSV (last column) carry the unit.
+
 **Duration-priced realtime routes** (xAI's Voice Agent: audio per minute each
 way, a flat fee per text item) are priced in `audio_input_milliseconds`,
 `audio_output_milliseconds` and `requests` and no token unit. Their hold is

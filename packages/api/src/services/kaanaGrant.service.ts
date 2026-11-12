@@ -186,6 +186,12 @@ export type GrantDecision =
 
 type UnresolvedRoute = Exclude<GrantLineResolution, { readonly status: 'resolved' }>;
 
+/** What a line's price version publishes that changes the shape of its hold. */
+interface LinePricing {
+  /** It carries a `cache_write_input_tokens` price, so a completion can settle cache writes. */
+  readonly cacheWriteInputPriced: boolean;
+}
+
 /** The ceilings a plan sizes a line's hold from: its declared capabilities. */
 type LineCeilings = Pick<
   GrantLine,
@@ -338,7 +344,7 @@ interface OperationPlan {
    * quotes is the route's ceiling (`quoteRouteCeiling`). One plan for every
    * operation but a realtime session.
    */
-  plans(route: LineCeilings): readonly RouteCeilingPlan[];
+  plans(route: LineCeilings, pricing: LinePricing): readonly RouteCeilingPlan[];
 }
 
 function requireFact(value: number | undefined, param: string): number {
@@ -407,7 +413,7 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         inputImages: images,
         knownUnits: { input_tokens: input },
         maxOutputTokens: requested,
-        plans: (route) => {
+        plans: (route, pricing) => {
           const lineInput = lineInputTokens(route, input, images);
           return [
             {
@@ -416,6 +422,7 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
                 { kind: 'completion' },
                 lineInput,
                 completionOutputBudget(route, lineInput, requested),
+                { cacheWriteInputPriced: pricing.cacheWriteInputPriced },
               ),
             },
           ];
@@ -1737,7 +1744,13 @@ async function admitLine(
     // settle inside it only on a line that publishes them at exactly zero.
     return { status: 'priced-decision-output' };
   }
-  const quote = await quoteRouteCeiling(lane.price, plan.plans(line));
+  // A prompt on a line that prices cache writes may settle some of its tokens at
+  // that premium, so its hold is sized for them; a line that does not price the
+  // unit is held exactly as before (a settlement reporting it would be refused).
+  const cacheWriteInputPriced =
+    plan.family === 'completion' &&
+    (await publishedUnitPrice(lane.price, 'cache_write_input_tokens')) !== 'missing';
+  const quote = await quoteRouteCeiling(lane.price, plan.plans(line, { cacheWriteInputPriced }));
   if (quote.status !== 'quoted') return { status: 'unquoted', reason: quote.reason };
   const ceiling = step.maxPrice;
   if (

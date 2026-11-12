@@ -114,6 +114,16 @@ comparison kept exact rather than converted to a JavaScript `Number`. Both child
 rates are required; a missing cached-input or reasoning price fails closed
 before a hold or inference POST even if the corresponding parent rate is larger.
 
+*Amended 2026-11-12:* a prompt-side unit was added, `cache_write_input_tokens`
+(contract set 4.1.0): input tokens written to a prompt cache, a third sibling of
+`input_tokens` and `cached_input_tokens`. For a completion on a line whose price
+version carries a price for it (any amount, zero included), the prompt extrema
+are three, not two, and the hold is `promptCeiling × max(input, cached-input,
+cache-write rate)` plus the rest unchanged. A line whose price version lacks the
+unit keeps the two-extrema hold: a settlement reporting the unit against such a
+list is refused (`422 unpriced_unit`), so no charge can exceed its hold, and
+requiring the price everywhere would refuse every grant that predates it.
+
 ### Immutable history
 
 Settled receipts and ledger entries are **append-only**. A correction is a

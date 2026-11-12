@@ -125,7 +125,7 @@ export const TOKEN_ANOMALY_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
  * into each), which is what lets one expression serve both.
  */
 const TOKEN_UNIT_SUM = sql.raw(
-  'coalesce(sum(input_tokens + cached_input_tokens + output_tokens + reasoning_tokens), 0)',
+  'coalesce(sum(input_tokens + cached_input_tokens + cache_write_input_tokens + output_tokens + reasoning_tokens), 0)',
 );
 
 /**

@@ -2715,6 +2715,91 @@ describe('a grant is rated from KAANA’s declared catalogue, not from Oxy’s t
     expect(snapshot.find((entry) => entry.unit === 'input_tokens')?.amount).toBe('6.000000000000');
   });
 
+  /** The same list with Kaana's `cache_write_input_tokens` price (per million tokens) added. */
+  const listWithCacheWrite = (priceVersionId: string, input: string, cacheWrite: string) => {
+    const base = list(priceVersionId, input);
+    return {
+      ...base,
+      unitPrices: [
+        ...base.unitPrices,
+        { unit: 'cache_write_input_tokens' as const, amount: cacheWrite, per: 1_000_000 },
+      ],
+    };
+  };
+
+  it('holds a line that prices cache writes for the whole prompt written to the cache', async () => {
+    const customer = await textCustomer();
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, listWithCacheWrite('kaana-pv-cw', '6.000000000000', '7.500000000000')),
+    );
+    const grant = await grantFor(customer);
+    // The dearest prompt vertex is the cache write: 1000 × $7.5/M + 500 × $15/M,
+    // where the same request on `input_tokens` alone would hold 0.0135.
+    expect(grant.reservation?.ceiling).toEqual({ amount: '0.015000000000', currency: 'USD' });
+
+    // A request that writes its whole prompt to the cache settles inside the hold.
+    const settled = await settle(
+      settlementOf({
+        grant,
+        modelReference: customer.pinnedModelReference,
+        provider: customer.providers[0],
+        deploymentId: customer.deploymentIds[0],
+        units: { cache_write_input_tokens: 800, output_tokens: 400 },
+      }),
+    );
+    expect(settled.body).toMatchObject({ status: 'settled' });
+    // 800 × $7.5/M + 400 × $15/M.
+    const [receipt] = await receiptsOf(customer.accountId);
+    expect(receipt).toMatchObject({ billedAmount: '0.012000000000' });
+  });
+
+  it('holds a line that prices cache writes below input exactly as one that does not price them', async () => {
+    const customer = await textCustomer();
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, listWithCacheWrite('kaana-pv-cw-low', '6.000000000000', '1.000000000000')),
+    );
+    const grant = await grantFor(customer);
+    expect(grant.reservation?.ceiling).toEqual({ amount: '0.013500000000', currency: 'USD' });
+  });
+
+  it('holds a line that does not price cache writes exactly as before the unit existed', async () => {
+    const customer = await textCustomer();
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, list('kaana-pv-no-cw', '6.000000000000')),
+    );
+    const grant = await grantFor(customer);
+    // Not refused for the missing price, and not held for a vertex it cannot settle.
+    expect(grant.reservation?.ceiling).toEqual({ amount: '0.013500000000', currency: 'USD' });
+  });
+
+  it('rejects, permanently, a settlement of cache writes on a list that does not price them', async () => {
+    const customer = await textCustomer();
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, list('kaana-pv-no-cw-settle', '6.000000000000')),
+    );
+    const grant = await grantFor(customer);
+    const result = await settle(
+      settlementOf({
+        grant,
+        modelReference: customer.pinnedModelReference,
+        units: { input_tokens: 700, cache_write_input_tokens: 100 },
+      }),
+    );
+    expect(result.status).toBe(422);
+    expect(result.body).toEqual({ error: 'unpriced_unit' });
+    expect(await receiptsOf(customer.accountId)).toEqual([]);
+    expect((await grantRow(grant.grantId))?.status).toBe('issued');
+    expect(logger.error).toHaveBeenCalledWith(
+      'inference.settlement.unpriced_unit',
+      expect.any(Error),
+      expect.objectContaining({ grantId: grant.grantId, units: ['cache_write_input_tokens'] }),
+    );
+  });
+
   it('settles at the version the grant admitted even after Kaana publishes a new one', async () => {
     const customer = await textCustomer();
     kaanaStub.override(

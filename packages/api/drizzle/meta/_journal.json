@@ -1765,6 +1765,13 @@
       "when": 1794159773619,
       "tag": "0252_validate_platform_credential_pending",
       "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1794457150917,
+      "tag": "0253_kaana_cache_write_input_tokens_unit",
+      "breakpoints": true
     }
   ]
 }

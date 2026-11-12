@@ -293,6 +293,9 @@ sessions added in `2026-10-28.2`), read only by the grant API:
   `session_milliseconds` ($0.20/h) and `audio_output_milliseconds` at zero: a
   minute quotes $0.005 and the stream settles its wall clock. One dictation is
   one grant (and one capacity request) instead of one per phrase.
+- **Text completions** on a line whose price version prices
+  `cache_write_input_tokens` (`@kaana.ai/contracts` 8.4.0) are held with a third
+  prompt vertex for it; a line that does not price it is held as before.
 - **`audio_transcriptions`**: at most **300 000 ms** (Alia's 5-minute clip) and
   **USD 0.05** per request. The hold is the measured duration; a line that also
   prices `requests` is quoted with one request, a line that prices the duration
@@ -348,6 +351,10 @@ a redelivery answers `{status: "duplicate"}` and charges nothing. A settlement
 naming no grant or the wrong hold is `422` (permanent). The new unit
 `input_transcription_milliseconds` is a ledger column (migration 0159) and is
 priced like any other.
+`cache_write_input_tokens` (migration 0253) is likewise a ledger column priced
+like any other; a settlement reporting it against a grant's price list that
+lacks it is `422 unpriced_unit`, which is why a line without the price is
+unaffected by the unit existing.
 
 `startKaanaSettlementSchedule` (every minute): grants past `expires_at` + 5 min
 become `expired` (holds and slots already lapse on their own; a late

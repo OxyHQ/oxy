@@ -209,6 +209,7 @@ describe('usageTotals', () => {
     audio_output_tokens: 0,
     session_milliseconds: 0,
     input_transcription_milliseconds: 0,
+    cache_write_input_tokens: 0,
   };
 
   it('collapses rows per key and orders by requests', () => {

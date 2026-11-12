@@ -3880,7 +3880,8 @@ export function ceilingForOperation(
 export function ceilingQuoteScenarios(
   operation: EdgeOperation,
   estimatedInputTokens: number,
-  maxOutputTokens: number
+  maxOutputTokens: number,
+  options: CeilingQuoteOptions = {}
 ): readonly Partial<Record<UsageUnit, number>>[] {
   if (operation.kind === 'realtime_session') {
     // Session wall-clock time (contract set 3.3.0) is not a member of either
@@ -3899,15 +3900,41 @@ export function ceilingQuoteScenarios(
     return [ceilingForOperation(operation, estimatedInputTokens, maxOutputTokens)];
   }
   return partitionScenarios(
-    TEXT_INPUT_UNITS,
+    options.cacheWriteInputPriced === true ? TEXT_INPUT_UNITS_WITH_CACHE_WRITES : TEXT_INPUT_UNITS,
     estimatedInputTokens,
     operation.spokenOutput === true ? SPOKEN_OUTPUT_UNITS : TEXT_OUTPUT_UNITS,
     maxOutputTokens
   );
 }
 
+/**
+ * What a ceiling may assume about the ROUTE it is sized for.
+ *
+ * `cacheWriteInputPriced`: the route's price version carries a price for
+ * `cache_write_input_tokens` (contract set 4.1.0), at any amount including
+ * zero. Only then can a request on it be reported with cache writes, and only
+ * then does the hold have to cover the premium. A version that does not price
+ * the unit refuses a settlement that reports it (`unpriced_unit`), so its hold
+ * needs no such vertex, and demanding one would refuse every route whose price
+ * list predates the unit. Absent means "not priced": the ceiling is exactly what
+ * it was before the unit existed.
+ */
+export interface CeilingQuoteOptions {
+  readonly cacheWriteInputPriced?: boolean;
+}
+
 /** The units a text prompt can be metered in: it is text, cached or not. */
 const TEXT_INPUT_UNITS = ['input_tokens', 'cached_input_tokens'] as const satisfies readonly UsageUnit[];
+/**
+ * A text prompt on a route that prices cache writes: a prompt token may also be
+ * one WRITTEN to the cache, at a premium over the input price (Anthropic's
+ * five-minute write is 1.25x), so the whole input budget on that unit is a
+ * vertex of its own and a hold without it could settle below the charge.
+ */
+const TEXT_INPUT_UNITS_WITH_CACHE_WRITES = [
+  ...TEXT_INPUT_UNITS,
+  'cache_write_input_tokens',
+] as const satisfies readonly UsageUnit[];
 /** The units a text generation budget is spent in. */
 const TEXT_OUTPUT_UNITS = ['output_tokens', 'reasoning_tokens'] as const satisfies readonly UsageUnit[];
 /**

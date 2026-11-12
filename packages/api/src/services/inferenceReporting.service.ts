@@ -144,7 +144,7 @@ export type ReportingEnvironment = (typeof ENVIRONMENTS)[number];
 export type ReportingOutcome = (typeof OUTCOMES)[number];
 export type ReportingUsageSource = (typeof USAGE_SOURCES)[number];
 
-/** The sixteen unit columns, in the order every projection reports them. */
+/** The unit columns, in the order every projection reports them. */
 const UNIT_COLUMNS = [
   'input_tokens',
   'cached_input_tokens',
@@ -162,9 +162,10 @@ const UNIT_COLUMNS = [
   'audio_output_tokens',
   'session_milliseconds',
   'input_transcription_milliseconds',
+  'cache_write_input_tokens',
 ] as const;
 
-/** The sixteen unit quantities of one row, read from their `::text` casts. */
+/** The unit quantities of one row, read from their `::text` casts. */
 function unitsOf(row: Record<string, unknown>): UsageUnitTotals {
   return {
     input_tokens: toCount(row.input_tokens),
@@ -183,6 +184,7 @@ function unitsOf(row: Record<string, unknown>): UsageUnitTotals {
     audio_output_tokens: toCount(row.audio_output_tokens),
     session_milliseconds: toCount(row.session_milliseconds),
     input_transcription_milliseconds: toCount(row.input_transcription_milliseconds),
+    cache_write_input_tokens: toCount(row.cache_write_input_tokens),
   };
 }
 

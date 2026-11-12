@@ -1700,7 +1700,9 @@ describe('inference contract versioning', () => {
     // decisions result, failure and success messages are removed, and the v2
     // envelope no longer carries decisions input. Decisions are a grant
     // operation of `kaana.ai/v1` (Kaana ADR 0002).
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('4.0.0');
+    // MINOR 1 (4.1.0): the `cache_write_input_tokens` usage unit, mirroring
+    // `@kaana.ai/contracts` 8.4.0 (a closed enum gained a member).
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe('4.1.0');
   });
 
   it('matches the frozen schema version map exactly', () => {

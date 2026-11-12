@@ -118,6 +118,7 @@ export const usageUnitTotalsSchema = z
     audio_output_tokens: z.number().check(integerCheck()).nonnegative(),
     session_milliseconds: z.number().check(integerCheck()).nonnegative(),
     input_transcription_milliseconds: z.number().check(integerCheck()).nonnegative(),
+    cache_write_input_tokens: z.number().check(integerCheck()).nonnegative(),
   })
   .strict();
 
