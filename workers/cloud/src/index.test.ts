@@ -178,6 +178,88 @@ describe('routing: the CloudFront behaviors, in order', () => {
   });
 });
 
+describe('published OTA assets', () => {
+  const hash = 'ddc7a7320dcfb172ed98bb6f3d6301559c14c1594790c4cf19f5015f309b0a2f';
+  const path = `/updates/assets/${hash}`;
+  const key = `public${path}`;
+
+  it('routes the exact manifest URL to the public object, without resolving it as a file ID', async () => {
+    expect(routeFor(path)).toEqual({
+      kind: 'object',
+      bucket: 'files',
+      key,
+      defaultCacheControl: IMMUTABLE_CACHE_CONTROL,
+    });
+    const { get, reads, fetched } = harness({
+      [key]: { body: 'application bundle', contentType: 'application/javascript' },
+    });
+    const response = await get(path);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('application bundle');
+    expect(response.headers.get('content-type')).toBe('application/javascript');
+    expect(response.headers.get('cache-control')).toBe(IMMUTABLE_CACHE_CONTROL);
+    expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(response.headers.get('content-disposition')).toBe('attachment');
+    expect(response.headers.get('content-security-policy')).toBe(DOWNLOAD_POLICY);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(reads).toEqual([`get ${key}`]);
+    expect(fetched).toEqual([]);
+  });
+
+  it('serves HEAD metadata without reading the body', async () => {
+    const { get, reads, fetched } = harness({ [key]: { body: 'bundle' } });
+    const response = await get(path, { method: 'HEAD' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-length')).toBe('6');
+    expect(response.headers.get('cache-control')).toBe(IMMUTABLE_CACHE_CONTROL);
+    expect(await response.text()).toBe('');
+    expect(reads).toEqual([`head ${key}`]);
+    expect(fetched).toEqual([]);
+  });
+
+  it('reuses cached immutable bytes and supports conditional requests', async () => {
+    const { get, reads, fetched } = harness({ [key]: { body: 'bundle' } });
+    await get(path);
+    expect(await (await get(path)).text()).toBe('bundle');
+    const unchanged = await get(path, { headers: { 'if-none-match': '"etag"' } });
+    expect(unchanged.status).toBe(304);
+    expect(await unchanged.text()).toBe('');
+    expect(reads).toEqual([`get ${key}`]);
+    expect(fetched).toEqual([]);
+  });
+
+  it('never serves the same hash from a private key or caches a missing object as immutable', async () => {
+    const { get, reads, fetched } = harness({ [`updates/assets/${hash}`]: { body: 'private' } });
+    const response = await get(path);
+    expect(response.status).toBe(404);
+    expect(response.headers.get('cache-control')).not.toBe(IMMUTABLE_CACHE_CONTROL);
+    expect(reads).toEqual([`get ${key}`]);
+    expect(fetched).toEqual([]);
+  });
+
+  it('does not turn arbitrary update paths into public object routes', async () => {
+    for (const invalid of [
+      '/updates/assets/',
+      `/updates/assets/${hash.slice(1)}`,
+      `/updates/assets/${hash}0`,
+      `/updates/assets/${hash.toUpperCase()}`,
+      `/updates/assets/${hash}/secret`,
+      `/updates/assets/${hash}.js`,
+      '/updates/assets/%2e%2e/private',
+      '/updates/assets/%2Fprivate',
+      '/updates/assets/%00',
+      '/updates/assets/%zz',
+      `/public/updates/assets/${hash}`,
+      `/updates/other/${hash}`,
+    ]) {
+      expect(routeFor(invalid)).toEqual({ kind: 'resolver' });
+      const { get, reads } = harness({ [`public${invalid}`]: { body: 'not an OTA asset' } });
+      expect((await get(invalid)).status).toBe(404);
+      expect(reads).toEqual([]);
+    }
+  });
+});
+
 describe('objects', () => {
   it('serves a public object with its type, the immutable year, CORS and nosniff', async () => {
     const { get } = harness({ 'public/content/a.png': { body: 'png', contentType: 'image/png' } });
