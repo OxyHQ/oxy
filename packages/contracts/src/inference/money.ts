@@ -165,6 +165,25 @@ export const moneySchema = z
  * each read once, so the partition rule holds. A provider whose session price
  * already includes the transcription (xAI's Voice Agent) never reports it.
  *
+ * **`cache_write_input_tokens` is a third prompt-side sibling** (added in
+ * contract set 4.1.0, mirroring `@kaana.ai/contracts` 8.4.0): input tokens
+ * WRITTEN to a prompt cache on this request, the first-request premium a
+ * provider charges to create a cache entry (Anthropic's default five-minute
+ * write is billed at 1.25 times the input price). A token is written to the
+ * cache OR read from it OR neither, so it is in none of `input_tokens` and
+ * none of `cached_input_tokens`:
+ *
+ * ```text
+ * input_tokens             = prompt tokens - cache reads - cache writes
+ * cached_input_tokens      = tokens served from the cache
+ * cache_write_input_tokens = tokens written to the cache
+ * ```
+ *
+ * Only the default (five-minute) time to live is a unit; an extended-TTL write
+ * is not reported as this unit. A price version that does not price the unit
+ * refuses a settlement that reports it (`unpriced_unit`): an unpriced unit is
+ * never a free one.
+ *
  * No refinement in this package can enforce it, and saying so is part of the
  * rule: a nested report and a disjoint one are the same four non-negative
  * integers, so no predicate over a single report can tell them apart. The two
@@ -203,6 +222,7 @@ export const USAGE_UNITS = [
   'audio_output_tokens',
   'session_milliseconds',
   'input_transcription_milliseconds',
+  'cache_write_input_tokens',
 ] as const;
 
 export const usageUnitSchema = z.enum(USAGE_UNITS);

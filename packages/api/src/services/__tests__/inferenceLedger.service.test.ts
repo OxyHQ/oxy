@@ -1050,6 +1050,114 @@ describe('cached and reasoning tokens are priced as siblings, never as details o
   });
 });
 
+describe('cache writes are a third prompt-side sibling, priced beside input, cached and reasoning', () => {
+  /**
+   * One request: a 15 000-token prompt of which 9 000 were read from the cache,
+   * 5 000 were WRITTEN to it and 1 000 were neither, and a 1 000-token completion
+   * of which 800 were reasoning. Reported disjointly, as the contract defines.
+   * Five different prices, so no two readings can agree by arithmetic accident.
+   */
+  const REPORT = {
+    input_tokens: 1_000,
+    cached_input_tokens: 9_000,
+    cache_write_input_tokens: 5_000,
+    output_tokens: 200,
+    reasoning_tokens: 800,
+  };
+  // 1000·3/1e6 + 9000·0.3/1e6 + 5000·3.75/1e6 + 200·15/1e6 + 800·30/1e6
+  const REPORT_CHARGE = '0.051450000000';
+  // The same report with the written tokens left inside `input_tokens` AND on
+  // their own line (6000·3/1e6 for input): the 5 000 written tokens pay the
+  // input price a second time, 5000·3/1e6 = 0.015 more than REPORT_CHARGE.
+  const NESTED_CHARGE = '0.066450000000';
+
+  async function insertPriceVersion(withCacheWrite: boolean): Promise<string> {
+    const [version] = await getDb()
+      .insert(priceVersions)
+      .values({
+        modelReference: `oxy/cache-writer-${randomUUID().slice(0, 8)}`,
+        provider: 'oxy-hosted',
+        status: 'active',
+        effectiveFrom: new Date(Date.now() - 60_000),
+      })
+      .returning({ id: priceVersions.id });
+    const price = (unit: UsageUnit, amount: string) => ({
+      priceVersionId: version.id,
+      unit,
+      amount,
+      per: 1_000_000,
+    });
+    await getDb()
+      .insert(priceVersionUnitPrices)
+      .values([
+        price('input_tokens', '3.000000000000'),
+        price('cached_input_tokens', '0.300000000000'),
+        price('output_tokens', '15.000000000000'),
+        price('reasoning_tokens', '30.000000000000'),
+        ...(withCacheWrite ? [price('cache_write_input_tokens', '3.750000000000')] : []),
+      ]);
+    return version.id;
+  }
+
+  async function settleOn(priceVersionId: string, units: Partial<Record<UsageUnit, number>>) {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    const reserved = await reserve({
+      idempotencyKey: `r-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: priceVersionId,
+      maxAmount: '1.000000000000',
+      currency: 'USD',
+      expiresInSeconds: 300,
+    });
+    if (reserved.status !== 'reserved') throw new Error(`reserve failed: ${reserved.status}`);
+    return settle({
+      idempotencyKey: `s-${randomUUID()}`,
+      reservationId: reserved.reservation.reservationId,
+      attribution: f.attribution,
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      units,
+      resolvedModelReference: 'oxy/cache-writer',
+      servingProvider: 'oxy-hosted',
+      priceVersionId,
+    });
+  }
+
+  it('charges the exact sum of five lines, each at its own price', async () => {
+    const settled = await settleOn(await insertPriceVersion(true), REPORT);
+    if (settled.status !== 'settled') throw new Error(`settle failed: ${settled.status}`);
+    await expectAmount(settled.receipt.billedAmount, REPORT_CHARGE);
+
+    const [row] = await getDb()
+      .select({
+        inputTokens: usageReceipts.inputTokens,
+        cachedInputTokens: usageReceipts.cachedInputTokens,
+        cacheWriteInputTokens: usageReceipts.cacheWriteInputTokens,
+      })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.id, settled.receipt.receiptId));
+    expect(row).toEqual({
+      inputTokens: 1_000,
+      cachedInputTokens: 9_000,
+      cacheWriteInputTokens: 5_000,
+    });
+  });
+
+  it('bills the written tokens twice when they stay inside input_tokens', async () => {
+    const settled = await settleOn(await insertPriceVersion(true), {
+      ...REPORT,
+      input_tokens: 6_000,
+    });
+    if (settled.status !== 'settled') throw new Error(`settle failed: ${settled.status}`);
+    await expectAmount(settled.receipt.billedAmount, NESTED_CHARGE);
+  });
+
+  it('refuses a report of the unit against a price version that does not price it', async () => {
+    const settled = await settleOn(await insertPriceVersion(false), REPORT);
+    expect(settled).toMatchObject({ status: 'unpriced-units', unpricedUnits: 1 });
+  });
+});
+
 describe('expiry is a refund with a reason, never a silent release', () => {
   it('releases a past-deadline hold and records why', async () => {
     const f = await makeFixture({ fund: '10.000000000000' });

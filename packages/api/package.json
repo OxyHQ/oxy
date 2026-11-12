@@ -65,7 +65,7 @@
     "@opentelemetry/instrumentation-socket.io": "^0.71.0",
     "@opentelemetry/instrumentation-undici": "^0.34.0",
     "@opentelemetry/sdk-node": "^0.300.0",
-    "@kaana.ai/contracts": "8.2.0",
+    "@kaana.ai/contracts": "8.4.0",
     "@levischuck/tiny-cbor": "^0.3.6",
     "@noble/curves": "catalog:",
     "@oxy.so/bloom": "catalog:",

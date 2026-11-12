@@ -526,3 +526,20 @@ describe('input_transcription_milliseconds (set 3.9.0, @kaana.ai/contracts 4.1.0
     expect(usageUnitSchema.safeParse('input_transcription_seconds').success).toBe(false);
   });
 });
+
+describe('cache_write_input_tokens (set 4.1.0, @kaana.ai/contracts 8.4.0)', () => {
+  it('is the last unit, a sibling of input_tokens and cached_input_tokens', () => {
+    expect(USAGE_UNITS[USAGE_UNITS.length - 1]).toBe('cache_write_input_tokens');
+    expect(USAGE_UNITS).toEqual(
+      expect.arrayContaining(['input_tokens', 'cached_input_tokens', 'cache_write_input_tokens']),
+    );
+    expect(usageUnitSchema.safeParse('cache_write_input_tokens').success).toBe(true);
+    expect(usageUnitSchema.safeParse('cache_write_tokens').success).toBe(false);
+    expect(
+      usageQuantitySchema.safeParse({ unit: 'cache_write_input_tokens', quantity: 1_024 }).success,
+    ).toBe(true);
+    expect(
+      usageQuantitySchema.safeParse({ unit: 'cache_write_input_tokens', quantity: -1 }).success,
+    ).toBe(false);
+  });
+});

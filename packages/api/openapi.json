@@ -39137,7 +39137,8 @@
                             "cached_audio_input_tokens",
                             "audio_output_tokens",
                             "session_milliseconds",
-                            "input_transcription_milliseconds"
+                            "input_transcription_milliseconds",
+                            "cache_write_input_tokens"
                           ]
                         },
                         "amount": {
@@ -39162,7 +39163,7 @@
                       ],
                       "additionalProperties": false
                     },
-                    "maxItems": 16,
+                    "maxItems": 17,
                     "default": []
                   },
                   "maxPricePerRequest": {
@@ -39587,7 +39588,8 @@
                             "cached_audio_input_tokens",
                             "audio_output_tokens",
                             "session_milliseconds",
-                            "input_transcription_milliseconds"
+                            "input_transcription_milliseconds",
+                            "cache_write_input_tokens"
                           ]
                         },
                         "amount": {
@@ -39612,7 +39614,7 @@
                       ],
                       "additionalProperties": false
                     },
-                    "maxItems": 16,
+                    "maxItems": 17,
                     "default": []
                   },
                   "maxPricePerRequest": {
@@ -40584,7 +40586,8 @@
                             "cached_audio_input_tokens",
                             "audio_output_tokens",
                             "session_milliseconds",
-                            "input_transcription_milliseconds"
+                            "input_transcription_milliseconds",
+                            "cache_write_input_tokens"
                           ]
                         },
                         "amount": {
@@ -40609,7 +40612,7 @@
                       ],
                       "additionalProperties": false
                     },
-                    "maxItems": 16,
+                    "maxItems": 17,
                     "default": []
                   },
                   "maxPricePerRequest": {
@@ -42143,7 +42146,8 @@
                                         "cached_audio_input_tokens",
                                         "audio_output_tokens",
                                         "session_milliseconds",
-                                        "input_transcription_milliseconds"
+                                        "input_transcription_milliseconds",
+                                        "cache_write_input_tokens"
                                       ]
                                     },
                                     "amount": {
@@ -42993,7 +42997,8 @@
                                         "cached_audio_input_tokens",
                                         "audio_output_tokens",
                                         "session_milliseconds",
-                                        "input_transcription_milliseconds"
+                                        "input_transcription_milliseconds",
+                                        "cache_write_input_tokens"
                                       ]
                                     },
                                     "amount": {
@@ -43707,7 +43712,8 @@
                                       "cached_audio_input_tokens",
                                       "audio_output_tokens",
                                       "session_milliseconds",
-                                      "input_transcription_milliseconds"
+                                      "input_transcription_milliseconds",
+                                      "cache_write_input_tokens"
                                     ]
                                   },
                                   "amount": {
@@ -78285,7 +78291,8 @@
                                       "cached_audio_input_tokens",
                                       "audio_output_tokens",
                                       "session_milliseconds",
-                                      "input_transcription_milliseconds"
+                                      "input_transcription_milliseconds",
+                                      "cache_write_input_tokens"
                                     ]
                                   },
                                   "quantity": {
@@ -79002,7 +79009,8 @@
                                       "cached_audio_input_tokens",
                                       "audio_output_tokens",
                                       "session_milliseconds",
-                                      "input_transcription_milliseconds"
+                                      "input_transcription_milliseconds",
+                                      "cache_write_input_tokens"
                                     ]
                                   },
                                   "quantity": {
@@ -79832,7 +79840,8 @@
                                         "cached_audio_input_tokens",
                                         "audio_output_tokens",
                                         "session_milliseconds",
-                                        "input_transcription_milliseconds"
+                                        "input_transcription_milliseconds",
+                                        "cache_write_input_tokens"
                                       ]
                                     },
                                     "amount": {
@@ -80682,7 +80691,8 @@
                                         "cached_audio_input_tokens",
                                         "audio_output_tokens",
                                         "session_milliseconds",
-                                        "input_transcription_milliseconds"
+                                        "input_transcription_milliseconds",
+                                        "cache_write_input_tokens"
                                       ]
                                     },
                                     "amount": {
@@ -81396,7 +81406,8 @@
                                       "cached_audio_input_tokens",
                                       "audio_output_tokens",
                                       "session_milliseconds",
-                                      "input_transcription_milliseconds"
+                                      "input_transcription_milliseconds",
+                                      "cache_write_input_tokens"
                                     ]
                                   },
                                   "amount": {
@@ -82873,7 +82884,8 @@
                               "cached_audio_input_tokens",
                               "audio_output_tokens",
                               "session_milliseconds",
-                              "input_transcription_milliseconds"
+                              "input_transcription_milliseconds",
+                              "cache_write_input_tokens"
                             ]
                           },
                           "quantity": {

@@ -397,7 +397,14 @@ function openAiUsage(units: EdgeCompletion['units']): OpenAiUsage {
   const audioOutput = units.audio_output_tokens ?? 0;
   const reasoningTokens = units.reasoning_tokens ?? 0;
   const cachedTokens = cachedText + cachedAudio;
-  const promptTokens = (units.input_tokens ?? 0) + cachedText + audioInput + cachedAudio;
+  // Cache writes (contract set 4.1.0) are prompt tokens too: the dialect's
+  // `prompt_tokens` counts every token the model read, written to the cache or not.
+  const promptTokens =
+    (units.input_tokens ?? 0) +
+    cachedText +
+    audioInput +
+    cachedAudio +
+    (units.cache_write_input_tokens ?? 0);
   const completionTokens = (units.output_tokens ?? 0) + reasoningTokens + audioOutput;
   const audio = hasAudioTokens(units);
 

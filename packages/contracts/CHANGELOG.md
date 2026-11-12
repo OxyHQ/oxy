@@ -1,5 +1,18 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.25.0
+
+Additive only: no export removed.
+
+### Added — inference contract set **4.1.0** (a closed enum gains a member)
+
+- `USAGE_UNITS` gains `cache_write_input_tokens`, appended last: input tokens
+  written to a prompt cache on the request (the first-request premium; the
+  default five-minute TTL only). A sibling of `input_tokens` and
+  `cached_input_tokens` under the partition rule, never a subset of either.
+  Mirrors `@kaana.ai/contracts` 8.4.0, so Oxy's ledger can price and settle the
+  unit Kaana will report.
+
 ## 6.24.0
 
 The QR's redemption tells its window (ADR 0058 R9, 2026-11-09).

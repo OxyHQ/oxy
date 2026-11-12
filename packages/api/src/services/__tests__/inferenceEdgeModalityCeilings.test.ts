@@ -28,6 +28,7 @@
 
 import {
   ceilingForOperation,
+  ceilingQuoteScenarios,
   estimateInputTokens,
   modalityForOperation,
 } from '../inferenceEdge.service';
@@ -242,5 +243,41 @@ describe('completions are unchanged by the modality work', () => {
       input: 'text',
       output: 'text',
     });
+  });
+});
+
+describe('completion hold scenarios and cache writes (contract set 4.1.0)', () => {
+  const heldUnits = (scenarios: readonly Partial<Record<string, number>>[]) =>
+    scenarios.map((scenario) => Object.keys(scenario).sort());
+
+  it('adds the cache-write prompt vertex only for a route that prices the unit', () => {
+    const priced = ceilingQuoteScenarios({ kind: 'completion' }, 1_000, 500, {
+      cacheWriteInputPriced: true,
+    });
+    expect(priced).toHaveLength(6);
+    expect(priced).toContainEqual({
+      requests: 1,
+      cache_write_input_tokens: 1_000,
+      output_tokens: 500,
+    });
+    expect(priced).toContainEqual({
+      requests: 1,
+      cache_write_input_tokens: 1_000,
+      reasoning_tokens: 500,
+    });
+  });
+
+  it('holds a route that does not price it exactly as before', () => {
+    const unpriced = ceilingQuoteScenarios({ kind: 'completion' }, 1_000, 500);
+    expect(unpriced).toEqual([
+      { requests: 1, input_tokens: 1_000, output_tokens: 500 },
+      { requests: 1, input_tokens: 1_000, reasoning_tokens: 500 },
+      { requests: 1, cached_input_tokens: 1_000, output_tokens: 500 },
+      { requests: 1, cached_input_tokens: 1_000, reasoning_tokens: 500 },
+    ]);
+    expect(heldUnits(unpriced).flat()).not.toContain('cache_write_input_tokens');
+    expect(
+      ceilingQuoteScenarios({ kind: 'completion' }, 1_000, 500, { cacheWriteInputPriced: false }),
+    ).toEqual(unpriced);
   });
 });
