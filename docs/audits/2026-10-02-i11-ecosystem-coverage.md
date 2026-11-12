@@ -155,7 +155,7 @@ Coverage/metadata validation is an executed artifact check, **not integrated run
 
 Executed on 2026-10-02, Linux local, Python3/Bun1.4.2:
 
-- `python3 scripts/audit-i11-coverage.py --json`: exit0, 50 repos / 554 inspected files / 223 lock records / 172 read-only proposal rows.
+- `python3 scripts/audit-i11-coverage.py --json`: exit0, 50 repos / 552 inspected files / 223 lock records / 170 read-only proposal rows.
 - `python3 scripts/audit-i11-coverage.py --online --json`: exit0, identical accessible repository set and pinned default heads, no drift.
 - Five local negative controls (remove repo, ghost primary source, invalid head, fabricated deployment, missing publication evidence): all rejected exit1. These validate reporting boundaries, not application security.
 - `bun run validate:agents-md` and `git diff --check`: pass.

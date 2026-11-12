@@ -176,13 +176,6 @@
           "url": "https://github.com/OxyHQ/Alia/blob/2927daa376cb37e25f3d021d880efc48e650ce7f/package.json#L57"
         },
         {
-          "path": "packages/alia-canvas/package.json",
-          "blob_sha": "44ee839551a990be064897a3417f78c40278442b",
-          "lines": 59,
-          "focus_line": 16,
-          "url": "https://github.com/OxyHQ/Alia/blob/2927daa376cb37e25f3d021d880efc48e650ce7f/packages/alia-canvas/package.json#L16"
-        },
-        {
           "path": "packages/alia-chat/package.json",
           "blob_sha": "414adb1dcc8a54b76dc206a52edfd1f8409a5123",
           "lines": 78,
@@ -272,13 +265,6 @@
           "lines": 53,
           "focus_line": 1,
           "url": "https://github.com/OxyHQ/Alia/blob/2927daa376cb37e25f3d021d880efc48e650ce7f/docs/adr/README.md#L1"
-        },
-        {
-          "path": "packages/alia-canvas/README.md",
-          "blob_sha": "dbbcb91151461ac35fe810f0919543b6a15ef4b6",
-          "lines": 35,
-          "focus_line": 24,
-          "url": "https://github.com/OxyHQ/Alia/blob/2927daa376cb37e25f3d021d880efc48e650ce7f/packages/alia-canvas/README.md#L24"
         },
         {
           "path": "docs/bloom-adoption.mdx",
@@ -408,38 +394,6 @@
           "package": "@oxy.so/doctor",
           "declared": "1.1.0",
           "effective_declared": "1.1.0"
-        },
-        {
-          "path": "packages/alia-canvas/package.json",
-          "line": 16,
-          "group": "dependencies",
-          "package": "@oxy.so/telemetry",
-          "declared": "^1.2.0",
-          "effective_declared": "^1.2.0"
-        },
-        {
-          "path": "packages/alia-canvas/package.json",
-          "line": 20,
-          "group": "dependencies",
-          "package": "@oxy.so/bloom",
-          "declared": "^6.3.0",
-          "effective_declared": "^6.3.0"
-        },
-        {
-          "path": "packages/alia-canvas/package.json",
-          "line": 21,
-          "group": "dependencies",
-          "package": "@oxy.so/core",
-          "declared": "^4.0.0",
-          "effective_declared": "^4.0.0"
-        },
-        {
-          "path": "packages/alia-canvas/package.json",
-          "line": 22,
-          "group": "dependencies",
-          "package": "@oxy.so/services",
-          "declared": "^11.0.0",
-          "effective_declared": "^11.0.0"
         },
         {
           "path": "packages/alia-chat/package.json",
@@ -705,12 +659,6 @@
           "path": "package.json",
           "test_script": null,
           "build_script": "bun run --filter '*' build",
-          "typecheck_script": null
-        },
-        {
-          "path": "packages/alia-canvas/package.json",
-          "test_script": "vitest run",
-          "build_script": "tsc -b && vite build",
           "typecheck_script": null
         },
         {
