@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/doctor",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Read-only health checks for Oxy ecosystem repositories",
   "repository": {
     "type": "git",
@@ -12,11 +12,13 @@
     "oxy-doctor": "./src/cli.mjs",
     "oxy-doctor-expo-android": "./src/expo-android.mjs",
     "oxy-doctor-i18n": "./src/i18n-cli.mjs",
+    "oxy-doctor-web-budget": "./src/web-budget-cli.mjs",
     "oxy-emulator-preflight": "./src/emulator-preflight.mjs"
   },
   "exports": {
     ".": "./src/checks.mjs",
-    "./i18n": "./src/i18n.mjs"
+    "./i18n": "./src/i18n.mjs",
+    "./web-export-budget": "./src/web-export-budget.mjs"
   },
   "files": [
     "src",
