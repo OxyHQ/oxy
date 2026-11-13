@@ -9,8 +9,13 @@ import {
 } from '../index';
 
 describe('avatarCharacterSchema', () => {
-  it('accepts a preset, or a shape with a paint, and lower-cases the hex', () => {
+  it('accepts a preset, or a shape with or without a paint, and lower-cases the hex', () => {
     expect(parseAvatarCharacter({ preset: 'alfred' })).toEqual({ preset: 'alfred' });
+    // The account's colour paints a bot: its character needs no paint of its own.
+    expect(parseAvatarCharacter({ shape: 'heart', eyes: 'oval' })).toEqual({
+      shape: 'heart',
+      eyes: 'oval',
+    });
     expect(parseAvatarCharacter({ shape: 'heart', color: 'pink' })).toEqual({
       shape: 'heart',
       color: 'pink',
@@ -25,7 +30,6 @@ describe('avatarCharacterSchema', () => {
     ['an array', []],
     ['a string', 'alfred'],
     ['an empty object', {}],
-    ['a shape without a paint', { shape: 'heart' }],
     ['a paint without a shape', { color: 'pink' }],
     ['an unknown key', { preset: 'alfred', selections: { color: 'blue' } }],
     ['a non id-like value', { preset: 'Alfred!' }],
@@ -85,7 +89,7 @@ describe('createAccountRequestSchema — character', () => {
 
   it('refuses a malformed character on a bot', () => {
     expect(
-      createAccountRequestSchema.safeParse({ ...base, kind: 'bot', character: { shape: 'heart' } })
+      createAccountRequestSchema.safeParse({ ...base, kind: 'bot', character: { color: 'pink' } })
         .success,
     ).toBe(false);
   });

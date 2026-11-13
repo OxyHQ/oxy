@@ -16,6 +16,16 @@
  * is the SHAPE of what a client writes: only the keys a character has, each an
  * id-like string, a `#rrggbb` paint, a spacing in range. The client resolves
  * the ids and falls back on a default look for one it cannot draw.
+ *
+ * ## A bot's colour is its account's, not its character's
+ *
+ * A bot is painted in its account's `color` (`User.color`, a Bloom preset key):
+ * Bloom draws a bot account's character in it (`avatarCharacterInColor`,
+ * `@oxy.so/bloom` 20), so a character needs no paint of its own and a bot whose
+ * owner changes its colour changes everywhere at once. A character is therefore
+ * valid with a preset or a shape alone. `color` and `bodyColor` are still
+ * accepted from writers that send them, and a renderer that knows the account's
+ * colour ignores them.
  */
 
 import { z } from 'zod';
@@ -46,7 +56,8 @@ const idSchema = z.string().regex(ID);
 /**
  * A character a client sends. `.strict()` so a misspelled field is a refusal
  * now rather than a look that never takes effect. A character with nothing in
- * it draws nothing: it needs a preset, or a shape and a paint.
+ * it draws nothing: it needs a preset or a shape. It needs no paint: the
+ * account's colour paints it (see the file comment).
  */
 export const avatarCharacterSchema: z.ZodType<AvatarCharacter, unknown> = z
   .object({
@@ -69,12 +80,9 @@ export const avatarCharacterSchema: z.ZodType<AvatarCharacter, unknown> = z
       .optional(),
   })
   .strict()
-  .refine(
-    (c) =>
-      c.preset !== undefined ||
-      (c.shape !== undefined && (c.color !== undefined || c.bodyColor !== undefined)),
-    { message: 'A character needs a preset, or a shape and a color' },
-  );
+  .refine((c) => c.preset !== undefined || c.shape !== undefined, {
+    message: 'A character needs a preset or a shape',
+  });
 
 /** The validated character, or `null` for anything that is not one. */
 export function parseAvatarCharacter(value: unknown): AvatarCharacter | null {

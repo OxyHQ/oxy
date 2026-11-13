@@ -303,7 +303,8 @@ describe('PATCH /accounts/:id — the character', () => {
     const bot = await seedChild(owner, 'bot', GIVEN);
     actingUserId = owner;
 
-    const malformed = await send('PATCH', `/accounts/${bot}`, { character: { shape: 'heart' } });
+    // A paint without a shape or a preset draws nothing (a bot's colour is its account's).
+    const malformed = await send('PATCH', `/accounts/${bot}`, { character: { color: 'pink' } });
     expect(malformed.status).toBe(400);
     const cleared = await send('PATCH', `/accounts/${bot}`, { character: null });
     expect(cleared.status).toBe(400);
