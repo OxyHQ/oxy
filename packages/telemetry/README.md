@@ -6,7 +6,8 @@ Redis, React, React Native or Expo.
 
 ## Entry points
 
-- `@oxy.so/telemetry` — shared header names and aggregate interfaces.
+- `@oxy.so/telemetry` — shared header names, the CORS header lists and the wire
+  types (`TrafficAggregate`, `ActivityAggregate`, `InfrastructureSnapshot`).
 - `@oxy.so/telemetry/browser` — ephemeral browser metadata.
 - `@oxy.so/telemetry/collector` — bounded HTTP/custom-transport flow aggregation.
 - `@oxy.so/telemetry/server` — pure validation, route bucketing and cardinality
@@ -20,11 +21,18 @@ side effects.
 ## Browser metadata
 
 ```ts
-import { getBrowserTelemetryHeaders } from '@oxy.so/telemetry/browser';
+import { getBrowserActivityIdHeader, peekBrowserEdgeRegionHeader } from '@oxy.so/telemetry/browser';
 
-const headers = await getBrowserTelemetryHeaders();
+const headers = { ...peekBrowserEdgeRegionHeader(), ...getBrowserActivityIdHeader() };
 await fetch('https://api.oxy.so/session/status', { headers });
 ```
+
+This is what `@oxy.so/core` sends on every request: the peek never waits on the
+trace. `getBrowserEdgeRegionHeader()` is the awaiting variant.
+
+A CORS allow-list for these headers is `OXY_TELEMETRY_REQUEST_HEADERS` (from the
+root entry), and `OXY_TELEMETRY_EXPOSED_HEADERS` for `Access-Control-Expose-Headers`;
+import them instead of repeating the header names.
 
 `X-Oxy-Activity-Id` is generated in memory for the current page runtime and
 rotates every five minutes. It is not placed in a cookie, local storage,
@@ -35,33 +43,31 @@ from the same-origin `/cdn-cgi/trace` endpoint. The helper reads no IP field and
 returns, logs and persists none of the rest of the trace response. Discovery is
 cached for 15 seconds per runtime (including failed discovery), has a one-second timeout and is disabled on loopback.
 
-Use `createBrowserTelemetry()` to create an isolated runtime or inject clock,
-crypto, location and trace-fetch dependencies in tests.
+`createBrowserTelemetry()` builds an isolated runtime with injected clock,
+crypto, location and trace-fetch dependencies; it is the test seam.
 
 ## Server primitives
 
 ```ts
 import {
-  activityFlow,
   metadataFromHeaders,
   presenceKeys,
-  serviceFromPath,
-  type ActivityCardinalityAdapter,
+  sourceRegionFromEdgePop,
 } from '@oxy.so/telemetry/server';
 
 const metadata = metadataFromHeaders(request.headers);
-const sourceRegion = metadata.edgePop ? `edge-${metadata.edgePop}` : undefined;
-const flow = activityFlow(sourceRegion, serviceFromPath(request.path));
+const sourceRegion = sourceRegionFromEdgePop(metadata.edgePop); // 'edge-mad' | undefined
 const keys = sourceRegion ? presenceKeys(sourceRegion, Date.now()) : [];
 ```
 
 Validation accepts a three-letter PoP and a 16–64 character opaque activity ID.
-It ignores IP and forwarding headers. `serviceFromPath` keeps only a bounded,
-static first route segment, so IDs and full paths cannot enter aggregates.
-
-`ActivityCardinalityAdapter` describes the minimal storage boundary for an
-implementation such as Redis HyperLogLog. This package does not instantiate a
+It ignores IP and forwarding headers. This package does not instantiate a
 store, keep server-global maps, start timers or send realtime events.
+
+`serviceFromPath`, `activityFlow`, `presenceBucket`, `ActivityCardinalityAdapter`,
+`ActivityBucket`, `DEFAULT_ACTIVE_CLIENT_WINDOW_MS`, `getBrowserTelemetryHeaders`
+and `createBrowserTelemetry` are deprecated: nothing in Oxy uses them and they go in
+the next major.
 
 ## Active-client definition
 
@@ -106,8 +112,10 @@ follow the actual movement, even when two services share one region.
 identity after route authentication. `instrumentTrafficFetch` observes actual
 outbound calls; internal destination regions come from the peer's `X-Oxy-Region`
 response, not a guessed IP location. Unlocated peers remain unlocated. Health,
-telemetry collection, infrastructure snapshots and service-token minting are
-excluded from observation where applicable to prevent control traffic feedback.
+telemetry collection, infrastructure snapshots, service-token minting and
+`/cdn-cgi/` are excluded from observation to prevent control traffic feedback;
+`isObservedPath(path, direction)` (reading the `UNOBSERVED_PATHS` table) is the one predicate, so an adapter that does its own
+interception imports it instead of copying a pattern.
 Custom transports can call the collector's `record` method explicitly.
 
 Each collector retains at most 512 distinct pending flows and publishes chunks
@@ -116,7 +124,8 @@ durable retry queue. These are live operational observations, not billing or
 lossless historical request totals. No dashboard viewer is needed to collect.
 
 Realtime transport publishes aggregate buckets, not individual metadata. A
-socket event may carry `ActivityAggregate`: request count, approximate active
+socket event carries `ActivityAggregate` (a `TrafficAggregate` plus
+`activeClients`; the infrastructure snapshot is `InfrastructureSnapshot`): request count, approximate active
 clients, source/target regions, service and window timestamps. Transport and
 fan-out are application concerns and intentionally absent from this package.
 
@@ -169,6 +178,27 @@ Route, method, table and every other label stay plain properties on the line:
 `stats sum(RequestLatency.Count) by Route` in Logs Insights. At most
 `maxSeries` (default 2000) series are held per interval; past that, new series
 fold into one whose labels read `other`.
+
+On ECS only, `createEmfPublisherIfDeployed(options)` returns the same publisher
+and `null` elsewhere (it checks `ECS_CONTAINER_METADATA_URI_V4`), so a service
+does not repeat that gate.
+
+### Conformance fixture
+
+`fixtures/emf-golden.json` is the cross-language contract for the EMF line format.
+Each case holds a metric `definition`, `service`, `namespace`, a fixed `now`
+(the line's `Timestamp`), optional `maxSeries`, the `observations`
+(`{labels, value}`; the strings `"NaN"`, `"Infinity"` and `"-Infinity"` stand for
+the non-finite numbers JSON cannot carry) and the `expectedLines` the publisher
+must write on flush, in series first-seen order. Lines are compared as parsed
+JSON, not as bytes. `src/__tests__/emfGolden.test.ts` runs every case through the
+real publisher.
+
+Kaana's Go `internal/emf` must consume the same file (a vendored copy that a
+Kaana test keeps byte-identical to this one) and pass every case; change the
+fixture here first. Label values are truncated by UTF-16 code units, so a Go
+implementation counts UTF-16 units, not bytes or runes. The fixture avoids a cut
+inside a surrogate pair, whose result is a lone surrogate that UTF-8 cannot carry.
 
 ## Development
 

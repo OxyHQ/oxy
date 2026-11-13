@@ -1,5 +1,5 @@
 import { normalizeInfrastructureRegion, type TrafficFlow, type TrafficType } from './collector.js';
-import { metadataFromHeaders, type TelemetryHeaders } from './server.js';
+import { metadataFromHeaders, sourceRegionFromEdgePop, type TelemetryHeaders } from './server.js';
 
 export interface TrafficSocket {
   handshake: { headers: TelemetryHeaders };
@@ -63,9 +63,7 @@ export function observeTrafficSocket(
     const edgePop = metadataFromHeaders(socket.handshake.headers).edgePop;
     const peerRegion = peerService
       ? normalizeInfrastructureRegion(peer?.region)
-      : edgePop
-        ? `edge-${edgePop}`
-        : undefined;
+      : sourceRegionFromEdgePop(edgePop);
     collector.record({
       region,
       service,
@@ -125,9 +123,7 @@ export function observeTrafficWebSocket(
     const edgePop = metadataFromHeaders(options.headers ?? {}).edgePop;
     const peerRegion = peerService
       ? normalizeInfrastructureRegion(peer?.region)
-      : edgePop
-        ? `edge-${edgePop}`
-        : undefined;
+      : sourceRegionFromEdgePop(edgePop);
     collector.record({
       service,
       region,

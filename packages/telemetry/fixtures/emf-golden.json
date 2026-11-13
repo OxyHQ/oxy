@@ -1,0 +1,2115 @@
+[
+  {
+    "name": "sum adds every value",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      },
+      {
+        "labels": {},
+        "value": 2
+      },
+      {
+        "labels": {},
+        "value": 3.5
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Jobs": 6.5
+      }
+    ]
+  },
+  {
+    "name": "sum keeps one line per label set",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum",
+      "dimensionSets": [["Outcome"]]
+    },
+    "observations": [
+      {
+        "labels": {
+          "Outcome": "ok"
+        },
+        "value": 1
+      },
+      {
+        "labels": {
+          "Outcome": "fail"
+        },
+        "value": 1
+      },
+      {
+        "labels": {
+          "Outcome": "ok"
+        },
+        "value": 4
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"], ["Service", "Outcome"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Outcome": "ok",
+        "Service": "golden-svc",
+        "Jobs": 5
+      },
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"], ["Service", "Outcome"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Outcome": "fail",
+        "Service": "golden-svc",
+        "Jobs": 1
+      }
+    ]
+  },
+  {
+    "name": "distribution folds to 5 percent buckets",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "RequestLatency",
+      "unit": "Milliseconds",
+      "kind": "distribution",
+      "dimensionSets": [["StatusClass"], ["Caller"]]
+    },
+    "observations": [
+      {
+        "labels": {
+          "Route": "/users/:id",
+          "StatusClass": "2xx",
+          "Caller": "anonymous"
+        },
+        "value": 10
+      },
+      {
+        "labels": {
+          "Route": "/users/:id",
+          "StatusClass": "2xx",
+          "Caller": "anonymous"
+        },
+        "value": 10
+      },
+      {
+        "labels": {
+          "Route": "/users/:id",
+          "StatusClass": "2xx",
+          "Caller": "anonymous"
+        },
+        "value": 200
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"], ["Service", "StatusClass"], ["Service", "Caller"]],
+              "Metrics": [
+                {
+                  "Name": "RequestLatency",
+                  "Unit": "Milliseconds"
+                }
+              ]
+            }
+          ]
+        },
+        "Route": "/users/:id",
+        "StatusClass": "2xx",
+        "Caller": "anonymous",
+        "Service": "golden-svc",
+        "RequestLatency": {
+          "Values": [9.91, 204],
+          "Counts": [2, 1],
+          "Max": 200,
+          "Min": 10,
+          "Count": 3,
+          "Sum": 220
+        }
+      }
+    ]
+  },
+  {
+    "name": "distribution zero value",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Size",
+      "unit": "Bytes",
+      "kind": "distribution"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 0
+      },
+      {
+        "labels": {},
+        "value": 0
+      },
+      {
+        "labels": {},
+        "value": 1024
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Size",
+                  "Unit": "Bytes"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Size": {
+          "Values": [0, 1020],
+          "Counts": [2, 1],
+          "Max": 1024,
+          "Min": 0,
+          "Count": 3,
+          "Sum": 1024
+        }
+      }
+    ]
+  },
+  {
+    "name": "distribution with more than 100 distinct buckets merges by pairs",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Wide",
+      "unit": "Milliseconds",
+      "kind": "distribution"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      },
+      {
+        "labels": {},
+        "value": 1.05
+      },
+      {
+        "labels": {},
+        "value": 1.1025
+      },
+      {
+        "labels": {},
+        "value": 1.15763
+      },
+      {
+        "labels": {},
+        "value": 1.21551
+      },
+      {
+        "labels": {},
+        "value": 1.27628
+      },
+      {
+        "labels": {},
+        "value": 1.3401
+      },
+      {
+        "labels": {},
+        "value": 1.4071
+      },
+      {
+        "labels": {},
+        "value": 1.47746
+      },
+      {
+        "labels": {},
+        "value": 1.55133
+      },
+      {
+        "labels": {},
+        "value": 1.62889
+      },
+      {
+        "labels": {},
+        "value": 1.71034
+      },
+      {
+        "labels": {},
+        "value": 1.79586
+      },
+      {
+        "labels": {},
+        "value": 1.88565
+      },
+      {
+        "labels": {},
+        "value": 1.97993
+      },
+      {
+        "labels": {},
+        "value": 2.07893
+      },
+      {
+        "labels": {},
+        "value": 2.18287
+      },
+      {
+        "labels": {},
+        "value": 2.29202
+      },
+      {
+        "labels": {},
+        "value": 2.40662
+      },
+      {
+        "labels": {},
+        "value": 2.52695
+      },
+      {
+        "labels": {},
+        "value": 2.6533
+      },
+      {
+        "labels": {},
+        "value": 2.78596
+      },
+      {
+        "labels": {},
+        "value": 2.92526
+      },
+      {
+        "labels": {},
+        "value": 3.07152
+      },
+      {
+        "labels": {},
+        "value": 3.2251
+      },
+      {
+        "labels": {},
+        "value": 3.38635
+      },
+      {
+        "labels": {},
+        "value": 3.55567
+      },
+      {
+        "labels": {},
+        "value": 3.73346
+      },
+      {
+        "labels": {},
+        "value": 3.92013
+      },
+      {
+        "labels": {},
+        "value": 4.11614
+      },
+      {
+        "labels": {},
+        "value": 4.32194
+      },
+      {
+        "labels": {},
+        "value": 4.53804
+      },
+      {
+        "labels": {},
+        "value": 4.76494
+      },
+      {
+        "labels": {},
+        "value": 5.00319
+      },
+      {
+        "labels": {},
+        "value": 5.25335
+      },
+      {
+        "labels": {},
+        "value": 5.51602
+      },
+      {
+        "labels": {},
+        "value": 5.79182
+      },
+      {
+        "labels": {},
+        "value": 6.08141
+      },
+      {
+        "labels": {},
+        "value": 6.38548
+      },
+      {
+        "labels": {},
+        "value": 6.70475
+      },
+      {
+        "labels": {},
+        "value": 7.03999
+      },
+      {
+        "labels": {},
+        "value": 7.39199
+      },
+      {
+        "labels": {},
+        "value": 7.76159
+      },
+      {
+        "labels": {},
+        "value": 8.14967
+      },
+      {
+        "labels": {},
+        "value": 8.55715
+      },
+      {
+        "labels": {},
+        "value": 8.98501
+      },
+      {
+        "labels": {},
+        "value": 9.43426
+      },
+      {
+        "labels": {},
+        "value": 9.90597
+      },
+      {
+        "labels": {},
+        "value": 10.4013
+      },
+      {
+        "labels": {},
+        "value": 10.9213
+      },
+      {
+        "labels": {},
+        "value": 11.4674
+      },
+      {
+        "labels": {},
+        "value": 12.0408
+      },
+      {
+        "labels": {},
+        "value": 12.6428
+      },
+      {
+        "labels": {},
+        "value": 13.2749
+      },
+      {
+        "labels": {},
+        "value": 13.9387
+      },
+      {
+        "labels": {},
+        "value": 14.6356
+      },
+      {
+        "labels": {},
+        "value": 15.3674
+      },
+      {
+        "labels": {},
+        "value": 16.1358
+      },
+      {
+        "labels": {},
+        "value": 16.9426
+      },
+      {
+        "labels": {},
+        "value": 17.7897
+      },
+      {
+        "labels": {},
+        "value": 18.6792
+      },
+      {
+        "labels": {},
+        "value": 19.6131
+      },
+      {
+        "labels": {},
+        "value": 20.5938
+      },
+      {
+        "labels": {},
+        "value": 21.6235
+      },
+      {
+        "labels": {},
+        "value": 22.7047
+      },
+      {
+        "labels": {},
+        "value": 23.8399
+      },
+      {
+        "labels": {},
+        "value": 25.0319
+      },
+      {
+        "labels": {},
+        "value": 26.2835
+      },
+      {
+        "labels": {},
+        "value": 27.5977
+      },
+      {
+        "labels": {},
+        "value": 28.9775
+      },
+      {
+        "labels": {},
+        "value": 30.4264
+      },
+      {
+        "labels": {},
+        "value": 31.9477
+      },
+      {
+        "labels": {},
+        "value": 33.5451
+      },
+      {
+        "labels": {},
+        "value": 35.2224
+      },
+      {
+        "labels": {},
+        "value": 36.9835
+      },
+      {
+        "labels": {},
+        "value": 38.8327
+      },
+      {
+        "labels": {},
+        "value": 40.7743
+      },
+      {
+        "labels": {},
+        "value": 42.813
+      },
+      {
+        "labels": {},
+        "value": 44.9537
+      },
+      {
+        "labels": {},
+        "value": 47.2014
+      },
+      {
+        "labels": {},
+        "value": 49.5614
+      },
+      {
+        "labels": {},
+        "value": 52.0395
+      },
+      {
+        "labels": {},
+        "value": 54.6415
+      },
+      {
+        "labels": {},
+        "value": 57.3736
+      },
+      {
+        "labels": {},
+        "value": 60.2422
+      },
+      {
+        "labels": {},
+        "value": 63.2544
+      },
+      {
+        "labels": {},
+        "value": 66.4171
+      },
+      {
+        "labels": {},
+        "value": 69.7379
+      },
+      {
+        "labels": {},
+        "value": 73.2248
+      },
+      {
+        "labels": {},
+        "value": 76.8861
+      },
+      {
+        "labels": {},
+        "value": 80.7304
+      },
+      {
+        "labels": {},
+        "value": 84.7669
+      },
+      {
+        "labels": {},
+        "value": 89.0052
+      },
+      {
+        "labels": {},
+        "value": 93.4555
+      },
+      {
+        "labels": {},
+        "value": 98.1283
+      },
+      {
+        "labels": {},
+        "value": 103.035
+      },
+      {
+        "labels": {},
+        "value": 108.186
+      },
+      {
+        "labels": {},
+        "value": 113.596
+      },
+      {
+        "labels": {},
+        "value": 119.276
+      },
+      {
+        "labels": {},
+        "value": 125.239
+      },
+      {
+        "labels": {},
+        "value": 131.501
+      },
+      {
+        "labels": {},
+        "value": 138.076
+      },
+      {
+        "labels": {},
+        "value": 144.98
+      },
+      {
+        "labels": {},
+        "value": 152.229
+      },
+      {
+        "labels": {},
+        "value": 159.841
+      },
+      {
+        "labels": {},
+        "value": 167.833
+      },
+      {
+        "labels": {},
+        "value": 176.224
+      },
+      {
+        "labels": {},
+        "value": 185.035
+      },
+      {
+        "labels": {},
+        "value": 194.287
+      },
+      {
+        "labels": {},
+        "value": 204.002
+      },
+      {
+        "labels": {},
+        "value": 214.202
+      },
+      {
+        "labels": {},
+        "value": 224.912
+      },
+      {
+        "labels": {},
+        "value": 236.157
+      },
+      {
+        "labels": {},
+        "value": 247.965
+      },
+      {
+        "labels": {},
+        "value": 260.363
+      },
+      {
+        "labels": {},
+        "value": 273.382
+      },
+      {
+        "labels": {},
+        "value": 287.051
+      },
+      {
+        "labels": {},
+        "value": 301.403
+      },
+      {
+        "labels": {},
+        "value": 316.473
+      },
+      {
+        "labels": {},
+        "value": 332.297
+      },
+      {
+        "labels": {},
+        "value": 348.912
+      },
+      {
+        "labels": {},
+        "value": 366.358
+      },
+      {
+        "labels": {},
+        "value": 384.675
+      },
+      {
+        "labels": {},
+        "value": 403.909
+      },
+      {
+        "labels": {},
+        "value": 424.105
+      },
+      {
+        "labels": {},
+        "value": 445.31
+      },
+      {
+        "labels": {},
+        "value": 467.575
+      },
+      {
+        "labels": {},
+        "value": 490.954
+      },
+      {
+        "labels": {},
+        "value": 515.502
+      },
+      {
+        "labels": {},
+        "value": 541.277
+      },
+      {
+        "labels": {},
+        "value": 568.341
+      },
+      {
+        "labels": {},
+        "value": 596.758
+      },
+      {
+        "labels": {},
+        "value": 626.596
+      },
+      {
+        "labels": {},
+        "value": 657.926
+      },
+      {
+        "labels": {},
+        "value": 690.822
+      },
+      {
+        "labels": {},
+        "value": 725.363
+      },
+      {
+        "labels": {},
+        "value": 761.631
+      },
+      {
+        "labels": {},
+        "value": 799.713
+      },
+      {
+        "labels": {},
+        "value": 839.698
+      },
+      {
+        "labels": {},
+        "value": 881.683
+      },
+      {
+        "labels": {},
+        "value": 925.767
+      },
+      {
+        "labels": {},
+        "value": 972.056
+      },
+      {
+        "labels": {},
+        "value": 1020.66
+      },
+      {
+        "labels": {},
+        "value": 1071.69
+      },
+      {
+        "labels": {},
+        "value": 1125.28
+      },
+      {
+        "labels": {},
+        "value": 1181.54
+      },
+      {
+        "labels": {},
+        "value": 1240.62
+      },
+      {
+        "labels": {},
+        "value": 1302.65
+      },
+      {
+        "labels": {},
+        "value": 1367.78
+      },
+      {
+        "labels": {},
+        "value": 1436.17
+      },
+      {
+        "labels": {},
+        "value": 1507.98
+      },
+      {
+        "labels": {},
+        "value": 1583.38
+      },
+      {
+        "labels": {},
+        "value": 1662.55
+      },
+      {
+        "labels": {},
+        "value": 1745.67
+      },
+      {
+        "labels": {},
+        "value": 1832.96
+      },
+      {
+        "labels": {},
+        "value": 1924.6
+      },
+      {
+        "labels": {},
+        "value": 2020.83
+      },
+      {
+        "labels": {},
+        "value": 2121.88
+      },
+      {
+        "labels": {},
+        "value": 2227.97
+      },
+      {
+        "labels": {},
+        "value": 2339.37
+      },
+      {
+        "labels": {},
+        "value": 2456.34
+      },
+      {
+        "labels": {},
+        "value": 2579.15
+      },
+      {
+        "labels": {},
+        "value": 2708.11
+      },
+      {
+        "labels": {},
+        "value": 2843.52
+      },
+      {
+        "labels": {},
+        "value": 2985.69
+      },
+      {
+        "labels": {},
+        "value": 3134.98
+      },
+      {
+        "labels": {},
+        "value": 3291.73
+      },
+      {
+        "labels": {},
+        "value": 3456.31
+      },
+      {
+        "labels": {},
+        "value": 3629.13
+      },
+      {
+        "labels": {},
+        "value": 3810.58
+      },
+      {
+        "labels": {},
+        "value": 4001.11
+      },
+      {
+        "labels": {},
+        "value": 4201.17
+      },
+      {
+        "labels": {},
+        "value": 4411.23
+      },
+      {
+        "labels": {},
+        "value": 4631.79
+      },
+      {
+        "labels": {},
+        "value": 4863.38
+      },
+      {
+        "labels": {},
+        "value": 5106.55
+      },
+      {
+        "labels": {},
+        "value": 5361.87
+      },
+      {
+        "labels": {},
+        "value": 5629.97
+      },
+      {
+        "labels": {},
+        "value": 5911.47
+      },
+      {
+        "labels": {},
+        "value": 6207.04
+      },
+      {
+        "labels": {},
+        "value": 6517.39
+      },
+      {
+        "labels": {},
+        "value": 6843.26
+      },
+      {
+        "labels": {},
+        "value": 7185.42
+      },
+      {
+        "labels": {},
+        "value": 7544.7
+      },
+      {
+        "labels": {},
+        "value": 7921.93
+      },
+      {
+        "labels": {},
+        "value": 8318.03
+      },
+      {
+        "labels": {},
+        "value": 8733.93
+      },
+      {
+        "labels": {},
+        "value": 9170.62
+      },
+      {
+        "labels": {},
+        "value": 9629.16
+      },
+      {
+        "labels": {},
+        "value": 10110.6
+      },
+      {
+        "labels": {},
+        "value": 10616.1
+      },
+      {
+        "labels": {},
+        "value": 11147
+      },
+      {
+        "labels": {},
+        "value": 11704.3
+      },
+      {
+        "labels": {},
+        "value": 12289.5
+      },
+      {
+        "labels": {},
+        "value": 12904
+      },
+      {
+        "labels": {},
+        "value": 13549.2
+      },
+      {
+        "labels": {},
+        "value": 14226.6
+      },
+      {
+        "labels": {},
+        "value": 14938
+      },
+      {
+        "labels": {},
+        "value": 15684.9
+      },
+      {
+        "labels": {},
+        "value": 16469.1
+      },
+      {
+        "labels": {},
+        "value": 17292.6
+      },
+      {
+        "labels": {},
+        "value": 18157.2
+      },
+      {
+        "labels": {},
+        "value": 19065.1
+      },
+      {
+        "labels": {},
+        "value": 20018.3
+      },
+      {
+        "labels": {},
+        "value": 21019.2
+      },
+      {
+        "labels": {},
+        "value": 22070.2
+      },
+      {
+        "labels": {},
+        "value": 23173.7
+      },
+      {
+        "labels": {},
+        "value": 24332.4
+      },
+      {
+        "labels": {},
+        "value": 25549
+      },
+      {
+        "labels": {},
+        "value": 26826.5
+      },
+      {
+        "labels": {},
+        "value": 28167.8
+      },
+      {
+        "labels": {},
+        "value": 29576.2
+      },
+      {
+        "labels": {},
+        "value": 31055
+      },
+      {
+        "labels": {},
+        "value": 32607.7
+      },
+      {
+        "labels": {},
+        "value": 34238.1
+      },
+      {
+        "labels": {},
+        "value": 35950
+      },
+      {
+        "labels": {},
+        "value": 37747.5
+      },
+      {
+        "labels": {},
+        "value": 39634.9
+      },
+      {
+        "labels": {},
+        "value": 41616.7
+      },
+      {
+        "labels": {},
+        "value": 43697.5
+      },
+      {
+        "labels": {},
+        "value": 45882.4
+      },
+      {
+        "labels": {},
+        "value": 48176.5
+      },
+      {
+        "labels": {},
+        "value": 50585.3
+      },
+      {
+        "labels": {},
+        "value": 53114.6
+      },
+      {
+        "labels": {},
+        "value": 55770.3
+      },
+      {
+        "labels": {},
+        "value": 58558.8
+      },
+      {
+        "labels": {},
+        "value": 61486.8
+      },
+      {
+        "labels": {},
+        "value": 64561.1
+      },
+      {
+        "labels": {},
+        "value": 67789.1
+      },
+      {
+        "labels": {},
+        "value": 71178.6
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Wide",
+                  "Unit": "Milliseconds"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Wide": {
+          "Values": [
+            1.16, 1.41, 1.71, 2.08, 2.53, 3.07, 3.73, 4.54, 5.52, 6.7, 8.15, 9.91, 12, 14.6, 17.8,
+            21.6, 26.3, 31.9, 38.8, 47.2, 57.4, 69.7, 84.8, 103, 125, 152, 185, 225, 273, 332, 404,
+            491, 597, 725, 882, 1070, 1300, 1580, 1920, 2340, 2840, 3460, 4200, 5110, 6210, 7540,
+            9170, 11100, 13500, 16500, 20000, 24300, 29600, 36000, 43700, 53100, 64600, 71200
+          ],
+          "Counts": [
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2
+          ],
+          "Max": 71178.6,
+          "Min": 1,
+          "Count": 230,
+          "Sum": 1494730.7095300003
+        }
+      }
+    ]
+  },
+  {
+    "name": "gauge keeps the last value and allows negatives",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Delta",
+      "unit": "None",
+      "kind": "gauge"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 5
+      },
+      {
+        "labels": {},
+        "value": -3
+      },
+      {
+        "labels": {},
+        "value": -7.5
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Delta",
+                  "Unit": "None"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Delta": -7.5
+      }
+    ]
+  },
+  {
+    "name": "negative value is dropped for sum",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": -1
+      },
+      {
+        "labels": {},
+        "value": 5
+      },
+      {
+        "labels": {},
+        "value": -100
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Jobs": 5
+      }
+    ]
+  },
+  {
+    "name": "negative value is dropped for distribution",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Latency",
+      "unit": "Milliseconds",
+      "kind": "distribution"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": -1
+      },
+      {
+        "labels": {},
+        "value": 40
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Latency",
+                  "Unit": "Milliseconds"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Latency": {
+          "Values": [40.8],
+          "Counts": [1],
+          "Max": 40,
+          "Min": 40,
+          "Count": 1,
+          "Sum": 40
+        }
+      }
+    ]
+  },
+  {
+    "name": "only dropped observations emit no line",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": -1
+      },
+      {
+        "labels": {},
+        "value": "NaN"
+      },
+      {
+        "labels": {},
+        "value": "Infinity"
+      }
+    ],
+    "expectedLines": []
+  },
+  {
+    "name": "non-finite values are dropped",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": "NaN"
+      },
+      {
+        "labels": {},
+        "value": 2
+      },
+      {
+        "labels": {},
+        "value": "Infinity"
+      },
+      {
+        "labels": {},
+        "value": "-Infinity"
+      },
+      {
+        "labels": {},
+        "value": 3
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Jobs": 5
+      }
+    ]
+  },
+  {
+    "name": "label value truncated at 128 UTF-16 units (2-byte characters)",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {
+          "Note": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+        },
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Note": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "Service": "golden-svc",
+        "Jobs": 1
+      }
+    ]
+  },
+  {
+    "name": "label value truncated at 128 UTF-16 units (surrogate pairs on a boundary)",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {
+          "Note": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+        },
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Note": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+        "Service": "golden-svc",
+        "Jobs": 1
+      }
+    ]
+  },
+  {
+    "name": "label value truncated at 128 UTF-16 units (3-byte characters)",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {
+          "Note": "漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢"
+        },
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Note": "漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢",
+        "Service": "golden-svc",
+        "Jobs": 1
+      }
+    ]
+  },
+  {
+    "name": "label value of exactly 128 units is kept",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {
+          "Note": "ññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññ"
+        },
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Note": "ññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññññ",
+        "Service": "golden-svc",
+        "Jobs": 1
+      }
+    ]
+  },
+  {
+    "name": "missing dimension and empty label are filled with unknown",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum",
+      "dimensionSets": [["Outcome"], ["Tier"]]
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      },
+      {
+        "labels": {
+          "Outcome": "",
+          "Tier": "gold"
+        },
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"], ["Service", "Outcome"], ["Service", "Tier"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Outcome": "unknown",
+        "Tier": "unknown",
+        "Service": "golden-svc",
+        "Jobs": 1
+      },
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"], ["Service", "Outcome"], ["Service", "Tier"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Outcome": "unknown",
+        "Tier": "gold",
+        "Service": "golden-svc",
+        "Jobs": 1
+      }
+    ]
+  },
+  {
+    "name": "series bound folds new series into other",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "maxSeries": 2,
+    "definition": {
+      "name": "Limited",
+      "unit": "Count",
+      "kind": "sum",
+      "dimensionSets": [["Caller"]]
+    },
+    "observations": [
+      {
+        "labels": {
+          "Caller": "a",
+          "Route": "/a"
+        },
+        "value": 1
+      },
+      {
+        "labels": {
+          "Caller": "b"
+        },
+        "value": 1
+      },
+      {
+        "labels": {
+          "Caller": "c",
+          "Route": "/c"
+        },
+        "value": 2
+      },
+      {
+        "labels": {
+          "Caller": "d"
+        },
+        "value": 3
+      },
+      {
+        "labels": {
+          "Caller": "a",
+          "Route": "/a"
+        },
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"], ["Service", "Caller"]],
+              "Metrics": [
+                {
+                  "Name": "Limited",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Caller": "a",
+        "Route": "/a",
+        "Service": "golden-svc",
+        "Limited": 2
+      },
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"], ["Service", "Caller"]],
+              "Metrics": [
+                {
+                  "Name": "Limited",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Caller": "b",
+        "Service": "golden-svc",
+        "Limited": 1
+      },
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"], ["Service", "Caller"]],
+              "Metrics": [
+                {
+                  "Name": "Limited",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Caller": "other",
+        "Route": "other",
+        "Service": "golden-svc",
+        "Limited": 2
+      },
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"], ["Service", "Caller"]],
+              "Metrics": [
+                {
+                  "Name": "Limited",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Caller": "other",
+        "Service": "golden-svc",
+        "Limited": 3
+      }
+    ]
+  },
+  {
+    "name": "reserved and invalid label names are ignored",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Jobs",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {
+          "_aws": "x",
+          "Service": "spoof",
+          "Jobs": "self",
+          "1bad": "x",
+          "has-dash": "x",
+          "": "x",
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA": "x",
+          "Good_1": "kept",
+          "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB": "kept"
+        },
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Jobs",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Good_1": "kept",
+        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB": "kept",
+        "Service": "golden-svc",
+        "Jobs": 1
+      }
+    ]
+  },
+  {
+    "name": "unit Count is emitted verbatim",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Sample",
+      "unit": "Count",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Sample",
+                  "Unit": "Count"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Sample": 1
+      }
+    ]
+  },
+  {
+    "name": "unit Milliseconds is emitted verbatim",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Sample",
+      "unit": "Milliseconds",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Sample",
+                  "Unit": "Milliseconds"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Sample": 1
+      }
+    ]
+  },
+  {
+    "name": "unit Seconds is emitted verbatim",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Sample",
+      "unit": "Seconds",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Sample",
+                  "Unit": "Seconds"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Sample": 1
+      }
+    ]
+  },
+  {
+    "name": "unit Bytes is emitted verbatim",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Sample",
+      "unit": "Bytes",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Sample",
+                  "Unit": "Bytes"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Sample": 1
+      }
+    ]
+  },
+  {
+    "name": "unit Percent is emitted verbatim",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Sample",
+      "unit": "Percent",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Sample",
+                  "Unit": "Percent"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Sample": 1
+      }
+    ]
+  },
+  {
+    "name": "unit Count/Second is emitted verbatim",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Sample",
+      "unit": "Count/Second",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Sample",
+                  "Unit": "Count/Second"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Sample": 1
+      }
+    ]
+  },
+  {
+    "name": "unit None is emitted verbatim",
+    "service": "golden-svc",
+    "namespace": "Oxy/Golden",
+    "now": 1700000000000,
+    "definition": {
+      "name": "Sample",
+      "unit": "None",
+      "kind": "sum"
+    },
+    "observations": [
+      {
+        "labels": {},
+        "value": 1
+      }
+    ],
+    "expectedLines": [
+      {
+        "_aws": {
+          "Timestamp": 1700000000000,
+          "CloudWatchMetrics": [
+            {
+              "Namespace": "Oxy/Golden",
+              "Dimensions": [["Service"]],
+              "Metrics": [
+                {
+                  "Name": "Sample",
+                  "Unit": "None"
+                }
+              ]
+            }
+          ]
+        },
+        "Service": "golden-svc",
+        "Sample": 1
+      }
+    ]
+  }
+]

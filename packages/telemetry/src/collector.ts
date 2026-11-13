@@ -1,24 +1,19 @@
-import { metadataFromHeaders, type TelemetryHeaders } from './server.js';
+import {
+  OXY_REGION_HEADER,
+  OXY_SOURCE_REGION_HEADER,
+  type TrafficAggregate,
+  type TrafficFlow,
+  type TrafficType,
+} from './index.js';
+import { metadataFromHeaders, sourceRegionFromEdgePop, type TelemetryHeaders } from './server.js';
 
-export type TrafficScope = 'internal' | 'external';
-export type TrafficDirection = 'inbound' | 'outbound';
-export type TrafficType = 'identity' | 'ai' | 'communication' | 'media' | 'platform';
-export interface TrafficFlow {
-  region: string;
-  sourceRegion?: string;
-  targetRegion?: string;
-  sourceService?: string;
-  targetService?: string;
-  service: string;
-  scope: TrafficScope;
-  direction: TrafficDirection;
-  activityType: TrafficType;
-}
-export interface TrafficAggregate extends TrafficFlow {
-  requests: number;
-  windowStartedAt: string;
-  emittedAt: string;
-}
+export type {
+  TrafficAggregate,
+  TrafficDirection,
+  TrafficFlow,
+  TrafficScope,
+  TrafficType,
+} from './index.js';
 
 const TYPES: Record<string, TrafficType> = {
   auth: 'identity',
@@ -56,6 +51,49 @@ export function trafficType(path: string): TrafficType {
   if (parts[0] === 'api') parts.shift();
   if (/^v\d+$/.test(parts[0] ?? '')) parts.shift();
   return TYPES[parts[0] ?? ''] ?? 'platform';
+}
+
+/** Which side of a request a reporter is observing. */
+export type ObservationDirection = 'inbound' | 'outbound';
+
+/**
+ * Every path a reporter does not observe, in ONE table. Each entry says which
+ * directions it applies to: the inbound and outbound sets differ today (an
+ * outbound call to a probe or to `/platform-stats` IS recorded), and that is
+ * preserved exactly. Unifying them is a separate, deliberate decision.
+ */
+export const UNOBSERVED_PATHS: readonly {
+  readonly directions: ObservationDirection | 'both';
+  readonly matches: (path: string) => boolean;
+}[] = [
+  {
+    directions: 'inbound',
+    matches: (path) =>
+      /^\/(?:api\/)?(?:health|ready|live|platform-stats|platform-activity|infra-status)(?:\/|$)/.test(
+        path,
+      ),
+  },
+  {
+    directions: 'inbound',
+    matches: (path) => /^\/(?:api\/)?platform-infrastructure(?:\/|$)/.test(path),
+  },
+  { directions: 'outbound', matches: (path) => path === '/platform-infrastructure' },
+  { directions: 'both', matches: (path) => path.startsWith('/internal/activity') },
+  { directions: 'both', matches: (path) => path.startsWith('/auth/service-token') },
+  { directions: 'inbound', matches: (path) => path.startsWith('/cdn-cgi/') },
+];
+
+/**
+ * Is this path part of what a reporter observes in this direction? Collection
+ * itself, service-token minting and (inbound) probes and the dashboard
+ * transport are control traffic: observing them would feed back into the very
+ * activity they carry.
+ */
+export function isObservedPath(path: string, direction: ObservationDirection): boolean {
+  return !UNOBSERVED_PATHS.some(
+    (entry) =>
+      (entry.directions === 'both' || entry.directions === direction) && entry.matches(path),
+  );
 }
 
 export function createTrafficCollector(
@@ -112,17 +150,10 @@ export function trafficMiddleware(
   region: string,
 ) {
   return (request: HttpRequest, response: HttpResponse, next: () => void): void => {
-    response.setHeader?.('X-Oxy-Region', region);
+    response.setHeader?.(OXY_REGION_HEADER, region);
     const path = request.path ?? request.url ?? '/';
     // Never report collection itself, probes or the dashboard transport.
-    if (
-      /^\/(?:api\/)?(?:health|ready|live|platform-stats|platform-activity|platform-infrastructure|infra-status)(?:\/|$)/.test(
-        path,
-      ) ||
-      path.startsWith('/internal/activity') ||
-      path.startsWith('/auth/service-token') ||
-      path.startsWith('/cdn-cgi/')
-    ) {
+    if (!isObservedPath(path, 'inbound')) {
       next();
       return;
     }
@@ -136,12 +167,10 @@ export function trafficMiddleware(
         .replace(/[^a-z0-9-]/g, '-')
         .slice(0, 40);
       const internal = Boolean(name);
-      const forwardedRegion = request.headers['x-oxy-source-region'];
+      const forwardedRegion = request.headers[OXY_SOURCE_REGION_HEADER.toLowerCase()];
       const peerRegion = internal
         ? normalizeInfrastructureRegion(forwardedRegion)
-        : edgePop
-          ? `edge-${edgePop}`
-          : undefined;
+        : sourceRegionFromEdgePop(edgePop);
       return {
         region,
         service,
@@ -196,12 +225,7 @@ export function instrumentTrafficFetch(
       typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
     );
     // Collection/auth control traffic cannot generate a feedback loop.
-    if (
-      url.pathname.startsWith('/internal/activity') ||
-      url.pathname.startsWith('/auth/service-token') ||
-      url.pathname === '/platform-infrastructure'
-    )
-      return fetcher(input, init);
+    if (!isObservedPath(url.pathname, 'outbound')) return fetcher(input, init);
     const peer = resolveEndpoint(url);
     const flow: TrafficFlow = {
       service,
@@ -217,7 +241,7 @@ export function instrumentTrafficFetch(
     const headers = new Headers(
       init?.headers ?? (input instanceof Request ? input.headers : undefined),
     );
-    if (peer) headers.set('X-Oxy-Source-Region', region);
+    if (peer) headers.set(OXY_SOURCE_REGION_HEADER, region);
     let response: Response;
     try {
       response = await fetcher(input, { ...init, headers });
@@ -226,7 +250,7 @@ export function instrumentTrafficFetch(
       throw error;
     }
     const targetRegion = peer
-      ? normalizeInfrastructureRegion(response.headers.get('X-Oxy-Region') ?? undefined)
+      ? normalizeInfrastructureRegion(response.headers.get(OXY_REGION_HEADER) ?? undefined)
       : undefined;
     collector.record({ ...flow, targetRegion });
     collector.record({

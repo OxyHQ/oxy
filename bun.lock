@@ -873,7 +873,7 @@
     },
     "packages/telemetry": {
       "name": "@oxy.so/telemetry",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "devDependencies": {
         "@types/jest": "^30.0.0",
         "jest": "^30.5.2",
