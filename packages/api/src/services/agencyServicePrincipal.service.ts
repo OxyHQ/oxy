@@ -269,9 +269,9 @@ export async function resolveLiveAgencyWorkload(
   provider: string,
   subject: string,
   now: Date = new Date(),
-  db: DatabaseOrTransaction = getDb(),
+  db?: DatabaseOrTransaction,
 ): Promise<LiveAgencyWorkloadPrincipal | null> {
-  const [row] = await db
+  const [row] = await (db ?? getDb())
     .select({
       bindingId: applicationWorkloadIdentities.id,
       applicationId: applications.id,
@@ -316,7 +316,7 @@ export async function resolveLiveAgencyWorkload(
   )
     return null;
 
-  if (await isSupervised(row.ownerAccountId)) return null;
+  if (await isSupervised(row.ownerAccountId, db)) return null;
   return {
     bindingId: row.bindingId,
     applicationId: row.applicationId,
@@ -385,14 +385,14 @@ export async function resolveLiveAgencyWorkloadByHandle(
   applicationId: string,
   handle: string,
   now: Date = new Date(),
-  db: DatabaseOrTransaction = getDb(),
+  db?: DatabaseOrTransaction,
 ): Promise<LiveAgencyWorkloadPrincipal | null> {
   // Cheap and total: the handle space and the credential-id space are disjoint
   // (`isWorkloadAttestationHandle`), so this refuses a credential id without a
   // query rather than looking for a binding that could never exist.
   if (!isWorkloadAttestationHandle(handle)) return null;
 
-  const candidates = await db
+  const candidates = await (db ?? getDb())
     .select({
       provider: applicationWorkloadIdentities.provider,
       subject: applicationWorkloadIdentities.subject,

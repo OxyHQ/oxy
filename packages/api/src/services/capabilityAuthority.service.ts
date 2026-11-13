@@ -370,7 +370,7 @@ export async function evaluateCapabilityAuthority(
       authorization.effectiveAccountId,
     ]),
   ];
-  if ((await Promise.all(safetySubjects.map(isSupervised))).some(Boolean))
+  if ((await Promise.all(safetySubjects.map((accountId) => isSupervised(accountId)))).some(Boolean))
     return denied('supervised_delegation_unsupported');
   if (
     authorization.requesterAuthMethodId &&

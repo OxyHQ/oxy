@@ -608,7 +608,7 @@ class SessionService {
       const supervised = (
         await Promise.all(
           [session.userId, ...(session.operatedByUserId ? [session.operatedByUserId] : [])].map(
-            supervisionValidAfter,
+            (accountId) => supervisionValidAfter(accountId),
           ),
         )
       ).flat();
