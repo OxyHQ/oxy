@@ -38,7 +38,7 @@ test('the actual Mention-origin Alia conversation remains readable only by its Q
         'QA ownership readback',
       );
       assert.equal(session.user.id, identity.accountId);
-      linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+      linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai' });
       const response = await linked.client.requestAuthenticatedResponse({
         method: 'GET',
         url: `/conversations/${encodeURIComponent(id)}`,

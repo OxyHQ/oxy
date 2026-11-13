@@ -104,7 +104,7 @@ describe('OxyServices.createLinkedClient', () => {
       exp: Math.floor(Date.now() / 1000) + 3600,
     });
     oxy.session.setAccessToken(accessToken);
-    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl/' });
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai/' });
 
     const response = await linked.client.requestAuthenticatedResponse({
       method: 'POST',
@@ -119,7 +119,7 @@ describe('OxyServices.createLinkedClient', () => {
     expect(response.bodyUsed).toBe(false);
     expect(await response.text()).toBe('data: {"delta":"hello"}\n\n');
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe('https://api.alia.onl/alia/chat');
+    expect(calls[0]?.url).toBe('https://api.gemies.ai/alia/chat');
     expect(readHeaders(calls[0]?.init).authorization).toBe(`Bearer ${accessToken}`);
 
     linked.dispose();
@@ -149,7 +149,7 @@ describe('OxyServices.createLinkedClient', () => {
     });
     oxy.session.setAccessToken(oldToken);
     oxy.http.setAuthRefreshHandler(async () => refreshedToken);
-    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai' });
 
     const response = await linked.client.requestAuthenticatedResponse({
       method: 'POST',
@@ -173,7 +173,7 @@ describe('OxyServices.createLinkedClient', () => {
     const fetchMock = jest.fn();
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
     const oxy = createServices();
-    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai' });
 
     await expect(
       linked.client.requestAuthenticatedResponse({
@@ -394,7 +394,7 @@ describe('linked SDK fetch transport', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('', { status: 401 }))
       .mockResolvedValueOnce(stream);
-    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai' });
     const response = await linked.fetch('/v1/chat', {
       method: 'POST',
       body: '{}',
@@ -426,7 +426,7 @@ describe('linked SDK fetch transport', () => {
     oxy.http.setAuthRefreshHandler(refresh);
     const abort = new AbortController();
     abort.abort();
-    const request = new Request('https://api.alia.onl/v1', {
+    const request = new Request('https://api.gemies.ai/v1', {
       method: 'POST',
       body: 'payload',
       signal: abort.signal,
@@ -435,7 +435,7 @@ describe('linked SDK fetch transport', () => {
     const fetch = jest
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response('', { status: 401 }));
-    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai' });
     const response = await linked.fetch(request, {
       body: null,
       signal: null,
@@ -466,7 +466,7 @@ describe('linked SDK fetch transport', () => {
     const fetch = jest
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response('old-account-data'));
-    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai' });
     const response = linked.fetch('/v1');
     oxy.session.setAccessToken(
       createJwt({
@@ -488,7 +488,7 @@ describe('linked SDK fetch transport', () => {
   it('rejects foreign origins before acquiring credentials and rejects after disposal', async () => {
     const oxy = createServices();
     const fetch = jest.spyOn(globalThis, 'fetch');
-    const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+    const linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai' });
     await expect(linked.fetch('https://unrelated.example/v1')).rejects.toThrow(
       'configured API origin',
     );

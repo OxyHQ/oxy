@@ -23,7 +23,7 @@ All Oxy production infrastructure runs on **AWS** in the **us-west-2 (Oregon)** 
 |---------|----------------|---------------------|
 | `oxy-api` | 8080 | `api.oxy.so`, `mcp.inbox.oxy.so` (`website-api.oxy.so` is the separate `website-api` service) |
 | `mention` | 3000 | `api.mention.earth` |
-| `alia` | 3001 | `api.alia.onl` |
+| `alia` | 3001 | `api.gemies.ai` |
 | `homiio` | 4000 | `api.homiio.com` |
 | `syra` | 3000 | `api.syra.oxy.so` |
 | `allo` | 8080 | `api.allo.oxy.so` |

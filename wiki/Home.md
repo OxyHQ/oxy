@@ -51,6 +51,6 @@ Build order matters and is derived by turbo from the dependency graph: `contract
 | Console | `https://console.oxy.so` | Cloudflare Pages |
 | Mention API | `https://api.mention.earth` | AWS ECS Fargate (us-west-2) |
 | Homiio API | `https://api.homiio.com` | AWS ECS Fargate (us-west-2) |
-| Alia API | `https://api.alia.onl` | AWS ECS Fargate (us-west-2) |
+| Gemies API (Alia's backend) | `https://api.gemies.ai` | AWS ECS Fargate (us-west-2) |
 | Syra API | `https://api.syra.oxy.so` | AWS ECS Fargate (us-west-2) |
 | Allo API | `https://api.allo.oxy.so` | AWS ECS Fargate (us-west-2) |

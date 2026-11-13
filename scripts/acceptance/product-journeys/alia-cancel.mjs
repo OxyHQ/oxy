@@ -55,7 +55,7 @@ try {
     'QA cancellation acceptance',
   );
   assert.equal(session.user.id, identity.accountId);
-  linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+  linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai' });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
   try {

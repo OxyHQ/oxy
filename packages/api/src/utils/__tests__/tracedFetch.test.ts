@@ -81,7 +81,7 @@ describe('tracedFetch with the SDK started', () => {
       }),
     };
     await tracedFetch(
-      'https://api.alia.onl/webhooks/oxy',
+      'https://api.gemies.ai/webhooks/oxy',
       { method: 'POST', body: '{}' },
       transport,
     );

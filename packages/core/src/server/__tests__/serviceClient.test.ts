@@ -25,7 +25,7 @@ it('uses only workload authentication, caches by recipient, and binds requester 
     serviceAuth: { apiKey: 'external', apiSecret: 'external-secret' },
   });
   const client = oxy.createServiceClient({
-    baseURL: 'https://api.alia.onl',
+    baseURL: 'https://api.gemies.ai',
     audience: 'oxy-service:alia',
     requester: { accountId: 'person', token: 'proof' },
   });
@@ -54,7 +54,7 @@ it('never forwards a user header without a configured requester and never mints 
   const fetch = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
   const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
   const client = oxy.createServiceClient({
-    baseURL: 'https://api.alia.onl',
+    baseURL: 'https://api.gemies.ai',
     audience: 'oxy-service:alia',
   });
   await expect(client.fetch('https://other.example/')).rejects.toThrow('configured API origin');
@@ -78,7 +78,7 @@ it('refreshes a 401 once without buffering the returned stream', async () => {
     .mockResolvedValueOnce(stream);
   const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
   const client = oxy.createServiceClient({
-    baseURL: 'https://api.alia.onl',
+    baseURL: 'https://api.gemies.ai',
     audience: 'oxy-service:alia',
   });
   expect(await client.fetch('/v1', { method: 'POST', body: '{}' })).toBe(stream);
@@ -92,7 +92,7 @@ it('binds task context and strips any caller-injected requester bearer', async (
   const fetch = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('ok'));
   const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
   const client = oxy.createServiceClient({
-    baseURL: 'https://api.alia.onl',
+    baseURL: 'https://api.gemies.ai',
     audience: 'oxy-service:alia',
     requester: { accountId: 'person', taskId: 'task' },
   });
