@@ -40,6 +40,8 @@ import { inferenceMeteredUsage } from '../../db/schema/inferenceMeteredUsage';
 import { internalCostCenters } from '../../db/schema/internalCostCenters';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
 import { users } from '../../db/schema/users';
+import { supervisionProfiles } from '../../db/schema/supervision';
+import { resolveLiveAgencyWorkloadByHandle } from '../agencyServicePrincipal.service';
 import {
   claimMeteredAdmission,
   costCenterUsage,
@@ -892,6 +894,69 @@ describe('permanent application authority cutover', () => {
     environment: 'production',
     credentialKind: 'application',
   });
+  it('activates and exports with one connection and reads supervision in the caller transaction', async () => {
+    const originalPoolSize = process.env.PG_MAX_POOL_SIZE;
+    const originalCacheTtl = process.env.OXY_AUTHORITY_CACHE_TTL_MS;
+    await closePostgres();
+    process.env.PG_MAX_POOL_SIZE = '1';
+    process.env.OXY_AUTHORITY_CACHE_TTL_MS = '60000';
+    await connectPostgres();
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const f = await workloadFixture();
+      const operation = async () => {
+        const fence = await activateInferenceAuthorityFence(population(f));
+        const manifest = await exportInferenceAuthorityFence(population(f));
+        expect(manifest.fenceId).toBe(fence.id);
+        expect(manifest.population.credentialIds).toContain(f.credentialId);
+        expect(manifest.entries).toEqual([]);
+
+        // A cached/global read cannot see this uncommitted safety restriction.
+        const other = await workloadFixture();
+        expect(
+          await resolveLiveAgencyWorkloadByHandle(other.applicationId, other.credentialId),
+        ).not.toBeNull();
+        const rollback = new Error('test-only rollback');
+        await expect(
+          getDb().transaction(async (tx) => {
+            await tx.insert(supervisionProfiles).values({
+              childAccountId: other.accountId,
+              consentVersion: 'test-only',
+            });
+            expect(
+              await resolveLiveAgencyWorkloadByHandle(
+                other.applicationId,
+                other.credentialId,
+                new Date(),
+                tx,
+              ),
+            ).toBeNull();
+            throw rollback;
+          }),
+        ).rejects.toBe(rollback);
+        expect(
+          await resolveLiveAgencyWorkloadByHandle(other.applicationId, other.credentialId),
+        ).not.toBeNull();
+      };
+      await Promise.race([
+        operation(),
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(
+            () => reject(new Error('Single-connection operation blocked')),
+            5000,
+          );
+        }),
+      ]);
+    } finally {
+      if (deadline) clearTimeout(deadline);
+      await closePostgres();
+      if (originalPoolSize === undefined) delete process.env.PG_MAX_POOL_SIZE;
+      else process.env.PG_MAX_POOL_SIZE = originalPoolSize;
+      if (originalCacheTtl === undefined) delete process.env.OXY_AUTHORITY_CACHE_TTL_MS;
+      else process.env.OXY_AUTHORITY_CACHE_TTL_MS = originalCacheTtl;
+      await connectPostgres();
+    }
+  }, 15_000);
   const rawValues = (input: MeteredAdmissionInput) => ({
     requestId: input.requestId,
     idempotencyKey: input.idempotencyKey,
