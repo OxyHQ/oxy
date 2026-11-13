@@ -44,14 +44,19 @@ export async function createFirstPartyTask(
       throw new ForbiddenError('An active bot actor is required.');
   }
   const now = new Date();
-  const expiresAt = new Date(input.expiresAt);
+  const requested = new Date(input.expiresAt);
   const maximumLifetime = input.origin.kind === 'request' ? 15 * 60_000 : 366 * 24 * 60 * 60_000;
-  if (
-    expiresAt <= now ||
-    expiresAt.getTime() - now.getTime() > maximumLifetime ||
-    (input.origin.kind === 'request' && expiresAt > requester.expiresAt)
-  )
+  if (requested <= now || requested.getTime() - now.getTime() > maximumLifetime)
     throw new BadRequestError('Task lifetime is out of range.');
+  // A `request` root never outlives its requester: past the requester's session and bearer it
+  // ends with them. It is clamped rather than refused, because the caller cannot see that bound
+  // (the session binding is Oxy's) and a refusal cost every task minted on a bearer near the end
+  // of its life. The returned `expiresAt` is the one that holds.
+  const expiresAt =
+    input.origin.kind === 'request' && requested > requester.expiresAt
+      ? requester.expiresAt
+      : requested;
+  if (expiresAt <= now) throw new BadRequestError('Task lifetime is out of range.');
   const signer = await readSessionAgentBinding(requester.sessionId, requester.principalAccountId);
   const [task] = await getDb()
     .insert(firstPartyTasks)
