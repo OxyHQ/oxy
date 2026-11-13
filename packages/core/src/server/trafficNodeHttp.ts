@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { syncBuiltinESMExports } from 'node:module';
 import { OXY_REGION_HEADER, OXY_SOURCE_REGION_HEADER } from '@oxy.so/telemetry';
 import {
+  isObservedPath,
   normalizeInfrastructureRegion,
   trafficType,
   type TrafficFlow,
@@ -30,12 +31,7 @@ export function observeNodeHttp(
     const host = request.getHeader('host') ?? request.host;
     if (typeof host !== 'string') return request;
     const url = new URL(request.path || '/', `${request.protocol || 'http:'}//${host}`);
-    if (
-      /^\/(?:internal\/activity|auth\/service-token|platform-infrastructure)(?:\/|$)/.test(
-        url.pathname,
-      )
-    )
-      return request;
+    if (!isObservedPath(url.pathname, 'outbound')) return request;
     const peer = resolveEndpoint(url);
     if (peer && !request.headersSent) request.setHeader(OXY_SOURCE_REGION_HEADER, region);
     const flow: TrafficFlow = {
