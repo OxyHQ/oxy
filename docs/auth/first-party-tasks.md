@@ -39,7 +39,12 @@ Persist that identifier in the job/session; never persist the bearer.
 The root stores the original requester, effective account, coordinator application
 and exact workload attribution identity, actor, originating operation, expiry and
 revocation. It stores no per-application permission list. An immediate `request`
-root lasts at most 15 minutes and remains bound to its live session. A `goal` or
+root lasts at most 15 minutes and remains bound to its live session: it never
+outlives its requester. A requested `expiresAt` past the requester's remaining
+lifetime (the earlier of its session and its bearer) is clamped to it, not refused,
+since the caller cannot see the session's end; read the `expiresAt` the created
+task returns. A requested lifetime over 15 minutes, or already past, is still
+refused (`Task lifetime is out of range.`). A `goal` or
 `automation` may last up to 366 days and survives signout; account, signer,
 workload and task revocation remain live checks. A background continuation is a
 durable goal, not an immediate request root with an extended lifetime.

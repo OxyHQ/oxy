@@ -96,6 +96,11 @@ export const firstPartyTaskInputSchema = z
       .strict(),
     actor: executionActorRefSchema,
     effectiveAccountId: identifierSchema,
+    /**
+     * The REQUESTED end. A `request` root (at most 15 minutes) never outlives its requester: Oxy
+     * clamps it to the requester's remaining session and bearer lifetime, so the created task's
+     * `expiresAt` is the one that holds. Goals and automations (up to 366 days) are not clamped.
+     */
     expiresAt: z.string().check(isoDateTime()),
   })
   .strict();
