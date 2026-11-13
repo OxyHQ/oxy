@@ -10,6 +10,9 @@ A helper earns a place only if it is **all three** of:
 2. pure and dependency-free,
 3. something no repo could reasonably want a different version of.
 
+An explicit ecosystem decision can also establish a common pure contract before
+three identical copies exist, as with the cursor-cycle guard in `./paging`.
+
 The third clause does most of the work. An audit of eight Oxy repos found
 plenty of duplication that fails it and is deliberately **not** here:
 
@@ -55,6 +58,10 @@ pattern.
 ### `./paging` — page-window resolution
 
 `resolvePageLimit`, `resolvePageOffset`, `resolvePageNumber`, `offsetForPage`.
+
+`nextUnvisitedCursor(next, pageParams)` returns the next cursor, or `undefined`
+for an absent or already visited cursor. Mention and Syra currently implement
+the same guard locally; callers retain their own has-more and retry policies.
 
 Seven helpers in five repos plus **46 inline clamps**, none agreeing on
 degenerate input. The guarantee: no input — missing, malformed or hostile —
