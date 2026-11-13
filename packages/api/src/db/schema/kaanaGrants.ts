@@ -64,6 +64,7 @@ export const KAANA_GRANT_OPERATIONS = [
   'images_generations',
   'decisions',
   'realtime_session',
+  'rerank',
 ] as const;
 
 /** `grantLaneSchema`, as stored. */

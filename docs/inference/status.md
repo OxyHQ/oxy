@@ -210,7 +210,8 @@ whose catalogue capabilities declare that output.
   the route gate.
 
 `POST /v1/embeddings` and `/v1/rerank`
-do not exist. `/v1/audio/transcriptions` and `/v1/batches` are deliberately
+are not mounted on Oxy's own edge (`rerank` is a Kaana grant operation, see
+[kaana-grants.md](kaana-grants.md)). `/v1/audio/transcriptions` and `/v1/batches` are deliberately
 not mounted — the comment above the audio route in `inferenceEdge.ts` records
 why (no sound cost ceiling; batches do not fit the reserve → settle protocol
 and need an ADR 0009 amendment).

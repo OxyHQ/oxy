@@ -296,6 +296,19 @@ sessions added in `2026-10-28.2`), read only by the grant API:
 - **Text completions** on a line whose price version prices
   `cache_write_input_tokens` (`@kaana.ai/contracts` 8.4.0) are held with a third
   prompt vertex for it; a line that does not price it is held as before.
+- **`rerank`** (`@kaana.ai/contracts` 8.11.0, `POST kaana.ai/v1/rerank`; migration
+  0254 widens `kaana_grants_operation_check`): the ninth grant operation, appended
+  last. A ranking returns indices and scores, no generated text, so the hold is
+  `requests: 1` plus `input_tokens` bounded by the authorization's
+  `facts.estimatedInputTokens` (required: its absence is `invalid_request`,
+  `missing-fact:estimatedInputTokens`); there is no output arm. No usage unit is
+  added. No modality expresses a ranking, so only the input (`text`) is
+  constrained, and a route must DECLARE `rerank` in its `apiFormats` when it
+  declares any: an embeddings-only route is not admitted. `facts.inputImages` is
+  refused. A line that prices `output_tokens` is never admitted
+  (`priced-rerank-output`), since nothing bounds that arm. No `internal_metered`
+  relationship carries rerank terms, so an internal rerank grant is refused until
+  one does. Kaana does not emit the operation until this is deployed and verified.
 - **`audio_transcriptions`**: at most **300 000 ms** (Alia's 5-minute clip) and
   **USD 0.05** per request. The hold is the measured duration; a line that also
   prices `requests` is quoted with one request, a line that prices the duration
@@ -303,7 +316,7 @@ sessions added in `2026-10-28.2`), read only by the grant API:
   only) without it. A line that prices the transcript (`output_tokens`) is never
   admitted. When no line is admitted, `inference.grant.refused` logs
   `reason: no_admissible_line` with `exclusions` (`no-routes`,
-  `priced-transcript`, `over-price`, `unquoted:<reason>`).
+  `priced-transcript`, `priced-rerank-output`, `over-price`, `unquoted:<reason>`).
 
 A commercial realtime session is refused: the facts carry no session duration,
 so no hold sized from them would be a bound.

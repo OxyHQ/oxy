@@ -1772,6 +1772,13 @@
       "when": 1794457150917,
       "tag": "0253_kaana_cache_write_input_tokens_unit",
       "breakpoints": true
+    },
+    {
+      "idx": 254,
+      "version": "7",
+      "when": 1794545761405,
+      "tag": "0254_kaana_grants_rerank_operation",
+      "breakpoints": true
     }
   ]
 }

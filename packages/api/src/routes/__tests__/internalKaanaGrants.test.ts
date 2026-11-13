@@ -1881,6 +1881,111 @@ describe('a completion carrying images (Kaana ADR 0007, Oxy ADR 0051)', () => {
   });
 });
 
+describe('a rerank grant (contracts 8.11.0): requests and input tokens, no output', () => {
+  const RERANK_PRICES: Readonly<Partial<Record<UsageUnit, FixturePrice>>> = {
+    // A priced request: the ceiling shows the request counted exactly once.
+    requests: '0.5',
+    input_tokens: '50',
+  };
+  const rerankFacts = { estimatedInputTokens: 1_000, declaredTools: 0, stream: false };
+  const rerankRequest = (
+    credential: string,
+    modelLine: string,
+    facts: Record<string, unknown> = rerankFacts,
+  ) =>
+    inferenceRequest({
+      credential,
+      operation: 'rerank',
+      target: { kind: 'model', modelLine },
+      facts,
+    });
+  const rerankLine = (
+    apiFormats: readonly string[] | null,
+    prices: Readonly<Partial<Record<UsageUnit, FixturePrice>>> = RERANK_PRICES,
+  ) =>
+    makeAudioFixture({
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      apiFormats,
+      prices,
+      topUp: '100.000000000000',
+    });
+
+  it('holds exactly one request and the estimated input tokens, and records /v1/rerank', async () => {
+    const customer = await rerankLine(['rerank']);
+    const grant = verifiedGrant(
+      await authorize(rerankRequest(customer.token, customer.modelReference)),
+    );
+    expect(grant.operation).toBe('rerank');
+    // 1 request × $0.50 + 1,000 in × $50/M; a ranking has no output arm.
+    expect(grant.reservation?.ceiling).toEqual({ amount: '0.550000000000', currency: 'USD' });
+    const hold = await reservationOf(grant.reservation?.reservationId ?? '');
+    expect(hold).toMatchObject({ inputTokens: 1_000, outputTokens: 0 });
+    expect((await grantRow(grant.grantId)).endpoint).toBe('/v1/rerank');
+  });
+
+  it('scales the hold with the estimate', async () => {
+    const customer = await rerankLine(['rerank']);
+    const grant = verifiedGrant(
+      await authorize(
+        rerankRequest(customer.token, customer.modelReference, {
+          ...rerankFacts,
+          estimatedInputTokens: 20_000,
+        }),
+      ),
+    );
+    expect(grant.reservation?.ceiling).toEqual({ amount: '1.500000000000', currency: 'USD' });
+    expect((await reservationOf(grant.reservation?.reservationId ?? ''))?.inputTokens).toBe(20_000);
+  });
+
+  it('does not admit a route that declares only embeddings, or declares other dialects', async () => {
+    for (const apiFormats of [['embeddings'], ['responses', 'chat_completions']]) {
+      const customer = await rerankLine(apiFormats);
+      const result = await authorize(rerankRequest(customer.token, customer.modelReference));
+      expect(result.status).toBe(400);
+      expect(result.body.code).toBe('unsupported_modality');
+      expect(await reservationsForRequest(String(result.body.requestId))).toEqual([]);
+    }
+  });
+
+  it('refuses a rerank without the input estimate: nothing bounds the hold', async () => {
+    const customer = await rerankLine(['rerank']);
+    const result = await authorize(
+      rerankRequest(customer.token, customer.modelReference, { declaredTools: 0, stream: false }),
+    );
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({
+      code: 'invalid_request',
+      param: 'facts.estimatedInputTokens',
+    });
+  });
+
+  it('refuses the images fact: a ranking carries no image', async () => {
+    const customer = await rerankLine(['rerank']);
+    const result = await authorize(
+      rerankRequest(customer.token, customer.modelReference, { ...rerankFacts, inputImages: 1 }),
+    );
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({ code: 'invalid_request', param: 'facts.inputImages' });
+  });
+
+  it('refuses a line that prices output tokens: the hold has no output arm', async () => {
+    const customer = await rerankLine(['rerank'], { ...RERANK_PRICES, output_tokens: '10' });
+    const result = await authorize(rerankRequest(customer.token, customer.modelReference));
+    expect(result.status).toBeGreaterThanOrEqual(400);
+    expect(await reservationsForRequest(String(result.body.requestId))).toEqual([]);
+  });
+
+  it('refuses a line that does not price requests, and one that does not price input tokens', async () => {
+    for (const prices of [{ input_tokens: '50' }, { requests: '1' }] as const) {
+      const customer = await rerankLine(['rerank'], prices);
+      const result = await authorize(rerankRequest(customer.token, customer.modelReference));
+      expect(result.status).toBeGreaterThanOrEqual(400);
+      expect(await reservationsForRequest(String(result.body.requestId))).toEqual([]);
+    }
+  });
+});
+
 describe('Mention under its first-party relationships (production terms)', () => {
   /**
    * A fresh first-party application stands in for Mention: the production

@@ -229,6 +229,7 @@ export const GRANT_ENDPOINTS: Readonly<Record<GrantOperation, string>> = {
   images_generations: '/v1/images/generations',
   decisions: '/v1/decisions',
   realtime_session: REALTIME_SESSION_ENDPOINT,
+  rerank: '/v1/rerank',
 };
 
 /** One minute, in every duration unit a realtime session's own model can be billed in. */
@@ -330,7 +331,8 @@ interface OperationPlan {
     | 'transcription'
     | 'images'
     | 'realtime'
-    | 'decisions';
+    | 'decisions'
+    | 'rerank';
   readonly modality: EdgeModalityRequirement;
   readonly capacity: GrantCapacityRequirement;
   /** Image parts a completion's input carries (`facts.inputImages`); 0 for every other operation. */
@@ -384,6 +386,7 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
     request.operation !== 'responses' &&
     request.operation !== 'chat_completions'
   ) {
+    // Rerank is included: a ranking of text documents carries no image part.
     throw new GrantRefusal('invalid_request', 'Only a completion carries input images.', {
       param: 'facts.inputImages',
       reason: 'image-input-operation',
@@ -583,6 +586,29 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         ],
       };
     }
+    case 'rerank': {
+      // `POST /v1/rerank` ranks text documents against a query and returns
+      // indices with scores: no generated output. The hold is `requests` and
+      // `input_tokens`, bounded by Kaana's estimate of the query plus every
+      // document. No modality can express a ranking, so only the input is
+      // constrained (`modalityForOperation`) and the route must DECLARE the
+      // `rerank` dialect when it declares any.
+      const input = requireFact(facts.estimatedInputTokens, 'estimatedInputTokens');
+      return {
+        family: 'rerank',
+        modality: { input: 'text', apiFormat: 'rerank' },
+        capacity: { inputTokens: input, outputTokens: 0 },
+        knownUnits: { input_tokens: input },
+        maxOutputTokens: undefined,
+        inputImages: 0,
+        plans: () => [
+          {
+            metering: 'tokens',
+            scenarios: ceilingQuoteScenarios({ kind: 'rerank' }, input, 0),
+          },
+        ],
+      };
+    }
   }
 }
 
@@ -695,6 +721,9 @@ function grantPilotTerms(
             deployments: undefined,
           };
     case 'images':
+    case 'rerank':
+      // No relationship carries rerank terms yet: an `internal_metered` rerank
+      // grant is refused until one is declared in `config/inferenceEconomicPolicy.ts`.
       return undefined;
   }
 }
@@ -1709,13 +1738,19 @@ type LineExclusion =
   | 'no-routes'
   | 'priced-transcript'
   | 'priced-decision-output'
+  | 'priced-rerank-output'
   | 'over-price'
   | `unquoted:${string}`;
 
 type LineAdmission =
   | { readonly status: 'admitted'; readonly line: AdmittedLine }
   | {
-      readonly status: 'no-routes' | 'priced-transcript' | 'priced-decision-output' | 'over-price';
+      readonly status:
+        | 'no-routes'
+        | 'priced-transcript'
+        | 'priced-decision-output'
+        | 'priced-rerank-output'
+        | 'over-price';
     }
   | { readonly status: 'unquoted'; readonly reason: string };
 
@@ -1743,6 +1778,14 @@ async function admitLine(
     // The hold is input only; the output tokens a decision truthfully reports
     // settle inside it only on a line that publishes them at exactly zero.
     return { status: 'priced-decision-output' };
+  }
+  if (
+    plan.family === 'rerank' &&
+    (await publishedUnitPrice(lane.price, 'output_tokens')) === 'positive'
+  ) {
+    // A ranking generates no output and the hold is `requests` and `input_tokens`
+    // only; a line that charges for output tokens could settle above it.
+    return { status: 'priced-rerank-output' };
   }
   // A prompt on a line that prices cache writes may settle some of its tokens at
   // that premium, so its hold is sized for them; a line that does not price the
