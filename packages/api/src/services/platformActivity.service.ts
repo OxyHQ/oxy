@@ -1,9 +1,14 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { Namespace, Socket } from 'socket.io';
 import { observeNodeHttp, withoutNodeHttpObservation } from '@oxy.so/core/server';
+import type { ActivityAggregate } from '@oxy.so/telemetry';
 import { observeTrafficSocket } from '@oxy.so/telemetry/socket';
 import { getRedisClient } from '../config/redis';
-import { metadataFromHeaders, presenceKeys } from '@oxy.so/telemetry/server';
+import {
+  metadataFromHeaders,
+  presenceKeys,
+  sourceRegionFromEdgePop,
+} from '@oxy.so/telemetry/server';
 
 import {
   createTrafficCollector,
@@ -14,8 +19,6 @@ import {
 } from '@oxy.so/telemetry/collector';
 
 export const PLATFORM_ACTIVITY_EVENT = 'platform_activity';
-
-export type PlatformActivityBucket = TrafficAggregate & { activeClients: number };
 
 const EMIT_INTERVAL_MS = 2_000;
 const ACTIVE_CLIENT_WINDOW_MS = 60_000;
@@ -71,7 +74,7 @@ export function publishPlatformActivity(events: TrafficAggregate[]): void {
     activityNamespace?.emit(PLATFORM_ACTIVITY_EVENT, {
       ...event,
       activeClients: origin ? (activeClientCountByOrigin.get(origin) ?? 0) : 0,
-    } satisfies PlatformActivityBucket);
+    } satisfies ActivityAggregate);
   }
 }
 
@@ -115,10 +118,7 @@ export function initializePlatformActivity(namespace: Namespace): void {
 
 export function platformActivityMiddleware(req: Request, res: Response, next: NextFunction): void {
   const metadata = metadataFromHeaders(req.headers);
-  observeActiveClient(
-    metadata.edgePop ? `edge-${metadata.edgePop}` : undefined,
-    metadata.activityId,
-  );
+  observeActiveClient(sourceRegionFromEdgePop(metadata.edgePop), metadata.activityId);
   trafficMiddleware(collector, 'oxy-api', processingRegion())(req, res, next);
 }
 

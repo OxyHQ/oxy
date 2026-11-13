@@ -58,7 +58,7 @@ import { integerCheck } from '@oxy.so/contracts';
 
 import { z } from 'zod';
 import type { TrafficAggregate } from '@oxy.so/telemetry/collector';
-import { normalizeEdgePop } from '@oxy.so/telemetry/server';
+import { normalizeEdgePop, sourceRegionFromEdgePop } from '@oxy.so/telemetry/server';
 import { getRedisClient } from '../config/redis';
 import { CLOUDFLARE_WEB_HOSTS, type CloudflareWebHost } from '../config/cloudflareWebActivityHosts';
 import { publishPlatformActivity } from './platformActivity.service';
@@ -330,7 +330,7 @@ export function toActivityFlows(
     const entry = byHost.get(count.host);
     if (!entry || count.requests <= 0) continue;
     const pop = normalizeEdgePop(count.colo);
-    const region = pop ? `edge-${pop}` : 'unknown';
+    const region = sourceRegionFromEdgePop(pop) ?? 'unknown';
     const activityType = entry.activityType ?? 'platform';
     const key = `${entry.service}|${region}|${activityType}`;
     const flow = flows.get(key);

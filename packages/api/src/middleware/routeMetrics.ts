@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import {
-  createEmfPublisher,
+  createEmfPublisherIfDeployed,
   type EmfPublisher,
   HTTP_RATE_LIMITED,
   HTTP_REQUEST_LATENCY,
@@ -68,9 +68,7 @@ export function createRouteMetricsMiddleware(publisher: EmfPublisher | null) {
  * Only on ECS: CloudWatch extracts EMF from the task's `awslogs` stream, and
  * anywhere else the lines would be noise in a developer's terminal.
  */
-const publisher = process.env.ECS_CONTAINER_METADATA_URI_V4
-  ? createEmfPublisher({ namespace: 'Oxy/Api', service: 'oxy-api' })
-  : null;
+const publisher = createEmfPublisherIfDeployed({ namespace: 'Oxy/Api', service: 'oxy-api' });
 
 export const routeMetricsMiddleware = createRouteMetricsMiddleware(publisher);
 
