@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/mcp",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Canonical Oxy app catalog to MCP transport and OAuth resource validation",
   "repository": {
     "type": "git",

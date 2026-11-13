@@ -14,39 +14,36 @@
  * checked against them: validating against a stale copy of somebody else's
  * catalogue is how a working look starts being refused. What the schema checks
  * is the SHAPE of what a client writes: only the keys a character has, each an
- * id-like string, a `#rrggbb` paint, a spacing in range. The client resolves
+ * id-like string, a spacing in range. The client resolves
  * the ids and falls back on a default look for one it cannot draw.
  *
- * ## A bot's colour is its account's, not its character's
+ * ## A bot's colour is its account's, and a character has none
  *
  * A bot is painted in its account's `color` (`User.color`, a Bloom preset key):
  * Bloom draws a bot account's character in it (`avatarCharacterInColor`,
- * `@oxy.so/bloom` 20), so a character needs no paint of its own and a bot whose
- * owner changes its colour changes everywhere at once. A character is therefore
- * valid with a preset or a shape alone. `color` and `bodyColor` are still
- * accepted from writers that send them, and a renderer that knows the account's
- * colour ignores them.
+ * `@oxy.so/bloom` 20). A character is therefore its shape and features only —
+ * a `preset` or a `shape`, `eyes`, `eyewear`, `accessory` and `eyeSpacing` — and
+ * a paint (`color`, `bodyColor`) is refused like any key a character does not
+ * have: the colour has one source, the account.
  */
 
 import { z } from 'zod';
 
-/** The flat shape of Bloom's `AvatarCharacter`; every field is optional (a preset supplies the rest). */
+/**
+ * The flat shape of Bloom's `AvatarCharacter` without its paint; every field is optional (a preset
+ * supplies the rest). The colour is the account's `color`.
+ */
 export interface AvatarCharacter {
   preset?: string;
   shape?: string;
   eyes?: string;
   eyewear?: string;
   accessory?: string;
-  /** Named paint. */
-  color?: string;
-  /** Exact paint, `#rrggbb`; it wins over `color`. */
-  bodyColor?: string;
   /** A multiplier (0.5 to 1.5) on the shape's eye separation. */
   eyeSpacing?: number;
 }
 
 const ID = /^[a-z][a-z0-9_]{0,39}$/;
-const HEX = /^#[0-9a-fA-F]{6}$/;
 
 /** Bounds of {@link AvatarCharacter.eyeSpacing}. */
 export const AVATAR_EYE_SPACING = { min: 0.5, max: 1.5 } as const;
@@ -55,9 +52,9 @@ const idSchema = z.string().regex(ID);
 
 /**
  * A character a client sends. `.strict()` so a misspelled field is a refusal
- * now rather than a look that never takes effect. A character with nothing in
- * it draws nothing: it needs a preset or a shape. It needs no paint: the
- * account's colour paints it (see the file comment).
+ * now rather than a look that never takes effect — a paint included, since the
+ * account's colour paints a bot (see the file comment). A character with nothing
+ * in it draws nothing: it needs a preset or a shape.
  */
 export const avatarCharacterSchema: z.ZodType<AvatarCharacter, unknown> = z
   .object({
@@ -66,12 +63,6 @@ export const avatarCharacterSchema: z.ZodType<AvatarCharacter, unknown> = z
     eyes: idSchema.optional(),
     eyewear: idSchema.optional(),
     accessory: idSchema.optional(),
-    color: idSchema.optional(),
-    bodyColor: z
-      .string()
-      .regex(HEX)
-      .transform((hex) => hex.toLowerCase())
-      .optional(),
     eyeSpacing: z
       .number()
       .finite()
@@ -112,19 +103,6 @@ export const AVATAR_PICKABLE_SHAPES = [
   'squircle',
 ] as const;
 
-/** Bloom's named paints. */
-export const AVATAR_PICKABLE_COLORS = [
-  'pink',
-  'orchid',
-  'violet',
-  'blue',
-  'cyan',
-  'teal',
-  'lime',
-  'yellow',
-  'coral',
-] as const;
-
 /** A small, stable hash: the same seed always picks the same look. */
 function hash(seed: string): number {
   let h = 2166136261;
@@ -136,9 +114,9 @@ function hash(seed: string): number {
 }
 
 /**
- * A look for a new bot, picked from its seed (its handle): a shape and a paint,
- * plain oval eyes, nothing on its head. Stable — the same seed is the same look
- * — and the owner changes it afterwards.
+ * A look for a new bot, picked from its seed (its handle): a shape, plain oval
+ * eyes, nothing on its head, and no paint (the account's colour paints it).
+ * Stable — the same seed is the same look — and the owner changes it afterwards.
  */
 export function avatarCharacterFor(seed: string): AvatarCharacter {
   const h = hash(seed);
@@ -147,9 +125,5 @@ export function avatarCharacterFor(seed: string): AvatarCharacter {
     eyes: 'oval',
     eyewear: 'none',
     accessory: 'none',
-    color:
-      AVATAR_PICKABLE_COLORS[
-        Math.floor(h / AVATAR_PICKABLE_SHAPES.length) % AVATAR_PICKABLE_COLORS.length
-      ],
   };
 }

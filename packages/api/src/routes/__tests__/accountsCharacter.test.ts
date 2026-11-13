@@ -169,8 +169,8 @@ async function storedCharacter(accountId: string): Promise<AvatarCharacter | nul
   return row.character;
 }
 
-const GIVEN: AvatarCharacter = { preset: 'alfred', bodyColor: '#ffaa00' };
-const EDITED: AvatarCharacter = { shape: 'heart', eyes: 'oval', color: 'coral' };
+const GIVEN: AvatarCharacter = { preset: 'alfred', eyes: 'oval' };
+const EDITED: AvatarCharacter = { shape: 'heart', eyes: 'oval' };
 
 beforeAll(async () => {
   await connectPostgres();
@@ -202,13 +202,13 @@ describe('POST /accounts — a bot is born with a character', () => {
     expect(res.body.account?.account?.character).toEqual(avatarCharacterFor(username));
   });
 
-  test('keeps the character the caller named, lower-casing the hex', async () => {
+  test('keeps the character the caller named', async () => {
     actingUserId = await seedPersonalAccount();
 
     const res = await send('POST', '/accounts', {
       kind: 'bot',
       username: uniqueBotUsername('given'),
-      character: { preset: 'alfred', bodyColor: '#FFAA00' },
+      character: GIVEN,
     });
 
     expect(res.status).toBe(201);
@@ -222,7 +222,8 @@ describe('POST /accounts — a bot is born with a character', () => {
     const res = await send('POST', '/accounts', {
       kind: 'bot',
       username,
-      character: { preset: 'alfred', selections: { color: 'blue' } },
+      // A paint: the account's colour paints a bot, so a character has none.
+      character: { preset: 'alfred', bodyColor: '#ffaa00' },
     });
 
     expect(res.status).toBe(400);

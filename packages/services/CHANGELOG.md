@@ -1,5 +1,10 @@
 # Changelog
 
+## 14.21.0
+
+- Built on `@oxy.so/contracts` 7 and `@oxy.so/core` 7.49: a bot's character has no paint; its colour
+  is the account's `color`.
+
 ## 14.20.0
 
 ### Added

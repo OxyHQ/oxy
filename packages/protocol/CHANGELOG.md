@@ -1,5 +1,9 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.11.1
+
+- Depends on `@oxy.so/contracts` 7.
+
 ## 1.11.0
 
 ### Added
