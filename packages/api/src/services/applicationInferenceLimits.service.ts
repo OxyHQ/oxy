@@ -1,11 +1,11 @@
 /**
  * Read and write the inference limits an application's owner sets in Console
  * (`application_inference_limits`, Alia ADR 0017 §5). The grant API applies
- * them; nothing else reads them.
+ * them; the authority-cutover exporter snapshots them with daily consumption.
  */
 
 import { eq } from 'drizzle-orm';
-import { getDb } from '../config/postgres';
+import { getDb, type Transaction } from '../config/postgres';
 import { applicationInferenceLimits } from '../db/schema/applicationInferenceLimits';
 
 /** Every limit, `null` where the application set none. */
@@ -25,8 +25,9 @@ export const NO_APPLICATION_INFERENCE_LIMITS: ApplicationInferenceLimits = {
 
 export async function readApplicationInferenceLimits(
   applicationId: string,
+  executor: Transaction | ReturnType<typeof getDb> = getDb(),
 ): Promise<ApplicationInferenceLimits> {
-  const [row] = await getDb()
+  const [row] = await executor
     .select({
       maxConcurrentRealtimeSessions: applicationInferenceLimits.maxConcurrentRealtimeSessions,
       maxConcurrentRealtimeSessionsPerCredential:

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 2,
+  "authority": "oxy",
+  "fenceId": "01900000-0000-7000-8000-000000000001",
+  "activatedAt": "2026-11-13T00:00:00.000Z",
+  "exportedAt": "2026-11-13T01:00:00.000Z",
+  "population": {
+    "applicationId": "application-test",
+    "ownerAccountId": "owner-test",
+    "environment": "production",
+    "credentialKind": "application",
+    "credentialIds": ["workload-handle-test"]
+  },
+  "dailyUsage": {
+    "scope": "application_environment",
+    "utcDay": "2026-11-13",
+    "admitted": 1,
+    "maxRequestsPerUtcDay": 5000
+  },
+  "unresolved": {
+    "admissions": 0,
+    "grants": 0,
+    "holds": 0
+  },
+  "entries": [
+    {
+      "credentialId": "workload-handle-test",
+      "keyKind": "idempotency_key",
+      "key": "synthetic-turn-1",
+      "legacyAdmissionId": "metered:legacy-admission-test",
+      "requestId": "request-test",
+      "bodyDigest": null,
+      "digestDomain": "unknown"
+    },
+    {
+      "credentialId": "workload-handle-test",
+      "keyKind": "request_id",
+      "key": "request-test",
+      "legacyAdmissionId": "metered:legacy-admission-test",
+      "requestId": "request-test",
+      "bodyDigest": null,
+      "digestDomain": "unknown"
+    }
+  ],
+  "sha256": "1236569dd36b002d16bca61529ebe24cfb12642b0e51a5e1ca425e1d55abf872"
+}

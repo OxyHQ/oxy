@@ -8,6 +8,10 @@ import type { InferenceEnvironment } from '@oxy.so/contracts';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb, type Transaction } from '../config/postgres';
 import { inferenceAuthorityFences } from '../db/schema/inferenceAuthorityFences';
+import { applications } from '../db/schema/applications';
+import { INTERNAL_METERED_RELATIONSHIPS } from '../config/inferenceEconomicPolicy';
+import { readMeteredCapacity } from './inferenceCapacity.service';
+import { readApplicationInferenceLimits } from './applicationInferenceLimits.service';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import { resolveLiveAgencyWorkloadByHandle } from './agencyServicePrincipal.service';
 
@@ -15,7 +19,7 @@ export interface InferenceAuthorityPopulation {
   readonly applicationId: string;
   readonly ownerAccountId: string;
   readonly environment: InferenceEnvironment;
-  readonly credentialKind: 'workload';
+  readonly credentialKind: 'application';
 }
 
 export function isInferenceAuthorityFenceError(error: unknown): boolean {
@@ -78,9 +82,16 @@ async function eligibleWorkloadCredentials(
 export async function activateInferenceAuthorityFence(p: InferenceAuthorityPopulation) {
   return getDb().transaction(async (tx) => {
     await lock(tx, p);
+    const [application] = await tx
+      .select({ owner: applications.ownerAccountId })
+      .from(applications)
+      .where(eq(applications.id, p.applicationId))
+      .for('share');
+    if (application?.owner !== p.ownerAccountId) throw new Error('Application ownership mismatch');
     if ((await eligibleWorkloadCredentials(tx, p)).length === 0) {
       throw new Error('No matching active first-party workload population');
     }
+    await dailyLimit(tx, p);
     await tx.insert(inferenceAuthorityFences).values(p).onConflictDoNothing();
     const [fence] = await tx.select().from(inferenceAuthorityFences).where(populationWhere(p));
     if (!fence) throw new Error('Admission fence was not persisted');
@@ -150,26 +161,56 @@ export function legacyInferenceFenceEntries(
   });
 }
 
+/** The source relationship and Console settings are read, never guessed from a product name. */
+async function dailyLimit(tx: Transaction, p: InferenceAuthorityPopulation): Promise<number> {
+  const relationships = INTERNAL_METERED_RELATIONSHIPS.filter(
+    (relationship) =>
+      relationship.consumerApplicationId === p.applicationId &&
+      relationship.environments.includes(p.environment) &&
+      relationship.lane === 'service_token',
+  );
+  const relationship = relationships[0];
+  if (relationships.length !== 1 || !relationship || relationship.capacity.scope !== undefined)
+    throw new Error('A unique reviewed application-wide daily limit is required');
+  const consoleLimits = await readApplicationInferenceLimits(p.applicationId, tx);
+  const limit = consoleLimits.maxRequestsPerUtcDay ?? relationship.capacity.maxRequestsPerUtcDay;
+  if (!Number.isSafeInteger(limit) || limit <= 0) throw new Error('Invalid reviewed daily limit');
+  return limit;
+}
+
 /** Actual terminal status, never wall-clock expiry, establishes drain completion. */
 export async function exportInferenceAuthorityFence(p: InferenceAuthorityPopulation) {
   return getDb().transaction(
     async (tx) => {
       const [fence] = await tx.select().from(inferenceAuthorityFences).where(populationWhere(p));
       if (!fence) throw new Error('Activate and drain the exact population before exporting');
+      const [clock] = await executeRows<{ at: string; day: string }>(
+        tx,
+        sql`
+        select to_char(transaction_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at,
+          to_char(transaction_timestamp() at time zone 'UTC', 'YYYY-MM-DD') as day`,
+      );
+      if (!clock) throw new Error('Missing database snapshot clock');
+      const capacity = await readMeteredCapacity(tx, p.applicationId, p.environment);
+      const dailyUsage = {
+        scope: 'application_environment' as const,
+        utcDay: clock.day,
+        admitted: capacity.dailyAdmissions,
+        maxRequestsPerUtcDay: await dailyLimit(tx, p),
+      };
       const [counts] = await executeRows<{ admissions: number; grants: number; holds: number }>(
         tx,
         sql`
-      with credentials as (select id from application_credentials where type = 'workload')
       select
         (select count(*)::int from inference_metered_usage where application_id = ${p.applicationId}
-          and account_id = ${p.ownerAccountId} and environment = ${p.environment}
-          and application_credential_id in (select id from credentials) and status = 'admitted') as admissions,
+          and environment = ${p.environment}
+          and status = 'admitted') as admissions,
         (select count(*)::int from kaana_grants where application_id = ${p.applicationId}
-          and account_id = ${p.ownerAccountId} and environment = ${p.environment}
-          and application_credential_id in (select id from credentials) and status = 'issued') as grants,
+          and environment = ${p.environment}
+          and status = 'issued') as grants,
         (select count(*)::int from usage_reservations where application_id = ${p.applicationId}
-          and account_id = ${p.ownerAccountId} and environment = ${p.environment}
-          and application_credential_id in (select id from credentials) and status = 'held') as holds`,
+          and environment = ${p.environment}
+          and status = 'held') as holds`,
       );
       if (counts?.admissions !== 0 || counts.grants !== 0 || counts.holds !== 0) {
         throw new Error('Legacy admissions, grants or holds remain unresolved');
@@ -177,34 +218,34 @@ export async function exportInferenceAuthorityFence(p: InferenceAuthorityPopulat
       const rows = await executeRows<LegacyRow>(
         tx,
         sql`
-      with credentials as (select id from application_credentials where type = 'workload'),
-      metered as (select id, application_credential_id, idempotency_key, request_id
+      with metered as (select id, application_credential_id, idempotency_key, request_id
         from inference_metered_usage where application_id = ${p.applicationId}
-          and account_id = ${p.ownerAccountId} and environment = ${p.environment}
-          and application_credential_id in (select id from credentials) and status <> 'refused')
+          and environment = ${p.environment}
+          and status <> 'refused')
       select application_credential_id as credential_id, idempotency_key as ledger_key,
         'metered:' || id as legacy_id, request_id from metered
       union all
       select r.application_credential_id, r.idempotency_key,
         coalesce('metered:' || m.id, 'reservation:' || r.id), r.request_id
       from usage_reservations r left join metered m on m.idempotency_key = r.idempotency_key
-      where r.application_id = ${p.applicationId} and r.account_id = ${p.ownerAccountId}
-        and r.environment = ${p.environment} and r.application_credential_id in (select id from credentials)
+      where r.application_id = ${p.applicationId}
+        and r.environment = ${p.environment}
       union all
       select g.application_credential_id, m.idempotency_key, 'metered:' || m.id, g.request_id
       from kaana_grants g join inference_metered_usage m on m.id = g.metered_usage_id
-      where g.application_id = ${p.applicationId} and g.account_id = ${p.ownerAccountId}
-        and g.environment = ${p.environment} and g.application_credential_id in (select id from credentials)`,
+      where g.application_id = ${p.applicationId}
+        and g.environment = ${p.environment} `,
       );
       // Enrollment is narrower than the historical tombstone population: only
       // currently verified live workload handles may authorize a new native policy.
       const credentialIds = await eligibleWorkloadCredentials(tx, p);
       const manifest = {
-        schemaVersion: 1 as const,
+        schemaVersion: 2 as const,
         authority: 'oxy' as const,
         fenceId: fence.id,
         activatedAt: fence.createdAt.toISOString(),
-        exportedAt: new Date().toISOString(),
+        exportedAt: clock.at,
+        dailyUsage,
         population: { ...p, credentialIds },
         unresolved: counts,
         entries: legacyInferenceFenceEntries(rows),
