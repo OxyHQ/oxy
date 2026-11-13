@@ -42,6 +42,7 @@ import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVers
 import { users } from '../../db/schema/users';
 import { supervisionProfiles } from '../../db/schema/supervision';
 import { resolveLiveAgencyWorkloadByHandle } from '../agencyServicePrincipal.service';
+import { invalidateSupervision } from '../supervisionPolicy.service';
 import {
   claimMeteredAdmission,
   costCenterUsage,
@@ -900,10 +901,12 @@ describe('permanent application authority cutover', () => {
     await closePostgres();
     process.env.PG_MAX_POOL_SIZE = '1';
     process.env.OXY_AUTHORITY_CACHE_TTL_MS = '60000';
-    await connectPostgres();
+    const cacheKeys: string[] = [];
     let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
+      await connectPostgres();
       const f = await workloadFixture();
+      cacheKeys.push(f.accountId);
       const operation = async () => {
         const fence = await activateInferenceAuthorityFence(population(f));
         const manifest = await exportInferenceAuthorityFence(population(f));
@@ -913,6 +916,7 @@ describe('permanent application authority cutover', () => {
 
         // A cached/global read cannot see this uncommitted safety restriction.
         const other = await workloadFixture();
+        cacheKeys.push(other.accountId);
         expect(
           await resolveLiveAgencyWorkloadByHandle(other.applicationId, other.credentialId),
         ).not.toBeNull();
@@ -949,12 +953,16 @@ describe('permanent application authority cutover', () => {
       ]);
     } finally {
       if (deadline) clearTimeout(deadline);
-      await closePostgres();
-      if (originalPoolSize === undefined) delete process.env.PG_MAX_POOL_SIZE;
-      else process.env.PG_MAX_POOL_SIZE = originalPoolSize;
-      if (originalCacheTtl === undefined) delete process.env.OXY_AUTHORITY_CACHE_TTL_MS;
-      else process.env.OXY_AUTHORITY_CACHE_TTL_MS = originalCacheTtl;
-      await connectPostgres();
+      for (const key of cacheKeys) invalidateSupervision(key);
+      try {
+        await closePostgres();
+      } finally {
+        if (originalPoolSize === undefined) delete process.env.PG_MAX_POOL_SIZE;
+        else process.env.PG_MAX_POOL_SIZE = originalPoolSize;
+        if (originalCacheTtl === undefined) delete process.env.OXY_AUTHORITY_CACHE_TTL_MS;
+        else process.env.OXY_AUTHORITY_CACHE_TTL_MS = originalCacheTtl;
+        await connectPostgres();
+      }
     }
   }, 15_000);
   const rawValues = (input: MeteredAdmissionInput) => ({
