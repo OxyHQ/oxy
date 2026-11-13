@@ -8,7 +8,7 @@ import {
   type SafetyDecision,
   type SupervisedAction,
 } from '@oxy.so/contracts';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { users, blocks, supervisionProfiles, supervisionContacts } from '../db/schema';
 import type { LiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
 import { createAuthorityCache } from '../utils/authorityCache';
@@ -40,9 +40,12 @@ export function consumerSupports(
  */
 const supervisionCache = createAuthorityCache<readonly Date[]>('supervision');
 
-export function supervisionValidAfter(accountId: string): Promise<readonly Date[]> {
-  return supervisionCache.get(accountId, async () => {
-    const rows = await getDb()
+export function supervisionValidAfter(
+  accountId: string,
+  executor?: DatabaseOrTransaction,
+): Promise<readonly Date[]> {
+  const load = async () => {
+    const rows = await (executor ?? getDb())
       .select({ sessionsValidAfter: supervisionProfiles.sessionsValidAfter })
       .from(supervisionProfiles)
       .where(
@@ -52,7 +55,10 @@ export function supervisionValidAfter(accountId: string): Promise<readonly Date[
         ),
       );
     return rows.map((row) => row.sessionsValidAfter);
-  });
+  };
+  // A caller's transaction owns its connection and snapshot. Never borrow a
+  // second pool connection or cache uncommitted authority outside that scope.
+  return executor ? load() : supervisionCache.get(accountId, load);
 }
 
 /** Call after any write to `supervision_profiles` for `childAccountId`. */
@@ -61,8 +67,11 @@ export function invalidateSupervision(childAccountId: string): void {
 }
 
 /** Pre-enrollment identities cannot suppress this policy: the profile row decides, at most 5 s old. */
-export async function isSupervised(accountId: string): Promise<boolean> {
-  return (await supervisionValidAfter(accountId)).length > 0;
+export async function isSupervised(
+  accountId: string,
+  executor?: DatabaseOrTransaction,
+): Promise<boolean> {
+  return (await supervisionValidAfter(accountId, executor)).length > 0;
 }
 export async function loadSafetyGraph(ids: string[]) {
   const unique = [...new Set(ids)];

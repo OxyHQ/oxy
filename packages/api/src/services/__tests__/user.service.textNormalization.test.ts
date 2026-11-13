@@ -22,6 +22,7 @@ import { userLocations } from '../../db/schema/userLocations';
 import { users } from '../../db/schema/users';
 import { BadRequestError } from '../../utils/error';
 import { PROFILE_LINKS_MAX, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
+import { readLinkDocuments } from '../clarityLinkDocuments.service';
 import { userService } from '../user.service';
 
 jest.mock('../clarityLinkDocuments.service', () => {
@@ -38,6 +39,14 @@ jest.mock('../clarityLinkDocuments.service', () => {
       ),
       pending: [],
     }),
+    // updateUserProfile returns a hydrated profile after persisting these ids.
+    // Its read must use the same synthetic documents, not contact Clarity.
+    readLinkDocuments: jest.fn(
+      async (ids: readonly string[]) =>
+        new Map(
+          ids.map((id) => [id, { id, canonicalUrl: id.slice('doc:'.length), faviconUrl: null }]),
+        ),
+    ),
   };
 });
 
@@ -199,16 +208,25 @@ describe('linksMetadata child rows', () => {
 
   it('keeps one row per Clarity document, the first position winning', async () => {
     const id = await makeUser();
+    const fetch = jest
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('Unexpected network'));
+    try {
+      const updated = await userService.updateUserProfile(id, {
+        linksMetadata: [{ url: 'https://same.test' }, { url: 'https://same.test/' }],
+      });
 
-    await userService.updateUserProfile(id, {
-      linksMetadata: [{ url: 'https://same.test' }, { url: 'https://same.test/' }],
-    });
-
-    const rows = await getDb()
-      .select({ clarityDocumentId: userLinkMetadata.clarityDocumentId })
-      .from(userLinkMetadata)
-      .where(eq(userLinkMetadata.userId, id));
-    expect(rows).toHaveLength(1);
+      const rows = await getDb()
+        .select({ clarityDocumentId: userLinkMetadata.clarityDocumentId })
+        .from(userLinkMetadata)
+        .where(eq(userLinkMetadata.userId, id));
+      expect(rows).toEqual([{ clarityDocumentId: 'doc:https://same.test' }]);
+      expect(readLinkDocuments).toHaveBeenLastCalledWith(['doc:https://same.test']);
+      expect(updated.links).toEqual(['https://same.test']);
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      fetch.mockRestore();
+    }
   });
 
   it('refuses a link that is not https and stores nothing', async () => {
