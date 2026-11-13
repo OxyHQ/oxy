@@ -182,6 +182,22 @@ function defaultWrite(line: string): void {
   (globalThis as StdoutHost).process?.stdout?.write?.(`${line}\n`);
 }
 
+/** Set by ECS on every task: the one reliable signal that `awslogs` is capturing stdout. */
+const ECS_METADATA_ENV = 'ECS_CONTAINER_METADATA_URI_V4';
+
+/**
+ * `createEmfPublisher` on ECS, `null` everywhere else (a laptop, CI, a test):
+ * the gate oxy-api and Mention each repeated. `env` is injectable for tests.
+ */
+export function createEmfPublisherIfDeployed(
+  options: EmfPublisherOptions,
+  env: Readonly<Record<string, string | undefined>> = (
+    globalThis as { process?: { env?: Record<string, string | undefined> } }
+  ).process?.env ?? {},
+): EmfPublisher | null {
+  return env[ECS_METADATA_ENV] ? createEmfPublisher(options) : null;
+}
+
 export function createEmfPublisher(options: EmfPublisherOptions): EmfPublisher {
   const flushIntervalMs = options.flushIntervalMs ?? 60_000;
   const maxSeries = options.maxSeries ?? 2_000;

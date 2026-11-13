@@ -60,6 +60,12 @@ function eligibleLocation(location: Pick<Location, 'hostname' | 'protocol'> | un
   );
 }
 
+/**
+ * @deprecated No Oxy repo constructs its own runtime: use the module-level
+ * `getBrowserActivityIdHeader`, `getBrowserEdgeRegionHeader` and
+ * `peekBrowserEdgeRegionHeader`. The factory remains the test seam. Removal from
+ * the public surface is planned for the next major.
+ */
 export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): BrowserTelemetry {
   let activityId: string | null = null;
   let activityIdCreatedAt = 0;
@@ -169,5 +175,10 @@ export const getBrowserEdgeRegionHeader = (): Promise<Record<string, string>> =>
 export const peekBrowserEdgeRegionHeader = (): Record<string, string> =>
   defaultBrowserTelemetry.peekEdgeRegionHeader();
 
+/**
+ * @deprecated Unused by any Oxy repo. `@oxy.so/core` sends
+ * `peekBrowserEdgeRegionHeader()` and `getBrowserActivityIdHeader()` per request.
+ * Removal is planned for the next major.
+ */
 export const getBrowserTelemetryHeaders = (): Promise<Record<string, string>> =>
   defaultBrowserTelemetry.getHeaders();
