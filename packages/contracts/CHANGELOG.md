@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/contracts`
 
+## 7.0.0
+
+A bot's character has no paint: its colour is its account's (2026-11-13).
+
+### Breaking
+
+- `AvatarCharacter` loses `color` and `bodyColor`, and `avatarCharacterSchema` refuses them like
+  any key a character does not have. A bot is painted in its account's `color` (`User.color`, a
+  Bloom preset key), which Bloom 20 draws a bot account's character in, so the colour has one
+  source. The Oxy API strips the paints it stored (migrations 0257 and 0258).
+- `AVATAR_PICKABLE_COLORS` is removed, and `avatarCharacterFor` picks no paint.
 ## 6.27.0
 
 Additive only: no export removed.

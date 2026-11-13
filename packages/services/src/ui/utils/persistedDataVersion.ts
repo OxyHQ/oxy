@@ -6,4 +6,4 @@
  * `__tests__/hooks/persistedDataVersion.test.ts` keeps it equal to `package.json`'s `version`, so a
  * release cannot forget it.
  */
-export const SERVICES_PERSISTED_DATA_VERSION = '14.20.0';
+export const SERVICES_PERSISTED_DATA_VERSION = '14.21.0';

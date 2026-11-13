@@ -1,5 +1,9 @@
 # Changelog: `@oxy.so/stickers`
 
+## 0.2.3
+
+- Depends on `@oxy.so/contracts` 7.
+
 ## 0.2.2
 
 ### Changed

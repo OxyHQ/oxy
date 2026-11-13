@@ -1,5 +1,9 @@
 # Changelog: `@oxy.so/mcp`
 
+## 1.4.3
+
+- Depends on `@oxy.so/contracts` 7.
+
 ## 1.4.2
 
 ### Fixed

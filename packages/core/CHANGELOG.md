@@ -1,5 +1,10 @@
 # Changelog — `@oxy.so/core`
 
+## 7.49.0
+
+- Depends on `@oxy.so/contracts` 7: a bot account's `character` (create and update) has no paint;
+  its colour is the account's `color`.
+
 ## 7.47.1
 
 ### Fixed

@@ -1,5 +1,9 @@
 # Changelog: `@oxy.so/federation`
 
+## 3.2.1
+
+- Admits `@oxy.so/contracts` 7.
+
 ## 3.2.0
 
 - `@oxy.so/federation/network`: the network vocabulary (`FEDERATION_NETWORKS`)

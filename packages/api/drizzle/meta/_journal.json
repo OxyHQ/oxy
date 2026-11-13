@@ -1793,6 +1793,20 @@
       "when": 1794554252124,
       "tag": "0256_application_inference_authority",
       "breakpoints": true
+    },
+    {
+      "idx": 257,
+      "version": "7",
+      "when": 1794561377175,
+      "tag": "0257_bot_characters_without_paint",
+      "breakpoints": true
+    },
+    {
+      "idx": 258,
+      "version": "7",
+      "when": 1794561381816,
+      "tag": "0258_bot_characters_without_paint_after_rollout",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,4 @@
 import {
-  AVATAR_PICKABLE_COLORS,
   AVATAR_PICKABLE_SHAPES,
   avatarCharacterFor,
   avatarCharacterSchema,
@@ -9,20 +8,13 @@ import {
 } from '../index';
 
 describe('avatarCharacterSchema', () => {
-  it('accepts a preset, or a shape with or without a paint, and lower-cases the hex', () => {
+  it('accepts a preset or a shape, and nothing else', () => {
     expect(parseAvatarCharacter({ preset: 'alfred' })).toEqual({ preset: 'alfred' });
-    // The account's colour paints a bot: its character needs no paint of its own.
-    expect(parseAvatarCharacter({ shape: 'heart', eyes: 'oval' })).toEqual({
+    expect(parseAvatarCharacter({ shape: 'heart', eyes: 'oval', eyeSpacing: 1.2 })).toEqual({
       shape: 'heart',
       eyes: 'oval',
+      eyeSpacing: 1.2,
     });
-    expect(parseAvatarCharacter({ shape: 'heart', color: 'pink' })).toEqual({
-      shape: 'heart',
-      color: 'pink',
-    });
-    expect(parseAvatarCharacter({ shape: 'heart', bodyColor: '#FFAA00', eyeSpacing: 1.2 })).toEqual(
-      { shape: 'heart', bodyColor: '#ffaa00', eyeSpacing: 1.2 },
-    );
   });
 
   it.each([
@@ -31,9 +23,11 @@ describe('avatarCharacterSchema', () => {
     ['a string', 'alfred'],
     ['an empty object', {}],
     ['a paint without a shape', { color: 'pink' }],
+    // The account's colour paints a bot: a character has no paint of its own.
+    ['a named paint', { shape: 'heart', color: 'pink' }],
+    ['a free paint', { shape: 'heart', bodyColor: '#ffaa00' }],
     ['an unknown key', { preset: 'alfred', selections: { color: 'blue' } }],
     ['a non id-like value', { preset: 'Alfred!' }],
-    ['a short hex', { shape: 'heart', bodyColor: '#fff' }],
     ['eyeSpacing below range', { preset: 'alfred', eyeSpacing: 0.4 }],
     ['eyeSpacing above range', { preset: 'alfred', eyeSpacing: 1.6 }],
     ['a non-finite eyeSpacing', { preset: 'alfred', eyeSpacing: Number.NaN }],
@@ -50,7 +44,8 @@ describe('avatarCharacterFor', () => {
       const character = avatarCharacterFor(seed);
       expect(parseAvatarCharacter(character)).toEqual(character);
       expect(AVATAR_PICKABLE_SHAPES).toContain(character.shape);
-      expect(AVATAR_PICKABLE_COLORS).toContain(character.color);
+      expect(character).not.toHaveProperty('color');
+      expect(character).not.toHaveProperty('bodyColor');
     }
   });
 

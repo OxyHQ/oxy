@@ -27,7 +27,6 @@ import profilesRouter from '../profiles';
 const character: AvatarCharacter = {
   shape: 'rounded_head_two_ears',
   eyes: 'oval',
-  color: 'teal',
   eyewear: 'none',
   accessory: 'none',
 };
@@ -59,6 +58,13 @@ it.each([
     label: 'old bot without a character',
     kind: 'bot' as const,
     character: null,
+    expected: undefined,
+  },
+  {
+    // A bot's colour is its account's: a stored paint is not a character any more.
+    label: 'bot with a paint',
+    kind: 'bot' as const,
+    character: { ...character, color: 'teal' } as AvatarCharacter,
     expected: undefined,
   },
   {

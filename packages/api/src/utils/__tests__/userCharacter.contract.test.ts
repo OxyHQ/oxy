@@ -12,7 +12,7 @@ import { formatUserResponse, userIdentityFields, deriveIsAgent } from '../userTr
 import { userService } from '../../services/user.service';
 import { formatProfileResult } from '../../routes/profiles';
 
-const CHARACTER = { preset: 'alfred', bodyColor: '#ffaa00' };
+const CHARACTER = { preset: 'alfred', eyes: 'oval' };
 
 function source(kind: string, ...stored: [] | [unknown]) {
   const character = stored.length ? stored[0] : CHARACTER;
@@ -47,7 +47,13 @@ describe('character on the user DTOs', () => {
   );
 
   it('a bot without a stored (or with a malformed) character omits the key', () => {
-    for (const stored of [null, undefined, { color: 'pink' }, 'x']) {
+    for (const stored of [
+      null,
+      undefined,
+      { color: 'pink' },
+      { preset: 'alfred', color: 'pink' },
+      'x',
+    ]) {
       expect(formatUserResponse(source('bot', stored))).not.toHaveProperty('character');
     }
   });

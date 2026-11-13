@@ -375,7 +375,7 @@ describe('GET /profiles/:userId/similar — wire shape', () => {
     const target = await curatedAccount();
     const follower = await curatedAccount();
     await follow(follower, target);
-    const character = { preset: 'alfred', bodyColor: '#ffaa00' };
+    const character = { preset: 'alfred', eyes: 'oval' };
     const bot = await curatedAccount({ kind: 'bot', character });
     await follow(follower, bot);
 

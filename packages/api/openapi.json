@@ -845,14 +845,6 @@
                         "type": "string",
                         "pattern": "^[a-z][a-z0-9_]{0,39}$"
                       },
-                      "color": {
-                        "type": "string",
-                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
-                      },
-                      "bodyColor": {
-                        "type": "string",
-                        "pattern": "^#[0-9a-fA-F]{6}$"
-                      },
                       "eyeSpacing": {
                         "type": "number",
                         "minimum": 0.5,
@@ -1336,14 +1328,6 @@
                       "accessory": {
                         "type": "string",
                         "pattern": "^[a-z][a-z0-9_]{0,39}$"
-                      },
-                      "color": {
-                        "type": "string",
-                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
-                      },
-                      "bodyColor": {
-                        "type": "string",
-                        "pattern": "^#[0-9a-fA-F]{6}$"
                       },
                       "eyeSpacing": {
                         "type": "number",
@@ -65940,14 +65924,6 @@
                             "accessory": {
                               "type": "string",
                               "pattern": "^[a-z][a-z0-9_]{0,39}$"
-                            },
-                            "color": {
-                              "type": "string",
-                              "pattern": "^[a-z][a-z0-9_]{0,39}$"
-                            },
-                            "bodyColor": {
-                              "type": "string",
-                              "pattern": "^#[0-9a-fA-F]{6}$"
                             },
                             "eyeSpacing": {
                               "type": "number",

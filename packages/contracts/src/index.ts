@@ -53,7 +53,6 @@ export type { AccountNamePolicy } from './accountName';
 
 export {
   AVATAR_EYE_SPACING,
-  AVATAR_PICKABLE_COLORS,
   AVATAR_PICKABLE_SHAPES,
   avatarCharacterFor,
   avatarCharacterSchema,
