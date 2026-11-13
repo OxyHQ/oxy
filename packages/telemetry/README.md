@@ -114,7 +114,7 @@ outbound calls; internal destination regions come from the peer's `X-Oxy-Region`
 response, not a guessed IP location. Unlocated peers remain unlocated. Health,
 telemetry collection, infrastructure snapshots, service-token minting and
 `/cdn-cgi/` are excluded from observation to prevent control traffic feedback;
-`isObservedPath(path)` is the one predicate, so an adapter that does its own
+`isObservedPath(path, direction)` (reading the `UNOBSERVED_PATHS` table) is the one predicate, so an adapter that does its own
 interception imports it instead of copying a pattern.
 Custom transports can call the collector's `record` method explicitly.
 

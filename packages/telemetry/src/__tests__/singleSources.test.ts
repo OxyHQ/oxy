@@ -34,32 +34,90 @@ describe('telemetry header lists', () => {
   });
 });
 
+// The pre-change behaviour, copied verbatim from origin/main collector.ts
+// (middleware lines 119-124, instrumentTrafficFetch lines 200-202).
+const legacyInboundExcluded = (path: string): boolean =>
+  /^\/(?:api\/)?(?:health|ready|live|platform-stats|platform-activity|platform-infrastructure|infra-status)(?:\/|$)/.test(
+    path,
+  ) ||
+  path.startsWith('/internal/activity') ||
+  path.startsWith('/auth/service-token') ||
+  path.startsWith('/cdn-cgi/');
+const legacyOutboundExcluded = (pathname: string): boolean =>
+  pathname.startsWith('/internal/activity') ||
+  pathname.startsWith('/auth/service-token') ||
+  pathname === '/platform-infrastructure';
+
+const PATHS = [
+  '/',
+  '/users/me',
+  '/api/v1/users',
+  '/auth/session',
+  '/healthy',
+  '/readyz',
+  '/cdn-cgi',
+  '/health',
+  '/health/deep',
+  '/health?x=1',
+  '/api/health',
+  '/api/health/x',
+  '/ready',
+  '/api/ready',
+  '/live',
+  '/api/live',
+  '/platform-stats',
+  '/platform-stats/stream',
+  '/api/platform-stats',
+  '/platform-activity',
+  '/platform-activity/x',
+  '/api/platform-activity',
+  '/infra-status',
+  '/infra-status/x',
+  '/api/infra-status',
+  '/platform-infrastructure',
+  '/platform-infrastructure/',
+  '/platform-infrastructure/x',
+  '/api/platform-infrastructure',
+  '/api/platform-infrastructure/x',
+  '/platform-infrastructures',
+  '/api/api/health',
+  '/internal/activity',
+  '/internal/activity/batch',
+  '/internal/activityx',
+  '/auth/service-token',
+  '/auth/service-token/x',
+  '/auth/service-tokens',
+  '/cdn-cgi/',
+  '/cdn-cgi/trace',
+  '/v1/health',
+];
+
 describe('isObservedPath', () => {
-  it.each([
-    ['/health', false],
-    ['/health/deep', false],
-    ['/api/health', false],
-    ['/ready', false],
-    ['/api/ready', false],
-    ['/live', false],
-    ['/platform-stats/stream', false],
-    ['/platform-activity', false],
-    ['/platform-infrastructure', false],
-    ['/api/platform-infrastructure', false],
-    ['/infra-status', false],
-    ['/internal/activity', false],
-    ['/internal/activity/batch', false],
-    ['/auth/service-token', false],
-    ['/cdn-cgi/trace', false],
-    ['/healthy', true],
-    ['/readyz', true],
-    ['/users/me', true],
-    ['/api/v1/users', true],
-    ['/auth/session', true],
-    ['/', true],
-    ['/cdn-cgi', true],
-  ])('%s -> observed: %s', (path, observed) => {
-    expect(isObservedPath(path)).toBe(observed);
+  it.each(PATHS)('%s matches the pre-change inbound behaviour', (path) => {
+    expect(isObservedPath(path, 'inbound')).toBe(!legacyInboundExcluded(path));
+  });
+
+  it.each(PATHS)('%s matches the pre-change outbound behaviour', (path) => {
+    expect(isObservedPath(path, 'outbound')).toBe(!legacyOutboundExcluded(path));
+  });
+
+  it('pins the excluded sets explicitly in both directions', () => {
+    const excluded = (direction: 'inbound' | 'outbound') =>
+      PATHS.filter((path) => !isObservedPath(path, direction));
+    expect(excluded('outbound')).toEqual([
+      '/platform-infrastructure',
+      '/internal/activity',
+      '/internal/activity/batch',
+      '/internal/activityx',
+      '/auth/service-token',
+      '/auth/service-token/x',
+      '/auth/service-tokens',
+    ]);
+    expect(excluded('inbound')).toEqual(PATHS.filter(legacyInboundExcluded));
+    // Excluded inbound only today; recorded outbound. Unifying is an owner decision.
+    expect(excluded('inbound').filter((path) => isObservedPath(path, 'outbound'))).toContain(
+      '/platform-stats',
+    );
   });
 });
 
@@ -99,7 +157,7 @@ describe('createEmfPublisherIfDeployed', () => {
 });
 
 describe('instrumentTrafficFetch exclusion', () => {
-  it('does not observe probe or control requests, and still observes the rest', async () => {
+  it('skips control requests and still records outbound calls to inbound-excluded paths', async () => {
     const { createTrafficCollector, instrumentTrafficFetch } = await import('../collector');
     const published: unknown[][] = [];
     const collector = createTrafficCollector(async (events) => {
@@ -113,11 +171,13 @@ describe('instrumentTrafficFetch exclusion', () => {
       'us-west-2',
       () => undefined,
     );
-    await observed('https://example.com/health');
-    await observed('https://example.com/cdn-cgi/trace');
+    await observed('https://example.com/internal/activity');
+    await observed('https://example.com/auth/service-token');
+    await observed('https://example.com/platform-infrastructure');
     await collector.flush();
     expect(published).toHaveLength(0);
-    await observed('https://example.com/users/me');
+    // Recorded outbound today, though excluded inbound.
+    await observed('https://example.com/platform-stats');
     await collector.flush();
     expect(published).toHaveLength(1);
   });

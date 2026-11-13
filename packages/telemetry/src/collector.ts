@@ -53,22 +53,46 @@ export function trafficType(path: string): TrafficType {
   return TYPES[parts[0] ?? ''] ?? 'platform';
 }
 
+/** Which side of a request a reporter is observing. */
+export type ObservationDirection = 'inbound' | 'outbound';
+
 /**
- * The single answer to "is this path part of what a reporter observes?".
- * Probes (`health`, `ready`, `live`), the dashboard transport and its
- * collection (`platform-stats`, `platform-activity`, `platform-infrastructure`,
- * `infra-status`, `/internal/activity`), service-token minting and Cloudflare's
- * `/cdn-cgi/` are control traffic: observing them would feed back into the very
+ * Every path a reporter does not observe, in ONE table. Each entry says which
+ * directions it applies to: the inbound and outbound sets differ today (an
+ * outbound call to a probe or to `/platform-stats` IS recorded), and that is
+ * preserved exactly. Unifying them is a separate, deliberate decision.
+ */
+export const UNOBSERVED_PATHS: readonly {
+  readonly directions: ObservationDirection | 'both';
+  readonly matches: (path: string) => boolean;
+}[] = [
+  {
+    directions: 'inbound',
+    matches: (path) =>
+      /^\/(?:api\/)?(?:health|ready|live|platform-stats|platform-activity|infra-status)(?:\/|$)/.test(
+        path,
+      ),
+  },
+  {
+    directions: 'inbound',
+    matches: (path) => /^\/(?:api\/)?platform-infrastructure(?:\/|$)/.test(path),
+  },
+  { directions: 'outbound', matches: (path) => path === '/platform-infrastructure' },
+  { directions: 'both', matches: (path) => path.startsWith('/internal/activity') },
+  { directions: 'both', matches: (path) => path.startsWith('/auth/service-token') },
+  { directions: 'inbound', matches: (path) => path.startsWith('/cdn-cgi/') },
+];
+
+/**
+ * Is this path part of what a reporter observes in this direction? Collection
+ * itself, service-token minting and (inbound) probes and the dashboard
+ * transport are control traffic: observing them would feed back into the very
  * activity they carry.
  */
-export function isObservedPath(path: string): boolean {
-  return !(
-    /^\/(?:api\/)?(?:health|ready|live|platform-stats|platform-activity|platform-infrastructure|infra-status)(?:\/|$)/.test(
-      path,
-    ) ||
-    path.startsWith('/internal/activity') ||
-    path.startsWith('/auth/service-token') ||
-    path.startsWith('/cdn-cgi/')
+export function isObservedPath(path: string, direction: ObservationDirection): boolean {
+  return !UNOBSERVED_PATHS.some(
+    (entry) =>
+      (entry.directions === 'both' || entry.directions === direction) && entry.matches(path),
   );
 }
 
@@ -129,7 +153,7 @@ export function trafficMiddleware(
     response.setHeader?.(OXY_REGION_HEADER, region);
     const path = request.path ?? request.url ?? '/';
     // Never report collection itself, probes or the dashboard transport.
-    if (!isObservedPath(path)) {
+    if (!isObservedPath(path, 'inbound')) {
       next();
       return;
     }
@@ -201,7 +225,7 @@ export function instrumentTrafficFetch(
       typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
     );
     // Collection/auth control traffic cannot generate a feedback loop.
-    if (!isObservedPath(url.pathname)) return fetcher(input, init);
+    if (!isObservedPath(url.pathname, 'outbound')) return fetcher(input, init);
     const peer = resolveEndpoint(url);
     const flow: TrafficFlow = {
       service,

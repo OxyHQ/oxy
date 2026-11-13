@@ -4,7 +4,7 @@
 
 Additive: single sources for constants and logic that consumers each copied. No
 consumer is migrated by this release and no existing behaviour changes, except
-the outbound-fetch exclusion widening listed under Changed.
+
 
 ### Added
 
@@ -14,9 +14,11 @@ the outbound-fetch exclusion widening listed under Changed.
   constants `OXY_REGION_HEADER` and `OXY_SOURCE_REGION_HEADER`
   (`X-Oxy-Source-Region`, service to service, deliberately not in the request
   list). Tests pin the lists to the constants.
-- `@oxy.so/telemetry/collector`: `isObservedPath(path)`, the one predicate for
-  "is this path observed?" (probes, the dashboard transport and collection,
-  service-token minting, `/cdn-cgi/`). The collector now uses it everywhere.
+- `@oxy.so/telemetry/collector`: `UNOBSERVED_PATHS`, one table of unobserved
+  paths where each entry declares its direction (`inbound`, `outbound` or
+  `both`), and `isObservedPath(path, direction)` reading it. The collector uses it
+  for both its middleware and its outbound fetch, and the inbound and outbound
+  sets are exactly what they were (pinned by tests against the previous code).
 - `@oxy.so/telemetry/server`: `sourceRegionFromEdgePop(pop)`, the one `edge-<pop>`
   derivation, now used by the collector middleware and the socket/WebSocket
   observers.
@@ -35,14 +37,15 @@ the outbound-fetch exclusion widening listed under Changed.
   service fields). It is now `TrafficAggregate & { activeClients: number }`,
   the exact `platform_activity` socket payload. Nothing in any Oxy repo imports it.
 
-### Changed
+### Candidates to unify in a deliberate follow-up (needs owner decision)
 
-- The outbound-fetch exclusion in `instrumentTrafficFetch` was narrower than the
-  inbound one (only `/internal/activity`, `/auth/service-token` and
-  `/platform-infrastructure`). It now uses `isObservedPath`, so outbound calls to
-  probes (`/health`, `/ready`, `/live`), `/platform-stats`, `/platform-activity`,
-  `/infra-status`, `/platform-infrastructure/...` and `/cdn-cgi/` are no longer
-  recorded as traffic. The inbound middleware behaves exactly as before.
+Not changed here. Excluded INBOUND only today, so an OUTBOUND call to them is
+still recorded: `/health`, `/ready`, `/live`, `/platform-stats`,
+`/platform-activity`, `/infra-status` (each with an optional `/api` prefix and
+subpaths), `/platform-infrastructure/...` subpaths and `/api/platform-infrastructure`,
+and `/cdn-cgi/`. The only outbound-only entry is the exact `/platform-infrastructure`.
+Unifying would change what the dashboard shows (the website calls `/platform-stats`
+through instrumented fetch).
 
 ### Deprecated (removal planned for the next major)
 
