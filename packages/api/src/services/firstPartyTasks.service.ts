@@ -127,7 +127,8 @@ export async function resolveFirstPartyTask(
     )
   )
     return null;
-  if ((await Promise.all(subjectIds.map(isSupervised))).some(Boolean)) return null;
+  if ((await Promise.all(subjectIds.map((accountId) => isSupervised(accountId)))).some(Boolean))
+    return null;
   const access = await accountService.resolveEffectiveAccess(
     task.requesterAccountId,
     task.effectiveAccountId,
