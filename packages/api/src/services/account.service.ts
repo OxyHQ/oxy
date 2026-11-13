@@ -76,7 +76,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '.
 import { accountNameInvalidMessage, isValidAccountName } from '@oxy.so/core';
 import {
   assertColorNotReserved,
-  isUserColorPreset,
+  isAssignableUserColor,
   normalizeUserColor,
 } from '../utils/profileColor';
 import { logger } from '../utils/logger';
@@ -139,7 +139,7 @@ function assertValidAccountName(
 }
 
 /**
- * Reject a color the preset catalogue does not contain.
+ * Reject a color that is neither a catalogue preset nor a hex colour.
  *
  * Account create/update is a second write path onto `users.color`, so it runs
  * the same policy `updateUserProfile` does; the reserved-color half of that
@@ -147,9 +147,9 @@ function assertValidAccountName(
  *
  * Callers run this only when the color CHANGES — see `updateAccount`.
  */
-function assertAssignableColorPreset(color: string): void {
-  if (isUserColorPreset(color)) return;
-  throw new BadRequestError(`Unknown color preset "${color}"`);
+function assertAssignableColor(color: string): void {
+  if (isAssignableUserColor(color)) return;
+  throw new BadRequestError(`Unknown color "${color}": a preset or a hex colour`);
 }
 
 /** How the caller is related to an account in their accessible forest. */
@@ -595,7 +595,7 @@ export class AccountService {
     // pass — see `assertColorNotReserved`.
     const color = input.color === undefined ? undefined : normalizeUserColor(input.color);
     if (color !== undefined) {
-      assertAssignableColorPreset(color);
+      assertAssignableColor(color);
       await assertColorNotReserved(color, { accountId: null, username });
     }
 
@@ -911,10 +911,10 @@ export class AccountService {
       // back must not be 400ed by a field it did not touch — that would take the
       // field it DID change down with it, the failure `updateAccountSchema`
       // describes for withdrawn `accountCategories` and for a nullable `bio`. It
-      // is also what lets a legacy hex colour (still permitted by
-      // `users_color_check`) be carried forward without being newly adoptable.
+      // is also what lets a colour that is no longer assignable (a withdrawn
+      // preset `users_color_check` still admits) be carried forward.
       if (color !== account.color || color === 'mono') {
-        assertAssignableColorPreset(color);
+        assertAssignableColor(color);
         // The subject is the account being coloured, not the administrator
         // asking: an operator's own premium plan does not travel down the tree.
         await assertColorNotReserved(color, {

@@ -91,6 +91,7 @@ import {
 import {
   assertColorNotReserved,
   normalizeUserColor,
+  isAssignableUserColor,
   isUserColorPreset,
 } from '../utils/profileColor';
 import { userIdentityFields, deriveIsFederated, toThemePreference } from '../utils/userTransform';
@@ -999,7 +1000,9 @@ export class UserService {
       // gate. The rule itself lives in `utils/profileColor` because the account
       // graph writes this column too — see its header.
       if (key === 'color' && typeof normalizedValue === 'string') {
-        if (!isUserColorPreset(normalizedValue)) throw new BadRequestError('Unknown color preset');
+        if (!isAssignableUserColor(normalizedValue)) {
+          throw new BadRequestError('Unknown color: a preset or a hex colour');
+        }
         await assertColorNotReserved(normalizedValue, { accountId: userId, username: null });
       }
 
