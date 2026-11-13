@@ -2133,8 +2133,11 @@ export class HttpService {
         credentials: 'omit',
         redirect: 'error',
         // The browser cache is separate from SDK caches and cannot distinguish
-        // account changes unless every receiver supplies correct Vary headers.
-        cache: 'no-store',
+        // account changes unless every receiver supplies correct Vary headers, so a
+        // request is `no-store` unless the receiver itself forbids storage
+        // (`receiverSendsNoStore`). That opt-in matters: Chromium skips the CORS
+        // preflight cache for a `no-store` request, doubling every bearer request.
+        cache: this.config.receiverSendsNoStore === true ? 'default' : 'no-store',
       };
       // Node fetch requires this flag for streaming uploads; ordinary and
       // multipart bodies keep the platform's existing body serialization.

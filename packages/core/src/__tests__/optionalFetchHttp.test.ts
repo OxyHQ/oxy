@@ -133,3 +133,28 @@ it('disables the browser HTTP cache across anonymous and account-bound reads eve
     oxy.dispose();
   }
 });
+
+it('uses the default cache mode only for a receiver that forbids storage, so preflights are cached', async () => {
+  const oxy = new OxyServices({ baseURL: origin });
+  const opted = oxy.createLinkedClient({ baseURL: origin, receiverSendsNoStore: true });
+  const plain = oxy.createLinkedClient({ baseURL: origin });
+  const networkFetch = globalThis.fetch;
+  const policies: Array<RequestCache | undefined> = [];
+  const spy = jest.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+    policies.push(init?.cache);
+    return networkFetch(input, init);
+  });
+  try {
+    oxy.session.setAccessToken(token('cache-account-A'));
+    await (await opted.fetch('/private', { cache: 'force-cache' })).text();
+    await (await plain.fetch('/private', { cache: 'force-cache' })).text();
+    // The opt-in client lets the browser reuse its preflight; nothing else changes, and a caller
+    // still cannot ask for a cached read.
+    expect(policies).toEqual(['default', 'no-store']);
+  } finally {
+    spy.mockRestore();
+    opted.dispose();
+    plain.dispose();
+    oxy.dispose();
+  }
+});

@@ -35,6 +35,15 @@ export interface OxyConfig {
    */
   enableCache?: boolean;
   /**
+   * Declare that EVERY response from `baseURL` carries `Cache-Control: no-store`, so the browser's
+   * HTTP cache never holds one. Requests then use the default fetch cache mode instead of
+   * `no-store`, and the receiver's `Access-Control-Max-Age` is honoured: Chromium ignores the CORS
+   * preflight cache for a `no-store` (or `no-cache`, `reload`) request, so every bearer request
+   * otherwise goes out twice. Defaults to `false`, because the browser cache cannot tell accounts
+   * apart unless the receiver forbids storage; set it only for a backend that does.
+   */
+  receiverSendsNoStore?: boolean;
+  /**
    * Cache TTL in milliseconds (default: 5 minutes). A value `<= 0` disables the
    * per-instance GET response cache, equivalent to `enableCache: false`.
    */

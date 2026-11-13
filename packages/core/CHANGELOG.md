@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.50.0
+
+### Added
+
+- **`receiverSendsNoStore` on `OxyConfig` and `createLinkedClient`: CORS preflights that are cached.** Every request went out with `cache: 'no-store'`, so the browser's HTTP cache could never hand one account's response to another. Chromium also skips the CORS preflight cache for a `no-store` (or `no-cache`, `reload`) request, whatever `Access-Control-Max-Age` the receiver sends: every bearer request from a web app went out twice (measured in Chromium: 3 OPTIONS for 3 GETs with `no-store`, 1 with `default`; Gemies' API saw one OPTIONS per GET). A backend whose every response carries `Cache-Control: no-store` can now say so; its linked client uses the default cache mode, the browser still stores nothing, and the preflight is reused. Defaults to `false`: nothing changes for a client that does not opt in.
+
 ## 7.49.0
 
 - Depends on `@oxy.so/contracts` 7: a bot account's `character` (create and update) has no paint;
