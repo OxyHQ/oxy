@@ -3,8 +3,7 @@
 ## 2.2.0
 
 Additive: single sources for constants and logic that consumers each copied. No
-consumer is migrated by this release and no existing behaviour changes, except
-
+consumer is migrated by this release and no existing behaviour changes.
 
 ### Added
 
