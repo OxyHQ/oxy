@@ -70,11 +70,11 @@ import { USER_COLOR_PRESETS, users } from '../../db/schema/users';
 import type { AccountRole } from '../../utils/accountRoles';
 
 /**
- * A color the column accepts and the preset catalogue does NOT — the shape of a
- * value stored before the named presets existed (`users_color_check` still
- * admits a legacy hex). Reading one back must work; adopting one must not.
+ * A colour of the account's own: any hex is first-class beside the presets
+ * (`users_color_check` stores both, and Bloom draws both). A bot's owner picks
+ * any colour for it in the gemie editor.
  */
-const STORED_LEGACY_COLOR = '#a1b2c3';
+const HEX_COLOR = '#a1b2c3';
 
 interface JsonResponse {
   status: number;
@@ -250,25 +250,39 @@ describe('POST /accounts — an account born with a color', () => {
     expect(USER_COLOR_PRESETS).toContain(await storedColor(res.body.account?.accountId ?? ''));
   });
 
-  test('refuses a color outside the preset catalogue, and creates nothing', async () => {
-    const operator = await seedPersonalAccount();
-    actingUserId = operator;
-    const username = uniqueBotUsername('agent');
+  test.each(['not-a-preset', 'ff8b67', '#ff8b6', '#gggggg'])(
+    'refuses %s, neither a preset nor a hex colour, and creates nothing',
+    async (refused) => {
+      const operator = await seedPersonalAccount();
+      actingUserId = operator;
+      const username = uniqueBotUsername('agent');
 
+      const res = await send('POST', '/accounts', {
+        kind: 'bot',
+        username,
+        color: refused,
+      });
+
+      expect(res.status).toBe(400);
+      // The whole request fails, not just the field: a half-created account with
+      // the caller's chosen handle and somebody else's color is worse than a 400.
+      const rows = await getDb()
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, username));
+      expect(rows).toHaveLength(0);
+    },
+  );
+
+  test('creates an account in any hex colour, lower-cased', async () => {
+    actingUserId = await seedPersonalAccount();
     const res = await send('POST', '/accounts', {
       kind: 'bot',
-      username,
-      color: 'not-a-preset',
+      username: uniqueBotUsername('hex'),
+      color: '#FF8B67',
     });
-
-    expect(res.status).toBe(400);
-    // The whole request fails, not just the field: a half-created account with
-    // the caller's chosen handle and somebody else's color is worse than a 400.
-    const rows = await getDb()
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.username, username));
-    expect(rows).toHaveLength(0);
+    expect(res.status).toBe(201);
+    expect(await storedColor(res.body.account?.accountId ?? '')).toBe('#ff8b67');
   });
 
   test('refuses a reserved color for an account that has no claim to it', async () => {
@@ -355,42 +369,38 @@ describe('PATCH /accounts/:id — changing a managed account colour', () => {
   });
 });
 
-describe('a colour the catalogue no longer contains', () => {
-  test('reads back unchanged instead of erroring', async () => {
+describe('a hex colour is a colour of the account’s own', () => {
+  test('is written by its administrator and read back exactly', async () => {
     const operator = await seedPersonalAccount();
-    const bot = await seedBotAccount(operator, STORED_LEGACY_COLOR);
+    const bot = await seedBotAccount(operator, 'teal');
     actingUserId = operator;
-    // Non-vacuity: this value is refused on the WRITE path below, so the read
-    // succeeding is tolerance rather than the check being absent everywhere.
-    expect(USER_COLOR_PRESETS).not.toContain(STORED_LEGACY_COLOR);
+    expect(USER_COLOR_PRESETS).not.toContain(HEX_COLOR);
 
-    const res = await send('GET', `/accounts/${bot}`);
+    const write = await send('PATCH', `/accounts/${bot}`, { color: HEX_COLOR.toUpperCase() });
+    expect(write.status).toBe(200);
+    expect(await storedColor(bot)).toBe(HEX_COLOR);
 
-    expect(res.status).toBe(200);
-    expect(res.body.account?.account?.color).toBe(STORED_LEGACY_COLOR);
+    const read = await send('GET', `/accounts/${bot}`);
+    expect(read.status).toBe(200);
+    expect(read.body.account?.account?.color).toBe(HEX_COLOR);
   });
 
-  test('may be sent back unchanged, but not newly adopted', async () => {
+  test('may be sent back unchanged with another field', async () => {
     const operator = await seedPersonalAccount();
-    const bot = await seedBotAccount(operator, STORED_LEGACY_COLOR);
+    const bot = await seedBotAccount(operator, HEX_COLOR);
     actingUserId = operator;
 
-    // A client that PATCHes back the object it was served must not be 400ed by
-    // a field it did not change — that would take the field it DID change down
-    // with it.
     const roundTrip = await send('PATCH', `/accounts/${bot}`, {
-      color: STORED_LEGACY_COLOR,
+      color: HEX_COLOR,
       bio: 'unchanged colour, changed bio',
     });
     expect(roundTrip.status).toBe(200);
-    expect(await storedColor(bot)).toBe(STORED_LEGACY_COLOR);
-
-    const adopt = await send('PATCH', `/accounts/${bot}`, { color: '#ffffff' });
-    expect(adopt.status).toBe(400);
-    expect(await storedColor(bot)).toBe(STORED_LEGACY_COLOR);
+    expect(await storedColor(bot)).toBe(HEX_COLOR);
   });
+});
 
-  test('the same tolerance covers a RESERVED colour the account already holds', () =>
+describe('a reserved colour the account already holds', () => {
+  test('may be restated, and not newly adopted', () =>
     withReservedColourHeld(async (bot) => {
       // An entitlement can lapse. When it does, the account keeps the colour it
       // was wearing — repainting somebody's profile is not what a subscription

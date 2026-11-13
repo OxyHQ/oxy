@@ -2,10 +2,11 @@ import { USER_PROFILE_COLORS } from '@oxy.so/contracts';
 /**
  * The `users.color` WRITE policy.
  *
- * `color` is a named preset KEY (`USER_COLOR_PRESETS`), not a hex value — a
- * consumer resolves the key to a palette, so what gets stored has to be a name
- * the catalogue contains. Two surfaces can write the column: `PUT /users/me`, a
- * person editing their own profile, and the account graph's create/update, an
+ * `color` is a named preset KEY (`USER_COLOR_PRESETS`) or any hex colour
+ * (`USER_COLOR_HEX_PATTERN`), both first-class: Bloom resolves either into an
+ * account's palette and its avatar's paint. Two surfaces can write the column:
+ * `PUT /users/me`, a person editing their own profile, and the account graph's
+ * create/update, an
  * administrator editing a MANAGED account's profile. The rule is declared once
  * here for the reason `assertValidAccountName` states in `account.service.ts` —
  * a policy enforced on one of two write paths holds only for whichever path the
@@ -13,9 +14,9 @@ import { USER_PROFILE_COLORS } from '@oxy.so/contracts';
  *
  * ## Fail closed on WRITE, tolerate on READ
  *
- * Nothing here is reachable from a read, deliberately. A color stored before the
- * named presets existed (the column still admits a legacy hex, see
- * `users_color_check`) must keep serving: `publicUserProjection` passes the
+ * Nothing here is reachable from a read, deliberately. A color the write policy
+ * no longer admits (a withdrawn preset `users_color_check` still stores) must
+ * keep serving: `publicUserProjection` passes the
  * column through untouched and every DTO carries whatever the row holds.
  * Validating on the way out would turn a cosmetic field into a broken profile,
  * years after the write that is actually at fault.
@@ -23,7 +24,12 @@ import { USER_PROFILE_COLORS } from '@oxy.so/contracts';
 
 import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { USER_COLOR_PRESETS, users, type UserColorPreset } from '../db/schema/users';
+import {
+  USER_COLOR_HEX_PATTERN,
+  USER_COLOR_PRESETS,
+  users,
+  type UserColorPreset,
+} from '../db/schema/users';
 import { BadRequestError } from './error';
 import { readProfilePersonalization } from '../services/profilePersonalization.service';
 
@@ -54,6 +60,16 @@ export function normalizeUserColor(value: string): string {
 /** Is `color` a preset the catalogue still contains? */
 export function isUserColorPreset(color: string): color is UserColorPreset {
   return (USER_COLOR_PRESETS as readonly string[]).includes(color);
+}
+
+const HEX_COLOR = new RegExp(USER_COLOR_HEX_PATTERN);
+
+/**
+ * May an account be given `color` (already normalized)? A preset the catalogue
+ * contains, or any hex colour: the same two forms `users_color_check` stores.
+ */
+export function isAssignableUserColor(color: string): boolean {
+  return isUserColorPreset(color) || HEX_COLOR.test(color);
 }
 
 /** Is `color` one of the presets that has to be earned rather than picked? */

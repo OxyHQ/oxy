@@ -114,14 +114,15 @@ export const USER_COLOR_PRESETS = USER_PROFILE_COLOR_PRESETS;
 export type UserColorPreset = (typeof USER_COLOR_PRESETS)[number];
 
 /**
- * 3- or 6-digit hex, case-insensitive.
+ * A colour of an account's own: 3- or 6-digit hex, case-insensitive.
  *
- * Legacy accounts stored raw hex before the named presets existed. The match is
- * case-INSENSITIVE (`~*`) even though new values are lower-cased on write: a
- * legacy row stored with upper-case hex would otherwise be rejected, turning a
- * cosmetic field into a failed migration.
+ * `users.color` is a named preset OR any hex colour, both first-class: a bot's
+ * owner picks any colour for it (Bloom's free picker), and Bloom draws an account
+ * in either form. The match is case-INSENSITIVE (`~*`) even though new values are
+ * lower-cased on write: a row stored with upper-case hex would otherwise be
+ * rejected, turning a cosmetic field into a failed migration.
  */
-const LEGACY_HEX_COLOR_PATTERN = '^#([0-9a-f]{3}|[0-9a-f]{6})$';
+export const USER_COLOR_HEX_PATTERN = '^#([0-9a-f]{3}|[0-9a-f]{6})$';
 
 /** Federation/automation flavour of the account. Orthogonal to `kind`. */
 export const USER_TYPES = ['local', 'federated', 'agent', 'automated'] as const;
@@ -533,7 +534,7 @@ export const users = pgTable(
     /** File id in the assets collection. */
     avatar: text(),
     /**
-     * Named preset or legacy hex. Generated in the APPLICATION — the default
+     * A named preset or any hex colour. Generated in the APPLICATION — the default
      * picks a random preset per row, which a SQL `DEFAULT` would
      * have to reimplement.
      */
@@ -822,7 +823,7 @@ export const users = pgTable(
     // ---- value constraints ------------------------------------------------
     check(
       'users_color_check',
-      sql`${t.color} in (${sql.raw(inList(USER_COLOR_PRESETS))}) or ${t.color} ~* ${sql.raw(`'${LEGACY_HEX_COLOR_PATTERN}'`)}`,
+      sql`${t.color} in (${sql.raw(inList(USER_COLOR_PRESETS))}) or ${t.color} ~* ${sql.raw(`'${USER_COLOR_HEX_PATTERN}'`)}`,
     ),
     check(
       'users_account_expires_after_inactivity_days_check',
