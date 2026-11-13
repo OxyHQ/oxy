@@ -1807,6 +1807,13 @@
       "when": 1794561381816,
       "tag": "0258_bot_characters_without_paint_after_rollout",
       "breakpoints": true
+    },
+    {
+      "idx": 259,
+      "version": "7",
+      "when": 1794570247975,
+      "tag": "0259_expand_profile_colors_gemies",
+      "breakpoints": true
     }
   ]
 }
