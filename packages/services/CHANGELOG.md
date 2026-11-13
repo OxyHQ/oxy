@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.19.3
+
+### Fixed
+
+- **A persisted query stays in memory for as long as it stays on disk.** Both persisted caches write their snapshot from memory, and the client's default `gcTime` is 30 minutes, while the account cache is kept for 7 days and the shared one for 30. So any persisted query no screen had watched for half an hour was collected, dropped from the next snapshot, and the next visit to its screen (a skill, a gemie's thread, a list) waited on the network behind a skeleton instead of drawing what was cached. The roots each cache writes (the app's `accountQueries.roots`, less its memory-only ones, and the SDK's own) now default to `gcTime: Infinity`, set before restoring so hydrated queries get it too; they leave memory when the cache's own rules remove them (expiry on restore, an account switch, sign-out). Memory-only and undeclared roots keep the client's default. A query marked `meta: { persist: 'account' }` outside a declared root should set its own `gcTime`.
+
 ## 14.19.2
 
 ### Fixed

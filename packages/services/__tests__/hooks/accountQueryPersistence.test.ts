@@ -646,4 +646,42 @@ describe('account query persistence', () => {
     expect(client.getQueryData(['accounts'])).toEqual(['device-level']);
     persistence.detach();
   });
+
+  it('keeps a persisted root in memory, so an unwatched query outlives the default gcTime', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { gcTime: 30 * 60 * 1000 } } });
+    const persistence = mount(client, createMemoryStorage());
+    persistence.activate('a1');
+    await until(persistence);
+    // A screen read it, then left: no observer remains.
+    client.setQueryData(THREAD, ['m']);
+    client.setQueryData(['search', 'q'], ['hit']);
+    const thread = client.getQueryCache().find({ queryKey: THREAD });
+    const search = client.getQueryCache().find({ queryKey: ['search', 'q'] });
+    expect(thread?.gcTime).toBe(Infinity);
+    // A memory-only root and anything undeclared keep the client's default.
+    expect(search?.gcTime).toBe(30 * 60 * 1000);
+    persistence.detach();
+  });
+
+  it('gives a restored query the same lifetime as one fetched in this session', async () => {
+    const storage = createMemoryStorage();
+    await writeFor(storage, 'a1', (client) => client.setQueryData(THREAD, ['m']));
+    const client = new QueryClient({ defaultOptions: { queries: { gcTime: 30 * 60 * 1000 } } });
+    const persistence = mount(client, storage);
+    persistence.activate('a1');
+    await until(persistence);
+    expect(client.getQueryData(THREAD)).toEqual(['m']);
+    expect(client.getQueryCache().find({ queryKey: THREAD })?.gcTime).toBe(Infinity);
+    persistence.detach();
+  });
+
+  it("keeps the shared cache's SDK roots in memory too", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { gcTime: 30 * 60 * 1000 } } });
+    const { unsubscribe } = attachQueryPersistence(client, createMemoryStorage());
+    client.setQueryData(['users', 'u1'], { id: 'u1' });
+    client.setQueryData(['feed'], []);
+    expect(client.getQueryCache().find({ queryKey: ['users', 'u1'] })?.gcTime).toBe(Infinity);
+    expect(client.getQueryCache().find({ queryKey: ['feed'] })?.gcTime).toBe(30 * 60 * 1000);
+    unsubscribe();
+  });
 });

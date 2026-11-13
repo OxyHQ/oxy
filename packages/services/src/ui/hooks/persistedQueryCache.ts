@@ -55,6 +55,24 @@ interface PersistedBlob {
   clientState: DehydratedState;
 }
 
+/**
+ * Keep a persisted root's queries in memory for as long as they live on disk.
+ *
+ * A snapshot is written from memory, so a query the client garbage-collects is gone from the next
+ * snapshot too. With the default `gcTime` (30 minutes) under a cache kept for days, "persisted"
+ * meant "seen in the last half hour": a skill, a thread or a list not on screen for that long
+ * dropped out of memory and of storage, and the next visit waited on the network behind a
+ * skeleton. `gcTime: Infinity` (TanStack's advice for a persisted cache, and no timer: a gcTime
+ * over 2^31 ms would overflow one) keeps them until the cache's own rules remove them: expiry on
+ * restore, an account switch, sign-out. Set before restoring, so hydrated queries get it too.
+ */
+export function keepPersistedRootsInMemory(
+  queryClient: QueryClient,
+  roots: ReadonlyArray<string>,
+): void {
+  for (const root of roots) queryClient.setQueryDefaults([root], { gcTime: Infinity });
+}
+
 export function rootOf(query: Pick<Query, 'queryKey'>): string | null {
   const head = query.queryKey[0];
   return typeof head === 'string' ? head : null;
