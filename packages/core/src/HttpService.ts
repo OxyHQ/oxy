@@ -31,8 +31,7 @@ import { redactUrlQuery } from './utils/redactUrl';
 import type { OxyConfig } from './models/interfaces';
 import type { DeviceSecretMintOutcome } from './session/refresh';
 import { OxyAuthenticationError } from './OxyServices.errors';
-import { peekBrowserEdgeRegionHeader } from './utils/edgeRegion';
-import { getBrowserActivityIdHeader } from './utils/activityId';
+import { getBrowserActivityIdHeader, peekBrowserEdgeRegionHeader } from '@oxy.so/telemetry/browser';
 import { requiresCorsPreflight } from './utils/corsPreflight';
 import { trimLeadingSlashes, trimTrailingSlashes } from './utils/slashes';
 

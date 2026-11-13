@@ -2,6 +2,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { syncBuiltinESMExports } from 'node:module';
+import { OXY_REGION_HEADER, OXY_SOURCE_REGION_HEADER } from '@oxy.so/telemetry';
 import {
   normalizeInfrastructureRegion,
   trafficType,
@@ -36,7 +37,7 @@ export function observeNodeHttp(
     )
       return request;
     const peer = resolveEndpoint(url);
-    if (peer && !request.headersSent) request.setHeader('X-Oxy-Source-Region', region);
+    if (peer && !request.headersSent) request.setHeader(OXY_SOURCE_REGION_HEADER, region);
     const flow: TrafficFlow = {
       service,
       region,
@@ -65,7 +66,7 @@ export function observeNodeHttp(
           recorded = true;
           const response = args[0] as http.IncomingMessage;
           const targetRegion = peer
-            ? normalizeInfrastructureRegion(response.headers['x-oxy-region'])
+            ? normalizeInfrastructureRegion(response.headers[OXY_REGION_HEADER.toLowerCase()])
             : undefined;
           collector.record({ ...flow, targetRegion });
           collector.record({

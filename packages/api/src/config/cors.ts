@@ -21,6 +21,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
+import { OXY_TELEMETRY_REQUEST_HEADERS } from '@oxy.so/telemetry';
 import { isAllowedOrigin } from './allowedOrigins';
 import { getCorsDecision } from './dynamicOriginRegistry';
 
@@ -48,11 +49,9 @@ export const ALLOWED_HEADERS = [
   'x-session-id',
   'X-Device-Fingerprint',
   'x-device-fingerprint',
-  // Anonymous coarse Cloudflare PoP propagated by browser SDKs. This carries
-  // neither an IP nor an identity and is consumed only by thresholded activity
-  // aggregation.
-  'X-Oxy-Edge-Region',
-  'X-Oxy-Activity-Id',
+  // Anonymous coarse Cloudflare PoP and ephemeral activity id propagated by
+  // browser SDKs: the telemetry package's single list of what a browser sends.
+  ...OXY_TELEMETRY_REQUEST_HEADERS,
   // The inference edge reads `Idempotency-Key` on every invoke and dedupes on
   // it. Absent from this list, a browser cannot SEND it at all — the preflight
   // rejects the header — so no browser client could use idempotency support the

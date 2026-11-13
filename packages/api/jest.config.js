@@ -63,6 +63,7 @@ module.exports = {
     // first time a subpath was added (`./image`) and failed every suite that
     // reached `variantService`.
     '^@oxy.so/utils/([a-z-]+)$': '<rootDir>/../utils/src/$1.ts',
+    '^@oxy.so/telemetry$': '<rootDir>/../telemetry/src/index.ts',
     '^@oxy.so/telemetry/collector$': '<rootDir>/../telemetry/src/collector.ts',
     '^@oxy.so/telemetry/socket$': '<rootDir>/../telemetry/src/socket.ts',
     '^@oxy.so/telemetry/server$': '<rootDir>/../telemetry/src/server.ts',

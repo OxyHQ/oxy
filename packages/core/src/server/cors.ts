@@ -25,6 +25,7 @@
  */
 
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import { OXY_TELEMETRY_REQUEST_HEADERS } from '@oxy.so/telemetry';
 import { createLogger } from '../logger';
 import { CENTRAL_IDP_APEX } from '../utils/authWebUrl';
 
@@ -40,8 +41,7 @@ const DEFAULT_ALLOWED_HEADERS = [
   'X-Requested-With',
   'X-Oxy-User-Id',
   'X-Oxy-Internal',
-  'X-Oxy-Edge-Region',
-  'X-Oxy-Activity-Id',
+  ...OXY_TELEMETRY_REQUEST_HEADERS,
 ];
 
 /** How long (seconds) a browser may cache a successful preflight. */

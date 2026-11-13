@@ -24,6 +24,7 @@ module.exports = {
     '^@oxy.so/protocol/random$': '<rootDir>/../protocol/src/random.ts',
     '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
     '^@oxy.so/protocol/sign$': '<rootDir>/../protocol/src/sign.ts',
+    '^@oxy.so/telemetry$': '<rootDir>/../telemetry/src/index.ts',
     '^@oxy.so/telemetry/collector$': '<rootDir>/../telemetry/src/collector.ts',
     '^@oxy.so/telemetry/socket$': '<rootDir>/../telemetry/src/socket.ts',
     '^@oxy.so/telemetry/browser$': '<rootDir>/../telemetry/src/browser.ts',

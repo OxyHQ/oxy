@@ -4,15 +4,15 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { Server } from 'socket.io';
 import { io, type Socket } from 'socket.io-client';
+import type { InfrastructureSnapshot } from '@oxy.so/telemetry';
 import * as redis from '../../config/redis';
 import {
   initializePlatformInfrastructure,
   observeInfrastructure,
   stopPlatformInfrastructure,
-  type InfrastructureNode,
 } from '../platformInfrastructure.service';
 
-type Snapshot = { nodes: InfrastructureNode[] };
+type Snapshot = InfrastructureSnapshot;
 function nextSnapshot(client: Socket, matches: (snapshot: Snapshot) => boolean): Promise<Snapshot> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {

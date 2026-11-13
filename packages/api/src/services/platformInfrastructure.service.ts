@@ -1,3 +1,4 @@
+import type { InfrastructureNode, InfrastructureSnapshot } from '@oxy.so/telemetry';
 import { infrastructureLocation } from '@oxy.so/telemetry/collector';
 import { randomUUID } from 'node:crypto';
 import type { Namespace } from 'socket.io';
@@ -12,14 +13,6 @@ export interface InfrastructureMember {
   coordinates: [number, number];
   status: 'online' | 'degraded' | 'offline' | 'unknown';
 }
-export interface InfrastructureNode {
-  region: string;
-  label: string;
-  coordinates: [number, number];
-  services: string[];
-  instances: number;
-  status: InfrastructureMember['status'];
-}
 const MEMBER_TTL_MS = 45_000;
 const REGISTRY_KEY = 'platform-infrastructure:members';
 const localMembers = new Map<string, { member: InfrastructureMember; seenAt: number }>();
@@ -28,7 +21,7 @@ let namespace: Namespace | null = null;
 let ownHeartbeat: Promise<void> = Promise.resolve();
 let stopping = false;
 let timer: ReturnType<typeof setInterval> | null = null;
-let snapshot: { nodes: InfrastructureNode[]; emittedAt: string } = {
+let snapshot: InfrastructureSnapshot = {
   nodes: [],
   emittedAt: new Date(0).toISOString(),
 };
