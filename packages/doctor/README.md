@@ -156,6 +156,10 @@ an avatar is drawn, so they have their own line (`maxAvatarCatalogBytes`,
 A catalogue chunk that `index.html` loads fails the check, as does any line the
 budgets file leaves unset. A wrapper is recognised only as a chunk holding that
 one module; bundled with anything else it stays on the app's lines.
+Gzip sizes depend on the runtime's zlib (Bun's come out ~0.7% above Node's on
+the same export), so the output names the runtime that measured; the bin runs
+under Node, as `bun run` does when Node is installed. Set a budget from a
+measurement taken the way CI runs it.
 
 ## Expo Android device-session autolinking
 

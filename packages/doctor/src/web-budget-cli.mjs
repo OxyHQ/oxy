@@ -29,7 +29,11 @@ if (!budget) {
 const { metrics, avatarChunksOnFirstPage } = measureWebExport(resolve(dist));
 const failures = overBudget(metrics, budget);
 
-console.log(JSON.stringify({ metrics, budget }, null, 2));
+// gzip sizes depend on the runtime's zlib (Bun's run ~0.7% above Node's): say which one measured.
+const runtime = process.versions.bun
+  ? `bun ${process.versions.bun}`
+  : `node ${process.versions.node}`;
+console.log(JSON.stringify({ runtime, metrics, budget }, null, 2));
 for (const chunk of avatarChunksOnFirstPage) {
   console.error(`${chunk} is an avatar catalogue chunk loaded by the first page.`);
 }

@@ -51,7 +51,10 @@ describe('oxy-doctor-web-budget', () => {
   test('measures the avatar catalogue, payloads and wrappers, on its own line', () => {
     const result = run();
     expect(result.status).toBe(0);
-    const { metrics } = JSON.parse(result.stdout.slice(0, result.stdout.lastIndexOf('}') + 1));
+    const { runtime, metrics } = JSON.parse(
+      result.stdout.slice(0, result.stdout.lastIndexOf('}') + 1),
+    );
+    expect(runtime).toStartWith('node ');
     expect(metrics.avatarCatalogBytes).toBe(PAYLOAD.length + WRAPPER.length);
     expect(metrics.totalBytes).toBe(
       'export const value = 1;\n'.length + 16 + '<script src="/entry.js"></script>\n'.length,
