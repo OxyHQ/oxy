@@ -59,6 +59,9 @@ import appAssertionRoutes from './routes/appAssertions';
 import appInvitationRoutes from './routes/appInvitations';
 import internalRoutes from './routes/internal';
 import internalKaanaRoutes, { MAX_SETTLEMENT_BYTES } from './routes/internalKaana';
+import internalKaanaIdentityRoutes, {
+  MAX_IDENTITY_REQUEST_BYTES,
+} from './routes/internalKaanaIdentity';
 import accountEventRoutes from './routes/accountEvents';
 import accountRoutes from './routes/accounts';
 import organizationRoutes from './routes/organizations';
@@ -371,6 +374,11 @@ app.use('/billing/peable/events', express.raw({ type: 'application/json', limit:
 app.use(
   '/internal/kaana/v1/settlements',
   express.raw({ type: 'application/json', limit: MAX_SETTLEMENT_BYTES }),
+);
+// Identity assertions bind the exact identity lookup bytes, never inference content.
+app.use(
+  '/internal/kaana/v1/identities',
+  express.raw({ type: 'application/json', limit: MAX_IDENTITY_REQUEST_BYTES }),
 );
 // Email inbound webhook needs raw body for MIME parsing (must be before express.json).
 // Authenticate and rate-limit before raw parsing so unauthenticated clients
@@ -980,6 +988,7 @@ platform.use('/apps', userRateLimiter, appAssertionRoutes);
 // Kaana's control plane (Kaana ADR 0002): grants and settlements for
 // kaana.ai/v1. Its own gate (Kaana's workload, audience oxy-api:kaana-control),
 // mounted BEFORE `/internal`, whose gate accepts only `oxy-api` tokens.
+platform.use('/internal/kaana/v1', internalKaanaIdentityRoutes);
 platform.use('/internal/kaana/v1', internalKaanaRoutes);
 platform.use('/internal', internalRoutes);
 // Account events (OxyHQ/Mention#1169): the pull feed each relying application

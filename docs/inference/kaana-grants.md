@@ -7,6 +7,24 @@ recorded in the [migration ledger](../architecture/first-party-integration-migra
 Neither source presence nor a service-identity probe proves a particular model,
 provider route or paid generation has executed.
 
+## Identity-only successor boundary
+
+The owner's November 13 decision assigns spending and invoicing to Kaana;
+Oxy retains identity ([ADR 0065](../adr/0065-kaana-economic-authority-oxy-identity.md)).
+`POST /internal/kaana/v1/identities` is a separate Kaana-workload-only operation,
+using `identity.ts` from the canonical Kaana contract. It signs live caller
+identity, the exact lookup request's hash, audience and a maximum 60-second
+expiry under `oxy-kaana-identity:v1`. It contains no economic grant, routes,
+model facts or inference content. Optional user attribution is not verified
+person or payer authority. Its initial lanes are service tokens and machine
+credentials; shared product sessions are unsupported.
+
+The grant and settlement mechanism below keeps its existing behavior for
+legacy admissions. Deploying the identity endpoint does not enroll callers in
+a new ledger, migrate balances or configure a merchant. Kaana-owned admissions
+must retain their financial authority across retries; old Oxy-owned admissions
+must settle only through their original authority.
+
 Kaana serves the public API and keeps the request's content. Oxy keeps
 identity, Console policy, the ledger and billing, and answers two questions
 over a private API:
