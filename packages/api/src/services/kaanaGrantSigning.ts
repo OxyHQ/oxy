@@ -28,6 +28,7 @@
 import { createHash, type KeyObject, sign, verify } from 'node:crypto';
 import {
   GRANT_SIGNATURE_DOMAIN,
+  IDENTITY_SIGNATURE_DOMAIN,
   SETTLEMENT_SIGNATURE_DOMAIN,
   signatureInput,
 } from '@kaana.ai/contracts/internal';
@@ -62,12 +63,25 @@ export function signGrantBody(
   body: Buffer,
   timestampMillis: number,
 ): SignedHeaders {
-  const input = signatureInput(
-    GRANT_SIGNATURE_DOMAIN,
-    config.keyId,
-    timestampMillis,
-    sha256Hex(body),
-  );
+  return signControlBody(config, body, timestampMillis, GRANT_SIGNATURE_DOMAIN);
+}
+
+/** Identity has its own domain and cannot be replayed as an economic grant. */
+export function signIdentityBody(
+  config: Pick<KaanaDataPlaneConfig, 'keyId' | 'privateKey'>,
+  body: Buffer,
+  timestampMillis: number,
+): SignedHeaders {
+  return signControlBody(config, body, timestampMillis, IDENTITY_SIGNATURE_DOMAIN);
+}
+
+function signControlBody(
+  config: Pick<KaanaDataPlaneConfig, 'keyId' | 'privateKey'>,
+  body: Buffer,
+  timestampMillis: number,
+  domain: string,
+): SignedHeaders {
+  const input = signatureInput(domain, config.keyId, timestampMillis, sha256Hex(body));
   const signature = sign(null, Buffer.from(input, 'utf8'), config.privateKey).toString('base64');
   return {
     [KAANA_KEY_ID_HEADER]: config.keyId,

@@ -46,6 +46,7 @@ import { usageUnitColumnValues, USAGE_UNIT_COLUMN_KEYS } from '../db/schema/ledg
 import { usageReceipts } from '../db/schema/usageReceipts';
 import { type PeriodicJob, schedulePeriodicJob } from '../utils/periodicJobs';
 import { quoteUnits } from './inferenceLedger.service';
+import { isInferenceAuthorityFenceError } from './inferenceAuthorityFence.service';
 
 /* -------------------------------------------------------------------------- */
 /*  Admission                                                                 */
@@ -91,6 +92,7 @@ export type MeteredAdmission =
   | { readonly status: 'claimed'; readonly meteredUsageId: string }
   /** Another request already holds this idempotency key (or this request id). */
   | { readonly status: 'duplicate' }
+  | { readonly status: 'authority-migrating' }
   | {
       readonly status: 'capacity-exceeded';
       readonly limit: 'concurrency' | 'daily' | 'user-daily';
@@ -197,48 +199,51 @@ export async function claimMeteredAdmission(
     expiresAt: new Date(Date.now() + input.expiresInSeconds * 1000),
   } as const;
 
-  return getDb().transaction(async (tx): Promise<MeteredAdmission> => {
-    if (input.economics.treatment === 'internal_metered') {
-      const { capacity } = input.economics.relationship;
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`,
-      );
-      const counts = await readMeteredCapacity(
-        tx,
-        input.applicationId,
-        input.environment,
-        capacity.scope === 'relationship' ? input.economics.relationship.relationshipId : undefined,
-        input.delegatedUserId,
-      );
-      if (counts.activeAdmissions >= capacity.maxConcurrentRequests) {
-        return { status: 'capacity-exceeded', limit: 'concurrency', capacity };
+  try {
+    return await getDb().transaction(async (tx): Promise<MeteredAdmission> => {
+      if (input.economics.treatment === 'internal_metered') {
+        const { capacity } = input.economics.relationship;
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`,
+        );
+        const counts = await readMeteredCapacity(
+          tx,
+          input.applicationId,
+          input.environment,
+          capacity.scope === 'relationship'
+            ? input.economics.relationship.relationshipId
+            : undefined,
+          input.delegatedUserId,
+        );
+        if (counts.activeAdmissions >= capacity.maxConcurrentRequests) {
+          return { status: 'capacity-exceeded', limit: 'concurrency', capacity };
+        }
+        if (counts.dailyAdmissions >= capacity.maxRequestsPerUtcDay) {
+          return { status: 'capacity-exceeded', limit: 'daily', capacity };
+        }
+        // A per-person bound with no person to count against admits nobody.
+        if (
+          capacity.maxRequestsPerUserPerUtcDay !== undefined &&
+          (input.delegatedUserId === undefined ||
+            counts.userDailyAdmissions >= capacity.maxRequestsPerUserPerUtcDay)
+        ) {
+          return { status: 'capacity-exceeded', limit: 'user-daily', capacity };
+        }
       }
-      if (counts.dailyAdmissions >= capacity.maxRequestsPerUtcDay) {
-        return { status: 'capacity-exceeded', limit: 'daily', capacity };
-      }
-      // A per-person bound with no person to count against admits nobody.
-      if (
-        capacity.maxRequestsPerUserPerUtcDay !== undefined &&
-        (input.delegatedUserId === undefined ||
-          counts.userDailyAdmissions >= capacity.maxRequestsPerUserPerUtcDay)
-      ) {
-        return { status: 'capacity-exceeded', limit: 'user-daily', capacity };
-      }
-    }
 
-    const sessionLimits = input.realtimeSessionLimits;
-    if (
-      sessionLimits !== undefined &&
-      (sessionLimits.perApplication !== null || sessionLimits.perCredential !== null)
-    ) {
-      // The same lock as the relationship's capacity: N sessions opening at
-      // once cannot all observe one slot left. Re-entrant within the transaction.
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`,
-      );
-      const [open] = await executeRows<{ application: string; credential: string }>(
-        tx,
-        sql`
+      const sessionLimits = input.realtimeSessionLimits;
+      if (
+        sessionLimits !== undefined &&
+        (sessionLimits.perApplication !== null || sessionLimits.perCredential !== null)
+      ) {
+        // The same lock as the relationship's capacity: N sessions opening at
+        // once cannot all observe one slot left. Re-entrant within the transaction.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`,
+        );
+        const [open] = await executeRows<{ application: string; credential: string }>(
+          tx,
+          sql`
           select
             count(*)::text as application,
             count(*) filter (where ${inferenceMeteredUsage.applicationCredentialId}
@@ -250,32 +255,36 @@ export async function claimMeteredAdmission(
             and ${inferenceMeteredUsage.status} = 'admitted'
             and ${inferenceMeteredUsage.expiresAt} > now()
         `,
-      );
-      if (
-        sessionLimits.perApplication !== null &&
-        Number(open?.application ?? 0) >= sessionLimits.perApplication
-      ) {
-        return { status: 'sessions-exceeded', scope: 'application' };
+        );
+        if (
+          sessionLimits.perApplication !== null &&
+          Number(open?.application ?? 0) >= sessionLimits.perApplication
+        ) {
+          return { status: 'sessions-exceeded', scope: 'application' };
+        }
+        if (
+          sessionLimits.perCredential !== null &&
+          Number(open?.credential ?? 0) >= sessionLimits.perCredential
+        ) {
+          return { status: 'sessions-exceeded', scope: 'credential' };
+        }
       }
-      if (
-        sessionLimits.perCredential !== null &&
-        Number(open?.credential ?? 0) >= sessionLimits.perCredential
-      ) {
-        return { status: 'sessions-exceeded', scope: 'credential' };
-      }
-    }
 
-    // Any unique conflict — the idempotency key or the request id — is a
-    // duplicate. `DO NOTHING` without a target covers the partial index too.
-    const [row] = await tx
-      .insert(inferenceMeteredUsage)
-      .values(values)
-      .onConflictDoNothing()
-      .returning({ id: inferenceMeteredUsage.id });
-    return row === undefined
-      ? { status: 'duplicate' }
-      : { status: 'claimed', meteredUsageId: row.id };
-  });
+      // Any unique conflict — the idempotency key or the request id — is a
+      // duplicate. `DO NOTHING` without a target covers the partial index too.
+      const [row] = await tx
+        .insert(inferenceMeteredUsage)
+        .values(values)
+        .onConflictDoNothing()
+        .returning({ id: inferenceMeteredUsage.id });
+      return row === undefined
+        ? { status: 'duplicate' }
+        : { status: 'claimed', meteredUsageId: row.id };
+    });
+  } catch (error) {
+    if (isInferenceAuthorityFenceError(error)) return { status: 'authority-migrating' };
+    throw error;
+  }
 }
 
 /**

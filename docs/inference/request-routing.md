@@ -6,6 +6,20 @@ authority for choosing between Kaana and Alia per product feature. It is an
 architecture contract, not a production-status assertion: deployment state must
 be verified with the live Oxy and Kaana rollout gates.
 
+## Owner decision, 2026-11-13
+
+[ADR 0065](../adr/0065-kaana-economic-authority-oxy-identity.md) supersedes the
+financial destination and payload-proxy requirements below: products send
+inference content to Kaana; Kaana owns policy, spend authorization, accounting
+and invoices; Oxy supplies identity. Stateful product work belongs to Gemies,
+including the Alia gemie. The content-free Oxy economic grant remains the
+current transitional implementation, not the accepted final boundary.
+
+The new private identity-only operation does not authorize a model or spend.
+Financial migration and product transport rollout require separate deployment
+and acceptance evidence. The following Oxy-edge tables describe the legacy
+implementation that still serves existing callers and drains old admissions.
+
 ## Responsibilities
 
 | System | Responsibility |

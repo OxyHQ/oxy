@@ -35,6 +35,7 @@
  */
 
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { requireKaanaWorkload } from '../middleware/kaanaControlWorkload';
 import {
   authorizationRequestSchema,
   type AuthorizationRequest,
@@ -43,20 +44,13 @@ import {
 import { PUBLIC_ERROR_HTTP_STATUS, type PublicError } from '@kaana.ai/contracts';
 import { resolveKaanaDataPlane } from '../config/kaanaDataPlane';
 import { resolveKaanaSettlementKeys } from '../config/kaanaSettlementKeys';
-import {
-  KAANA_CONTROL_APPLICATION_ID,
-  KAANA_CONTROL_AUDIENCE,
-  KAANA_PUBLIC_AUDIENCE,
-} from '../config/serviceTokenAudiences';
-import { extractTokenFromRequest } from '../middleware/authUtils';
+import { KAANA_PUBLIC_AUDIENCE } from '../config/serviceTokenAudiences';
 import {
   MACHINE_APPLICATION_REQUESTS_PER_MINUTE,
   MACHINE_CREDENTIAL_REQUESTS_PER_MINUTE,
   type MachineCredentialRequest,
 } from '../middleware/machineCredential';
 import { rateLimit, rateLimitRetryAfterMs } from '../middleware/rateLimiter';
-import { verifyServiceToken } from '../middleware/serviceToken';
-import { resolveServiceTokenPrincipal } from '../services/attribution.service';
 import { authenticateInferenceBearer, type EdgePrincipal } from '../services/inferenceEdge.service';
 import { authorizeInference, publicError } from '../services/kaanaGrant.service';
 import {
@@ -88,45 +82,6 @@ interface GrantRequest extends MachineCredentialRequest {
 /* -------------------------------------------------------------------------- */
 /*  Kaana, as a workload                                                       */
 /* -------------------------------------------------------------------------- */
-
-async function requireKaanaWorkload(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  const token = extractTokenFromRequest(req);
-  const verification =
-    token === null || token === undefined
-      ? undefined
-      : verifyServiceToken(token, KAANA_CONTROL_AUDIENCE);
-  if (verification === undefined || !verification.ok) {
-    res.status(401).json({ error: 'kaana_workload_required' });
-    return;
-  }
-  if (verification.payload.appId !== KAANA_CONTROL_APPLICATION_ID) {
-    logger.warn('inference.kaana_control.foreign_application', {
-      applicationId: verification.payload.appId,
-    });
-    res.status(403).json({ error: 'kaana_workload_required' });
-    return;
-  }
-  // The row, not the token: a revoked credential or binding stops within the hour it was minted for.
-  const resolution = await resolveServiceTokenPrincipal(verification.payload);
-  if (resolution.status !== 'resolved') {
-    logger.warn('inference.kaana_control.principal_unresolved', { status: resolution.status });
-    res.status(403).json({ error: 'kaana_workload_required' });
-    return;
-  }
-  // The application comes from the ROW the token names, never from its claim.
-  if (resolution.principal.applicationId !== KAANA_CONTROL_APPLICATION_ID) {
-    logger.warn('inference.kaana_control.foreign_application', {
-      applicationId: resolution.principal.applicationId,
-    });
-    res.status(403).json({ error: 'kaana_workload_required' });
-    return;
-  }
-  next();
-}
 
 router.use((req, res, next) => {
   requireKaanaWorkload(req, res, next).catch(next);
