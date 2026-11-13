@@ -15,7 +15,7 @@
  * Per-app CSP extensions come from the caller package (cwd): `oxy.pages-headers.json`
  * when they are plain data, or `oxy.pages-headers.ts` (default export, the same
  * options) when they are composed from another package's declaration — an app
- * embedding the Alia SDK composes `withAliaSdkCsp` from `@alia.onl/sdk/csp` rather
+ * embedding the Gemies SDK composes `withGemiesSdkCsp` from `@gemies/sdk/csp` rather
  * than copying its origins. Both at once is refused. Hashes are never written there
  * by hand — see {@link buildOxyPagesHeaders}.
  *

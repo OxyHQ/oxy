@@ -71,7 +71,7 @@ export interface OxyProviderProps {
   onAskAlia?: () => void | Promise<void>;
   /** App-specific documentation; defaults to https://oxy.so/developers/docs/. */
   documentationUrl?: string;
-  /** Official AliaAvatar supplied by hosts that integrate Alia. */
+  /** Official `GemieAvatar` (Alia) supplied by hosts that integrate Alia. */
   aliaAvatar?: ReactNode;
   /** Optional animated Oxy One artwork, e.g. OxyOneVideo from /ui/one-video. */
   oxyOneArtwork?: ReactNode;

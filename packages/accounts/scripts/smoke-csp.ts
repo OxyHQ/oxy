@@ -85,27 +85,20 @@ record(
   'control hash correctly absent',
 );
 
-// Ask Alia loads the 3D avatar runtime (script + wasm) from alia.onl and talks to
-// its API; if the policy drops either, the header button still renders and the
-// sheet silently fails to start. The unrelated origin is the negative control.
+// Ask Alia loads the voice worklets (script + wasm) from gemies.ai and talks to the
+// Gemies API over HTTP and its voice socket; if the policy drops either, the header
+// button still renders and the sheet silently fails to start. The unrelated origins
+// are the negative controls.
 // EXACT token membership in a directive's source list (already split on `;` and
 // whitespace by `cspSourcesFor`) -- never a substring test on the header.
 const hasToken = (sources: readonly string[], token: string): boolean =>
   sources.some((source) => source === token);
 const connectSources = cspSourcesFor(policy, 'connect-src');
 record(
-  'script-src allows the Alia runtime and WebAssembly',
-  hasToken(scriptSources, 'https://alia.onl') && hasToken(scriptSources, "'wasm-unsafe-eval'"),
+  'script-src allows the Gemies web origin and WebAssembly',
+  hasToken(scriptSources, 'https://gemies.ai') && hasToken(scriptSources, "'wasm-unsafe-eval'"),
   '',
 );
-record(
-  'connect-src allows Alia',
-  hasToken(connectSources, 'https://alia.onl') &&
-    !hasToken(connectSources, 'https://not-alia.example'),
-  '',
-);
-// Alia's backend becomes Gemies (Gemies ADR 0034): the SDK must be able to reach
-// api.gemies.ai, over HTTP and its voice socket, before it moves there.
 record(
   'connect-src allows the Gemies API and its voice socket',
   hasToken(connectSources, 'https://api.gemies.ai') &&

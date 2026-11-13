@@ -1,14 +1,14 @@
 import type { ReactNode, Ref } from 'react';
 import { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { AliaAskProvider, useAskAgent, type AliaAsk } from '@alia.onl/sdk/ask';
+import { GemieAskProvider, useAskGemie, type GemieAsk } from '@gemies/sdk/ask';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { useColors } from '@/hooks/useColors';
 import { useHapticFeedback } from '@oxy.so/bloom/hooks';
 import { useTranslation } from '@/lib/i18n';
 
 /**
- * Alia's one sheet for the whole app (`@alia.onl/sdk/ask`), mounted once at the root beside the
+ * Alia's one sheet for the whole app (`@gemies/sdk/ask`), mounted once at the root beside the
  * inert boundary. The sheet loads with the first "Ask Alia"; signed out, asking opens the in-app
  * Oxy sign-in instead. Conversations it starts are labelled Accounts' (`app`), so its recents are
  * the ones started here. `clientContext` describes the app only: never pass tokens, codes or other
@@ -19,7 +19,7 @@ export function AccountsAskProvider({
   askRef,
 }: {
   children: ReactNode;
-  askRef?: Ref<AliaAsk>;
+  askRef?: Ref<GemieAsk>;
 }) {
   const { t } = useTranslation();
   const welcomeSuggestions = useMemo(
@@ -32,14 +32,14 @@ export function AccountsAskProvider({
   );
 
   return (
-    <AliaAskProvider
+    <GemieAskProvider
       ref={askRef}
       app="accounts"
       clientContext={t('alia.clientContext')}
       welcomeSuggestions={welcomeSuggestions}
     >
       {children}
-    </AliaAskProvider>
+    </GemieAskProvider>
   );
 }
 
@@ -52,7 +52,7 @@ interface AskAliaProps {
 export function AskAlia({ showLabel = false }: AskAliaProps) {
   const { t } = useTranslation();
   const colors = useColors();
-  const { ask } = useAskAgent();
+  const { ask } = useAskGemie();
   const { tap: handlePressIn } = useHapticFeedback();
 
   return (

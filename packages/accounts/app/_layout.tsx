@@ -13,8 +13,8 @@ import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-rean
 import type { ReactNode } from 'react';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
-import type { AliaAsk } from '@alia.onl/sdk/ask';
-import { AliaAvatarIcon } from '@alia.onl/sdk/avatar';
+import type { GemieAsk } from '@gemies/sdk/ask';
+import { GemieAvatarIcon } from '@gemies/sdk/avatar';
 import { productAnalytics } from '@/lib/product-analytics';
 import { useNavigationTheme } from '@oxy.so/bloom/theme';
 import { BloomProvider } from '@oxy.so/bloom/provider';
@@ -89,7 +89,7 @@ export function ErrorBoundary(props: { error: Error; retry: () => void }) {
 }
 
 function RootLayoutInner() {
-  const aliaRef = useRef<AliaAsk>(null);
+  const aliaRef = useRef<GemieAsk>(null);
   const openAlia = useCallback(() => aliaRef.current?.ask(), []);
   const { themeMode } = useThemeMode();
 
@@ -157,7 +157,7 @@ function RootLayoutInner() {
       <ConnectionStatusToasts />
       <OxyProvider
         onAskAlia={openAlia}
-        aliaAvatar={<AliaAvatarIcon width={32} height={32} />}
+        aliaAvatar={<GemieAvatarIcon width={32} height={32} />}
         oxyOneArtwork={<OxyOneVideo />}
         baseURL={API_URL}
         clientId={OXY_CLIENT_ID}

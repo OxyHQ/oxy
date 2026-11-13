@@ -1,6 +1,6 @@
 import { OxyServices } from '@oxy.so/core';
 import { OxyServer } from '@oxy.so/core/server';
-import { createAliaForOxyService, createAliaTransportForOxyService } from '@alia.onl/server';
+import { createGemieForOxyService, createGemieTransportForOxyService } from '@gemies/server';
 import { clarityForOxyService } from '@clarity.surf/sdk/server';
 import { kaanaForOxyService } from '@kaana.ai/sdk/server';
 import { postOxyServiceJson } from '@oxy.so/mcp';
@@ -9,8 +9,8 @@ const own = new OxyServer({ baseURL: 'http://127.0.0.1:1' });
 const frontend = new OxyServices({ baseURL: 'http://127.0.0.1:1' });
 const providerClient: ReturnType<typeof useOxy>['oxyServices'] = frontend;
 const linked = providerClient.createLinkedClient({ baseURL: 'http://127.0.0.1:1' });
-const alia = createAliaForOxyService(own, { requester: { accountId: 'A', taskId: 'task-A' } });
-const aliaTransport = createAliaTransportForOxyService(own, {
+const gemies = createGemieForOxyService(own, { requester: { accountId: 'A', taskId: 'task-A' } });
+const gemiesTransport = createGemieTransportForOxyService(own, {
   requester: { accountId: 'A', requesterContext: 'proof' },
 });
 const clarity = clarityForOxyService(own);
@@ -22,4 +22,4 @@ const mcp = postOxyServiceJson(
     transport: own.createServiceClient({ baseURL: 'https://api.oxy.so', audience: 'oxy-api' }),
   },
 );
-void [linked, alia, aliaTransport, clarity, kaana, mcp];
+void [linked, gemies, gemiesTransport, clarity, kaana, mcp];

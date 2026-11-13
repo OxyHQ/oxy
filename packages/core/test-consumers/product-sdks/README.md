@@ -27,16 +27,16 @@ Six real loopback-HTTP tests exercise:
 
 - Core workload v2 cache/401 refresh, with explicit customer credentials still
   using their external scoped request even when a workload provider is configured;
-- published Alia/Clarity factories and recipient audiences, immutable requester
+- published Gemies/Clarity factories and recipient audiences, immutable requester
   headers, foreign-origin and redirect refusal;
 - published Kaana attribution and the MCP platform transport;
 - a real Kaana SSE frame, canonical workload audience and cancellation that closes
   the upstream response without replay;
 - linked session bearer/disposal/origin behavior;
-- published Alia session JSON POST replay after one401 and rejection of a pending
+- published Gemies SDK session JSON POST replay after one401 and rejection of a pending
   response after switching the Oxy account.
 
-Only Alia's renderer hooks are mocked so its published pure HTTP transport can
+Only the Gemies SDK's renderer hooks are mocked so its published pure HTTP transport can
 run without mounting React. Core authentication/HTTP code and product factories
 are actual installed packages. The issuer and resource servers are synthetic:
 these tests do **not** verify signatures, live grants/revocation, production or
