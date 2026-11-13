@@ -74,6 +74,7 @@ import {
   MEDIA_WORKER_APPLICATION_ID,
   SEED_APPS,
   OTA_PUBLISH_WORKFLOW,
+  otaPublisher,
   seedApplicationLookupIdentity,
   type SeedAppSpec,
 } from '../seedOxyApplicationsSpecs';
@@ -304,7 +305,8 @@ describe('the canonical official-application registry', () => {
     // Moving the ADR 0018 coordinator capability is the cut-over's decision,
     // not this registration's: Alia keeps it, Gemies does not hold it yet.
     expect(gemies.capabilities).toBeUndefined();
-    expect(gemies.trustedPublishers).toBeUndefined();
+    // The Gemies app's own OTA updates, from its own repository (ADR 0057).
+    expect(gemies.trustedPublishers).toEqual([otaPublisher('OxyHQ/Gemies', '1455023899')]);
     expect(gemies.legacyNames).toBeUndefined();
     expect(requiresPublicSeedCredential(gemies)).toBe(true);
     expect(SEED_APPS.filter((spec) => spec.id === GEMIES_APPLICATION_ID)).toHaveLength(1);
