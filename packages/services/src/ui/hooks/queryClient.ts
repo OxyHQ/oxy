@@ -29,6 +29,7 @@ import { accountQueryOwnership, type AccountQueriesConfig } from './accountQuery
 import {
   PERSISTED_QUERY_PREFIXES,
   hydrateSnapshot,
+  keepPersistedRootsInMemory,
   subscribeSnapshots,
   type PersistFilters,
 } from './persistedQueryCache';
@@ -169,6 +170,7 @@ export const attachQueryPersistence = (
   }
 
   const account = accountQueryOwnership(accountQueries);
+  keepPersistedRootsInMemory(queryClient, PERSISTED_QUERY_PREFIXES);
   const filters: PersistFilters = {
     persistsQuery: (query) => isSharedQuery(query) && !account.ownsQuery(query),
     // Every other mutation, whatever its status: paused ones are exactly the

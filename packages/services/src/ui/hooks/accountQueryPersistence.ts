@@ -37,6 +37,7 @@ import {
   PERSISTED_QUERY_PREFIXES,
   SDK_MEMORY_ONLY_ROOTS,
   hydrateSnapshot,
+  keepPersistedRootsInMemory,
   rootOf,
   snapshot,
   subscribeSnapshots,
@@ -221,6 +222,16 @@ export function createAccountQueryPersistence(
 ): AccountQueryPersistence {
   const { ownsQuery, persistsQuery, ownsMutation, persistsMutation, persistsMutationKey } =
     accountQueryOwnership(config);
+  if (config && config.roots !== 'all') {
+    // Only roots this cache writes to disk; a memory-only root keeps the default gcTime.
+    const memoryOnly = new Set(
+      config.memoryOnlyRoots === 'all' ? config.roots : (config.memoryOnlyRoots ?? []),
+    );
+    keepPersistedRootsInMemory(
+      queryClient,
+      config.roots.filter((root) => !memoryOnly.has(root)),
+    );
+  }
   const filters: PersistFilters = {
     persistsQuery,
     shouldDehydrateMutation: (mutation) => mutation.state.isPaused && persistsMutation(mutation),
