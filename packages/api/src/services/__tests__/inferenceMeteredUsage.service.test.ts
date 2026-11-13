@@ -10,6 +10,7 @@ jest.mock('../../utils/logger', () => ({
 
 import { randomUUID, createHash } from 'node:crypto';
 import { canonicalize } from '@oxy.so/protocol';
+import { workloadAttestationHandle } from '../workloadAttestation.service';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
 import { usageReservations } from '../../db/schema/usageReservations';
 import { kaanaGrants } from '../../db/schema/kaanaGrants';
@@ -836,6 +837,14 @@ describe('the cost-centre usage report', () => {
 
 // Rolling-server cutover: old writers still insert directly and must obey the same barrier.
 describe('permanent workload authority cutover', () => {
+  const originalEnvironment = process.env.OXY_CREDENTIAL_ENVIRONMENT;
+  beforeAll(() => {
+    process.env.OXY_CREDENTIAL_ENVIRONMENT = 'production';
+  });
+  afterAll(() => {
+    if (originalEnvironment === undefined) delete process.env.OXY_CREDENTIAL_ENVIRONMENT;
+    else process.env.OXY_CREDENTIAL_ENVIRONMENT = originalEnvironment;
+  });
   async function workloadFixture() {
     const fixture = await makeFixture();
     await getDb()
@@ -851,7 +860,7 @@ describe('permanent workload authority cutover', () => {
         environment: 'production',
       })
       .returning();
-    const credentialId = `wl_${tag()}`;
+    const credentialId = workloadAttestationHandle(binding.subject);
     await getDb()
       .update(applicationCredentials)
       .set({
@@ -1121,9 +1130,9 @@ describe('permanent workload authority cutover', () => {
       .set({ status: 'expired' })
       .where(eq(usageReservations.id, hold.id));
     await getDb()
-      .update(applicationCredentials)
-      .set({ status: 'revoked' })
-      .where(eq(applicationCredentials.id, f.credentialId));
+      .update(applicationWorkloadIdentities)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(applicationWorkloadIdentities.applicationId, f.applicationId));
     const manifest = await exportInferenceAuthorityFence(population(f));
     expect(manifest.population.credentialIds).toEqual([]);
     expect(manifest.entries).toEqual(
@@ -1140,6 +1149,29 @@ describe('permanent workload authority cutover', () => {
         }),
       ]),
     );
+  });
+  it('uses immutable workload classification and authenticated history despite inert metadata changes', async () => {
+    const f = await workloadFixture();
+    await activateInferenceAuthorityFence(population(f));
+    // Binding is still live production; inert attribution columns are not auth.
+    await getDb()
+      .update(applicationCredentials)
+      .set({ environment: 'staging', status: 'revoked', expiresAt: new Date(0) })
+      .where(eq(applicationCredentials.id, f.credentialId));
+    expect(await claimMeteredAdmission(admission(f, commercial))).toEqual({
+      status: 'authority-migrating',
+    });
+    expect((await exportInferenceAuthorityFence(population(f))).population.credentialIds).toEqual([
+      f.credentialId,
+    ]);
+    await expect(
+      getDb()
+        .update(applicationCredentials)
+        .set({ type: 'service', publicKey: `oxy_dk_${tag()}`, workloadIdentityId: null })
+        .where(eq(applicationCredentials.id, f.credentialId)),
+    ).rejects.toMatchObject({
+      cause: { code: '23514', constraint_name: 'application_credentials_workload_handle_id_check' },
+    });
   });
   it('refuses unknown namespaces and contradictory ownership instead of losing a tombstone', () => {
     const row = {

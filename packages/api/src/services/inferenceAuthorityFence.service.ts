@@ -8,6 +8,8 @@ import type { InferenceEnvironment } from '@oxy.so/contracts';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb, type Transaction } from '../config/postgres';
 import { inferenceAuthorityFences } from '../db/schema/inferenceAuthorityFences';
+import { applicationCredentials } from '../db/schema/applicationCredentials';
+import { resolveLiveAgencyWorkloadByHandle } from './agencyServicePrincipal.service';
 
 export interface InferenceAuthorityPopulation {
   readonly applicationId: string;
@@ -41,24 +43,44 @@ const populationWhere = (p: InferenceAuthorityPopulation) =>
     eq(inferenceAuthorityFences.credentialKind, p.credentialKind),
   );
 
+/** The same live identity verifier used by authenticated service requests.
+ * The attribution row's status, expiry and environment are inert history.
+ */
+async function eligibleWorkloadCredentials(
+  tx: Transaction,
+  p: InferenceAuthorityPopulation,
+): Promise<string[]> {
+  const candidates = await tx
+    .select({ id: applicationCredentials.id })
+    .from(applicationCredentials)
+    .where(
+      and(
+        eq(applicationCredentials.applicationId, p.applicationId),
+        eq(applicationCredentials.type, 'workload'),
+      ),
+    );
+  const eligible: string[] = [];
+  const now = new Date();
+  for (const candidate of candidates) {
+    const principal = await resolveLiveAgencyWorkloadByHandle(
+      p.applicationId,
+      candidate.id,
+      now,
+      tx,
+    );
+    if (principal?.ownerAccountId === p.ownerAccountId && principal.environment === p.environment)
+      eligible.push(candidate.id);
+  }
+  return eligible.sort();
+}
+
 /** Only reviewed operator execution calls this. No automatic policy enrollment. */
 export async function activateInferenceAuthorityFence(p: InferenceAuthorityPopulation) {
   return getDb().transaction(async (tx) => {
     await lock(tx, p);
-    const [valid] = await executeRows<{ present: boolean }>(
-      tx,
-      sql`
-      select exists (select 1 from applications a
-        join application_credentials c on c.application_id = a.id
-        join application_workload_identities w on w.id = c.workload_identity_id
-        where a.id = ${p.applicationId} and a.owner_account_id = ${p.ownerAccountId}
-          and a.status = 'active' and (a.type in ('internal', 'first_party', 'system') or a.is_internal = true)
-          and c.type = 'workload' and c.environment = ${p.environment} and c.status = 'active'
-          and (c.expires_at is null or c.expires_at > now())
-          and w.application_id = a.id and w.environment = ${p.environment}
-          and (w.expires_at is null or w.expires_at > now())) as present`,
-    );
-    if (!valid?.present) throw new Error('No matching active first-party workload population');
+    if ((await eligibleWorkloadCredentials(tx, p)).length === 0) {
+      throw new Error('No matching active first-party workload population');
+    }
     await tx.insert(inferenceAuthorityFences).values(p).onConflictDoNothing();
     const [fence] = await tx.select().from(inferenceAuthorityFences).where(populationWhere(p));
     if (!fence) throw new Error('Admission fence was not persisted');
@@ -176,20 +198,7 @@ export async function exportInferenceAuthorityFence(p: InferenceAuthorityPopulat
       );
       // Enrollment is narrower than the historical tombstone population: only
       // currently verified live workload handles may authorize a new native policy.
-      const eligible = await executeRows<{ id: string }>(
-        tx,
-        sql`
-        select c.id from application_credentials c
-        join application_workload_identities w on w.id = c.workload_identity_id
-        join applications a on a.id = c.application_id
-        where a.id = ${p.applicationId} and a.owner_account_id = ${p.ownerAccountId}
-          and a.status = 'active' and (a.type in ('internal', 'first_party', 'system') or a.is_internal = true)
-          and c.type = 'workload' and c.environment = ${p.environment} and c.status = 'active'
-          and (c.expires_at is null or c.expires_at > now())
-          and w.application_id = a.id and w.environment = ${p.environment}
-          and (w.expires_at is null or w.expires_at > now())`,
-      );
-      const credentialIds = eligible.map(({ id }) => id).sort();
+      const credentialIds = await eligibleWorkloadCredentials(tx, p);
       const manifest = {
         schemaVersion: 1 as const,
         authority: 'oxy' as const,

@@ -118,7 +118,12 @@ Migration 0255 creates an empty, permanent `inference_authority_fences` table.
 It activates no population. A reviewed operator command can fence an exact
 application, owner and environment whose live credential is an authenticated
 workload binding. Public session clients and external machine keys do not
-match this population. The fence insertion and every workload insertion into
+match this population. Eligibility uses the existing live workload resolver, including its handle/binding
+link, owner status and environment checks. The attribution row's status, expiry
+and environment are historical metadata, not authority. The trigger classifies
+by the persisted workload type (the existing handle/type CHECK makes it immutable
+for the same ID), and compares the authenticated admission snapshot to the fence.
+The fence insertion and every workload insertion into
 `inference_metered_usage` share a scoped transaction advisory lock. The database
 trigger also protects rolling older API images: either an old admission commits
 before the fence and must drain, or its insert fails before a hold/provider call.

@@ -36,8 +36,7 @@ CREATE FUNCTION oxy_inference_admission_authority() RETURNS trigger LANGUAGE plp
 BEGIN
   -- Public client IDs and machine credentials never select this workload population.
   IF EXISTS (SELECT 1 FROM application_credentials c
-    WHERE c.id = NEW.application_credential_id AND c.type = 'workload'
-      AND c.application_id = NEW.application_id AND c.environment = NEW.environment) THEN
+    WHERE c.id = NEW.application_credential_id AND c.type = 'workload') THEN
     PERFORM oxy_inference_authority_lock(NEW.application_id, NEW.account_id, NEW.environment);
     IF EXISTS (SELECT 1 FROM inference_authority_fences f
       WHERE f.application_id = NEW.application_id AND f.owner_account_id = NEW.account_id
