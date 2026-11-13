@@ -54,6 +54,12 @@ const displayName = string(minLength(1), maxLength(100));
 const count = number(int, nonnegative, safe);
 const version = number(int, positive, safe);
 const oxyAccountId = branded<OxyAccountId, string>(string(minLength(1), maxLength(64)));
+
+/**
+ * An Oxy account id, branded: the only way a client obtains an `OxyAccountId` (a checkout's
+ * `expectedSubjectAccountId`) without the root entry's `oxyAccountIdSchema` and Zod with it.
+ */
+export const oxyAccountIdCheck = exact<OxyAccountId>()(oxyAccountId);
 const actionKey = string(minLength(8), maxLength(160), pattern(/^[a-zA-Z0-9_-]+$/));
 const combination = oneOf(['maximum', 'sum', 'exclusive']);
 const origin = oneOf(['individual', 'bundle']);

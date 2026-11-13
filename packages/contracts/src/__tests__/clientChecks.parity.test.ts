@@ -1177,6 +1177,12 @@ const PAIRS: Pair[] = [
     ],
   },
   {
+    name: 'oxyAccountId',
+    check: client.oxyAccountIdCheck,
+    schema: contracts.oxyAccountIdSchema,
+    samples: ['acc-1', '', 'a'.repeat(64), 'a'.repeat(65), ' acc '],
+  },
+  {
     name: 'productPlanCheckoutRequest',
     check: client.productPlanCheckoutRequestCheck,
     schema: contracts.productPlanCheckoutRequestSchema,
