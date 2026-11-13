@@ -684,4 +684,157 @@ describe('account query persistence', () => {
     expect(client.getQueryCache().find({ queryKey: ['feed'] })?.gcTime).toBe(30 * 60 * 1000);
     unsubscribe();
   });
+
+  describe('a declared data version', () => {
+    const VERSIONED: AccountQueriesConfig = { ...CONFIG, dataVersion: 'shape-1' };
+
+    async function restoreUnder(storage: StorageInterface, config: AccountQueriesConfig) {
+      const client = new QueryClient();
+      const persistence = mount(client, storage, config);
+      persistence.activate('alice');
+      await until(persistence);
+      persistence.detach();
+      return client;
+    }
+
+    async function writeUnder(storage: StorageInterface, config: AccountQueriesConfig) {
+      const client = new QueryClient();
+      const persistence = mount(client, storage, config);
+      persistence.activate('alice');
+      await until(persistence);
+      client.setQueryData(THREAD, ['kept']);
+      await flushWrites();
+      persistence.detach();
+    }
+
+    it('keeps the cache across builds while the version holds', async () => {
+      const storage = createMemoryStorage();
+      await writeUnder(storage, VERSIONED);
+      process.env.OXY_BUILD_ID = 'build-2';
+      expect((await restoreUnder(storage, VERSIONED)).getQueryData(THREAD)).toEqual(['kept']);
+    });
+
+    it('drops it when the version changes', async () => {
+      const storage = createMemoryStorage();
+      await writeUnder(storage, VERSIONED);
+      const next = { ...CONFIG, dataVersion: 'shape-2' };
+      expect((await restoreUnder(storage, next)).getQueryData(THREAD)).toBeUndefined();
+    });
+
+    it('drops it when an app starts or stops declaring one', async () => {
+      const storage = createMemoryStorage();
+      await writeUnder(storage, CONFIG);
+      expect((await restoreUnder(storage, VERSIONED)).getQueryData(THREAD)).toBeUndefined();
+      const again = createMemoryStorage();
+      await writeUnder(again, VERSIONED);
+      expect((await restoreUnder(again, CONFIG)).getQueryData(THREAD)).toBeUndefined();
+    });
+
+    it('stays build-busted without one (the default every other app keeps)', async () => {
+      const storage = createMemoryStorage();
+      await writeUnder(storage, CONFIG);
+      expect((await restoreUnder(storage, CONFIG)).getQueryData(THREAD)).toEqual(['kept']);
+      process.env.OXY_BUILD_ID = 'build-2';
+      expect((await restoreUnder(storage, CONFIG)).getQueryData(THREAD)).toBeUndefined();
+    });
+
+    it('applies to the shared cache too', async () => {
+      const storage = createMemoryStorage();
+      const writer = new QueryClient();
+      const shared = attachQueryPersistence(writer, storage, VERSIONED);
+      await shared.restored;
+      writer.setQueryData(['users', 'u1'], { id: 'u1' });
+      await flushWrites();
+      shared.unsubscribe();
+      process.env.OXY_BUILD_ID = 'build-2';
+      const reader = new QueryClient();
+      const again = attachQueryPersistence(reader, storage, VERSIONED);
+      await again.restored;
+      expect(reader.getQueryData(['users', 'u1'])).toEqual({ id: 'u1' });
+      again.unsubscribe();
+    });
+  });
+
+  describe('bounded roots', () => {
+    const BOUNDED: AccountQueriesConfig = {
+      roots: ['conversation'],
+      bounds: {
+        conversation: {
+          maxQueries: 2,
+          trim: (data) => ({ messages: (data as { messages: number[] }).messages.slice(-2) }),
+        },
+      },
+    };
+
+    it('writes only the newest queries of the root, trimmed, and evicts the rest when unwatched', async () => {
+      const storage = createMemoryStorage();
+      const client = new QueryClient();
+      const persistence = mount(client, storage, BOUNDED);
+      persistence.activate('alice');
+      await until(persistence);
+      for (const id of ['c1', 'c2', 'c3']) {
+        client.setQueryData(['conversation', id], { messages: [1, 2, 3, 4] });
+        await settle();
+      }
+      await flushWrites();
+      persistence.detach();
+      // In memory: the oldest, unwatched, is gone; the two newest stay whole.
+      expect(client.getQueryData(['conversation', 'c1'])).toBeUndefined();
+      expect(client.getQueryData(['conversation', 'c3'])).toEqual({ messages: [1, 2, 3, 4] });
+
+      const reader = new QueryClient();
+      const restored = mount(reader, storage, BOUNDED);
+      restored.activate('alice');
+      await until(restored);
+      expect(reader.getQueryData(['conversation', 'c1'])).toBeUndefined();
+      expect(reader.getQueryData(['conversation', 'c2'])).toEqual({ messages: [3, 4] });
+      expect(reader.getQueryData(['conversation', 'c3'])).toEqual({ messages: [3, 4] });
+      restored.detach();
+    });
+
+    it('revives restored data before anything reads it', async () => {
+      const DATED: AccountQueriesConfig = {
+        roots: ['conversation'],
+        bounds: {
+          conversation: {
+            maxQueries: 5,
+            revive: (data) => ({ at: new Date((data as { at: string }).at) }),
+          },
+        },
+      };
+      const storage = createMemoryStorage();
+      const client = new QueryClient();
+      const persistence = mount(client, storage, DATED);
+      persistence.activate('alice');
+      await until(persistence);
+      client.setQueryData(['conversation', 'c1'], { at: new Date('2026-11-13T10:00:00Z') });
+      await flushWrites();
+      persistence.detach();
+      const reader = new QueryClient();
+      const restored = mount(reader, storage, DATED);
+      restored.activate('alice');
+      await until(restored);
+      const data = reader.getQueryData<{ at: Date }>(['conversation', 'c1']);
+      expect(data?.at).toBeInstanceOf(Date);
+      expect(data?.at.toISOString()).toBe('2026-11-13T10:00:00.000Z');
+      restored.detach();
+    });
+
+    it("never writes one account's bounded root under another", async () => {
+      const storage = createMemoryStorage();
+      const client = new QueryClient();
+      const persistence = mount(client, storage, BOUNDED);
+      persistence.activate('alice');
+      await until(persistence);
+      client.setQueryData(['conversation', 'a'], { messages: [1] });
+      await flushWrites();
+      persistence.activate('bob');
+      await until(persistence);
+      expect(client.getQueryData(['conversation', 'a'])).toBeUndefined();
+      await flushWrites();
+      persistence.detach();
+      const raw = await storage.getItem(blobKey('bob'));
+      expect(raw ?? '').not.toContain('"a"');
+    });
+  });
 });

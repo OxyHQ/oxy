@@ -6,8 +6,10 @@
  * A blob is `{ buster, timestamp, clientState }`, TanStack's persisted-client
  * shape. Restoring it treats its two halves differently:
  *
- * - Queries are served before any refetch, so a query written by another
- *   build, in whatever shape that build used, is dropped (`getOxyBuildId`).
+ * - Queries are served before any refetch, so a query written under another
+ *   buster, in whatever shape it had then, is dropped. The buster is the build
+ *   (`getOxyBuildId`) unless the app declares the version of the data it
+ *   persists (`AccountQueriesConfig.dataVersion`, see `persistedBuster`).
  * - Paused mutations are the user's queued actions (a star, a send made
  *   offline). A deploy must not lose them, so they are restored whatever build
  *   wrote them; the current build's `setMutationDefaults` replays them.
@@ -22,6 +24,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import { getOxyBuildId } from '../utils/buildId';
+import { SERVICES_PERSISTED_DATA_VERSION } from '../utils/persistedDataVersion';
 
 /** The SDK's own account-agnostic query roots, persisted by `attachQueryPersistence`. */
 export const PERSISTED_QUERY_PREFIXES: ReadonlyArray<string> = [
@@ -43,10 +46,119 @@ export const SDK_MEMORY_ONLY_ROOTS: ReadonlyArray<string> = [
   'justifiedPhotoDimensions',
 ];
 
+/**
+ * A cap on what one root writes to disk: its `maxQueries` most recently updated queries, each
+ * passed through `trim` (for example, a conversation's last messages). Queries past the cap that
+ * no screen is watching leave memory too, so the root stays bounded in both.
+ */
+export interface PersistedRootBound {
+  maxQueries: number;
+  /** Shrink one query's data before it is written. Must return data of the same shape. */
+  trim?: (data: unknown) => unknown;
+  /**
+   * Give a restored query's data its type back before anything reads it: the blob is JSON, so a
+   * `Date` comes back as a string. Runs once per query, on restore.
+   */
+  revive?: (data: unknown) => unknown;
+}
+
 export interface PersistFilters {
   /** The queries this cache keeps, whatever their state; only successful ones are written. */
   persistsQuery: (query: Query) => boolean;
   shouldDehydrateMutation: (mutation: Mutation) => boolean;
+  /** What a blob is stamped with, and must match to be restored. Defaults to the build. */
+  buster?: string;
+  /** Per-root caps, by `queryKey[0]`. */
+  bounds?: ReadonlyMap<string, PersistedRootBound>;
+}
+
+/**
+ * The stamp a persisted blob must carry to be restored.
+ *
+ * Without a declared version it is the build: every deploy starts from the network, which is
+ * safe for an app that never says when its persisted data changes shape. With one, a blob
+ * survives deploys and is dropped only when that version, or this SDK's own (it owns the shape
+ * of the shared roots and of how blobs are written), changes.
+ */
+export function persistedBuster(dataVersion?: string): string {
+  return dataVersion ? `data:${SERVICES_PERSISTED_DATA_VERSION}:${dataVersion}` : getOxyBuildId();
+}
+
+/** Within each bounded root, its queries ordered newest first by when their data arrived. */
+function rankedByRoot<T extends { queryKey: readonly unknown[]; updatedAt: number }>(
+  items: readonly T[],
+  bounds: ReadonlyMap<string, PersistedRootBound>,
+): Map<string, T[]> {
+  const byRoot = new Map<string, T[]>();
+  for (const item of items) {
+    const root = typeof item.queryKey[0] === 'string' ? item.queryKey[0] : null;
+    if (root === null || !bounds.has(root)) continue;
+    const list = byRoot.get(root) ?? [];
+    list.push(item);
+    byRoot.set(root, list);
+  }
+  for (const list of byRoot.values()) list.sort((a, b) => b.updatedAt - a.updatedAt);
+  return byRoot;
+}
+
+/** Apply `bounds` to a dehydrated state: drop past the cap, trim what stays. */
+function boundState(
+  state: DehydratedState,
+  bounds: ReadonlyMap<string, PersistedRootBound> | undefined,
+): DehydratedState {
+  if (!bounds || bounds.size === 0) return state;
+  const ranked = rankedByRoot(
+    state.queries.map((query) => ({ ...query, updatedAt: query.state.dataUpdatedAt })),
+    bounds,
+  );
+  const kept = new Set<string>();
+  for (const [root, list] of ranked) {
+    for (const query of list.slice(0, bounds.get(root)!.maxQueries)) kept.add(query.queryHash);
+  }
+  return {
+    ...state,
+    queries: state.queries.flatMap((query) => {
+      const root = typeof query.queryKey[0] === 'string' ? query.queryKey[0] : null;
+      const bound = root === null ? undefined : bounds.get(root);
+      if (!bound) return [query];
+      if (!kept.has(query.queryHash)) return [];
+      return [
+        bound.trim
+          ? { ...query, state: { ...query.state, data: bound.trim(query.state.data) } }
+          : query,
+      ];
+    }),
+  };
+}
+
+function reviveQuery(
+  query: DehydratedState['queries'][number],
+  bounds: ReadonlyMap<string, PersistedRootBound> | undefined,
+): DehydratedState['queries'][number] {
+  const root = typeof query.queryKey[0] === 'string' ? query.queryKey[0] : null;
+  const revive = root === null ? undefined : bounds?.get(root)?.revive;
+  if (!revive || query.state.data === undefined) return query;
+  return { ...query, state: { ...query.state, data: revive(query.state.data) } };
+}
+
+/** Remove, from memory, a bounded root's queries past its cap that nothing is watching. */
+export function evictBeyondBounds(
+  queryClient: QueryClient,
+  bounds: ReadonlyMap<string, PersistedRootBound> | undefined,
+): void {
+  if (!bounds || bounds.size === 0) return;
+  const ranked = rankedByRoot(
+    queryClient
+      .getQueryCache()
+      .getAll()
+      .map((query) => ({ query, queryKey: query.queryKey, updatedAt: query.state.dataUpdatedAt })),
+    bounds,
+  );
+  for (const [root, list] of ranked) {
+    for (const { query } of list.slice(bounds.get(root)!.maxQueries)) {
+      if (query.getObserversCount() === 0) queryClient.getQueryCache().remove(query);
+    }
+  }
 }
 
 interface PersistedBlob {
@@ -78,16 +190,19 @@ export function rootOf(query: Pick<Query, 'queryKey'>): string | null {
   return typeof head === 'string' ? head : null;
 }
 
-/** Serialize what the filters select, stamped with this build. */
+/** Serialize what the filters select, within their bounds, stamped with their buster. */
 export function snapshot(queryClient: QueryClient, filters: PersistFilters): string {
   const blob: PersistedBlob = {
-    buster: getOxyBuildId(),
+    buster: filters.buster ?? getOxyBuildId(),
     timestamp: Date.now(),
-    clientState: dehydrate(queryClient, {
-      shouldDehydrateQuery: (query) =>
-        query.state.status === 'success' && filters.persistsQuery(query),
-      shouldDehydrateMutation: filters.shouldDehydrateMutation,
-    }),
+    clientState: boundState(
+      dehydrate(queryClient, {
+        shouldDehydrateQuery: (query) =>
+          query.state.status === 'success' && filters.persistsQuery(query),
+        shouldDehydrateMutation: filters.shouldDehydrateMutation,
+      }),
+      filters.bounds,
+    ),
   };
   return JSON.stringify(blob);
 }
@@ -102,6 +217,10 @@ export function hydrateSnapshot(
   raw: string | null,
   maxAge: number,
   options?: {
+    /** The stamp the blob must carry for its queries to be restored. Defaults to the build. */
+    buster?: string;
+    /** Per-root `revive`, applied to each restored query of that root. */
+    bounds?: ReadonlyMap<string, PersistedRootBound>;
     shouldRestoreQuery?: (query: DehydratedState['queries'][number]) => boolean;
     shouldRestoreMutation?: (mutation: DehydratedState['mutations'][number]) => boolean;
     restoreMutations?: boolean;
@@ -121,12 +240,12 @@ export function hydrateSnapshot(
   ) {
     return false;
   }
-  const sameBuild = blob.buster === getOxyBuildId();
+  const sameBuild = blob.buster === (options?.buster ?? getOxyBuildId());
   hydrate(queryClient, {
     queries: sameBuild
-      ? (blob.clientState.queries ?? []).filter(
-          (query) => options?.shouldRestoreQuery?.(query) ?? true,
-        )
+      ? (blob.clientState.queries ?? [])
+          .filter((query) => options?.shouldRestoreQuery?.(query) ?? true)
+          .map((query) => reviveQuery(query, options?.bounds))
       : [],
     mutations:
       options?.restoreMutations === false

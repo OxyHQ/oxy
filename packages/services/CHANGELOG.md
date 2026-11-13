@@ -1,5 +1,12 @@
 # Changelog
 
+## 14.20.0
+
+### Added
+
+- **`accountQueries.dataVersion`: a persisted cache that survives deploys.** Both persisted caches were dropped on every new build (`OXY_BUILD_ID`), so the first visit after each deploy was cold for everyone, and apps that deploy several times a day were cold most of the time. An app may now declare the version of the data it persists; a blob is then dropped only when that version, or this package's (it owns the shape of the shared roots and of the blob), changes. Without it nothing changes: the stamp stays the build, so every app that does not opt in keeps today's behaviour. `SERVICES_PERSISTED_DATA_VERSION` is kept equal to the package version by a test.
+- **`accountQueries.bounds`: caps for a root that grows with use.** `{ [root]: { maxQueries, trim? } }` writes only the root's `maxQueries` most recently updated queries, each through `trim` (for example, a conversation's last messages), gives restored data its type back with `revive` (the blob is JSON, so a `Date` comes back as a string), and removes unwatched ones past the cap from memory. `PersistedRootBound` is exported with `AccountQueriesConfig`.
+
 ## 14.19.3
 
 ### Fixed

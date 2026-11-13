@@ -23,6 +23,9 @@ export { default as OxyProvider } from './components/OxyProvider';
 export { default as OxySignInButton } from './components/OxySignInButton';
 export { default as OxyAuthPrompt } from './components/OxyAuthPrompt';
 export type { OxyAuthPromptProps } from './components/OxyAuthPrompt';
+// The account cache's declaration, for an app's `accountQueries` (types only).
+export type { AccountQueriesConfig, AccountQueryMeta } from './hooks/accountQueryPersistence';
+export type { PersistedRootBound } from './hooks/persistedQueryCache';
 export { LogoIcon } from './components/logo/LogoIcon';
 export { LogoText } from './components/logo/LogoText';
 export { default as FollowButton } from './components/FollowButton';
