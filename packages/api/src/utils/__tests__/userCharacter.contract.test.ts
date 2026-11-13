@@ -47,7 +47,7 @@ describe('character on the user DTOs', () => {
   );
 
   it('a bot without a stored (or with a malformed) character omits the key', () => {
-    for (const stored of [null, undefined, { shape: 'heart' }, 'x']) {
+    for (const stored of [null, undefined, { color: 'pink' }, 'x']) {
       expect(formatUserResponse(source('bot', stored))).not.toHaveProperty('character');
     }
   });
