@@ -57,7 +57,19 @@ it('observes real HTTP clients, preserves behavior and restores the HTTP facade'
     ]);
     expect(JSON.stringify(events)).not.toContain('private-id');
     await withoutNodeHttpObservation(() => request('/files/no-double-count'));
-    await request('/internal/activity');
+    // The collector's own control traffic is never observed (outbound table of
+    // `isObservedPath`). `/internal/activityx` and `/auth/service-tokens` are
+    // skipped too (prefix match); the old regex recorded them.
+    for (const path of [
+      '/internal/activity',
+      '/internal/activity/infrastructure',
+      '/internal/activityx',
+      '/auth/service-token',
+      '/auth/service-token/workload',
+      '/platform-infrastructure',
+    ]) {
+      await request(path);
+    }
     expect(events).toHaveLength(2);
     stop();
     expect(http.request).toBe(original);
