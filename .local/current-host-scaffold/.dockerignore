@@ -1,0 +1,9 @@
+# BuildKit needs the ** glob to match nested workspace dirs.
+**/node_modules
+**/dist
+**/lib
+**/.expo
+**/web-build
+.git
+*.log
+.DS_Store

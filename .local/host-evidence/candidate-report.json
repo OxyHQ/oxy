@@ -1,0 +1,512 @@
+[
+  {
+    "mode": "document",
+    "recipe": "none",
+    "before": {
+      "y": 0,
+      "height": 3896,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [],
+      "root": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "top": 0,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "BODY",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 0
+        }
+      ]
+    },
+    "after": {
+      "y": 650,
+      "height": 3896,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "HTML",
+          "y": 650
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": -650,
+        "width": 390,
+        "height": 844,
+        "top": -650,
+        "right": 390,
+        "bottom": 194,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "BODY",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 0
+        }
+      ]
+    },
+    "lockStart": {
+      "y": 650,
+      "height": 3896,
+      "viewport": 844,
+      "bodyOverflow": "hidden",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "HTML",
+          "y": 650
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": -650,
+        "width": 390,
+        "height": 844,
+        "top": -650,
+        "right": 390,
+        "bottom": 194,
+        "left": 0
+      },
+      "scrollers": []
+    },
+    "locked": {
+      "y": 650,
+      "height": 3896,
+      "viewport": 844,
+      "bodyOverflow": "hidden",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "HTML",
+          "y": 650
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": -650,
+        "width": 390,
+        "height": 844,
+        "top": -650,
+        "right": 390,
+        "bottom": 194,
+        "left": 0
+      },
+      "scrollers": []
+    },
+    "restored": {
+      "y": 650,
+      "height": 3896,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "HTML",
+          "y": 650
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": -650,
+        "width": 390,
+        "height": 844,
+        "top": -650,
+        "right": 390,
+        "bottom": 194,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "BODY",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 0
+        }
+      ]
+    },
+    "resumed": {
+      "y": 850,
+      "height": 3896,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "HTML",
+          "y": 850
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": -850,
+        "width": 390,
+        "height": 844,
+        "top": -850,
+        "right": 390,
+        "bottom": -6,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "BODY",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 0
+        }
+      ]
+    },
+    "switched": {
+      "y": 0,
+      "height": 844,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "DIV",
+          "y": 850
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "top": 0,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "DIV",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 850
+        }
+      ]
+    },
+    "switchedWheel": {
+      "y": 0,
+      "height": 844,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "DIV",
+          "y": 1150
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "top": 0,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "DIV",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 1150
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "mode": "bounded",
+    "recipe": "none",
+    "before": {
+      "y": 0,
+      "height": 844,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [],
+      "root": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "top": 0,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "DIV",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 0
+        }
+      ]
+    },
+    "after": {
+      "y": 0,
+      "height": 844,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "DIV",
+          "y": 650
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "top": 0,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "DIV",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 650
+        }
+      ]
+    },
+    "lockStart": {
+      "y": 0,
+      "height": 844,
+      "viewport": 844,
+      "bodyOverflow": "hidden",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "DIV",
+          "y": 650
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "top": 0,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "DIV",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 650
+        }
+      ]
+    },
+    "locked": {
+      "y": 0,
+      "height": 844,
+      "viewport": 844,
+      "bodyOverflow": "hidden",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "DIV",
+          "y": 650
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "top": 0,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "DIV",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 650
+        }
+      ]
+    },
+    "restored": {
+      "y": 0,
+      "height": 844,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "DIV",
+          "y": 650
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "top": 0,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "DIV",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 650
+        }
+      ]
+    },
+    "resumed": {
+      "y": 0,
+      "height": 844,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "DIV",
+          "y": 850
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "top": 0,
+        "right": 390,
+        "bottom": 844,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "DIV",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 850
+        }
+      ]
+    },
+    "switched": {
+      "y": 850,
+      "height": 3896,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "HTML",
+          "y": 850
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": -850,
+        "width": 390,
+        "height": 844,
+        "top": -850,
+        "right": 390,
+        "bottom": -6,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "BODY",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 0
+        }
+      ]
+    },
+    "switchedWheel": {
+      "y": 1150,
+      "height": 3896,
+      "viewport": 844,
+      "bodyOverflow": "auto",
+      "locked": [],
+      "positions": [
+        {
+          "tag": "HTML",
+          "y": 1150
+        }
+      ],
+      "root": {
+        "x": 0,
+        "y": -1150,
+        "width": 390,
+        "height": 844,
+        "top": -1150,
+        "right": 390,
+        "bottom": -306,
+        "left": 0
+      },
+      "scrollers": [
+        {
+          "tag": "BODY",
+          "id": "",
+          "testID": null,
+          "height": 844,
+          "scrollHeight": 3896,
+          "y": 0
+        }
+      ]
+    },
+    "errors": []
+  }
+]

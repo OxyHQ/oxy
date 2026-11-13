@@ -1,0 +1,9 @@
+{
+  "extends": "@oxy.so/app-preset/tsconfig/backend.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<!-- PLACEHOLDER app mark shipped by create-oxy-app: replace it with your app's own mark,
+     then run `bun scripts/render-app-icons.mjs` to regenerate the PNG of the same name. -->
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7a5cff"/><stop offset="1" stop-color="#4527d9"/></linearGradient></defs>
+<rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+<g transform="translate(176 176) scale(28)"><circle cx="12" cy="12" r="7.5" fill="none" stroke="#ffffff" stroke-width="2.5"/></g>
+</svg>

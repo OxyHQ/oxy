@@ -1,0 +1,63 @@
+// Dynamic Expo config. A development build can sit next to the production app on
+// the same device via APP_VARIANT=development (distinct id + name).
+const { oxySplashScreenPlugin } = require('@oxy.so/expo-splash/config');
+
+const IS_DEV = process.env.APP_VARIANT === 'development';
+
+const APP_ID = IS_DEV ? 'so.oxy.fixture.currenthost.dev' : 'so.oxy.fixture.currenthost';
+const APP_NAME = IS_DEV ? 'Current host probe (Dev)' : 'Current host probe';
+
+module.exports = {
+  expo: {
+    name: APP_NAME,
+    slug: 'current-host-probe',
+    scheme: 'currenthostprobe',
+    version: '0.1.0',
+    orientation: 'portrait',
+    // The assets/images/*.png icons and splash logo are PLACEHOLDERS: replace the
+    // SVGs next to them with your app's mark and run scripts/render-app-icons.mjs.
+    // A native build needs all of them — `expo-splash-screen` without an image
+    // fails `:app:processReleaseResources` on `drawable/splashscreen_logo`.
+    icon: './assets/images/icon.png',
+    userInterfaceStyle: 'automatic',
+    experiments: {
+      typedRoutes: true,
+      reactCompiler: true,
+    },
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: APP_ID,
+      icon: './assets/images/icon.png',
+    },
+    android: {
+      package: APP_ID,
+      adaptiveIcon: {
+        foregroundImage: './assets/images/icon_foreground.png',
+        backgroundImage: './assets/images/icon_background.png',
+        monochromeImage: './assets/images/icon_monochrome.png',
+      },
+    },
+    web: {
+      bundler: 'metro',
+      output: 'single',
+      favicon: './assets/images/favicon.png',
+    },
+    plugins: [
+      'expo-router',
+      // Oxy-standard native splash: the app's own mark centered on the shared dark
+      // brand background, with the "from Oxy" bottom branding added by the
+      // '@oxy.so/expo-splash' plugin, which MUST stay immediately after it.
+      oxySplashScreenPlugin({ image: './assets/images/splash-logo.png' }),
+      '@oxy.so/expo-splash',
+      // Shared Oxy native config: iOS keychain group, expo-build-properties
+      // defaults, the Android signature permissions + <queries> that let this
+      // app sign in silently through Commons, and release signing with the ONE
+      // ecosystem key (OXY_UPLOAD_* Gradle properties). A release build without
+      // that key fails: Commons answers only apps signed with its certificate.
+      ['@oxy.so/app-preset', {}],
+    ],
+    extra: {
+      router: {},
+    },
+  },
+};
