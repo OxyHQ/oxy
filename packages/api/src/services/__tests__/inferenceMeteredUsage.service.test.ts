@@ -8,7 +8,19 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import { canonicalize } from '@oxy.so/protocol';
+import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
+import { usageReservations } from '../../db/schema/usageReservations';
+import { kaanaGrants } from '../../db/schema/kaanaGrants';
+import { inferenceAuthorityFences } from '../../db/schema/inferenceAuthorityFences';
+import {
+  activateInferenceAuthorityFence,
+  exportInferenceAuthorityFence,
+  isInferenceAuthorityFenceError,
+  legacyInferenceFenceEntries,
+  type InferenceAuthorityPopulation,
+} from '../inferenceAuthorityFence.service';
 import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
@@ -819,5 +831,329 @@ describe('the cost-centre usage report', () => {
       },
     );
     expect((await row(expired.meteredUsageId)).status).toBe('admitted');
+  });
+});
+
+// Rolling-server cutover: old writers still insert directly and must obey the same barrier.
+describe('permanent workload authority cutover', () => {
+  async function workloadFixture() {
+    const fixture = await makeFixture();
+    await getDb()
+      .update(applications)
+      .set({ type: 'internal', isInternal: true })
+      .where(eq(applications.id, fixture.applicationId));
+    const [binding] = await getDb()
+      .insert(applicationWorkloadIdentities)
+      .values({
+        applicationId: fixture.applicationId,
+        provider: 'aws-iam',
+        subject: `test-role-${tag()}`,
+        environment: 'production',
+      })
+      .returning();
+    const credentialId = `wl_${tag()}`;
+    await getDb()
+      .update(applicationCredentials)
+      .set({
+        id: credentialId,
+        type: 'workload',
+        publicKey: null,
+        tokenPrefix: null,
+        tokenHash: null,
+        scopes: [],
+        workloadIdentityId: binding.id,
+      })
+      .where(eq(applicationCredentials.id, fixture.credentialId));
+    return { ...fixture, credentialId };
+  }
+  const population = (f: Fixture): InferenceAuthorityPopulation => ({
+    applicationId: f.applicationId,
+    ownerAccountId: f.accountId,
+    environment: 'production',
+    credentialKind: 'workload',
+  });
+  const rawValues = (input: MeteredAdmissionInput) => ({
+    requestId: input.requestId,
+    idempotencyKey: input.idempotencyKey,
+    accountId: input.accountId,
+    applicationId: input.applicationId,
+    applicationCredentialId: input.applicationCredentialId,
+    environment: input.environment,
+    economicTreatment: 'commercial' as const,
+    economicPolicyVersion: INFERENCE_ECONOMIC_POLICY_VERSION,
+    endpoint: input.endpoint,
+    requestedModelReference: input.requestedModelReference,
+    admittedModelReference: input.admittedModelReference,
+    admittedProvider: input.admittedProvider,
+    admittedDeploymentId: input.admittedDeploymentId,
+    expiresAt: new Date(Date.now() - 60_000),
+  });
+  async function waitForBlockedAdvisory() {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const rows = await getDb().execute<{ waiting: boolean }>(
+        sql`select exists(select 1 from pg_locks where locktype = 'advisory' and not granted and database = (select oid from pg_database where datname = current_database())) as waiting`,
+      );
+      if (rows[0]?.waiting) return;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    throw new Error('Expected the competing admission/barrier to wait on its shared lock');
+  }
+  it('blocks upgraded and raw legacy admission, while allowing prior settlement and permanent export', async () => {
+    const f = await workloadFixture();
+    const input = admission(
+      f,
+      commercial,
+      `oxy-edge:idem:${f.credentialId}:caller:key:with:colons`,
+    );
+    const result = await claimMeteredAdmission(input);
+    expect(result.status).toBe('claimed');
+    const fence = await activateInferenceAuthorityFence(population(f));
+    expect((await activateInferenceAuthorityFence(population(f))).id).toBe(fence.id);
+    expect(await claimMeteredAdmission(admission(f, commercial))).toEqual({
+      status: 'authority-migrating',
+    });
+    const rejected = await getDb()
+      .insert(inferenceMeteredUsage)
+      .values(rawValues(admission(f, commercial)))
+      .then(() => false, isInferenceAuthorityFenceError);
+    expect(rejected).toBe(true);
+    await expect(exportInferenceAuthorityFence(population(f))).rejects.toThrow('unresolved');
+    await getDb()
+      .update(inferenceMeteredUsage)
+      .set({ expiresAt: new Date(0) })
+      .where(eq(inferenceMeteredUsage.requestId, input.requestId));
+    await expect(exportInferenceAuthorityFence(population(f))).rejects.toThrow('unresolved');
+    if (result.status !== 'claimed') throw new Error('Expected admitted fixture');
+    await settle(f, result.meteredUsageId);
+    const manifest = await exportInferenceAuthorityFence(population(f));
+    expect(manifest.unresolved).toEqual({ admissions: 0, grants: 0, holds: 0 });
+    expect(manifest.population.credentialIds).toEqual([f.credentialId]);
+    expect(manifest.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          keyKind: 'idempotency_key',
+          key: 'caller:key:with:colons',
+          bodyDigest: null,
+          digestDomain: 'unknown',
+        }),
+        expect.objectContaining({ keyKind: 'request_id', key: input.requestId }),
+      ]),
+    );
+    const { sha256, ...payload } = manifest;
+    expect(sha256).toBe(createHash('sha256').update(canonicalize(payload)).digest('hex'));
+    await expect(
+      getDb().delete(inferenceAuthorityFences).where(eq(inferenceAuthorityFences.id, fence.id)),
+    ).rejects.toThrow();
+  });
+  it('does not fence external machine or public session credentials of the same application', async () => {
+    const f = await workloadFixture();
+    const other = await makeFixture();
+    await getDb()
+      .update(applicationCredentials)
+      .set({ applicationId: f.applicationId })
+      .where(eq(applicationCredentials.id, other.credentialId));
+    await activateInferenceAuthorityFence(population(f));
+    expect(
+      (
+        await claimMeteredAdmission(
+          admission({ ...f, credentialId: other.credentialId }, commercial),
+        )
+      ).status,
+    ).toBe('claimed');
+    const [session] = await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId: f.applicationId,
+        name: 'public-session',
+        publicKey: `oxy_dk_${tag()}`,
+        type: 'public',
+        environment: 'production',
+        scopes: [],
+        status: 'active',
+        createdByUserId: f.accountId,
+      })
+      .returning();
+    expect(
+      (await claimMeteredAdmission(admission({ ...f, credentialId: session.id }, commercial)))
+        .status,
+    ).toBe('claimed');
+    const [service] = await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId: f.applicationId,
+        name: 'secret-service',
+        publicKey: `oxy_dk_${tag()}`,
+        type: 'service',
+        secretHash: 'synthetic-test-hash',
+        environment: 'production',
+        scopes: [],
+        status: 'active',
+        createdByUserId: f.accountId,
+      })
+      .returning();
+    expect(
+      (await claimMeteredAdmission(admission({ ...f, credentialId: service.id }, commercial)))
+        .status,
+    ).toBe('claimed');
+    expect((await claimMeteredAdmission(admission(await makeFixture(), commercial))).status).toBe(
+      'claimed',
+    );
+  });
+  it('requires actual live workload enrollment and a fence before export', async () => {
+    const f = await makeFixture();
+    await expect(activateInferenceAuthorityFence(population(f))).rejects.toThrow(
+      'active first-party workload',
+    );
+    await expect(exportInferenceAuthorityFence(population(f))).rejects.toThrow(
+      'Activate and drain',
+    );
+  });
+  it('serializes a committed old admission before activation and refuses export until it drains', async () => {
+    const f = await workloadFixture();
+    let unblock: () => void = () => undefined;
+    const hold = new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
+    let announce: () => void = () => undefined;
+    const inserted = new Promise<void>((resolve) => {
+      announce = resolve;
+    });
+    const oldWriter = getDb().transaction(async (tx) => {
+      await tx.insert(inferenceMeteredUsage).values(rawValues(admission(f, commercial)));
+      announce();
+      await hold;
+    });
+    await inserted;
+    const activation = activateInferenceAuthorityFence(population(f));
+    try {
+      await waitForBlockedAdvisory();
+    } finally {
+      unblock();
+    }
+    await oldWriter;
+    await activation;
+    await expect(exportInferenceAuthorityFence(population(f))).rejects.toThrow('unresolved');
+  });
+  it('serializes activation before an old writer and refuses its insert after the wait', async () => {
+    const f = await workloadFixture();
+    let unblock: () => void = () => undefined;
+    const hold = new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
+    let announce: () => void = () => undefined;
+    const inserted = new Promise<void>((resolve) => {
+      announce = resolve;
+    });
+    const barrier = getDb().transaction(async (tx) => {
+      await tx.insert(inferenceAuthorityFences).values(population(f));
+      announce();
+      await hold;
+    });
+    await inserted;
+    const writer = getDb()
+      .insert(inferenceMeteredUsage)
+      .values(rawValues(admission(f, commercial)))
+      .then(() => false, isInferenceAuthorityFenceError);
+    try {
+      await waitForBlockedAdvisory();
+    } finally {
+      unblock();
+    }
+    await barrier;
+    expect(await writer).toBe(true);
+    const empty = await exportInferenceAuthorityFence(population(f));
+    expect(empty.entries).toHaveLength(0);
+    expect(empty.population.credentialIds).toEqual([f.credentialId]);
+  });
+  it('retains retired-handle history without authorizing it, and requires real grant/hold drain', async () => {
+    const f = await workloadFixture();
+    const input = admission(f, commercial);
+    const result = await claimMeteredAdmission(input);
+    if (result.status !== 'claimed') throw new Error('Expected admitted fixture');
+    await settle(f, result.meteredUsageId);
+    const [grant] = await getDb()
+      .insert(kaanaGrants)
+      .values({
+        requestId: input.requestId,
+        operation: 'responses',
+        endpoint: '/v1/responses',
+        lane: 'service_token',
+        accountId: f.accountId,
+        applicationId: f.applicationId,
+        applicationCredentialId: f.credentialId,
+        environment: 'production',
+        economicTreatment: 'internal_metered',
+        economicPolicyVersion: INFERENCE_ECONOMIC_POLICY_VERSION,
+        meteredUsageId: result.meteredUsageId,
+        bodySha256: 'a'.repeat(64),
+        grantSha256: 'b'.repeat(64),
+        signingKeyId: 'synthetic',
+        issuedAt: new Date(0),
+        executeBy: new Date(1000),
+        expiresAt: new Date(2000),
+      })
+      .returning();
+    const oldRequest = randomUUID();
+    const [hold] = await getDb()
+      .insert(usageReservations)
+      .values({
+        accountId: f.accountId,
+        applicationId: f.applicationId,
+        applicationCredentialId: f.credentialId,
+        requestId: oldRequest,
+        idempotencyKey: `oxy-edge:req:${oldRequest}`,
+        environment: 'production',
+        reservedAmount: '0.01',
+        currency: 'USD',
+        ceilingPriceVersionId: f.priceVersionId,
+        expiresAt: new Date(0),
+      })
+      .returning();
+    await activateInferenceAuthorityFence(population(f));
+    await expect(exportInferenceAuthorityFence(population(f))).rejects.toThrow('unresolved');
+    await getDb()
+      .update(kaanaGrants)
+      .set({ status: 'expired' })
+      .where(eq(kaanaGrants.id, grant.id));
+    await expect(exportInferenceAuthorityFence(population(f))).rejects.toThrow('unresolved');
+    await getDb()
+      .update(usageReservations)
+      .set({ status: 'expired' })
+      .where(eq(usageReservations.id, hold.id));
+    await getDb()
+      .update(applicationCredentials)
+      .set({ status: 'revoked' })
+      .where(eq(applicationCredentials.id, f.credentialId));
+    const manifest = await exportInferenceAuthorityFence(population(f));
+    expect(manifest.population.credentialIds).toEqual([]);
+    expect(manifest.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          credentialId: f.credentialId,
+          key: input.requestId,
+          legacyAdmissionId: `metered:${result.meteredUsageId}`,
+        }),
+        expect.objectContaining({
+          credentialId: f.credentialId,
+          key: oldRequest,
+          legacyAdmissionId: `reservation:${hold.id}`,
+        }),
+      ]),
+    );
+  });
+  it('refuses unknown namespaces and contradictory ownership instead of losing a tombstone', () => {
+    const row = {
+      credential_id: 'wl_test',
+      ledger_key: 'oxy-edge:idem:wl_test:actual:key',
+      legacy_id: 'metered:one',
+      request_id: 'req-one',
+    };
+    expect(legacyInferenceFenceEntries([row, row])).toHaveLength(2);
+    expect(() => legacyInferenceFenceEntries([{ ...row, ledger_key: 'unknown:key' }])).toThrow(
+      'namespace',
+    );
+    expect(() => legacyInferenceFenceEntries([row, { ...row, request_id: 'req-two' }])).toThrow(
+      'ownership',
+    );
   });
 });

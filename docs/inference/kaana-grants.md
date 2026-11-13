@@ -16,8 +16,12 @@ using `identity.ts` from the canonical Kaana contract. It signs live caller
 identity, the exact lookup request's hash, audience and a maximum 60-second
 expiry under `oxy-kaana-identity:v1`. It contains no economic grant, routes,
 model facts or inference content. Optional user attribution is not verified
-person or payer authority. Its initial lanes are service tokens and machine
-credentials; shared product sessions are unsupported.
+person or payer authority on workload and machine-key calls. Session
+assertions instead carry a verified requester, explicit application owner and
+application-binding proof under `authority: "session"`; their user attribution
+must match the verified subject. A public client ID does not authenticate an
+application or select its owner as payer. The legacy session grant's economic
+checks remain separate and unchanged.
 
 The grant and settlement mechanism below keeps its existing behavior for
 legacy admissions. Deploying the identity endpoint does not enroll callers in

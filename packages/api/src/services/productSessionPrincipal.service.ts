@@ -43,35 +43,20 @@
  */
 
 import type { GrantOperation } from '@kaana.ai/contracts/internal';
-import { and, eq } from 'drizzle-orm';
 import {
   resolveEconomicTreatment,
   type SharedSessionAttribution,
 } from '../config/inferenceEconomicPolicy';
-import { getDb } from '../config/postgres';
-import { applicationCredentials } from '../db/schema/applicationCredentials';
-import { applications } from '../db/schema/applications';
-import { isCredentialUsable } from '../utils/credentialUsability';
-import { isTrustedApplication } from '../utils/trustedApplication';
-import type { EdgePrincipal } from './inferenceEdge.service';
-import sessionService from './session.service';
+import type { EdgePrincipal } from './inferenceCallerIdentity.service';
+import { verifyProductSessionIdentity } from './productSessionIdentity.service';
 import { isSupervised } from './supervisionPolicy.service';
 
-/** The bearer prefix of a session presented with its application's public client id. */
-export const PRESENTED_SESSION_PREFIX = 'oxy_session:';
+export { PRESENTED_SESSION_PREFIX, isPresentedSession } from './productSessionIdentity.service';
 
-const PUBLIC_CLIENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
-
-/**
- * `authentication`: the bearer is not a live session (answered
- * `authentication_failed`). `unattributable`: a live session that names no
- * application this lane can charge (answered `permission_denied`).
- */
 export type ProductSessionAuthentication =
   | {
       readonly ok: true;
       readonly principal: EdgePrincipal & { readonly lane: 'product_session' };
-      /** The session's subject account: the request's attributed user. */
       readonly sessionUserId: string;
     }
   | {
@@ -80,127 +65,43 @@ export type ProductSessionAuthentication =
       readonly reason: string;
     };
 
-export function isPresentedSession(credential: string): boolean {
-  return credential.startsWith(PRESENTED_SESSION_PREFIX);
-}
-
-type Presented =
-  | { readonly ok: true; readonly clientId: string | undefined; readonly token: string }
-  | { readonly ok: false };
-
-function parsePresented(credential: string): Presented {
-  if (!isPresentedSession(credential)) return { ok: true, clientId: undefined, token: credential };
-  const rest = credential.slice(PRESENTED_SESSION_PREFIX.length);
-  const separator = rest.indexOf(':');
-  if (separator <= 0) return { ok: false };
-  const clientId = rest.slice(0, separator);
-  const token = rest.slice(separator + 1);
-  return PUBLIC_CLIENT_ID.test(clientId) && token.length > 0
-    ? { ok: true, clientId, token }
-    : { ok: false };
-}
-
-const unattributable = (reason: string): ProductSessionAuthentication => ({
-  ok: false,
-  refusal: 'unattributable',
-  reason,
-});
-
 export async function authenticateProductSession(
   credential: string,
   operation?: GrantOperation,
 ): Promise<ProductSessionAuthentication> {
-  const presented = parsePresented(credential);
-  if (!presented.ok) {
-    return { ok: false, refusal: 'authentication', reason: 'session_malformed' };
-  }
-  const validation = await sessionService.validateSession(presented.token);
-  if (validation === null) {
-    return { ok: false, refusal: 'authentication', reason: 'session_invalid' };
-  }
-  const identity = validation.token;
-
-  const shared = identity.applicationId === null;
-  // An application token (ADR 0058) names its application by `azp`, which
-  // validation re-checked against the registry and the platform credential.
-  // A client id presented beside it must be that same one.
-  const host = shared ? (identity.host ?? null) : null;
-  if (host && presented.clientId !== undefined && presented.clientId !== host.clientId) {
-    return unattributable('session_client_mismatch');
-  }
-  if (shared && !host && presented.clientId === undefined) return unattributable('session_unbound');
-  if (!shared && identity.clientId === null) return unattributable('session_unbound');
-  if (!shared && presented.clientId !== undefined && presented.clientId !== identity.clientId) {
-    return unattributable('session_client_mismatch');
-  }
-  const clientId = host ? host.clientId : shared ? presented.clientId : identity.clientId;
-  if (clientId === undefined || clientId === null) return unattributable('session_unbound');
-
-  const [row] = await getDb()
-    .select({
-      applicationId: applications.id,
-      credentialId: applicationCredentials.id,
-      credentialType: applicationCredentials.type,
-      credentialStatus: applicationCredentials.status,
-      credentialExpiresAt: applicationCredentials.expiresAt,
-      environment: applicationCredentials.environment,
-      applicationStatus: applications.status,
-      ownerAccountId: applications.ownerAccountId,
-      type: applications.type,
-      isOfficial: applications.isOfficial,
-      isInternal: applications.isInternal,
-    })
-    .from(applicationCredentials)
-    .innerJoin(applications, eq(applications.id, applicationCredentials.applicationId))
-    .where(
-      and(
-        eq(applicationCredentials.publicKey, clientId),
-        ...(identity.applicationId === null
-          ? []
-          : [eq(applicationCredentials.applicationId, identity.applicationId)]),
-      ),
-    )
-    .limit(1);
-  if (
-    row === undefined ||
-    row.applicationStatus !== 'active' ||
-    (shared
-      ? row.credentialType !== 'public'
-      : row.credentialType !== 'public' && row.credentialType !== 'confidential') ||
-    !isCredentialUsable({ status: row.credentialStatus, expiresAt: row.credentialExpiresAt })
-  ) {
-    return unattributable('session_application_unavailable');
-  }
-
+  // Keep the legacy grant's validation/cache and financial-policy behavior.
+  const verified = await verifyProductSessionIdentity(credential, { liveSession: false });
+  if (!verified.ok) return verified;
+  const { identity } = verified;
   const facts = {
     lane: 'product_session' as const,
-    applicationId: row.applicationId,
-    environment: row.environment,
-    applicationType: row.type,
-    applicationIsInternal: row.isInternal,
+    applicationId: identity.applicationId,
+    environment: identity.environment,
+    applicationType: identity.applicationClass,
+    applicationIsInternal: identity.applicationIsInternal,
   };
-  if (shared && !acceptsSharedSession(facts, operation, host ? 'platform' : 'public_client_id')) {
-    return unattributable('shared_session_not_accepted');
+  if (
+    identity.applicationBinding !== 'session' &&
+    !acceptsSharedSession(
+      facts,
+      operation,
+      identity.applicationBinding === 'platform' ? 'platform' : 'public_client_id',
+    )
+  ) {
+    return { ok: false, refusal: 'unattributable', reason: 'shared_session_not_accepted' };
   }
-  if (await isSupervised(row.ownerAccountId)) {
+  if (await isSupervised(identity.applicationOwnerAccountId)) {
     return { ok: false, refusal: 'authentication', reason: 'supervised_inference_unsupported' };
   }
-
   const identityFields = {
     ...facts,
-    credentialId: row.credentialId,
-    ownerAccountId: row.ownerAccountId,
+    credentialId: identity.credentialId,
+    ownerAccountId: identity.applicationOwnerAccountId,
   };
   return {
     ok: true,
-    sessionUserId: identity.subjectAccountId,
-    // A session carries no inference scope: an own application's session is
-    // admitted by its reviewed relationship, and an external one holds none.
-    principal: isTrustedApplication({
-      isOfficial: row.isOfficial,
-      isInternal: row.isInternal,
-      type: row.type,
-    })
+    sessionUserId: identity.verifiedRequester.subjectAccountId,
+    principal: verified.applicationTrusted
       ? { ...identityFields, authority: 'first_party' }
       : { ...identityFields, authority: 'external', scopes: [] },
   };

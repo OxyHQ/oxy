@@ -3,10 +3,12 @@
 - Direction: **accepted by the owner, 2026-11-13**: Kaana processes inference,
   authorizes spending and invoices; Oxy keeps identity. This confirms the
   November 12 direction recorded in Kaana ADR 0010.
-- Implementation and contract below: **proposed, not deployed**. Existing
+- Implementation below: **candidate, not deployed**. Canonical identity contracts
+  8.13 and session extension 8.14 are merged and published; endpoint activation
+  and financial cutover remain separate. Existing
   Oxy-issued grants, reservations and financial records remain authoritative
   until an explicit migration transfers their responsibility.
-- Counterpart: [Kaana ADR 0010](https://github.com/OxyHQ/Kaana/blob/dd89dae18af8dcb99610abb6944052a40ec94b91/docs/adr/0010-kaana-sells-and-invoices.md).
+- Counterpart: [Kaana ADR 0010](https://github.com/OxyHQ/Kaana/blob/main/docs/adr/0010-kaana-sells-and-invoices.md).
 - Supersedes the destination of inference financial authority in ADRs 0005,
   0006, 0009, 0014 and 0038. Their accounting invariants remain requirements;
   this does not declare their current implementation retired.
@@ -25,11 +27,11 @@ At reviewed Oxy `4e5175e2a63cffcef9c50c23f590174a2b452f69`, the public Kaana
 lane already keeps payloads out of Oxy. It still calls Oxy's
 `/internal/kaana/v1/authorizations` and `/settlements`; Oxy authenticates,
 qualifies models and prices, reserves and settles. Changing a caller's URL
-does not remove that financial authority. Kaana ADR 0010's proposed identity
-**and routing-policy** grant also needs narrowing: the owner's latest decision
-assigns inference policy and spending decisions to Kaana, not Oxy.
+does not remove that financial authority. The owner's accepted ADR 0010 direction assigns inference policy and spending
+decisions to Kaana, not Oxy; older proposed identity-and-policy grants do not
+define the new boundary.
 
-## Proposed identity-only contract
+## Canonical identity-only contract
 
 The separate `POST /internal/kaana/v1/identities` operation uses the canonical
 Kaana contract (`@kaana.ai/contracts/internal`). Only Kaana's live, first-party
@@ -49,12 +51,28 @@ credit, balance or requested economic treatment. The signed response contains:
   when its application is internal;
 - the live application class and `applicationIsInternal`, without deriving any
   financial classification;
-- optional `userId`, which is **attribution only**: an arbitrary supplied ID is
-  not a verified person, a payer override or permission to access that person's
-  data.
+- for workloads and machine keys, optional `userId` is **attribution only**:
+  an arbitrary supplied ID is not a verified person, a payer override or
+  permission to access that person's data.
 
-The initial contract supports `service_token` and `machine_credential` only.
-Product sessions and account hierarchy facts are not included in this phase.
+The session extension adds a separate `authority: "session"`,
+`lane: "product_session"` variant. It carries `applicationOwnerAccountId`
+explicitly, without choosing that account as payer, and `verifiedRequester`
+keeps the subject account distinct from the acting principal. The existing
+session verifier checks the live session and context binding. Its
+`applicationBinding` distinguishes an application-bound session, a verified
+platform application token and a shared session presented with a public client
+ID. That last ID is only application attribution, not app authentication.
+There are no artificial scopes or workload authority on a session assertion.
+
+A session's `userId` comes from its verified subject; `onBehalfOfUserId` must
+be absent or match it. The request uses the existing bearer presentation, with
+no new client-selected principal fields. The legacy session grant wrapper
+retains its existing economic eligibility and per-person bounds. Identity
+verification does not consult those terms; Kaana decides admission after
+identifying the credential lane. Authentication failures never cause fallback
+to another financial authority. Account hierarchy facts are not included in
+this phase.
 The response binds the exact identity-request bytes by SHA-256, its request ID
 and audience, expires within 60 seconds, and uses the distinct signature domain
 `oxy-kaana-identity:v1`. There is no inference payload digest in this identity
@@ -93,6 +111,57 @@ old idempotency binding before creating a Kaana admission. A new transport
 alone cannot provide that fence. Before enabling a population, test retries
 straddling the cutover, two concurrent instances, lost responses, expiry and
 late settlement.
+
+## Workload cutover barrier and legacy retry manifest
+
+Migration 0255 creates an empty, permanent `inference_authority_fences` table.
+It activates no population. A reviewed operator command can fence an exact
+application, owner and environment whose live credential is an authenticated
+workload binding. Public session clients and external machine keys do not
+match this population. The fence insertion and every workload insertion into
+`inference_metered_usage` share a scoped transaction advisory lock. The database
+trigger also protects rolling older API images: either an old admission commits
+before the fence and must drain, or its insert fails before a hold/provider call.
+Upgraded writers return retryable `service_unavailable` with
+`reason: authority-migrating`; they never route around the barrier. Updates that
+settle old admissions remain allowed. Fences cannot be updated or deleted.
+
+The reviewed CLI is `packages/api/src/scripts/inference-authority-cutover.ts`.
+It requires explicit `--application`, `--owner`, `--environment` and one action:
+`--activate --confirm-application=<same ID>`, or `--export --output=<new file>`.
+There is no automatic enrollment or rollback command. Before activation, review
+the exact workload principal, both fleets' ready code, settlement drain and the
+Kaana importer. Activation is a deliberate availability boundary until verified
+manifest import and native enrollment complete.
+
+Export is a read-only repeatable-read transaction and refuses any matching
+`admitted` usage row, `issued` grant or `held` reservation, even past its expiry.
+It retains all historical non-refused admission keys and reservation keys.
+Canonical identity is credential plus key kind and exact key; both caller-key
+and request-ID aliases are exported. Duplicate ownership conflicts or unknown
+namespaces stop export instead of silently dropping a retry binding.
+
+The version-1 manifest contains authority `oxy`, fence ID and timestamps, exact
+population, zero unresolved counts and sorted entries. `population.credentialIds`
+is the sorted live verified workload roster, including handles without history.
+Native policy must explicitly enroll a reviewed subset of that roster; session,
+machine and secret-backed service credentials never inherit it through an app ID.
+New handles require a new reviewed immutable policy version. Historical tombstones
+remain exported even for retired handles without authorizing those handles. Each entry carries
+`credentialId`, `keyKind`, `key`, `legacyAdmissionId`, `requestId`,
+`bodyDigest: null`, `digestDomain: unknown`. Oxy edge records lack request-body
+hashes; old grant authorization hashes do not establish equivalence to native
+public request bytes. These unknown-digest tombstones must always refuse native
+execution, regardless of the retry body. No invented digest is permitted.
+
+`sha256` hashes the manifest without that field using the existing
+`@oxy.so/protocol` canonical JSON serializer (recursively sorted object keys,
+standard JSON string escaping, no whitespace). Entries sort lexically by the
+canonical JSON tuple `[credentialId,keyKind,key]`; timestamps are exact UTC ISO
+strings. The CLI exclusively creates a mode-0600 artifact and prints only the
+entry count. Keys, tokens, prompts and database errors are not logged. Kaana must
+verify population, epoch, checksum and complete import before native activation;
+a timeout or stale fleet must fail closed, never re-admit through Oxy.
 
 ## Balances and history
 

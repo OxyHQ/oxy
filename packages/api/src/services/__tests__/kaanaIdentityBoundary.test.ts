@@ -9,6 +9,7 @@ it.each([
   'routes/internalKaanaIdentity.ts',
   'services/kaanaIdentity.service.ts',
   'services/inferenceCallerIdentity.service.ts',
+  'services/productSessionIdentity.service.ts',
   'middleware/kaanaControlWorkload.ts',
 ])('%s does not depend on financial or inference routing authority', (file) => {
   const imports = [...source(file).matchAll(/from\s+['"]([^'"]+)['"]/g)].map((match) => match[1]);

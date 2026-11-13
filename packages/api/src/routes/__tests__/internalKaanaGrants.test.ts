@@ -1,3 +1,5 @@
+import { verifyProductSessionIdentity } from '../../services/productSessionIdentity.service';
+import { sessions } from '../../db/schema/sessions';
 /**
  * `/internal/kaana/v1` — the grant and settlement API Kaana calls to serve
  * `kaana.ai/v1` (Kaana ADR 0002, phase 2) — over HTTP, against a REAL
@@ -692,52 +694,55 @@ describe('who may call /internal/kaana/v1', () => {
   });
 });
 
-describe('identity-only Kaana control operation', () => {
-  let identityKaanaToken: string;
-  beforeAll(async () => {
-    const [app] = await getDb()
-      .select({ owner: applications.ownerAccountId })
-      .from(applications)
-      .where(eq(applications.id, KAANA_CONTROL_APPLICATION_ID));
-    const subject = `arn:aws:iam::237343248947:role/oxy-kaana-identity-control-${tag()}`;
-    const [binding] = await getDb()
-      .insert(applicationWorkloadIdentities)
-      .values({
-        applicationId: KAANA_CONTROL_APPLICATION_ID,
-        provider: 'aws-iam',
-        subject,
-        environment: 'development',
-      })
-      .returning({ id: applicationWorkloadIdentities.id });
-    await ensureWorkloadAttributionIdentity({
-      bindingId: binding.id,
+let identityKaanaToken: string | undefined;
+async function identityControlToken(): Promise<string> {
+  if (identityKaanaToken !== undefined) return identityKaanaToken;
+  const [app] = await getDb()
+    .select({ owner: applications.ownerAccountId })
+    .from(applications)
+    .where(eq(applications.id, KAANA_CONTROL_APPLICATION_ID));
+  const subject = `arn:aws:iam::237343248947:role/oxy-kaana-identity-control-${tag()}`;
+  const [binding] = await getDb()
+    .insert(applicationWorkloadIdentities)
+    .values({
       applicationId: KAANA_CONTROL_APPLICATION_ID,
+      provider: 'aws-iam',
       subject,
-    });
-    identityKaanaToken = serviceToken({
-      applicationId: KAANA_CONTROL_APPLICATION_ID,
-      credentialId: workloadAttestationHandle(subject),
-      ownerAccountId: app.owner,
-      audience: KAANA_CONTROL_AUDIENCE,
-      authority: 'first_party',
       environment: 'development',
-    });
+    })
+    .returning({ id: applicationWorkloadIdentities.id });
+  await ensureWorkloadAttributionIdentity({
+    bindingId: binding.id,
+    applicationId: KAANA_CONTROL_APPLICATION_ID,
+    subject,
   });
-  function identityRequest(credential: string, extra: Record<string, unknown> = {}) {
-    return {
-      schemaVersion: 1,
-      kind: 'identity',
-      requestId: `kreq_${tag()}`,
-      audience: 'kaana.ai',
-      credential,
-      ...extra,
-    };
-  }
-  function identify(request: Record<string, unknown>, token = identityKaanaToken) {
-    return call('/internal/kaana/v1/identities', Buffer.from(JSON.stringify(request, null, 2)), {
-      authorization: `Bearer ${token}`,
-    });
-  }
+  identityKaanaToken = serviceToken({
+    applicationId: KAANA_CONTROL_APPLICATION_ID,
+    credentialId: workloadAttestationHandle(subject),
+    ownerAccountId: app.owner,
+    audience: KAANA_CONTROL_AUDIENCE,
+    authority: 'first_party',
+    environment: 'development',
+  });
+  return identityKaanaToken;
+}
+function identityRequest(credential: string, extra: Record<string, unknown> = {}) {
+  return {
+    schemaVersion: 1,
+    kind: 'identity',
+    requestId: `kreq_${tag()}`,
+    audience: 'kaana.ai',
+    credential,
+    ...extra,
+  };
+}
+async function identify(request: Record<string, unknown>, token?: string) {
+  return call('/internal/kaana/v1/identities', Buffer.from(JSON.stringify(request, null, 2)), {
+    authorization: `Bearer ${token ?? (await identityControlToken())}`,
+  });
+}
+
+describe('identity-only Kaana control operation', () => {
   async function ownCaller() {
     const applicationId = randomUUID();
     const application = await pinnedApplication(applicationId, 'Identity-only caller', []);
@@ -2456,6 +2461,156 @@ describe('the product_session lane: a person’s own session (ADR 0050)', () => 
       `oxy_session:${clientId}:${token}`;
     return { app, appId, client, person, bound, shared, presented };
   }
+
+  it('verifies session identity and public attribution without consulting economic terms', async () => {
+    const fixture = await astroStandIn({ terms: false });
+    const economics = jest
+      .spyOn(economicPolicy, 'resolveEconomicTreatment')
+      .mockImplementation(() => {
+        throw new Error('Identity verification must not consult economics');
+      });
+    for (const [credential, applicationBinding] of [
+      [fixture.bound.accessToken, 'session'],
+      [fixture.presented(fixture.client.publicKey ?? ''), 'public_client_id'],
+    ] as const) {
+      const result = await verifyProductSessionIdentity(credential);
+      expect(result).toMatchObject({
+        ok: true,
+        identity: {
+          authority: 'session',
+          lane: 'product_session',
+          applicationBinding,
+          applicationId: fixture.appId,
+          credentialId: fixture.client.id,
+          applicationOwnerAccountId: fixture.app.accountId,
+          verifiedRequester: { subjectAccountId: fixture.person, principalUserId: fixture.person },
+        },
+      });
+      if (!result.ok) throw new Error('Expected verified fixture');
+      expect(result.identity).not.toHaveProperty('ownerAccountId');
+      expect(result.identity).not.toHaveProperty('scopes');
+    }
+    expect(economics).not.toHaveBeenCalled();
+  });
+
+  it('signs session identity with a verified person and no implicit application payer', async () => {
+    const fixture = await astroStandIn({ terms: false });
+    for (const [credential, applicationBinding] of [
+      [fixture.bound.accessToken, 'session'],
+      [fixture.presented(fixture.client.publicKey ?? ''), 'public_client_id'],
+      [
+        await hostTokenFor(fixture.appId, fixture.client.publicKey ?? '', fixture.person),
+        'platform',
+      ],
+    ] as const) {
+      const request = identityRequest(credential);
+      const response = await identify(request);
+      expect(response.status).toBe(200);
+      const assertion = kaanaIdentityAssertionSchema.parse(response.body);
+      expect(assertion).toMatchObject({
+        userId: fixture.person,
+        principal: {
+          authority: 'session',
+          lane: 'product_session',
+          applicationBinding,
+          applicationOwnerAccountId: fixture.app.accountId,
+          verifiedRequester: { subjectAccountId: fixture.person, principalUserId: fixture.person },
+        },
+      });
+      expect(assertion.principal).not.toHaveProperty('ownerAccountId');
+      expect(assertion.principal).not.toHaveProperty('scopes');
+      expect(await reservationsForRequest(request.requestId)).toHaveLength(0);
+      expect(
+        await getDb()
+          .select()
+          .from(kaanaGrants)
+          .where(eq(kaanaGrants.requestId, request.requestId)),
+      ).toHaveLength(0);
+    }
+  });
+
+  it('binds session attribution to the verified subject and refuses invalid sessions without fallback', async () => {
+    const fixture = await astroStandIn({ terms: false });
+    const credential = fixture.presented(fixture.client.publicKey ?? '');
+    expect(
+      (await identify(identityRequest(credential, { onBehalfOfUserId: fixture.person }))).status,
+    ).toBe(200);
+    const mismatched = await identify(
+      identityRequest(credential, { onBehalfOfUserId: fixture.app.accountId }),
+    );
+    expect([mismatched.status, mismatched.body.code]).toEqual([400, 'invalid_request']);
+    expect((await identify(identityRequest(fixture.shared.accessToken))).status).toBe(403);
+    await getDb()
+      .update(sessions)
+      .set({ isActive: false })
+      .where(eq(sessions.sessionId, fixture.shared.sessionId));
+    const revoked = await identify(identityRequest(credential));
+    expect([revoked.status, revoked.body.code]).toEqual([401, 'authentication_failed']);
+  });
+
+  it('checks the live session row even when a stale valid session is cached', async () => {
+    const fixture = await astroStandIn({ terms: false });
+    expect(await sessionService.validateSession(fixture.bound.accessToken)).not.toBeNull();
+    await getDb()
+      .update(sessions)
+      .set({ isActive: false })
+      .where(eq(sessions.sessionId, fixture.bound.sessionId));
+    expect(await verifyProductSessionIdentity(fixture.bound.accessToken)).toMatchObject({
+      ok: false,
+      refusal: 'authentication',
+      reason: 'session_invalid',
+    });
+  });
+
+  it('refuses a token after its current subject binding changes', async () => {
+    const fixture = await astroStandIn({ terms: false });
+    const other = await makeAccount();
+    await getDb()
+      .update(sessions)
+      .set({ userId: other })
+      .where(eq(sessions.sessionId, fixture.bound.sessionId));
+    expect(await verifyProductSessionIdentity(fixture.bound.accessToken)).toMatchObject({
+      ok: false,
+      refusal: 'authentication',
+      reason: 'session_invalid',
+    });
+  });
+
+  it('keeps application-bound and shared attribution checks without economic policy', async () => {
+    const fixture = await astroStandIn({ terms: false });
+    const other = await astroStandIn({ terms: false });
+    expect(
+      await verifyProductSessionIdentity(
+        fixture.presented(other.client.publicKey ?? '', fixture.bound.accessToken),
+      ),
+    ).toMatchObject({ ok: false, reason: 'session_client_mismatch' });
+    expect(await verifyProductSessionIdentity(fixture.shared.accessToken)).toMatchObject({
+      ok: false,
+      reason: 'session_unbound',
+    });
+    await getDb()
+      .update(applicationCredentials)
+      .set({ status: 'revoked' })
+      .where(eq(applicationCredentials.id, fixture.client.id));
+    expect(
+      await verifyProductSessionIdentity(fixture.presented(fixture.client.publicKey ?? '')),
+    ).toMatchObject({ ok: false, reason: 'session_application_unavailable' });
+  });
+
+  it('records verified platform application binding without treating it as a workload', async () => {
+    const fixture = await astroStandIn({ terms: false });
+    const host = await hostTokenFor(fixture.appId, fixture.client.publicKey ?? '', fixture.person);
+    const result = await verifyProductSessionIdentity(host);
+    expect(result).toMatchObject({
+      ok: true,
+      identity: {
+        authority: 'session',
+        applicationBinding: 'platform',
+        applicationId: fixture.appId,
+        verifiedRequester: { subjectAccountId: fixture.person, principalUserId: fixture.person },
+      },
+    });
+  });
 
   async function instantLine(ownerAccountId: string) {
     return addModelLine(ownerAccountId, {

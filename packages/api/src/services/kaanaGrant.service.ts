@@ -1257,6 +1257,12 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       : {}),
   });
   switch (claim.status) {
+    case 'authority-migrating':
+      throw new GrantRefusal(
+        'service_unavailable',
+        'Inference authority is transitioning. Retry after the cutover completes.',
+        { reason: 'authority-migrating' },
+      );
     case 'claimed':
       break;
     case 'duplicate':

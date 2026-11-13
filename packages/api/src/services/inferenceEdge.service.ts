@@ -1842,6 +1842,9 @@ export async function admitRequest(context: EdgeExecutionContext): Promise<Admis
     expiresInSeconds: holdTtlSeconds,
   };
   const claim = await claimMeteredAdmission(meteredInput);
+  if (claim.status === 'authority-migrating') {
+    return refuse('service_unavailable', 'Inference authority is transitioning. Retry after the cutover completes.', { reason: 'authority-migrating' });
+  }
   if (claim.status === 'duplicate') {
     return refuse(
       'idempotency_conflict',

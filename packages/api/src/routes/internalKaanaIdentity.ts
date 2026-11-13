@@ -3,10 +3,11 @@ import express, { type Response } from 'express';
 import { publicErrorSchema } from '@kaana.ai/contracts';
 import { kaanaIdentityRequestSchema } from '@kaana.ai/contracts/internal';
 import { resolveKaanaDataPlane } from '../config/kaanaDataPlane';
-import { KAANA_PUBLIC_AUDIENCE } from '../config/serviceTokenAudiences';
 import { requireKaanaWorkload } from '../middleware/kaanaControlWorkload';
-import { authenticateInferenceBearer } from '../services/inferenceCallerIdentity.service';
-import { createKaanaIdentityAssertion } from '../services/kaanaIdentity.service';
+import {
+  authenticateKaanaIdentityCaller,
+  createKaanaIdentityAssertion,
+} from '../services/kaanaIdentity.service';
 
 export const MAX_IDENTITY_REQUEST_BYTES = 16 * 1024;
 const router = express.Router();
@@ -14,7 +15,7 @@ const router = express.Router();
 function refuse(
   res: Response,
   status: number,
-  code: 'authentication_failed' | 'invalid_request' | 'service_unavailable',
+  code: 'authentication_failed' | 'permission_denied' | 'invalid_request' | 'service_unavailable',
   requestId: string,
 ) {
   const retryable = code === 'service_unavailable';
@@ -28,7 +29,9 @@ function refuse(
         ? 'Identity verification is temporarily unavailable.'
         : code === 'authentication_failed'
           ? 'The credential is not valid for kaana.ai.'
-          : 'The identity request is invalid.',
+          : code === 'permission_denied'
+            ? 'The session does not name an available application.'
+            : 'The identity request is invalid.',
     }),
   );
 }
@@ -59,12 +62,23 @@ router.post(
         return;
       }
       requestId = parsed.data.requestId;
-      const authentication = await authenticateInferenceBearer(
-        parsed.data.credential,
-        KAANA_PUBLIC_AUDIENCE,
-      );
-      if (!authentication.ok || authentication.principal.lane === 'product_session') {
-        refuse(res, 401, 'authentication_failed', requestId);
+      const authentication = await authenticateKaanaIdentityCaller(parsed.data.credential);
+      if (!authentication.ok) {
+        const unattributable = authentication.refusal === 'unattributable';
+        refuse(
+          res,
+          unattributable ? 403 : 401,
+          unattributable ? 'permission_denied' : 'authentication_failed',
+          requestId,
+        );
+        return;
+      }
+      if (
+        authentication.principal.authority === 'session' &&
+        parsed.data.onBehalfOfUserId !== undefined &&
+        parsed.data.onBehalfOfUserId !== authentication.principal.verifiedRequester.subjectAccountId
+      ) {
+        refuse(res, 400, 'invalid_request', requestId);
         return;
       }
       const plane = resolveKaanaDataPlane();
