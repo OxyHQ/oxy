@@ -61,11 +61,11 @@ describe('normalized Inbox event outbox', () => {
     mockTransportFetch.mockResolvedValueOnce(new Response(null, { status: 202 }));
     await deliverNormalizedAppEvent(normalized);
     expect(mockCreateServiceClient).toHaveBeenCalledWith({
-      baseURL: 'https://api.alia.onl',
+      baseURL: 'https://api.gemies.ai',
       audience: 'oxy-service:6a2f851751b784a86fd0e934',
     });
     expect(mockTransportFetch).toHaveBeenCalledWith(
-      'https://api.alia.onl/webhooks/oxy',
+      'https://api.gemies.ai/webhooks/oxy',
       expect.objectContaining({
         headers: expect.objectContaining({ 'idempotency-key': normalized.eventId }),
         body: JSON.stringify(normalized),

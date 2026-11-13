@@ -24,7 +24,7 @@ try {
     'QA conversation readback',
   );
   assert.equal(session.user.id, identity.accountId);
-  linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
+  linked = oxy.createLinkedClient({ baseURL: 'https://api.gemies.ai' });
   const res = await linked.client.requestAuthenticatedResponse({
     method: 'GET',
     url: '/conversations?app=mention&limit=10',

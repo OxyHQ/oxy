@@ -9,7 +9,7 @@ The Oxy API runs on **AWS ECS Fargate** in `us-west-2`. Static frontends ship to
 | **API (production)** | ECS Fargate (us-west-2) | `api.oxy.so` | Push to `main` -> `deploy-aws.yml` |
 | **Static frontends** | Cloudflare Workers | `accounts.oxy.so`, `console.oxy.so` | Push to `main` -> `deploy-cloudflare.yml` |
 | **IdP frontend** | Cloudflare Pages | `auth.oxy.so` | Push to `main` -> `deploy-cloudflare.yml` |
-| **Other backends** | ECS Fargate (us-west-2) | `api.mention.earth`, `api.homiio.com`, `api.alia.onl`, `api.syra.oxy.so`, `api.allo.oxy.so` | Per-repo `deploy-aws.yml` |
+| **Other backends** | ECS Fargate (us-west-2) | `api.mention.earth`, `api.homiio.com`, `api.gemies.ai`, `api.syra.oxy.so`, `api.allo.oxy.so` | Per-repo `deploy-aws.yml` |
 
 ## AWS deployment (`api.oxy.so`)
 

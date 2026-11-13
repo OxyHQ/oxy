@@ -22,7 +22,7 @@ const MAX_RECORDED_ERROR_LENGTH = 500;
 export type NormalizedEventDelivery = (event: NormalizedAppEvent) => Promise<void>;
 
 function aliaApiUrl(): string {
-  return (process.env.ALIA_API_URL ?? 'https://api.alia.onl').replace(/\/$/, '');
+  return (process.env.ALIA_API_URL ?? 'https://api.gemies.ai').replace(/\/$/, '');
 }
 
 /** Shared v2 transport owns mint, recipient binding and the one safe 401 refresh. */

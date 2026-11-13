@@ -70,7 +70,7 @@ describe('isAllowedOrigin', () => {
     'https://auth.oxy.so',
     'https://api.mention.earth',
     'https://app.homiio.com',
-    'https://api.alia.onl',
+    'https://api.gemies.ai',
     'https://go.moovo.now',
     'https://hub.moovo.now',
     'https://dashboard.mercaria.co',

@@ -248,6 +248,7 @@ const OXY_API_SERVICES: Record<string, string> = {
   'website-api.oxy.so': 'website',
   'api.mention.earth': 'mention',
   'api.mercaria.co': 'mercaria',
+  // Old Alia app builds still call it; goes when api.alia.onl is retired (Gemies ADR 0034).
   'api.alia.onl': 'alia',
   'api.gemies.ai': 'gemies',
   'kaana.ai': 'kaana',
