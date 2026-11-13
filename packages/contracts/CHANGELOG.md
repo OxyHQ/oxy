@@ -1,5 +1,15 @@
 # Changelog: `@oxy.so/contracts`
 
+## 7.1.0
+
+Additive only: no export removed.
+
+### Added — the `gemies` profile colour
+
+- `USER_PROFILE_COLORS` and `USER_PROFILE_COLOR_PRESETS` gain `gemies`, the brand preset Bloom
+  19.9.0 added (handle-gated: only the `gemies` account wears it). Regenerated from Bloom 21.0.0;
+  the Oxy API admits it in `users_color_check` (migration 0259).
+
 ## 7.0.0
 
 A bot's character has no paint: its colour is its account's (2026-11-13).

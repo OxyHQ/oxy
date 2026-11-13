@@ -256,6 +256,10 @@ export const USER_PROFILE_COLORS = [
   {
     "name": "pewter-current",
     "gate": null
+  },
+  {
+    "name": "gemies",
+    "gate": "handle"
   }
 ] as const;
 
