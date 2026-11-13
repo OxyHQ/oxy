@@ -1,0 +1,21 @@
+-- oxy:deploy-phase=pre
+--
+-- The `rerank` grant operation (@kaana.ai/contracts 8.11.0: `grantOperationSchema`
+-- gains `rerank`, appended last; `POST /v1/rerank`). `kaana_grants.operation` is
+-- CHECK-constrained to the operations Oxy can sign, so the CHECK is re-created
+-- with the ninth member, exactly as 0162 created it. No usage unit is added: a
+-- rerank is held and settled in the existing `requests` and `input_tokens`.
+--
+-- PRE: the arriving image signs and records `rerank` grants; the column must
+-- accept the value before it serves. The image still serving never names it.
+-- Kaana does not emit the operation until this is deployed and verified.
+--
+-- LOCKING: the re-created CHECK is `NOT VALID`: it is strictly WIDER than the
+-- one it replaces (the operation list only gains a member), so no existing row
+-- can violate it and `kaana_grants` is not scanned under ACCESS EXCLUSIVE inside
+-- the migrator's single transaction.
+--
+-- ROLLBACK: additive. Re-creating the previous eight-member CHECK (NOT VALID)
+-- is safe only while no `rerank` row exists; revert the image first.
+ALTER TABLE "kaana_grants" DROP CONSTRAINT "kaana_grants_operation_check";--> statement-breakpoint
+ALTER TABLE "kaana_grants" ADD CONSTRAINT "kaana_grants_operation_check" CHECK ("kaana_grants"."operation" in ('responses', 'chat_completions', 'embeddings', 'audio_speech', 'audio_transcriptions', 'images_generations', 'decisions', 'realtime_session', 'rerank')) NOT VALID;
