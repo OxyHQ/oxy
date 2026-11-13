@@ -1,5 +1,19 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.26.0
+
+A bot's colour is its account's: its character needs no paint (2026-11-13).
+
+### Changed
+
+- `avatarCharacterSchema` accepts a character with a preset or a shape alone; it no longer
+  requires a `color` or `bodyColor`. A bot is painted in its account's `color` (`User.color`,
+  a Bloom preset key), which Bloom 20 draws a bot account's character in, so the colour has one
+  source and Gemies stores and sends its gemies' characters without a paint. `color` and
+  `bodyColor` are still accepted, so a writer that sends them keeps working; a renderer that
+  knows the account's colour ignores them. Their removal, with the stored paints, is a later
+  major once no writer sends them.
+
 ## 6.25.0
 
 Additive only: no export removed.
