@@ -384,6 +384,11 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     accountQueryPersistence.isReady,
     accountQueryPersistence.isReady,
   );
+  const isAccountCacheReadFailed = useSyncExternalStore(
+    accountQueryPersistence.subscribe,
+    accountQueryPersistence.isReadFailed,
+    accountQueryPersistence.isReadFailed,
+  );
 
   const storageRef = useRef<StorageInterface | null>(null);
   const [storage, setStorage] = useState<StorageInterface | null>(null);
@@ -1780,6 +1785,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       isAuthResolved: authResolved,
       isStorageReady: snapshot.storageReady,
       isAccountCacheReady,
+      isAccountCacheReadFailed,
       sessionMode: isIdentityBound ? 'identity' : 'account',
       webAuthMode,
       error,
@@ -1839,6 +1845,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       authResolved,
       snapshot.storageReady,
       isAccountCacheReady,
+      isAccountCacheReadFailed,
       isIdentityBound,
       webAuthMode,
       error,

@@ -76,6 +76,8 @@ export interface OxyContextState {
    * `RequireOxyAuth` waits on it.
    */
   isAccountCacheReady: boolean;
+  /** The current account cache could not be read and its writer is disabled. */
+  isAccountCacheReadFailed: boolean;
   /**
    * Who owns this provider's session (see `OxyProviderProps.sessionMode`).
    *

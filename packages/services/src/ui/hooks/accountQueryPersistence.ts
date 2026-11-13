@@ -206,6 +206,8 @@ export interface AccountQueryPersistence {
   detach(): void;
   /** True once the active account's cache is restored (always true signed out). */
   isReady(): boolean;
+  /** The current account's cache read failed and this instance is not writing it. */
+  isReadFailed(): boolean;
   /** Resolves once `isReady()`, or once the account it waited for is left. */
   whenReady(): Promise<void>;
   subscribe(listener: () => void): () => void;
@@ -244,6 +246,7 @@ export function createAccountQueryPersistence(
   let attached = false;
   let accountId: string | null = null;
   let restoredFor: string | null = null;
+  let readFailedFor: string | null = null;
   let generation = 0;
   let writer: ReturnType<typeof subscribeSnapshots> | null = null;
 
@@ -257,6 +260,7 @@ export function createAccountQueryPersistence(
     };
   };
   const isReady = () => accountId === null || restoredFor === accountId;
+  const isReadFailed = () => accountId !== null && readFailedFor === accountId;
 
   const dropScopedData = () => {
     queryClient.removeQueries({ predicate: ownsQuery });
@@ -274,11 +278,24 @@ export function createAccountQueryPersistence(
   const restore = () => {
     const id = accountId;
     if (!attached || id === null) return;
+    if (readFailedFor === id) {
+      restoredFor = id;
+      notify();
+      return;
+    }
     const current = generation;
     const key = storageKeyFor(id);
     enqueue(async (storage) => {
-      // An unreadable blob restores nothing; it must not leave the account unready.
-      const raw = await storage.getItem(key).catch(() => null);
+      let raw: string | null;
+      try {
+        raw = await (storage.getItemStrict ? storage.getItemStrict(key) : storage.getItem(key));
+      } catch {
+        if (current !== generation) return;
+        readFailedFor = id;
+        restoredFor = id;
+        notify();
+        return;
+      }
       // Same tick as the hydrate: a switch in between cannot be missed.
       if (current !== generation) return;
       if (
@@ -317,7 +334,7 @@ export function createAccountQueryPersistence(
       const previous = accountId;
       // Keep the leaving account's latest state, but only once its own blob was
       // restored: before that, the cache holds none of it to write.
-      if (previous !== null && restoredFor === previous) {
+      if (previous !== null && restoredFor === previous && readFailedFor !== previous) {
         const serialized = snapshot(queryClient, filters);
         const key = storageKeyFor(previous);
         enqueue((storage) => storage.setItem(key, serialized));
@@ -327,6 +344,7 @@ export function createAccountQueryPersistence(
       dropScopedData();
       accountId = next;
       restoredFor = null;
+      readFailedFor = null;
       if (next === null && previous !== null) {
         const key = storageKeyFor(previous);
         enqueue((storage) => storage.removeItem(key));
@@ -351,6 +369,7 @@ export function createAccountQueryPersistence(
     },
 
     isReady,
+    isReadFailed,
 
     whenReady() {
       const waitingFor = generation;

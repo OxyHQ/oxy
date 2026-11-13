@@ -1,5 +1,7 @@
 export interface StorageInterface {
   getItem: (key: string) => Promise<string | null>;
+  /** Optional read that rejects when storage is unavailable, rather than returning null. */
+  getItemStrict?: (key: string) => Promise<string | null>;
   setItem: (key: string, value: string) => Promise<void>;
   removeItem: (key: string) => Promise<void>;
   clear: () => Promise<void>;
@@ -43,6 +45,9 @@ const createWebStorage = (): StorageInterface => {
   }
 
   return {
+    async getItemStrict(key: string) {
+      return window.localStorage.getItem(key);
+    },
     async getItem(key: string) {
       try {
         return window.localStorage.getItem(key);
