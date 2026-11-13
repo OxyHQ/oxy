@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.19.2
+
+### Fixed
+
+- Gemies (`ai.gemies.app`, and `ai.gemies.app.dev`) is an Oxy app on Android: the shared device-session provider's caller allow-list now admits it, so it can read the device's session when signed with the ecosystem key. Commons 1.15.0 carries the same entry in its identity host.
+
 ## 14.19.1
 
 ### Fixed

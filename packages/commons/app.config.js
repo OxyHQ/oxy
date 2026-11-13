@@ -90,8 +90,9 @@ module.exports = {
     // without that choice for a person with no backup on record (a failed
     // status read is a retry, not "create"), and sends the tick as their
     // opt-in, which Oxy now requires to create a backup the account has none
-    // of (core 7.42.0).
-    version: '1.14.0',
+    // of (core 7.42.0); 1.15.0 lets Gemies (`ai.gemies.app`) call the
+    // identity host.
+    version: '1.15.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     // `oxycommons` FIRST: it is the scheme every approve / card / attest /

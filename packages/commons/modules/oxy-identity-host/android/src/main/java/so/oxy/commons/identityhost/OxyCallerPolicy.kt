@@ -29,6 +29,8 @@ internal object OxyCallerPolicy {
     "earth.mention.app.dev",
     "onl.alia.app",
     "onl.alia.app.dev",
+    "ai.gemies.app",
+    "ai.gemies.app.dev",
     "you.allo.app",
     "you.allo.app.dev",
     "com.homiio.app",
