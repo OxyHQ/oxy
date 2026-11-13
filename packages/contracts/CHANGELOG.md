@@ -1,5 +1,18 @@
 # Changelog: `@oxy.so/contracts`
 
+## 6.27.0
+
+Additive only: no export removed.
+
+### Added — `oxyAccountIdCheck` in `@oxy.so/contracts/client`
+
+- The Zod-free twin of `oxyAccountIdSchema` (1–64 characters, branded `OxyAccountId`), tied to it
+  by the parity test. A client needs an `OxyAccountId` to start a product checkout
+  (`expectedSubjectAccountId`), and the only way to get one was to parse through the root entry,
+  which linked every schema and Zod into the app: in Gemies' and Alia's web bundles that one
+  import was 984 KB (Zod 540 KB, the root's schemas 444 KB) of the JS every route loads first.
+  `parseContract(oxyAccountIdCheck, id)` gives the same result from the client entry.
+
 ## 6.26.0
 
 A bot's colour is its account's: its character needs no paint (2026-11-13).
