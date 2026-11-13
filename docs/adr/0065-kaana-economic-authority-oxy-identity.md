@@ -112,42 +112,61 @@ alone cannot provide that fence. Before enabling a population, test retries
 straddling the cutover, two concurrent instances, lost responses, expiry and
 late settlement.
 
-## Workload cutover barrier and legacy retry manifest
+## Application cutover barrier and legacy retry manifest
 
-Migration 0255 creates an empty, permanent `inference_authority_fences` table.
-It activates no population. A reviewed operator command can fence an exact
-application, owner and environment whose live credential is an authenticated
-workload binding. Public session clients and external machine keys do not
-match this population. Eligibility uses the existing live workload resolver, including its handle/binding
-link, owner status and environment checks. The attribution row's status, expiry
-and environment are historical metadata, not authority. The trigger classifies
-by the persisted workload type (the existing handle/type CHECK makes it immutable
-for the same ID), and compares the authenticated admission snapshot to the fence.
-The fence insertion and every workload insertion into
-`inference_metered_usage` share a scoped transaction advisory lock. The database
-trigger also protects rolling older API images: either an old admission commits
-before the fence and must drain, or its insert fails before a hold/provider call.
-Upgraded writers return retryable `service_unavailable` with
-`reason: authority-migrating`; they never route around the barrier. Updates that
-settle old admissions remain allowed. Fences cannot be updated or deleted.
+Migration 0255 introduced empty, permanent workload fences. Migration 0256 adds
+application/environment fences without activating any population or changing an
+existing fence. The application-wide scope matches the existing daily capacity
+counter: changing credential lane or payer must not create a second daily budget.
+A reviewed operator command verifies the current application owner and a live
+workload binding, then fences **every** admission for that application/environment.
+Other applications and environments remain independent. This does not revoke
+OAuth access or credentials; callers outside Kaana's explicit enrollment are
+refused, never silently sent back to Oxy.
+
+The database trigger protects rolling older API images. All admissions and fence
+activation share an application/environment transaction advisory lock. Migration
+0256 briefly locks metered-usage writers before replacing the old owner-specific
+lock function, draining transactions that already acquired its old key. It does
+no backfill while holding that lock. Either an old admission commits before the
+fence and must drain, or its insert fails before a hold/provider call. Upgraded
+writers return retryable `service_unavailable` with `reason: authority-migrating`.
+Existing workload-only fences keep their original meaning but cannot authorize
+a version-2 application export. Old settlements remain allowed; fences cannot
+be updated or deleted.
 
 The reviewed CLI is `packages/api/src/scripts/inference-authority-cutover.ts`.
 It requires explicit `--application`, `--owner`, `--environment` and one action:
 `--activate --confirm-application=<same ID>`, or `--export --output=<new file>`.
 There is no automatic enrollment or rollback command. Before activation, review
-the exact workload principal, both fleets' ready code, settlement drain and the
-Kaana importer. Activation is a deliberate availability boundary until verified
+all legitimate live callers, the exact enrolled workload roster, both fleets'
+ready code, settlement drain and the Kaana importer. The initial enrollment is
+the API workload only; a second live integration binding is not authority to
+infer, and historical service credentials are not automatically enrolled. Activation is a deliberate availability boundary until verified
 manifest import and native enrollment complete.
 
-Export is a read-only repeatable-read transaction and refuses any matching
+Export is a read-only repeatable-read transaction and refuses any application/environment
 `admitted` usage row, `issued` grant or `held` reservation, even past its expiry.
-It retains all historical non-refused admission keys and reservation keys.
+It retains all historical non-refused admission keys and reservation keys across
+all owners and credential types in that application/environment.
 Canonical identity is credential plus key kind and exact key; both caller-key
 and request-ID aliases are exported. Duplicate ownership conflicts or unknown
 namespaces stop export instead of silently dropping a retry binding.
 
-The version-1 manifest contains authority `oxy`, fence ID and timestamps, exact
-population, zero unresolved counts and sorted entries. `population.credentialIds`
+The version-2 manifest contains authority `oxy`, fence ID and timestamps, exact
+population (`credentialKind: application`), zero unresolved counts and sorted entries.
+It also includes `dailyUsage: {scope: application_environment, utcDay, admitted,
+maxRequestsPerUtcDay}`. `exportedAt` and `utcDay` come from the same database
+transaction clock. `admitted` uses the unchanged admission counter: all non-refused
+metered admissions created since UTC midnight, including failed, cancelled and
+realtime requests, without filtering owner, credential or relationship. The
+positive effective daily limit comes from the unique reviewed service relationship
+and its Console override; unknown or relationship-only budgets refuse export.
+The importer verifies the limit against reviewed policy, requires a current-day
+snapshot for activation, and preserves prior native consumption when importing
+or refreshing the legacy component. It never resets the day or derives it from
+idempotency keys. These fields participate in the immutable manifest hash.
+ `population.credentialIds`
 is the sorted live verified workload roster, including handles without history.
 Native policy must explicitly enroll a reviewed subset of that roster; session,
 machine and secret-backed service credentials never inherit it through an app ID.

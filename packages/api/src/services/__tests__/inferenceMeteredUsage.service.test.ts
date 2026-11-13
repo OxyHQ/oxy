@@ -8,6 +8,8 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { canonicalize } from '@oxy.so/protocol';
 import { workloadAttestationHandle } from '../workloadAttestation.service';
@@ -22,6 +24,9 @@ import {
   legacyInferenceFenceEntries,
   type InferenceAuthorityPopulation,
 } from '../inferenceAuthorityFence.service';
+import * as economicsConfig from '../../config/inferenceEconomicPolicy';
+import { applicationInferenceLimits } from '../../db/schema/applicationInferenceLimits';
+import { readMeteredCapacity } from '../inferenceCapacity.service';
 import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
@@ -836,7 +841,7 @@ describe('the cost-centre usage report', () => {
 });
 
 // Rolling-server cutover: old writers still insert directly and must obey the same barrier.
-describe('permanent workload authority cutover', () => {
+describe('permanent application authority cutover', () => {
   const originalEnvironment = process.env.OXY_CREDENTIAL_ENVIRONMENT;
   beforeAll(() => {
     process.env.OXY_CREDENTIAL_ENVIRONMENT = 'production';
@@ -873,13 +878,19 @@ describe('permanent workload authority cutover', () => {
         workloadIdentityId: binding.id,
       })
       .where(eq(applicationCredentials.id, fixture.credentialId));
+    const reviewed = economicsConfig.INTERNAL_METERED_RELATIONSHIPS[0];
+    if (!reviewed) throw new Error('Missing reviewed test source');
+    jest.replaceProperty(economicsConfig, 'INTERNAL_METERED_RELATIONSHIPS', [
+      ...economicsConfig.INTERNAL_METERED_RELATIONSHIPS,
+      { ...reviewed, consumerApplicationId: fixture.applicationId },
+    ]);
     return { ...fixture, credentialId };
   }
   const population = (f: Fixture): InferenceAuthorityPopulation => ({
     applicationId: f.applicationId,
     ownerAccountId: f.accountId,
     environment: 'production',
-    credentialKind: 'workload',
+    credentialKind: 'application',
   });
   const rawValues = (input: MeteredAdmissionInput) => ({
     requestId: input.requestId,
@@ -950,11 +961,39 @@ describe('permanent workload authority cutover', () => {
     );
     const { sha256, ...payload } = manifest;
     expect(sha256).toBe(createHash('sha256').update(canonicalize(payload)).digest('hex'));
+    // Cross-language fixture: normalize only opaque fixture IDs and clock;
+    // all manifest shape, daily accounting and alias kinds come from the real export.
+    const normalized = {
+      ...payload,
+      fenceId: '01900000-0000-7000-8000-000000000001',
+      activatedAt: '2026-11-13T00:00:00.000Z',
+      exportedAt: '2026-11-13T01:00:00.000Z',
+      population: {
+        ...payload.population,
+        applicationId: 'application-test',
+        ownerAccountId: 'owner-test',
+        credentialIds: ['workload-handle-test'],
+      },
+      dailyUsage: { ...payload.dailyUsage, utcDay: '2026-11-13' },
+      entries: payload.entries.map((entry) => ({
+        ...entry,
+        credentialId: 'workload-handle-test',
+        key: entry.keyKind === 'idempotency_key' ? 'synthetic-turn-1' : 'request-test',
+        legacyAdmissionId: 'metered:legacy-admission-test',
+        requestId: 'request-test',
+      })),
+    };
+    expect({
+      ...normalized,
+      sha256: createHash('sha256').update(canonicalize(normalized)).digest('hex'),
+    }).toEqual(
+      JSON.parse(readFileSync(join(__dirname, 'fixtures/inference-fence-v2.json'), 'utf8')),
+    );
     await expect(
       getDb().delete(inferenceAuthorityFences).where(eq(inferenceAuthorityFences.id, fence.id)),
     ).rejects.toThrow();
   });
-  it('does not fence external machine or public session credentials of the same application', async () => {
+  it('fences every credential and owner in the application/environment but no other application', async () => {
     const f = await workloadFixture();
     const other = await makeFixture();
     await getDb()
@@ -968,7 +1007,7 @@ describe('permanent workload authority cutover', () => {
           admission({ ...f, credentialId: other.credentialId }, commercial),
         )
       ).status,
-    ).toBe('claimed');
+    ).toBe('authority-migrating');
     const [session] = await getDb()
       .insert(applicationCredentials)
       .values({
@@ -985,7 +1024,7 @@ describe('permanent workload authority cutover', () => {
     expect(
       (await claimMeteredAdmission(admission({ ...f, credentialId: session.id }, commercial)))
         .status,
-    ).toBe('claimed');
+    ).toBe('authority-migrating');
     const [service] = await getDb()
       .insert(applicationCredentials)
       .values({
@@ -1003,7 +1042,7 @@ describe('permanent workload authority cutover', () => {
     expect(
       (await claimMeteredAdmission(admission({ ...f, credentialId: service.id }, commercial)))
         .status,
-    ).toBe('claimed');
+    ).toBe('authority-migrating');
     expect((await claimMeteredAdmission(admission(await makeFixture(), commercial))).status).toBe(
       'claimed',
     );
@@ -1016,6 +1055,212 @@ describe('permanent workload authority cutover', () => {
     await expect(exportInferenceAuthorityFence(population(f))).rejects.toThrow(
       'Activate and drain',
     );
+  });
+  it('exports UTC application-wide consumption, all historical aliases and the effective Console limit', async () => {
+    const f = await workloadFixture();
+    const foreign = await makeFixture();
+    await getDb()
+      .update(applicationCredentials)
+      .set({ applicationId: f.applicationId })
+      .where(eq(applicationCredentials.id, foreign.credentialId));
+    const settled = {
+      status: 'settled' as const,
+      outcome: 'completed' as const,
+      usageSource: 'provider_reported' as const,
+      settledAt: new Date(),
+    };
+    const today = sql`date_trunc('day', now() at time zone 'utc') at time zone 'utc'`;
+    const prior = sql`(date_trunc('day', now() at time zone 'utc') at time zone 'utc') - interval '1 millisecond'`;
+    const inputs = [
+      admission(f, commercial),
+      admission(f, commercial),
+      admission(f, commercial),
+      admission({ ...foreign, applicationId: f.applicationId }, commercial),
+    ];
+    await getDb()
+      .insert(inferenceMeteredUsage)
+      .values(
+        inputs.map((input, i) => ({
+          ...rawValues(input),
+          ...settled,
+          createdAt: today,
+          outcome:
+            i === 1
+              ? ('failed' as const)
+              : i === 2
+                ? ('cancelled' as const)
+                : ('completed' as const),
+          endpoint: i === 3 ? '/v1/realtime' : '/v1/responses',
+        })),
+      );
+    const yesterday = admission(f, commercial);
+    await getDb()
+      .insert(inferenceMeteredUsage)
+      .values([
+        { ...rawValues(yesterday), ...settled, createdAt: prior },
+        { ...rawValues(admission(f, commercial)), status: 'refused', createdAt: today },
+        {
+          ...rawValues(admission(f, commercial)),
+          ...settled,
+          environment: 'staging',
+          createdAt: today,
+        },
+      ]);
+    await getDb().insert(applicationInferenceLimits).values({
+      applicationId: f.applicationId,
+      maxRequestsPerUtcDay: 4,
+      updatedByAccountId: f.accountId,
+    });
+    await activateInferenceAuthorityFence(population(f));
+    const manifest = await exportInferenceAuthorityFence(population(f));
+    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.dailyUsage).toEqual({
+      scope: 'application_environment',
+      utcDay: manifest.exportedAt.slice(0, 10),
+      admitted: 4,
+      maxRequestsPerUtcDay: 4,
+    });
+    expect(manifest.dailyUsage.admitted).toBe(
+      (await readMeteredCapacity(getDb(), f.applicationId, 'production')).dailyAdmissions,
+    );
+    expect(manifest.population.credentialIds).toEqual([f.credentialId]);
+    expect(
+      manifest.entries
+        .filter((entry) => entry.keyKind === 'request_id')
+        .map((entry) => entry.key)
+        .sort(),
+    ).toEqual([...inputs.map((input) => input.requestId), yesterday.requestId].sort());
+    const { sha256, ...payload } = manifest;
+    expect(sha256).toBe(createHash('sha256').update(canonicalize(payload)).digest('hex'));
+    expect((await exportInferenceAuthorityFence(population(f))).dailyUsage).toEqual(
+      manifest.dailyUsage,
+    );
+    expect(
+      (
+        await claimMeteredAdmission(
+          admission({ ...foreign, applicationId: f.applicationId }, commercial),
+        )
+      ).status,
+    ).toBe('authority-migrating');
+    expect(
+      (await claimMeteredAdmission({ ...admission(f, commercial), environment: 'staging' })).status,
+    ).toBe('claimed');
+  });
+  it('preserves old workload-only fences without treating them as a complete application cutover', async () => {
+    const f = await workloadFixture();
+    const other = await makeFixture();
+    await getDb()
+      .update(applicationCredentials)
+      .set({ applicationId: f.applicationId })
+      .where(eq(applicationCredentials.id, other.credentialId));
+    await getDb()
+      .insert(inferenceAuthorityFences)
+      .values({ ...population(f), credentialKind: 'workload' });
+    expect((await claimMeteredAdmission(admission(f, commercial))).status).toBe(
+      'authority-migrating',
+    );
+    expect(
+      (
+        await claimMeteredAdmission(
+          admission({ ...f, credentialId: other.credentialId }, commercial),
+        )
+      ).status,
+    ).toBe('claimed');
+    await expect(exportInferenceAuthorityFence(population(f))).rejects.toThrow(
+      'Activate and drain',
+    );
+  });
+  it('refuses unknown, ambiguous and relationship-only daily policies before activating', async () => {
+    const f = await workloadFixture();
+    const configured = economicsConfig.INTERNAL_METERED_RELATIONSHIPS;
+    const relation = configured.find((item) => item.consumerApplicationId === f.applicationId);
+    if (!relation) throw new Error('Missing fixture relationship');
+    for (const replacements of [
+      [],
+      [relation, relation],
+      [{ ...relation, capacity: { ...relation.capacity, scope: 'relationship' as const } }],
+    ]) {
+      jest.replaceProperty(economicsConfig, 'INTERNAL_METERED_RELATIONSHIPS', replacements);
+      await expect(activateInferenceAuthorityFence(population(f))).rejects.toThrow(
+        'unique reviewed',
+      );
+    }
+    jest.replaceProperty(economicsConfig, 'INTERNAL_METERED_RELATIONSHIPS', configured);
+    await activateInferenceAuthorityFence(population(f));
+    expect(
+      (await exportInferenceAuthorityFence(population(f))).dailyUsage.maxRequestsPerUtcDay,
+    ).toBe(5000);
+  });
+  it('drains writers holding the old lock before the migration changes authority lock keys', async () => {
+    const f = await workloadFixture();
+    const oldMigration = readFileSync(
+      join(__dirname, '../../../drizzle/0255_inference_authority_fences.sql'),
+      'utf8',
+    );
+    const newMigration = readFileSync(
+      join(__dirname, '../../../drizzle/0256_application_inference_authority.sql'),
+      'utf8',
+    );
+    const oldFunctions = oldMigration
+      .split('--> statement-breakpoint')
+      .filter((statement) =>
+        /CREATE FUNCTION oxy_inference_(authority_lock|admission_authority)/.test(statement),
+      );
+    const transition = newMigration
+      .split('--> statement-breakpoint')
+      .filter((statement) => /LOCK TABLE|CREATE OR REPLACE FUNCTION/.test(statement));
+    expect(oldFunctions).toHaveLength(2);
+    expect(transition).toHaveLength(3);
+    for (const statement of oldFunctions)
+      await getDb().execute(
+        sql.raw(statement.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION')),
+      );
+    let release: () => void = () => undefined;
+    let announce: () => void = () => undefined;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const inserted = new Promise<void>((resolve) => {
+      announce = resolve;
+    });
+    const writer = getDb().transaction(async (tx) => {
+      await tx.insert(inferenceMeteredUsage).values(rawValues(admission(f, commercial)));
+      announce();
+      await hold;
+    });
+    await inserted;
+    const migration = getDb().transaction(async (tx) => {
+      for (const statement of transition) await tx.execute(sql.raw(statement));
+    });
+    try {
+      let waiting = false;
+      for (let attempt = 0; attempt < 200; attempt++) {
+        const rows = await getDb().execute<{ waiting: boolean }>(sql`
+          select exists(select 1 from pg_locks where relation = 'inference_metered_usage'::regclass
+            and mode = 'ShareRowExclusiveLock' and not granted
+            and database = (select oid from pg_database where datname = current_database())) as waiting`);
+        if (rows[0]?.waiting) {
+          waiting = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(waiting).toBe(true);
+    } finally {
+      release();
+      await writer;
+      await migration;
+    }
+    await activateInferenceAuthorityFence(population(f));
+    await expect(exportInferenceAuthorityFence(population(f))).rejects.toThrow('unresolved');
+    const foreign = await makeFixture();
+    expect(
+      (
+        await claimMeteredAdmission(
+          admission({ ...foreign, applicationId: f.applicationId }, commercial),
+        )
+      ).status,
+    ).toBe('authority-migrating');
   });
   it('serializes a committed old admission before activation and refuses export until it drains', async () => {
     const f = await workloadFixture();

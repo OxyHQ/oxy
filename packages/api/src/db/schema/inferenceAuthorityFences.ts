@@ -1,8 +1,8 @@
-/** Permanent admission barrier for an explicitly migrated workload population.
+/** Permanent admission barrier for an explicitly migrated application/environment population.
  * Existing settlements remain owned by Oxy. No expiry or automatic reversal.
  */
 import { sql } from 'drizzle-orm';
-import { check, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { check, pgTable, text, unique, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList } from '@oxy.so/db';
 import { applications } from './applications';
 import { users } from './users';
@@ -19,7 +19,7 @@ export const inferenceAuthorityFences = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     environment: text({ enum: INFERENCE_ENVIRONMENTS }).notNull(),
-    credentialKind: text({ enum: ['workload'] }).notNull(),
+    credentialKind: text({ enum: ['workload', 'application'] }).notNull(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -29,13 +29,16 @@ export const inferenceAuthorityFences = pgTable(
       t.environment,
       t.credentialKind,
     ),
+    uniqueIndex('inference_authority_fences_application_key')
+      .on(t.applicationId, t.environment)
+      .where(sql`${t.credentialKind} = 'application'`),
     check(
       'inference_authority_fences_environment_check',
       sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`,
     ),
     check(
       'inference_authority_fences_credential_kind_check',
-      sql`${t.credentialKind} = 'workload'`,
+      sql`${t.credentialKind} in ('workload', 'application')`,
     ),
   ],
 );

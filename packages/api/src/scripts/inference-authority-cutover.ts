@@ -44,7 +44,7 @@ async function main(): Promise<void> {
     applicationId,
     ownerAccountId,
     environment,
-    credentialKind: 'workload',
+    credentialKind: 'application',
   };
   if (args.includes('--activate') === args.includes('--export')) {
     throw new Error('Choose exactly one of --activate or --export; no implicit mutation');

@@ -151,7 +151,8 @@ describe('the id format must not decide whether a DID resolves', () => {
   });
 
   it('serves the DID document of a post-cutover account', async () => {
-    const userId = await account('nate');
+    const username = `did${randomUUID().replace(/-/g, '')}`;
+    const userId = await account(username);
     const publicKey = generateSecp256k1KeyPair().publicKey;
     await linkIdentity(userId, publicKey);
 
@@ -175,13 +176,13 @@ describe('the id format must not decide whether a DID resolves', () => {
       ],
       authentication: [`${did}#key-1`],
       assertionMethod: [`${did}#key-1`],
-      alsoKnownAs: ['acct:nate@oxy.so', 'https://oxy.so/@nate'],
+      alsoKnownAs: [`acct:${username}@oxy.so`, `https://oxy.so/@${username}`],
       service: [
         { id: `${did}#oxy-api`, type: 'OxyApiService', serviceEndpoint: 'https://api.oxy.so' },
         {
           id: `${did}#profile`,
           type: 'OxyProfileService',
-          serviceEndpoint: 'https://oxy.so/@nate',
+          serviceEndpoint: `https://oxy.so/@${username}`,
         },
       ],
     });
