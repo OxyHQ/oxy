@@ -137,6 +137,30 @@ nor a list of strings (`non-string`), a translation key the source lacks
 rendered in English) and a placeholder set that differs from the source
 (`placeholder-mismatch`).
 
+## Web export size budgets
+
+`oxy-doctor-web-budget` checks an Expo web export (`expo export --platform web`)
+against the `frontendWeb` budgets of a budgets file, the gate an app's CI runs
+after building its frontend:
+
+```bash
+bunx oxy-doctor-web-budget                      # packages/frontend/dist, performance-budgets.json
+bunx oxy-doctor-web-budget --dist=dist --budgets=budgets.json
+```
+
+Every `.js` file counts toward `maxJavaScriptGzipBytes`, on-demand chunks
+included, except Bloom's agent-avatar catalogue: its packed payloads and its
+`catalog/<kind>-<id>` wrapper modules are hundreds of chunks fetched only when
+an avatar is drawn, so they have their own line (`maxAvatarCatalogBytes`,
+`maxAvatarCatalogGzipBytes`) and the app's lines measure the code it loads.
+A catalogue chunk that `index.html` loads fails the check, as does any line the
+budgets file leaves unset. A wrapper is recognised only as a chunk holding that
+one module; bundled with anything else it stays on the app's lines.
+Gzip sizes depend on the runtime's zlib (Bun's come out ~0.7% above Node's on
+the same export), so the output names the runtime that measured; the bin runs
+under Node, as `bun run` does when Node is installed. Set a budget from a
+measurement taken the way CI runs it.
+
 ## Expo Android device-session autolinking
 
 After a complete frozen install, run the separate check against the Expo app
