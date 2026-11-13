@@ -36,12 +36,15 @@ import type { StorageInterface } from '../utils/storageHelpers';
 import {
   PERSISTED_QUERY_PREFIXES,
   SDK_MEMORY_ONLY_ROOTS,
+  evictBeyondBounds,
   hydrateSnapshot,
   keepPersistedRootsInMemory,
+  persistedBuster,
   rootOf,
   snapshot,
   subscribeSnapshots,
   type PersistFilters,
+  type PersistedRootBound,
 } from './persistedQueryCache';
 
 /**
@@ -112,6 +115,22 @@ export interface AccountQueriesConfig {
    * Defaults to false.
    */
   clearUnregisteredMutations?: boolean;
+  /**
+   * The version of the data this app persists. Restored queries are served before any refetch, so
+   * a blob is only safe to read in the shape it was written in. Without this, the cache is dropped
+   * on every new build (`getOxyBuildId`): safe, but every deploy starts every person from the
+   * network. With it, a blob survives deploys and is dropped when this string or this SDK's version
+   * changes; the app must change it whenever the shape of anything it persists changes (its own
+   * types, or a dependency's whose data it stores). It applies to both caches.
+   */
+  dataVersion?: string;
+  /**
+   * Caps on what a root writes, by root (`queryKey[0]`): its most recently updated `maxQueries`
+   * queries, each through `trim`, and `revive` to give restored data its type back (JSON keeps no
+   * `Date`). The root must also be listed in `roots`. For a root that grows with use, such as one
+   * query per conversation.
+   */
+  bounds?: Readonly<Record<string, PersistedRootBound>>;
 }
 
 /** Which queries and mutations an `AccountQueriesConfig` makes the account's. */
@@ -232,9 +251,13 @@ export function createAccountQueryPersistence(
       config.roots.filter((root) => !memoryOnly.has(root)),
     );
   }
+  const buster = persistedBuster(config?.dataVersion);
+  const bounds = new Map(Object.entries(config?.bounds ?? {}));
   const filters: PersistFilters = {
     persistsQuery,
     shouldDehydrateMutation: (mutation) => mutation.state.isPaused && persistsMutation(mutation),
+    buster,
+    bounds,
   };
   const listeners = new Set<() => void>();
 
@@ -294,6 +317,8 @@ export function createAccountQueryPersistence(
       if (current !== generation) return;
       if (
         !hydrateSnapshot(queryClient, raw, ACCOUNT_QUERY_CACHE_MAX_AGE, {
+          buster,
+          bounds,
           shouldRestoreQuery: persistsQuery,
           shouldRestoreMutation: (mutation) => persistsMutationKey(mutation.mutationKey),
         }) &&
@@ -310,6 +335,7 @@ export function createAccountQueryPersistence(
         (serialized) => {
           if (current !== generation) return;
           enqueue((target) => target.setItem(key, serialized));
+          evictBeyondBounds(queryClient, bounds);
         },
       );
       notify();

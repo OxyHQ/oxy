@@ -336,6 +336,7 @@ export { RequireOxyAuth } from './ui/components/RequireOxyAuth';
 export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './ui/components/RequireOxyAuth';
 // `OxyProvider`'s `accountQueries`: the app's per-account offline cache.
 export type { AccountQueriesConfig, AccountQueryMeta } from './ui/hooks/accountQueryPersistence';
+export type { PersistedRootBound } from './ui/hooks/persistedQueryCache';
 
 export { default as FollowButton } from './ui/components/FollowButton';
 export type {

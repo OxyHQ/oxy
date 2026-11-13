@@ -30,6 +30,7 @@ import {
   PERSISTED_QUERY_PREFIXES,
   hydrateSnapshot,
   keepPersistedRootsInMemory,
+  persistedBuster,
   subscribeSnapshots,
   type PersistFilters,
 } from './persistedQueryCache';
@@ -147,7 +148,8 @@ export interface AttachPersistenceResult {
 /**
  * Restore, then keep writing, the account-agnostic cache.
  *
- * Queries written by another build are dropped; queued mutations are kept
+ * Queries written under another buster are dropped (the build, or the app's declared
+ * `dataVersion`); queued mutations are kept
  * (`persistedQueryCache.ts`). Whatever belongs to the account (`accountQueries`,
  * or a query marked `meta: { persist: 'account' }`) is left to
  * `createAccountQueryPersistence`, even under one of the SDK's prefixes, so
@@ -171,7 +173,9 @@ export const attachQueryPersistence = (
 
   const account = accountQueryOwnership(accountQueries);
   keepPersistedRootsInMemory(queryClient, PERSISTED_QUERY_PREFIXES);
+  const buster = persistedBuster(accountQueries?.dataVersion);
   const filters: PersistFilters = {
+    buster,
     persistsQuery: (query) => isSharedQuery(query) && !account.ownsQuery(query),
     // Every other mutation, whatever its status: paused ones are exactly the
     // ones that must survive a restart to replay when online.
@@ -185,6 +189,7 @@ export const attachQueryPersistence = (
     if (stopped) return;
     if (
       !hydrateSnapshot(queryClient, raw, QUERY_CACHE_MAX_AGE, {
+        buster,
         shouldRestoreQuery: (query) => !account.ownsQuery(query),
         restoreMutations: accountQueries?.clearUnregisteredMutations !== true,
         shouldRestoreMutation: (mutation) => !account.ownsMutationKey(mutation.mutationKey),
