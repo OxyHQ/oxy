@@ -750,6 +750,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     // has until the cut-over moves it (coordinator lane, billable product).
     id: GEMIES_APPLICATION_ID,
     name: 'Gemies',
+    trustedPublishers: [otaPublisher('OxyHQ/Gemies', '1455023899')],
     description: 'Official Oxy agent platform: create your Gemies and let them work together.',
     websiteUrl: 'https://gemies.ai',
     webOrigins: ['https://gemies.ai'],

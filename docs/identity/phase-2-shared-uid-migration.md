@@ -81,7 +81,7 @@ resolves the caller with `OxyCallerPolicy` (one copy in `@oxy.so/services`
 1. The package comes from `Binder.getCallingUid()` → `getPackagesForUid`, never
    from anything the caller sends.
 2. It must be on the Oxy allow-list: Mention `earth.mention.app`, Alia
-   `onl.alia.app`, Allo `you.allo.app`, Homiio `com.homiio.app`, CrowdSource
+   `onl.alia.app`, Gemies `ai.gemies.app`, Allo `you.allo.app`, Homiio `com.homiio.app`, CrowdSource
    `so.oxy.crowdsource`, Peable `to.peable.app` / Orbit `to.peable.orbit`, Atlas
    `so.oxy.atlas`, Dropsea `so.oxy.dropsea`, GoWay `to.goway.app`, Move
    `so.oxy.move`, Willo `sh.willo.app` / Frame `sh.willo.frame`, Moovo

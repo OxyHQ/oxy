@@ -332,7 +332,7 @@
     },
     "packages/commons": {
       "name": "commons",
-      "version": "1.14.0",
+      "version": "1.15.0",
       "dependencies": {
         "@expo/vector-icons": "^15.1.1",
         "@oxy.so/app-preset": "workspace:*",
@@ -717,7 +717,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "14.19.1",
+      "version": "14.19.2",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "^4.0.0",

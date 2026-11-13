@@ -1207,6 +1207,7 @@ describe('trusted publishers (ADR 0057)', () => {
       Clarity: ['OxyHQ/Clarity#1201755585'],
       Allo: ['OxyHQ/Allo#1097863886'],
       Alia: ['OxyHQ/Alia#1134050651'],
+      Gemies: ['OxyHQ/Gemies#1455023899'],
       Syra: ['OxyHQ/Syra#1110776513'],
       Peable: ['OxyHQ/Peable#1265522443'],
       Noted: ['OxyHQ/Noted#1275785015'],
