@@ -195,12 +195,12 @@ stacks the Alia sheet above it; dismissing Alia returns to Help & Support. The h
 its Alia instance and sign-in handling (`useAuth().signIn()`), as in
 `packages/test-app-expo/components/AliaSupport.tsx`. No user profile, bearer,
 or account secrets are passed as assistant context. Apps without Alia retain
-the email support action. Services does not import `@alia.onl/sdk` into its
+the email support action. Services does not import `@gemies/sdk` into its
 root barrel or impose its native peers on consumers.
 
 Help & Support accepts `OxyProvider.documentationUrl` (default
 `https://oxy.so/developers/docs/`) and `aliaAvatar` (the host's official
-`AliaAvatar` node). For example Mention uses `/developers/docs/mention/`;
+`GemieAvatar` node). For example Mention uses `/developers/docs/mention/`;
 Alia remains an optional host integration.
 
 `OxyOne` is an in-dialog route using Bloom's neutral `SubscriptionPlans`.

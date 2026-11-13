@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
-import { AliaChatSheet, type AliaChatSheetRef } from '@alia.onl/sdk';
+import { GemieChatSheet, type GemieChatSheetRef } from '@gemies/sdk';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 export interface AliaSupportRef {
@@ -8,7 +8,7 @@ export interface AliaSupportRef {
 
 /** The app owns one embedded Alia sheet; Oxy's help entry opens this instance. */
 export const AliaSupport = forwardRef<AliaSupportRef>(function AliaSupport(_, ref) {
-  const chatRef = useRef<AliaChatSheetRef>(null);
+  const chatRef = useRef<GemieChatSheetRef>(null);
   const { canUsePrivateApi, signIn } = useAuth();
   useImperativeHandle(
     ref,
@@ -22,7 +22,7 @@ export const AliaSupport = forwardRef<AliaSupportRef>(function AliaSupport(_, re
   );
 
   return canUsePrivateApi ? (
-    <AliaChatSheet
+    <GemieChatSheet
       ref={chatRef}
       clientContext="The user opened Oxy account Help & Support. Help with Oxy account settings, profile, privacy, security, sessions, and storage. Never ask for passwords, sign-in codes, recovery phrases, or private keys."
       welcomeGreeting="How can I help?"

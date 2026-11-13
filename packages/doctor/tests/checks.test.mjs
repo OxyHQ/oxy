@@ -31,7 +31,7 @@ describe('Oxy Doctor checks', () => {
     expect(isFirstPartyPackage('@oxy.so/core')).toBe(true);
     expect(isFirstPartyPackage('@clarity.surf/sdk')).toBe(false);
     expect(isFirstPartyPackage('@clarity.surf/sdk')).toBe(false);
-    expect(isFirstPartyPackage('@alia.onl/sdk')).toBe(false);
+    expect(isFirstPartyPackage('@gemies/sdk')).toBe(false);
     expect(isFirstPartyPackage('react')).toBe(false);
   });
   test('compares stable semantic versions', () => {

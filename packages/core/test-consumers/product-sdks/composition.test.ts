@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { OxyServices } from '@oxy.so/core';
 import { OxyServer } from '@oxy.so/core/server';
-import { createAliaTransportForOxyService, ALIA_SERVICE_AUDIENCE } from '@alia.onl/server';
+import { createGemieTransportForOxyService, GEMIES_SERVICE_AUDIENCE } from '@gemies/server';
 import { clarityForOxyService, CLARITY_SERVICE_AUDIENCE } from '@clarity.surf/sdk/server';
 import { kaanaForOxyService } from '@kaana.ai/sdk/server';
 import { postOxyServiceJson } from '@oxy.so/mcp';
@@ -140,34 +140,34 @@ test('packed Core manual and workload transports share v2 refresh and external p
     oxy.dispose();
   }
 });
-test('published Alia and Clarity factories use packed shared audience/requester transport', async () => {
+test('published Gemies and Clarity factories use packed shared audience/requester transport', async () => {
   const oxy = owner();
   const before = mints.length;
-  const alia = createAliaTransportForOxyService(oxy, {
+  const gemies = createGemieTransportForOxyService(oxy, {
     baseURL,
     requester: { accountId: 'A', token: 'session-proof-A' },
   });
   const clarity = clarityForOxyService(oxy, { baseUrl: baseURL });
   try {
     await (
-      await alia.fetch('/alia', {
+      await gemies.fetch('/gemies', {
         headers: { 'x-oxy-user-id': 'wrong', 'x-oxy-requester-token': 'wrong' },
       })
     ).text();
     const sent = requests.at(-1)!;
     expect(sent.user).toBe('A');
     expect(sent.requester).toBe('session-proof-A');
-    expect(decode(sent.bearer!.slice(7)).aud).toBe(ALIA_SERVICE_AUDIENCE);
+    expect(decode(sent.bearer!.slice(7)).aud).toBe(GEMIES_SERVICE_AUDIENCE);
     await clarity.search({ query: 'synthetic' });
     expect(mints.slice(before).map((x) => x.audience)).toEqual([
-      ALIA_SERVICE_AUDIENCE,
+      GEMIES_SERVICE_AUDIENCE,
       CLARITY_SERVICE_AUDIENCE,
     ]);
-    await expect(alia.fetch(`${outsideURL}/private`)).rejects.toThrow();
-    await expect(alia.fetch('/redirect')).rejects.toThrow();
+    await expect(gemies.fetch(`${outsideURL}/private`)).rejects.toThrow();
+    await expect(gemies.fetch('/redirect')).rejects.toThrow();
     expect(outsideRequests).toBe(0);
   } finally {
-    alia.dispose();
+    gemies.dispose();
     clarity.dispose();
     oxy.dispose();
   }

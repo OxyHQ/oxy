@@ -10,7 +10,8 @@ Every Oxy product and shared package is its own repository under [github.com/Oxy
 | [Bloom](https://github.com/OxyHQ/Bloom) | The UI library every Oxy app is built with (`@oxy.so/bloom`): one component set for React Native, Expo and the web |
 | [BloomAiIcons](https://github.com/OxyHQ/BloomAiIcons) | AI model-publisher marks for Bloom (`@oxy.so/bloom-ai-icons`) |
 | [Kaana](https://github.com/OxyHQ/Kaana) | The inference data plane (Go): executes signed, already-authorized requests across upstream providers at `https://kaana.ai` |
-| [Alia](https://github.com/OxyHQ/Alia) | The assistant and agent runtime: app, VS Code extension, desktop client, CLI, HTTP API and `@alia.onl/sdk` |
+| [Gemies](https://github.com/OxyHQ/Gemies) | The agent runtime (gemies.ai): HTTP API at `api.gemies.ai`, integrations, the computer host, and the `@gemies/sdk` and `@gemies/server` packages other apps embed |
+| [Alia](https://github.com/OxyHQ/Alia) | The assistant app (Alia, the official gemie) for web, iOS and Android, built on `@gemies/sdk` |
 | [GoWay](https://github.com/OxyHQ/GoWay) | Open map and geographic platform (goway.to) and the `@goway.to/sdk` and Maps SDK other apps embed |
 | [CrowdSource](https://github.com/OxyHQ/CrowdSource) | Participatory moderation infrastructure: reports become cases, a randomly drawn jury reviews them, a versioned decision returns by webhook |
 | [examples](https://github.com/OxyHQ/examples) | Standalone Next.js, Vite and Expo reference apps for signing in with Oxy |

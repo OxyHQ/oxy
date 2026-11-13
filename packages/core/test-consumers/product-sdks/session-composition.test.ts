@@ -2,7 +2,7 @@ import { expect, vi, test } from 'vitest';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { OxyServices } from '@oxy.so/core';
-// Only renderer hooks are stubbed: the published Alia transport source and packed
+// Only renderer hooks are stubbed: the published Gemies SDK transport source and packed
 // Core HTTP/auth implementation execute unchanged against a real local server.
 vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy() {
@@ -12,10 +12,10 @@ vi.mock('@oxy.so/services/ui/client', () => ({
     throw Error('renderer hook not used');
   },
 }));
-const { createAliaApi } = await import('./node_modules/@alia.onl/sdk/src/runtime/api.ts');
+const { createGemieApi } = await import('./node_modules/@gemies/sdk/src/runtime/api.ts');
 const jwt = (userId: string, generation: number) =>
   `e30.${Buffer.from(JSON.stringify({ userId, sessionId: `session-${userId}`, exp: Math.floor(Date.now() / 1000) + 300, generation })).toString('base64url')}.sig`;
-test('published Alia session REST replays JSON once with packed Core refresh and fences account switches', async () => {
+test('published Gemies SDK session REST replays JSON once with packed Core refresh and fences account switches', async () => {
   const stale = jwt('A', 1),
     fresh = jwt('A', 2);
   const calls: Array<{ body: string; bearer?: string }> = [];
@@ -47,13 +47,13 @@ test('published Alia session REST replays JSON once with packed Core refresh and
     refreshes++;
     return fresh;
   });
-  const alia = createAliaApi(oxy, baseURL);
+  const gemies = createGemieApi(oxy, baseURL);
   try {
-    expect((await alia.post('/write', { synthetic: true })).data).toEqual({ owner: 'A' });
+    expect((await gemies.post('/write', { synthetic: true })).data).toEqual({ owner: 'A' });
     expect(refreshes).toBe(1);
     expect(calls.map((x) => x.body)).toEqual(['{"synthetic":true}', '{"synthetic":true}']);
     expect(calls.map((x) => x.bearer)).toEqual([`Bearer ${stale}`, `Bearer ${fresh}`]);
-    const pending = alia.get('/held');
+    const pending = gemies.get('/held');
     const result = pending.then(
       () => ({ ok: true }),
       (error) => ({ error }),

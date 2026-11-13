@@ -123,10 +123,12 @@ describe('the production bundle renders OxySignInRequestSurface, not undefined',
     // Bloom's `Loading`, named: `963f6e57` once swapped it for React
     // Native's `ActivityIndicator` because `@oxy.so/bloom/loading`
     // tree-shook to undefined in this bundle. It no longer does (Bloom
-    // 4.35.0), and the case above proves every element is real.
+    // 4.35.0), and the case above proves every element is real. Since Bloom
+    // 19 the spinner is the morphing shape, a filled `<path>` in an `<svg>`;
+    // React Native Web's `ActivityIndicator` draws only `<circle>`s.
     const html = probe[PROBE_CASES.preparing].html ?? '';
     expect(html).toContain('role="progressbar"');
-    expect(html).toContain('bloomSpinnerRotate');
+    expect(html).toMatch(/<svg[^>]*>\s*<path[^>]* d="M/);
   });
 
   test('the failed branch reveals the alternatives plainly', () => {

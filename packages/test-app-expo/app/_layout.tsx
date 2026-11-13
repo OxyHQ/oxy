@@ -1,6 +1,6 @@
 import '../global.css';
 import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
-import { AliaAvatar, ALIA_CHARACTER_RUNTIME_URL } from '@alia.onl/sdk';
+import { GemieAvatar } from '@gemies/sdk';
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { useRef, useCallback } from 'react';
 import { AliaSupport, type AliaSupportRef } from '../components/AliaSupport';
@@ -46,8 +46,8 @@ export default function RootLayout() {
             onAskAlia={openAlia}
             oxyOneArtwork={<OxyOneVideo />}
             aliaAvatar={
-              <AgentAvatarProvider runtimeUrl={ALIA_CHARACTER_RUNTIME_URL}>
-                <AliaAvatar size={32} portrait />
+              <AgentAvatarProvider>
+                <GemieAvatar size={32} portrait />
               </AgentAvatarProvider>
             }
             baseURL={API_URL}
