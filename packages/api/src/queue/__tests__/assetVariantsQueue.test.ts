@@ -142,6 +142,7 @@ jest.mock('../../services/variantService', () => ({
   },
 }));
 
+import { type ParsedEmfLine, useEmfWriterForTests } from '../../utils/emfPublishers';
 import { Queue, Worker } from 'bullmq';
 import { logger } from '../../utils/logger';
 import {
@@ -286,59 +287,95 @@ describe('producer/worker separation', () => {
     expect(ASSET_VARIANT_WORKER_CONCURRENCY).toBeLessThanOrEqual(2);
   });
 
-  it('publishes queue depth, the backlog and its oldest age as CloudWatch embedded metrics', async () => {
-    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
-    MockQueue.waiting = 7;
-    mockCount.mockImplementation(() => Promise.resolve(398_416));
-    // The age is the backlog's oldest REQUEST, wherever it waits.
-    mockOldest.mockImplementation(() => Promise.resolve(new Date(Date.now() - 125_000)));
-    const info = jest.spyOn(logger, 'info');
+  describe('CloudWatch embedded metrics (the shared publisher)', () => {
+    // oxy-infra's alarms and the worker's target-tracking policy read exactly
+    // these shapes: namespace `Oxy/Queues`, dimensions `{Service, QueueName}`
+    // with Service `oxy-asset-variant-worker`. Changing a line here without
+    // oxy-infra's `asset_variant_queue_series` makes them go blind.
+    let lines: ParsedEmfLine[];
 
-    await startAssetVariantWorker();
+    beforeEach(() => {
+      lines = [];
+      useEmfWriterForTests((line) => lines.push(JSON.parse(line) as ParsedEmfLine));
+    });
+    afterEach(() => useEmfWriterForTests(undefined));
 
-    expect(info).toHaveBeenCalledWith(
-      'Asset variant queue metrics',
-      expect.objectContaining({
-        QueueName: 'asset-variants',
-        QueueDepth: 7,
+    const directive = (line: ParsedEmfLine) => line._aws.CloudWatchMetrics[0];
+    const only = (line: ParsedEmfLine | undefined): ParsedEmfLine => {
+      if (!line) throw new Error('metric line missing');
+      return line;
+    };
+
+    it('publishes queue depth, the backlog and its oldest age, one metric per line', async () => {
+      process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+      MockQueue.waiting = 7;
+      mockCount.mockImplementation(() => Promise.resolve(398_416));
+      // The age is the backlog's oldest REQUEST, wherever it waits.
+      mockOldest.mockImplementation(() => Promise.resolve(new Date(Date.now() - 125_000)));
+
+      await startAssetVariantWorker();
+
+      const byName = new Map(lines.map((line) => [directive(line).Metrics[0].Name, line]));
+      expect([...byName.keys()].sort()).toEqual([
+        'OldestWaitingJobAgeSeconds',
+        'PendingRenditionRequests',
+        'QueueDepth',
+      ]);
+      for (const line of lines) {
+        expect(directive(line)).toMatchObject({
+          Namespace: 'Oxy/Queues',
+          Dimensions: [['Service'], ['Service', 'QueueName']],
+        });
+        expect(directive(line).Metrics).toHaveLength(1);
+        expect(line).toMatchObject({
+          Service: 'oxy-asset-variant-worker',
+          QueueName: 'asset-variants',
+        });
+      }
+      expect(directive(only(byName.get('QueueDepth'))).Metrics[0]).toEqual({
+        Name: 'QueueDepth',
+        Unit: 'Count',
+      });
+      expect(byName.get('QueueDepth')).toMatchObject({ QueueDepth: 7 });
+      expect(byName.get('PendingRenditionRequests')).toMatchObject({
         PendingRenditionRequests: 398_416,
-        OldestWaitingJobAgeSeconds: expect.any(Number),
-        _aws: expect.objectContaining({ CloudWatchMetrics: expect.any(Array) }),
-      }),
-    );
-    const metricContext = info.mock.calls.find(
-      ([message]) => message === 'Asset variant queue metrics',
-    )?.[1];
-    expect(metricContext?.OldestWaitingJobAgeSeconds).toBeGreaterThanOrEqual(124);
-    info.mockRestore();
-  });
+      });
+      expect(directive(only(byName.get('OldestWaitingJobAgeSeconds'))).Metrics[0]).toEqual({
+        Name: 'OldestWaitingJobAgeSeconds',
+        Unit: 'Seconds',
+      });
+      expect(
+        only(byName.get('OldestWaitingJobAgeSeconds')).OldestWaitingJobAgeSeconds,
+      ).toBeGreaterThanOrEqual(124);
+    });
 
-  it('emits one permanent-failure metric only after the final retry', async () => {
-    process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
-    const info = jest.spyOn(logger, 'info');
-    await startAssetVariantWorker();
+    it('publishes one permanent-failure datapoint, immediately, only after the final retry', async () => {
+      process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
+      await startAssetVariantWorker();
+      lines.length = 0;
 
-    MockWorker.failedHandler?.(
-      { id: 'job-1', data: { fileId: 'file-1' }, attemptsMade: 2, opts: { attempts: 3 } },
-      new Error('retryable'),
-    );
-    expect(info).not.toHaveBeenCalledWith(
-      'Asset variant permanent failure metric',
-      expect.anything(),
-    );
+      MockWorker.failedHandler?.(
+        { id: 'job-1', data: { fileId: 'file-1' }, attemptsMade: 2, opts: { attempts: 3 } },
+        new Error('retryable'),
+      );
+      expect(lines).toEqual([]);
 
-    MockWorker.failedHandler?.(
-      { id: 'job-1', data: { fileId: 'file-1' }, attemptsMade: 3, opts: { attempts: 3 } },
-      new Error('permanent'),
-    );
-    expect(info).toHaveBeenCalledWith(
-      'Asset variant permanent failure metric',
-      expect.objectContaining({
+      MockWorker.failedHandler?.(
+        { id: 'job-1', data: { fileId: 'file-1' }, attemptsMade: 3, opts: { attempts: 3 } },
+        new Error('permanent'),
+      );
+      expect(lines).toHaveLength(1);
+      expect(directive(lines[0])).toEqual({
+        Namespace: 'Oxy/Queues',
+        Dimensions: [['Service'], ['Service', 'QueueName']],
+        Metrics: [{ Name: 'PermanentJobFailures', Unit: 'Count' }],
+      });
+      expect(lines[0]).toMatchObject({
+        Service: 'oxy-asset-variant-worker',
         QueueName: 'asset-variants',
         PermanentJobFailures: 1,
-      }),
-    );
-    info.mockRestore();
+      });
+    });
   });
 
   it('refuses to run a worker without the durable queue', async () => {

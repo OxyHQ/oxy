@@ -77,6 +77,8 @@ import {
   fileLifecycleSweeps,
 } from '../db/schema/fileLifecycleSweeps';
 import { logger } from '../utils/logger';
+import { emfPublisher } from '../utils/emfPublishers';
+import type { MetricDefinition } from '@oxy.so/telemetry/metrics';
 import {
   type ApplicationStorageSummary,
   observeAndPublishApplicationStorage,
@@ -119,6 +121,26 @@ const BASE_BACKOFF_MS = 5 * 60 * 1000;
 const MAX_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const MAX_RECORDED_ERROR_LENGTH = 500;
 const METRIC_NAMESPACE = 'Oxy/FileLifecycle';
+/** The `Service` of the lifecycle series: the sweep runs only in the platform API. */
+export const FILE_LIFECYCLE_METRIC_SERVICE = 'oxy-api';
+
+/** `<step>Due`, `<step>Acted`, `<step>Failed`: one counter per step and outcome, by `Mode`. */
+const STEP_FIELDS = ['due', 'acted', 'failed'] as const;
+const stepMetrics = new Map<string, MetricDefinition>();
+function stepMetric(
+  step: FileLifecycleSweepStep,
+  field: (typeof STEP_FIELDS)[number],
+): MetricDefinition {
+  const name = stepMetricName(step, field);
+  let metric = stepMetrics.get(name);
+  if (!metric) {
+    metric = { name, unit: 'Count', kind: 'sum', dimensionSets: [['Mode']] };
+    stepMetrics.set(name, metric);
+  }
+  return metric;
+}
+const stepMetricName = (step: FileLifecycleSweepStep, field: (typeof STEP_FIELDS)[number]) =>
+  `${step}${field[0].toUpperCase()}${field.slice(1)}`;
 
 /** A step of a run: the per-file steps, and the per-application clean-up. */
 export type FileLifecycleSweepStep = 'deletedApplications' | FileLifecycleStep;
@@ -438,28 +460,20 @@ const defaultActions: FileLifecycleActions = {
   },
 };
 
-/** The run as CloudWatch metrics (embedded metric format), one line. */
+/** The run as CloudWatch metrics (the shared EMF publisher). */
 function publishMetrics(report: FileLifecycleSweepReport): void {
-  const values: Record<string, number> = {};
-  const metrics: { Name: string; Unit: 'Count' }[] = [];
+  const publisher = emfPublisher(METRIC_NAMESPACE, FILE_LIFECYCLE_METRIC_SERVICE);
+  if (!publisher) return;
   for (const step of FILE_LIFECYCLE_STEPS) {
-    for (const field of ['due', 'acted', 'failed'] as const) {
-      const name = `${step}${field[0].toUpperCase()}${field.slice(1)}`;
-      values[name] = report.counts[step][field];
-      metrics.push({ Name: name, Unit: 'Count' });
+    for (const field of STEP_FIELDS) {
+      publisher.record(stepMetric(step, field), report.counts[step][field], {
+        Mode: report.mode,
+        sweepId: report.id,
+      });
     }
   }
-  logger.info('[FileLifecycle] Sweep finished', {
-    _aws: {
-      Timestamp: report.startedAt.getTime(),
-      CloudWatchMetrics: [
-        { Namespace: METRIC_NAMESPACE, Dimensions: [['Mode']], Metrics: metrics },
-      ],
-    },
-    Mode: report.mode,
-    sweepId: report.id,
-    ...values,
-  });
+  // A run is one datapoint; do not wait for the next tick to write it.
+  publisher.flush();
 }
 
 /**
