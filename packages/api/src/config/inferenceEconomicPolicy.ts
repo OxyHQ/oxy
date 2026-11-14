@@ -57,7 +57,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-28.2';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-11-14.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -78,6 +78,13 @@ export const CLARITY_INFERENCE_CONSUMER_APPLICATION_ID = '01a0648b-8d73-70ad-8e6
  * workload-attested service token.
  */
 export const MENTION_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e916';
+
+/**
+ * Syra's application, pinned (`first_party`, not `is_internal`, read from
+ * production on 2026-11-14). Its backend writes and voices generated podcast
+ * episodes on kaana.ai/v1 (Syra `docs/podcast-generation.md`).
+ */
+export const SYRA_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e93d';
 
 /**
  * Astro's application (the browser; no backend), pinned. Its one-shot features
@@ -639,6 +646,57 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
         maxInputTokens: 32_000,
         maxOutputTokens: 8_192,
         maxPricePerRequestUsd: '0.035',
+      },
+    },
+  },
+  {
+    relationshipId: 'syra-kaana-shows',
+    consumerApplicationId: SYRA_INFERENCE_CONSUMER_APPLICATION_ID,
+    consumerProduct: 'syra',
+    providerProduct: 'kaana',
+    environments: ['production'],
+    lane: 'service_token',
+    // The owner's decision of 2026-11-14: generated podcast episodes leave
+    // Alia/Gemies for Syra, which owns podcasts. This is the same work Alia's
+    // shows did under `alia-kaana` (its script and its 2026-10-15 speech
+    // terms), moved to the product that now does it, and nothing else: one
+    // script at the `medium` level and one speech request per spoken line.
+    // Every request is attributed to the person the episode is for.
+    operations: ['responses', 'audio_speech'],
+    consumerApplicationClass: 'first_party',
+    // Syra caps a person at 3 running and 20 a UTC day; an episode is one
+    // script and about 30 lines. 5,000 a day is about 160 episodes, 16 in
+    // flight is three episodes voicing their lines at once, doubled. Each
+    // refuses with a 429 and never asks for a top-up; Console may change both.
+    capacity: {
+      maxConcurrentRequests: 16,
+      maxRequestsPerUtcDay: 5_000,
+      scope: 'relationship',
+    },
+    pilot: {
+      // The script prompt is about 1,000 tokens of rules, up to 50 one-line
+      // earlier subjects, three recaps and 8,000 characters of source notes:
+      // under 6,000 estimated tokens, so 12,000 input and the 4,096 output
+      // Syra asks for. USD 0.05 admits the medium lines at that size.
+      levelText: {
+        levels: ['medium'],
+        maxInputTokens: 12_000,
+        maxOutputTokens: 4_096,
+        maxPricePerRequestUsd: '0.05',
+      },
+      // Alia's reviewed speech terms (2026-10-15), unchanged: the one reviewed
+      // route, up to its 15,000 characters, USD 0.25 at most a request. A line
+      // is at most 80 words, so a typical request quotes well under a cent.
+      speech: {
+        maxInputCharacters: KAANA_SPEECH_MAX_INPUT_CHARACTERS,
+        maxPricePerRequestUsd: '0.25',
+        deployments: [
+          {
+            deploymentId: KAANA_SPEECH_DEPLOYMENT_ID,
+            modelReference: KAANA_SPEECH_MODEL_REFERENCE,
+            provider: KAANA_SPEECH_PROVIDER_SLUG,
+          },
+        ],
       },
     },
   },
