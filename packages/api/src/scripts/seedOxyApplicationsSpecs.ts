@@ -621,6 +621,11 @@ export const SEED_APPS: SeedAppSpec[] = [
         purpose: 'Keeps the media you post, and what you import, in your files.',
       },
       {
+        on: platformReceiver('privacy'),
+        effect: 'read',
+        purpose: 'Hides the people you blocked or restricted from what Mention shows you.',
+      },
+      {
         on: platformReceiver('safety'),
         effect: 'read',
         purpose:

@@ -1260,6 +1260,7 @@ describe('what Oxy services do for people (ADR 0066)', () => {
     ).toEqual({
       Mention: [
         'oxy:files write',
+        'oxy:privacy read',
         'oxy:safety read',
         'oxy:tools read',
         '6a2f851751b784a86fd0e958 read',
