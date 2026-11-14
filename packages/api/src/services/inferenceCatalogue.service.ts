@@ -93,15 +93,14 @@ import {
   normalizeInferenceDeploymentAvailabilityScope,
   SELECTABLE_PERMISSION_STATE,
 } from '../db/schema';
+import type { RealtimeSessionKind } from '@kaana.ai/contracts';
 import type {
   InferenceApiFormatValue,
   InferenceModalityValue,
   InferenceOutputModalityValue,
-  REALTIME_SESSION_KINDS,
   REALTIME_SESSION_TRANSPORTS,
 } from '../db/schema/inferenceModels';
 
-type RealtimeSessionKindValue = (typeof REALTIME_SESSION_KINDS)[number];
 type RealtimeSessionTransportValue = (typeof REALTIME_SESSION_TRANSPORTS)[number];
 import { classifyApplicationTier, type ApplicationClassification } from '../utils/applicationTier';
 import { resolveProviderConnectionForApplication } from './inferenceProviderConnection.service';
@@ -1984,9 +1983,13 @@ export interface EdgeModalityRequirement {
    * capability evidence" (OxyHQ/Kaana#90) — an undeclared model is refused.
    */
   readonly requiresDeclaredApiFormat?: boolean;
-  /** A realtime session: the model must declare this kind over this transport. */
+  /**
+   * A realtime session: the model must declare this kind over this transport.
+   * Kaana's kinds: the grant asks for `live` too (Kaana ADR 0012), which the old
+   * edge's tables never declare and so never admit.
+   */
   readonly realtime?: {
-    readonly kind: RealtimeSessionKindValue;
+    readonly kind: RealtimeSessionKind;
     readonly transport: RealtimeSessionTransportValue;
   };
 }

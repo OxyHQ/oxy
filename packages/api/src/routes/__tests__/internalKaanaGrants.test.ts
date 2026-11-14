@@ -1804,6 +1804,102 @@ describe('the alia-kaana relationship (service_token, internal_metered)', () => 
     );
   });
 
+  /** A realtime line as Kaana declares it, serving exactly these session kinds. */
+  async function realtimeLineOfKinds(
+    prices: Parameters<typeof realtimeLine>[0],
+    sessionKinds: NonNullable<DeclaredModel['capabilities']['realtime']>['sessionKinds'],
+  ) {
+    const line = await realtimeLine(prices);
+    const snapshot = (await kaanaStub.snapshot()) as { models: DeclaredModel[] };
+    const declared = snapshot.models.find((model) => model.modelId === line.modelLine);
+    if (declared === undefined) throw new Error('fixture line not declared');
+    kaanaStub.override(line.modelLine, {
+      ...declared,
+      capabilities: {
+        ...declared.capabilities,
+        realtime: { transports: ['websocket'], sessionKinds },
+      },
+    });
+    return line;
+  }
+
+  /** OpenAI GPT-Live as Kaana ADR 0012 §5 prices it: $0.05 a minute of session, nothing else. */
+  const GPT_LIVE_PRICES = {
+    session_milliseconds: { amount: '0.05', per: 60_000 },
+    requests: { amount: '0', per: 1 },
+  } as const;
+
+  it('grants a live session on a line billed by the session clock alone, and settles the clock (Kaana ADR 0012)', async () => {
+    const line = await realtimeLineOfKinds(GPT_LIVE_PRICES, ['live']);
+    const grant = verifiedGrant(await authorize(realtimeRequest(line.modelLine, 'live')));
+    expect(grant).toMatchObject({
+      operation: 'realtime_session',
+      economics: { treatment: 'internal_metered', relationshipId: 'alia-kaana' },
+    });
+    expect(grant.reservation).toBeUndefined();
+    expect(grant.steps[0].limits.maxPricePerRequest).toEqual({ amount: '0.25', currency: 'USD' });
+
+    // GPT-Live reports the seconds it billed, and nothing else.
+    const settled = await settle(
+      settlementOf({
+        grant,
+        units: { session_milliseconds: 90_000 },
+        modelReference: `${line.modelLine}@${AUDIO_REVISION}`,
+        provider: line.provider,
+        deploymentId: line.deploymentId,
+      }),
+    );
+    expect(settled.body).toMatchObject({ status: 'settled' });
+    expect(await meteredRow(grant.requestId)).toMatchObject({
+      status: 'settled',
+      tariffStatus: 'quoted',
+      tariffAmount: '0.075000000000',
+    });
+  });
+
+  it('quotes a clock-only line that prices no request at all, and refuses one dearer than the minute ceiling', async () => {
+    const unrequested = await realtimeLineOfKinds(
+      { session_milliseconds: { amount: '0.05', per: 60_000 } },
+      ['live'],
+    );
+    verifiedGrant(await authorize(realtimeRequest(unrequested.modelLine, 'live')));
+
+    const dear = await realtimeLineOfKinds(
+      { session_milliseconds: { amount: '0.30', per: 60_000 }, requests: { amount: '0', per: 1 } },
+      ['live'],
+    );
+    const refused = await authorize(realtimeRequest(dear.modelLine, 'live'));
+    expect(refused.status).toBe(403);
+    expect(refused.body.code).toBe('policy_violation');
+  });
+
+  it('never quotes a token-priced line on its zero-priced session clock', async () => {
+    // An OpenAI Realtime line: tokens, with the session clock priced at zero.
+    // The clock alone would quote it at nothing a minute.
+    const tokens = await realtimeLineOfKinds(
+      {
+        input_tokens: '4',
+        audio_input_tokens: '32',
+        output_tokens: '16',
+        audio_output_tokens: '64',
+        session_milliseconds: { amount: '0', per: 60_000 },
+        requests: { amount: '0', per: 1 },
+      },
+      ['conversation', 'live'],
+    );
+    for (const kind of ['conversation', 'live']) {
+      const refused = await authorize(realtimeRequest(tokens.modelLine, kind));
+      expect(refused.body.code).toBe('no_route_available');
+    }
+  });
+
+  it('refuses a live session on a line that does not serve the kind', async () => {
+    const line = await realtimeLine();
+    const refused = await authorize(realtimeRequest(line.modelLine, 'live'));
+    expect(refused.status).toBe(400);
+    expect(refused.body.code).toBe('unsupported_modality');
+  });
+
   it('grants a transcription under the dictation terms: duration-bounded, no hold, no priced transcript', async () => {
     const free = await addModelLine(alia.accountId, {
       prices: { requests: '0', audio_input_milliseconds: { amount: '0.006', per: 60_000 } },

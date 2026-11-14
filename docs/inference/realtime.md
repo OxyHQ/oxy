@@ -99,6 +99,16 @@ since Kaana ADR 0006: xAI's streaming speech-to-text, duration-priced
 (`session_milliseconds`), for `alia-kaana` under its realtime terms
 ([kaana-grants.md](kaana-grants.md)). This edge's own lane still refuses them.
 
+**Live sessions** (`kind: "live"`, Kaana ADR 0012, `@kaana.ai/contracts` 8.16.0)
+are voice mode: a spoken conversation whose every turn the caller's own backend
+answers by delegation (`delegation.requested` → `delegation.reply`). They are
+served only on Kaana's grant API, for `alia-kaana` under its realtime terms, on
+OpenAI GPT-Live (`openai/gpt-live-1`, billed by the session clock alone) and on
+xAI's Voice Agent as the fallback ([kaana-grants.md](kaana-grants.md)). This
+edge refuses them like every kind but `conversation`. The line a client opens is
+the one Kaana's catalogue names in `capabilities.realtime.defaultKinds`; Oxy
+reads that member with the declared catalogue and decides nothing from it.
+
 **What is not served yet**, and why: `translation` sessions, and transcription
 sessions on this edge, consume audio outside responses, where no signed
 limit bounds the tokens — so no hold could be sound. They need a declared audio
@@ -155,9 +165,27 @@ for duration units.
 **Which ceiling a route gets.** Per route, the first plan whose every scenario
 quotes: tokens **and** duration (a route pricing both is held for both, because
 Oxy does not know which the data plane will report), then tokens alone (OpenAI
-Realtime — held exactly as before, with no text-item cap), then duration alone.
-A route that prices neither completely is refused `no_route_available`
-(`routing_evidence:missing-price`) before any hold or upstream connection.
+Realtime — held exactly as before, with no text-item cap), then duration alone,
+then the session clock alone (below). A route that prices none of them
+completely is refused `no_route_available` (`routing_evidence:missing-price`)
+before any hold or upstream connection.
+
+## Session-clock routes (OpenAI GPT-Live)
+
+A route whose price version charges for the session's wall clock and nothing
+else (`session_milliseconds`, with `requests` priced, at zero if free) is held
+at `realtimeSessionClockCeiling`: `session_milliseconds` at `maxDurationMs +
+60 000` and `requests` at `maxTextItems`, whose cap the edge enforces as for a
+duration-priced route. Kaana ADR 0012 §5 prices GPT-Live this way, $0.05 a
+minute billed per second.
+
+The plan bounds no audio and no token, so it is **exhaustive**
+(`RouteCeilingPlan.exhaustive`): `quoteRouteCeiling` takes it only on a price
+version that prices no other unit above zero. A token-priced route, whose
+session clock is priced at zero, is never held at nothing a minute, and a route
+that charges for audio it leaves unpriced in the other direction is refused
+rather than held on its clock. The plan comes last, so a route any earlier plan
+quotes keeps exactly the ceiling it had.
 
 ## Settlement
 
@@ -166,7 +194,8 @@ A session is one request: one hold, one receipt.
 - **Hold:** per authorized route, `maxResponses × context window` at the dearest
   of the four input token units and `maxResponses × route output cap` at the
   dearest of the three output units, plus `requests` — or, for a
-  duration-priced route, the duration ceiling above — plus
+  duration-priced route, the duration ceiling above; for a session-clock route,
+  `requests` at `maxTextItems` and nothing else — plus
   `session_milliseconds` at `maxDurationMs + 60 000` (contract set 3.3.0; the
   allowance covers Kaana's bounded open, 20 s per stage, since Kaana measures
   from the accepted upstream handshake) on every plan. The route cap, rather
