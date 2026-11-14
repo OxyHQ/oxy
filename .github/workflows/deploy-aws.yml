@@ -21,6 +21,7 @@ on:
       # exercise the change.
       - ".github/scripts/deploy-ecs-image.sh"
       - ".github/scripts/deploy-asset-variant-worker.sh"
+      - ".github/scripts/deploy-inbosh-api.sh"
       - ".github/scripts/smoke-inbox-mcp.sh"
       - ".github/scripts/smoke-oxy-api.sh"
       - ".github/scripts/smoke-service-token-jwks.sh"
@@ -437,3 +438,15 @@ jobs:
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.image.outputs.digest }}
         run: bash .github/scripts/deploy-asset-variant-worker.sh wait
+
+      # inbosh-api is the same image started with OXY_API_ROLE=inbosh (the email
+      # backend of inbo.sh). It rolls after oxy-api so it can never hold that
+      # rollout back, and while oxy-infra keeps it at 0 tasks this only registers
+      # a revision. Not part of a maintenance (quiesced) or issuer-only deploy.
+      - name: Roll the Inbosh API service
+        if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.issuer_image_only || inputs.quiesced_deploy_plan != '')) }}
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.image.outputs.digest }}
+        run: |
+          bash .github/scripts/deploy-inbosh-api.sh start
+          bash .github/scripts/deploy-inbosh-api.sh wait
