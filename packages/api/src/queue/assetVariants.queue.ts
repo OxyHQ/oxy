@@ -68,6 +68,8 @@ import { observeAssetJob } from '../services/workerActivity.service';
 import { ErrorCode, Queue, Worker, type Job, type JobsOptions } from 'bullmq';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { logger } from '../utils/logger';
+import { emfPublisher } from '../utils/emfPublishers';
+import type { MetricDefinition } from '@oxy.so/telemetry/metrics';
 import { getAssetVariantQueueConnectionOptions, getAssetVariantQueueUrl } from './connection';
 import { VariantService } from '../services/variantService';
 import { s3Service } from '../services/s3ServiceSingleton';
@@ -115,6 +117,38 @@ const ASSET_VARIANTS_QUEUE = 'asset-variants';
 const ASSET_VARIANTS_JOB = 'generate';
 const ASSET_VARIANT_METRIC_INTERVAL_MS = 60_000;
 const ASSET_VARIANT_METRIC_NAMESPACE = 'Oxy/Queues';
+/**
+ * The `Service` value of the queue's series. oxy-infra's alarms and the worker's
+ * target-tracking policy read `{Service, QueueName}` under exactly this value,
+ * and only the worker process publishes them (the API only produces).
+ */
+export const ASSET_VARIANT_METRIC_SERVICE = 'oxy-asset-variant-worker';
+
+const QUEUE_DIMENSIONS = [['QueueName']] as const;
+const QUEUE_DEPTH: MetricDefinition = {
+  name: 'QueueDepth',
+  unit: 'Count',
+  kind: 'gauge',
+  dimensionSets: QUEUE_DIMENSIONS,
+};
+const PENDING_RENDITION_REQUESTS: MetricDefinition = {
+  name: 'PendingRenditionRequests',
+  unit: 'Count',
+  kind: 'gauge',
+  dimensionSets: QUEUE_DIMENSIONS,
+};
+const OLDEST_WAITING_JOB_AGE: MetricDefinition = {
+  name: 'OldestWaitingJobAgeSeconds',
+  unit: 'Seconds',
+  kind: 'gauge',
+  dimensionSets: QUEUE_DIMENSIONS,
+};
+const PERMANENT_JOB_FAILURES: MetricDefinition = {
+  name: 'PermanentJobFailures',
+  unit: 'Count',
+  kind: 'sum',
+  dimensionSets: QUEUE_DIMENSIONS,
+};
 
 /**
  * Jobs processed at once by ONE worker.
@@ -279,26 +313,15 @@ async function publishAssetVariantQueueMetrics(): Promise<void> {
       ? Math.max(0, Math.floor((Date.now() - oldest.getTime()) / 1000))
       : 0;
 
-    logger.info('Asset variant queue metrics', {
-      _aws: {
-        Timestamp: Date.now(),
-        CloudWatchMetrics: [
-          {
-            Namespace: ASSET_VARIANT_METRIC_NAMESPACE,
-            Dimensions: [['QueueName']],
-            Metrics: [
-              { Name: 'QueueDepth', Unit: 'Count' },
-              { Name: 'PendingRenditionRequests', Unit: 'Count' },
-              { Name: 'OldestWaitingJobAgeSeconds', Unit: 'Seconds' },
-            ],
-          },
-        ],
-      },
-      QueueName: ASSET_VARIANTS_QUEUE,
-      QueueDepth: depth,
-      PendingRenditionRequests: pending,
-      OldestWaitingJobAgeSeconds: oldestWaitingJobAgeSeconds,
-    });
+    const publisher = emfPublisher(ASSET_VARIANT_METRIC_NAMESPACE, ASSET_VARIANT_METRIC_SERVICE);
+    const labels = { QueueName: ASSET_VARIANTS_QUEUE };
+    publisher?.record(QUEUE_DEPTH, depth, labels);
+    publisher?.record(PENDING_RENDITION_REQUESTS, pending, labels);
+    publisher?.record(OLDEST_WAITING_JOB_AGE, oldestWaitingJobAgeSeconds, labels);
+    // Written now, not at the publisher's next tick: the alarms count one
+    // datapoint a minute, and a tick drifting against this interval would
+    // leave some minutes with none (and `QueueDepth` treats missing as breaching).
+    publisher?.flush();
   } catch (err) {
     logger.error(
       'Failed to publish asset variant queue metrics',
@@ -308,20 +331,10 @@ async function publishAssetVariantQueueMetrics(): Promise<void> {
 }
 
 function publishAssetVariantPermanentFailure(): void {
-  logger.info('Asset variant permanent failure metric', {
-    _aws: {
-      Timestamp: Date.now(),
-      CloudWatchMetrics: [
-        {
-          Namespace: ASSET_VARIANT_METRIC_NAMESPACE,
-          Dimensions: [['QueueName']],
-          Metrics: [{ Name: 'PermanentJobFailures', Unit: 'Count' }],
-        },
-      ],
-    },
-    QueueName: ASSET_VARIANTS_QUEUE,
-    PermanentJobFailures: 1,
-  });
+  const publisher = emfPublisher(ASSET_VARIANT_METRIC_NAMESPACE, ASSET_VARIANT_METRIC_SERVICE);
+  publisher?.record(PERMANENT_JOB_FAILURES, 1, { QueueName: ASSET_VARIANTS_QUEUE });
+  // Immediately: the alarm pages on a single datapoint.
+  publisher?.flush();
 }
 
 /** Settle a job's request, never failing the job over it: an unsettled request is built again. */
