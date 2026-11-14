@@ -33,6 +33,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { type ParsedEmfLine, useEmfWriterForTests } from '../../utils/emfPublishers';
 import { applications, fileLifecycleSweeps, fileVariants, files, users } from '../../db/schema';
 import {
   type ApplicationStorageObservation,
@@ -129,14 +130,22 @@ function find(observations: ApplicationStorageObservation[], applicationId: stri
   return found;
 }
 
-/** The EMF documents logged at info level whose namespace is ours. */
+let emf: ParsedEmfLine[] = [];
+
+/** The EMF documents the shared publisher wrote for our namespace. */
 function emfLines() {
-  return mockInfo.mock.calls
-    .map(([, fields]) => fields as Record<string, unknown> & { _aws?: Record<string, unknown> })
-    .filter((fields) => {
-      const metrics = fields?._aws?.CloudWatchMetrics as Array<{ Namespace: string }> | undefined;
-      return metrics?.[0]?.Namespace === STORAGE_METRIC_NAMESPACE;
-    });
+  return emf.filter(
+    (line) => line._aws.CloudWatchMetrics[0].Namespace === STORAGE_METRIC_NAMESPACE,
+  );
+}
+
+/** The line carrying `metric`, for `applicationId` (or the platform's, when undefined). */
+function lineOf(metric: string, applicationId?: string) {
+  return emfLines().find(
+    (line) =>
+      line._aws.CloudWatchMetrics[0].Metrics[0].Name === metric &&
+      line.ApplicationId === applicationId,
+  );
 }
 
 beforeAll(async () => {
@@ -150,7 +159,11 @@ afterAll(async () => {
 beforeEach(() => {
   mockInfo.mockClear();
   mockError.mockClear();
+  emf = [];
+  useEmfWriterForTests((line) => emf.push(JSON.parse(line) as ParsedEmfLine));
 });
+
+afterEach(() => useEmfWriterForTests(undefined));
 
 describe('what an application stores and added', () => {
   it('stores live rows and renditions — what applicationStoredBytes says — and adds by window', async () => {
@@ -315,7 +328,7 @@ describe('what is published', () => {
     await fileOf(steady.id, { size: 1_000, createdAt: new Date(now.getTime() - HOUR) });
 
     const observations = await observeApplicationStorage(now);
-    const summary = publishApplicationStorageMetrics(observations, SMALL, now);
+    const summary = publishApplicationStorageMetrics(observations, SMALL);
 
     expect(summary.anomalies).toContainEqual({
       applicationId: loop.id,
@@ -323,64 +336,59 @@ describe('what is published', () => {
     });
     expect(summary.anomalies.some((a) => a.applicationId === steady.id)).toBe(false);
 
-    const lines = emfLines();
-    const perApp = lines.filter((line) => line.ApplicationId === loop.id);
-    expect(perApp).toHaveLength(1);
-    expect(perApp[0]).toMatchObject({
-      _aws: {
-        Timestamp: now.getTime(),
-        CloudWatchMetrics: [
-          {
-            Namespace: 'Oxy/FileStorage',
-            Dimensions: [['ApplicationId']],
-            Metrics: expect.arrayContaining([
-              { Name: 'StoredBytes', Unit: 'Bytes' },
-              { Name: 'BytesAdded24h', Unit: 'Bytes' },
-              { Name: 'GrowthAnomaly', Unit: 'Count' },
-            ]),
-          },
-        ],
-      },
-      applicationType: 'third_party',
-      StoredBytes: 5_000,
-      StoredFiles: 1,
-      BytesAdded24h: 5_000,
-      FilesAdded24h: 1,
-      TrailingDailyBytes: 0,
-      GrowthAnomaly: 1,
-    });
-    // Every metric named in the directive has a numeric value on the line.
-    const declared = perApp[0]._aws?.CloudWatchMetrics as
-      | Array<{ Metrics: Array<{ Name: string }> }>
-      | undefined;
-    const metricNames = declared?.[0]?.Metrics.map((metric) => metric.Name) ?? [];
-    expect(metricNames).toHaveLength(6);
-    for (const name of metricNames) expect(typeof perApp[0][name]).toBe('number');
+    // Each metric is its own line, in the shape oxy-infra's alarm reads: the shared
+    // publisher's `[Service]` and `[Service, ApplicationId]` dimension sets.
+    const expectedMetrics = {
+      StoredBytes: 'Bytes',
+      StoredFiles: 'Count',
+      BytesAdded24h: 'Bytes',
+      FilesAdded24h: 'Count',
+      TrailingDailyBytes: 'Bytes',
+      GrowthAnomaly: 'Count',
+    } as const;
+    for (const [name, unit] of Object.entries(expectedMetrics)) {
+      const line = lineOf(name, loop.id);
+      expect(line?._aws.CloudWatchMetrics).toEqual([
+        {
+          Namespace: 'Oxy/FileStorage',
+          Dimensions: [['Service'], ['Service', 'ApplicationId']],
+          Metrics: [{ Name: name, Unit: unit }],
+        },
+      ]);
+      expect(line).toMatchObject({
+        Service: 'oxy-api',
+        ApplicationId: loop.id,
+        applicationType: 'third_party',
+      });
+      expect(typeof line?.[name]).toBe('number');
+    }
+    expect(lineOf('StoredBytes', loop.id)).toMatchObject({ StoredBytes: 5_000 });
+    expect(lineOf('BytesAdded24h', loop.id)).toMatchObject({ BytesAdded24h: 5_000 });
+    expect(lineOf('FilesAdded24h', loop.id)).toMatchObject({ FilesAdded24h: 1 });
+    expect(lineOf('TrailingDailyBytes', loop.id)).toMatchObject({ TrailingDailyBytes: 0 });
+    expect(lineOf('GrowthAnomaly', loop.id)).toMatchObject({ GrowthAnomaly: 1 });
 
-    expect(lines.find((line) => line.ApplicationId === steady.id)).toMatchObject({
-      GrowthAnomaly: 0,
-      TrailingDailyBytes: 1_000,
-      BytesAdded24h: 1_000,
-    });
+    expect(lineOf('GrowthAnomaly', steady.id)).toMatchObject({ GrowthAnomaly: 0 });
+    expect(lineOf('TrailingDailyBytes', steady.id)).toMatchObject({ TrailingDailyBytes: 1_000 });
+    expect(lineOf('BytesAdded24h', steady.id)).toMatchObject({ BytesAdded24h: 1_000 });
 
-    const platform = lines.filter((line) => line.ApplicationId === undefined);
-    expect(platform).toHaveLength(1);
-    expect(platform[0]).toMatchObject({
-      _aws: {
-        CloudWatchMetrics: [
-          {
-            Namespace: 'Oxy/FileStorage',
-            Dimensions: [[]],
-            Metrics: expect.arrayContaining([
-              { Name: 'ApplicationGrowthAnomalies', Unit: 'Count' },
-            ]),
-          },
-        ],
+    // The platform totals carry `Service` alone: the one series the alarm watches.
+    const platform = lineOf('ApplicationGrowthAnomalies');
+    expect(platform?._aws.CloudWatchMetrics).toEqual([
+      {
+        Namespace: 'Oxy/FileStorage',
+        Dimensions: [['Service']],
+        Metrics: [{ Name: 'ApplicationGrowthAnomalies', Unit: 'Count' }],
       },
+    ]);
+    expect(platform).toMatchObject({
+      Service: 'oxy-api',
       ApplicationGrowthAnomalies: summary.anomalies.length,
+    });
+    expect(lineOf('ApplicationsWithFiles')).toMatchObject({
       ApplicationsWithFiles: summary.applicationsWithFiles,
     });
-    expect(platform[0].ApplicationGrowthAnomalies).toBeGreaterThanOrEqual(1);
+    expect(platform?.ApplicationGrowthAnomalies).toBeGreaterThanOrEqual(1);
 
     expect(mockError).toHaveBeenCalledWith(
       '[FileStorage] Application storage growth anomaly',
@@ -416,16 +424,17 @@ describe('what is published', () => {
     const summary = publishApplicationStorageMetrics(
       [o('big-steady', 900_000, 900_000), o('anomalous', 2_000, 0), o('small', 10, 10)],
       { ...SMALL, maxApplications: 2 },
-      now,
     );
     expect(summary.published).toEqual(['anomalous', 'big-steady']);
-    expect(emfLines().filter((line) => line.ApplicationId !== undefined)).toHaveLength(2);
-    // The platform line still counts everything observed.
-    expect(emfLines().find((line) => line.ApplicationId === undefined)).toMatchObject({
-      ApplicationsWithFiles: 3,
-      ApplicationGrowthAnomalies: 1,
-      observedApplications: 3,
-    });
+    // Six metrics for each of the two published applications, none for the third.
+    const perApp = emfLines().filter((line) => line.ApplicationId !== undefined);
+    expect(perApp).toHaveLength(12);
+    expect(new Set(perApp.map((line) => line.ApplicationId))).toEqual(
+      new Set(['anomalous', 'big-steady']),
+    );
+    // The platform totals still count everything observed.
+    expect(lineOf('ApplicationsWithFiles')).toMatchObject({ ApplicationsWithFiles: 3 });
+    expect(lineOf('ApplicationGrowthAnomalies')).toMatchObject({ ApplicationGrowthAnomalies: 1 });
   });
 });
 

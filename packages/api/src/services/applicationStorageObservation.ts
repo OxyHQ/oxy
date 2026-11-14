@@ -46,16 +46,18 @@
  *
  * ## What is published
  *
- * As CloudWatch metrics in the embedded metric format (namespace
- * {@link STORAGE_METRIC_NAMESPACE}), like the sweep's own `Oxy/FileLifecycle`:
+ * As CloudWatch metrics in the embedded metric format through the shared
+ * publisher (`@oxy.so/telemetry/metrics`; namespace
+ * {@link STORAGE_METRIC_NAMESPACE}, `Service` {@link STORAGE_METRIC_SERVICE}), like
+ * the sweep's own `Oxy/FileLifecycle`. Each metric is its own line:
  *
- *  - one line per application, dimension `ApplicationId`: `StoredBytes`,
+ *  - per application, dimensions `{Service, ApplicationId}`: `StoredBytes`,
  *    `StoredFiles`, `BytesAdded24h`, `FilesAdded24h`, `TrailingDailyBytes`,
  *    `GrowthAnomaly` (0 or 1). Cardinality is bounded: only applications that
  *    own files, at most `FILE_STORAGE_METRICS_MAX_APPLICATIONS` (default 100)
  *    of them — every anomalous one first, then the fastest-growing, then the
  *    largest;
- *  - one platform line, no dimension: `ApplicationsWithFiles`,
+ *  - platform totals, dimension `{Service}` only: `ApplicationsWithFiles`,
  *    `TotalStoredBytes`, `TotalBytesAdded24h` and `ApplicationGrowthAnomalies`
  *    — the one metric the alarm watches (oxy-infra; the spec is in ADR 0043,
  *    stage 4b), so no alarm has to be created per application.
@@ -69,8 +71,35 @@ import { getEnvVar } from '../config/env';
 import { type DatabaseOrTransaction, getDb } from '../config/postgres';
 import { FILE_LIVE_STATUS_SQL_LIST } from '../db/schema/files';
 import { logger } from '../utils/logger';
+import { emfPublisher } from '../utils/emfPublishers';
+import type { MetricDefinition } from '@oxy.so/telemetry/metrics';
 
 export const STORAGE_METRIC_NAMESPACE = 'Oxy/FileStorage';
+/**
+ * The `Service` of the storage series: the lifecycle sweep that publishes them runs
+ * only in the platform API, and oxy-infra's growth alarm reads `{Service}` under it.
+ */
+export const STORAGE_METRIC_SERVICE = 'oxy-api';
+
+const gauge = (
+  name: string,
+  unit: 'Bytes' | 'Count',
+  dimensionSets?: readonly (readonly string[])[],
+): MetricDefinition => ({ name, unit, kind: 'gauge', dimensionSets });
+
+/** Per application: `ApplicationId` is the only dimension (bounded by `maxApplications`). */
+const BY_APPLICATION = [['ApplicationId']] as const;
+const STORED_BYTES = gauge('StoredBytes', 'Bytes', BY_APPLICATION);
+const STORED_FILES = gauge('StoredFiles', 'Count', BY_APPLICATION);
+const BYTES_ADDED_24H = gauge('BytesAdded24h', 'Bytes', BY_APPLICATION);
+const FILES_ADDED_24H = gauge('FilesAdded24h', 'Count', BY_APPLICATION);
+const TRAILING_DAILY_BYTES = gauge('TrailingDailyBytes', 'Bytes', BY_APPLICATION);
+const GROWTH_ANOMALY = gauge('GrowthAnomaly', 'Count', BY_APPLICATION);
+/** Platform totals: `Service` alone, so ONE alarm covers every application. */
+const APPLICATIONS_WITH_FILES = gauge('ApplicationsWithFiles', 'Count');
+const TOTAL_STORED_BYTES = gauge('TotalStoredBytes', 'Bytes');
+const TOTAL_BYTES_ADDED_24H = gauge('TotalBytesAdded24h', 'Bytes');
+const APPLICATION_GROWTH_ANOMALIES = gauge('ApplicationGrowthAnomalies', 'Count');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const GIB = 1024 * 1024 * 1024;
@@ -327,7 +356,6 @@ export interface ApplicationStorageSummary {
 export function publishApplicationStorageMetrics(
   observations: readonly ApplicationStorageObservation[],
   thresholds: GrowthThresholds,
-  now: Date,
 ): ApplicationStorageSummary {
   const judged = observations.map((observation) => ({
     observation,
@@ -341,36 +369,16 @@ export function publishApplicationStorageMetrics(
       a.observation.applicationId.localeCompare(b.observation.applicationId),
   );
   const published = ranked.slice(0, Math.max(thresholds.maxApplications, 0));
-  const timestamp = now.getTime();
 
+  const publisher = emfPublisher(STORAGE_METRIC_NAMESPACE, STORAGE_METRIC_SERVICE);
   for (const { observation: o, verdict } of published) {
-    logger.info('[FileStorage] Application storage', {
-      _aws: {
-        Timestamp: timestamp,
-        CloudWatchMetrics: [
-          {
-            Namespace: STORAGE_METRIC_NAMESPACE,
-            Dimensions: [['ApplicationId']],
-            Metrics: [
-              { Name: 'StoredBytes', Unit: 'Bytes' },
-              { Name: 'StoredFiles', Unit: 'Count' },
-              { Name: 'BytesAdded24h', Unit: 'Bytes' },
-              { Name: 'FilesAdded24h', Unit: 'Count' },
-              { Name: 'TrailingDailyBytes', Unit: 'Bytes' },
-              { Name: 'GrowthAnomaly', Unit: 'Count' },
-            ],
-          },
-        ],
-      },
-      ApplicationId: o.applicationId,
-      applicationType: o.applicationType,
-      StoredBytes: o.storedBytes,
-      StoredFiles: o.storedFiles,
-      BytesAdded24h: o.bytesAdded24h,
-      FilesAdded24h: o.filesAdded24h,
-      TrailingDailyBytes: Math.round(o.trailingDailyBytes),
-      GrowthAnomaly: verdict.anomalous ? 1 : 0,
-    });
+    const labels = { ApplicationId: o.applicationId, applicationType: o.applicationType };
+    publisher?.record(STORED_BYTES, o.storedBytes, labels);
+    publisher?.record(STORED_FILES, o.storedFiles, labels);
+    publisher?.record(BYTES_ADDED_24H, o.bytesAdded24h, labels);
+    publisher?.record(FILES_ADDED_24H, o.filesAdded24h, labels);
+    publisher?.record(TRAILING_DAILY_BYTES, Math.round(o.trailingDailyBytes), labels);
+    publisher?.record(GROWTH_ANOMALY, verdict.anomalous ? 1 : 0, labels);
   }
 
   const anomalies = judged.filter(({ verdict }) => verdict.anomalous);
@@ -401,22 +409,14 @@ export function publishApplicationStorageMetrics(
     published: published.map(({ observation }) => observation.applicationId),
   };
 
+  publisher?.record(APPLICATIONS_WITH_FILES, summary.applicationsWithFiles);
+  publisher?.record(TOTAL_STORED_BYTES, summary.totalStoredBytes);
+  publisher?.record(TOTAL_BYTES_ADDED_24H, summary.totalBytesAdded24h);
+  publisher?.record(APPLICATION_GROWTH_ANOMALIES, summary.anomalies.length);
+  // One datapoint per run, written now: the alarm counts hourly periods.
+  publisher?.flush();
+
   logger.info('[FileStorage] Applications storage observed', {
-    _aws: {
-      Timestamp: timestamp,
-      CloudWatchMetrics: [
-        {
-          Namespace: STORAGE_METRIC_NAMESPACE,
-          Dimensions: [[]],
-          Metrics: [
-            { Name: 'ApplicationsWithFiles', Unit: 'Count' },
-            { Name: 'TotalStoredBytes', Unit: 'Bytes' },
-            { Name: 'TotalBytesAdded24h', Unit: 'Bytes' },
-            { Name: 'ApplicationGrowthAnomalies', Unit: 'Count' },
-          ],
-        },
-      ],
-    },
     ApplicationsWithFiles: summary.applicationsWithFiles,
     TotalStoredBytes: summary.totalStoredBytes,
     TotalBytesAdded24h: summary.totalBytesAdded24h,
@@ -432,5 +432,5 @@ export async function observeAndPublishApplicationStorage(
   now: Date,
   thresholds: GrowthThresholds = growthThresholdsFromEnv(),
 ): Promise<ApplicationStorageSummary> {
-  return publishApplicationStorageMetrics(await observeApplicationStorage(now), thresholds, now);
+  return publishApplicationStorageMetrics(await observeApplicationStorage(now), thresholds);
 }

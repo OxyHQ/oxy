@@ -57,6 +57,7 @@ jest.mock('../cdnInvalidation', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { type ParsedEmfLine, useEmfWriterForTests } from '../../utils/emfPublishers';
 import {
   applications,
   fileLifecycleSweeps,
@@ -74,6 +75,7 @@ import {
 } from '../fileRepository';
 import {
   claimFileLifecycleSweep,
+  FILE_LIFECYCLE_STEPS,
   type FileLifecycleActions,
   runFileLifecycleSweep,
 } from '../fileLifecycle.worker';
@@ -578,5 +580,33 @@ describe('one sweeper at a time, on a schedule', () => {
         intervalMs: HOUR,
       }),
     ).not.toBeNull();
+  });
+});
+
+describe('the sweep publishes its run as CloudWatch metrics', () => {
+  afterEach(() => useEmfWriterForTests(undefined));
+
+  it('writes one line per step counter through the shared publisher, by Mode', async () => {
+    const lines: ParsedEmfLine[] = [];
+    useEmfWriterForTests((line) => lines.push(JSON.parse(line) as ParsedEmfLine));
+    const { actions } = harness();
+
+    const report = await sweep('report', new Date(Date.now() + 400 * DAY), actions);
+
+    const lifecycle = lines.filter(
+      (line) => line._aws.CloudWatchMetrics[0].Namespace === 'Oxy/FileLifecycle',
+    );
+    expect(lifecycle).toHaveLength(FILE_LIFECYCLE_STEPS.length * 3);
+    for (const line of lifecycle) {
+      const [directive] = line._aws.CloudWatchMetrics;
+      expect(directive.Dimensions).toEqual([['Service'], ['Service', 'Mode']]);
+      expect(directive.Metrics).toHaveLength(1);
+      expect(directive.Metrics[0].Unit).toBe('Count');
+      expect(line).toMatchObject({ Service: 'oxy-api', Mode: 'report', sweepId: report.id });
+      expect(typeof line[directive.Metrics[0].Name]).toBe('number');
+    }
+    const names = lifecycle.map((line) => line._aws.CloudWatchMetrics[0].Metrics[0].Name);
+    expect(names).toContain('deletedApplicationsDue');
+    expect(names).toContain('deletedApplicationsFailed');
   });
 });
