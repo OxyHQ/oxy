@@ -12,6 +12,7 @@ import {
   lockfileVersions,
   nativePlatforms,
   rangeIncludesVersion,
+  webInstallFinding,
 } from '../src/checks.mjs';
 
 async function repoWith(dependencies) {
@@ -450,6 +451,51 @@ describe('Oxy Doctor checks', () => {
       }
     });
   });
+  describe('installable web exports', () => {
+    const app = (scripts, extra = {}) => ({ name: 'frontend', scripts, ...extra });
+    test('an Expo web export without oxy-web-pwa is a warning', () => {
+      for (const build of [
+        'expo export --platform web',
+        'bun x expo export --platform web --output-dir dist && bun run check:web-bundle',
+        'expo export -p web',
+        'EXPO_UNSTABLE_TREE_SHAKING=1 expo export --platform=web --output-dir dist',
+      ]) {
+        expect(webInstallFinding('packages/frontend/package.json', app({ build }))).toMatchObject({
+          severity: 'warning',
+          code: 'web-not-installable',
+          manifest: 'packages/frontend/package.json',
+        });
+      }
+    });
+    test('an export followed by oxy-web-pwa, or in another script, reports nothing', () => {
+      expect(
+        webInstallFinding(
+          'p',
+          app({ build: 'expo export --platform web --output-dir dist && oxy-web-pwa dist' }),
+        ),
+      ).toBeNull();
+      expect(
+        webInstallFinding(
+          'p',
+          app({
+            'export:web': 'expo export --platform web',
+            build: 'bun run export:web && oxy-web-pwa dist',
+          }),
+        ),
+      ).toBeNull();
+    });
+    test('a native-only export, no export at all, or an explicit opt-out reports nothing', () => {
+      expect(webInstallFinding('p', app({ build: 'expo export --platform android' }))).toBeNull();
+      expect(webInstallFinding('p', app({ build: 'tsc -b' }))).toBeNull();
+      expect(
+        webInstallFinding(
+          'p',
+          app({ build: 'expo export --platform web' }, { oxy: { webInstallable: false } }),
+        ),
+      ).toBeNull();
+    });
+  });
+
   test('the default grace window is fourteen days', () => {
     expect(DEFAULT_GRACE_DAYS).toBe(14);
   });

@@ -235,9 +235,10 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "6.6.0",
+      "version": "6.7.0",
       "bin": {
         "oxy-check-keychain-entitlements": "./bin/oxy-check-keychain-entitlements.js",
+        "oxy-web-pwa": "./bin/oxy-web-pwa.js",
       },
       "dependencies": {
         "parse5": "catalog:",
@@ -587,7 +588,7 @@
     },
     "packages/doctor": {
       "name": "@oxy.so/doctor",
-      "version": "1.9.0",
+      "version": "1.10.0",
       "bin": {
         "oxy-doctor": "./src/cli.mjs",
         "oxy-doctor-expo-android": "./src/expo-android.mjs",

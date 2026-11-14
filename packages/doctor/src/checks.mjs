@@ -361,6 +361,31 @@ export async function nativePeerCheck(root, manifestPath, manifest) {
  * @param {(name: string) => Promise<{ version: string, publishedAt: string }>} fetchLatest
  * @param {{ graceDays?: number, now?: Date }} [options]
  */
+const WEB_EXPORT = /\bexpo\s+export\b[^&|;]*(?:--platform[ =]web\b|-p\s+web\b)/;
+
+/**
+ * A manifest that exports an Expo web build but never runs `oxy-web-pwa` on it
+ * ships a site browsers will not install: with `web.output: 'single'` Expo
+ * ignores `app/+html.tsx`, so a manifest link written there never reaches the
+ * page (@oxy.so/app-preset README, "Installable web apps"). A surface that must
+ * not be installable (a sign-in popup, an operator console) opts out with
+ * `"oxy": { "webInstallable": false }` in its package.json.
+ */
+export function webInstallFinding(manifestName, manifest) {
+  if (manifest?.oxy?.webInstallable === false) return null;
+  const scripts = Object.values(manifest?.scripts ?? {}).filter(
+    (value) => typeof value === 'string',
+  );
+  if (!scripts.some((script) => WEB_EXPORT.test(script))) return null;
+  if (scripts.some((script) => /\boxy-web-pwa\b/.test(script))) return null;
+  return {
+    severity: 'warning',
+    code: 'web-not-installable',
+    manifest: manifestName,
+    message: `${manifestName} exports an Expo web build without oxy-web-pwa, so the site cannot be installed: add \`&& oxy-web-pwa <dist>\` after \`expo export\` (@oxy.so/app-preset 6.7.0+), or set "oxy": { "webInstallable": false } if it must not be`,
+  };
+}
+
 export async function inspectRepository(
   root,
   fetchLatest,
@@ -403,6 +428,8 @@ export async function inspectRepository(
     const manifest = JSON.parse(await readFile(path, 'utf8'));
     const result = await nativePeerCheck(root, path, manifest);
     if (result.finding) findings.push(result.finding);
+    const webInstall = webInstallFinding(path.slice(root.length + 1), manifest);
+    if (webInstall) findings.push(webInstall);
     if (result.unverified) unverified.push(result.unverified);
     if (result.notRequired) notRequired.push(result.notRequired);
   }

@@ -22,6 +22,7 @@ and JSON.
 | ESLint | `@oxy.so/app-preset/eslint` | `eslint-config-expo/flat` + `dist/*` ignore |
 | CSS base | `@oxy.so/app-preset/base.css` | Tailwind v4 + NativeWind + Bloom design-token imports + SDK `@source` globs |
 | tsconfig | `@oxy.so/app-preset/tsconfig/{base,frontend,backend}.json` | the shared strict/composite TypeScript bases |
+| Installable web | `oxy-web-pwa dist` (bin) | a hand-written manifest link per app (lost under `output: 'single'`), its install checks and a copied service worker |
 
 ## Static web hydration on Expo 58
 
@@ -68,6 +69,50 @@ Verify production exports, not just Metro development: JavaScript-disabled
 screenshots must show real chrome, and hydration must retain the same workspace
 DOM node without recoverable React errors. The package tests exercise real
 `prerender` and `hydrateRoot`; publication runs those gates too.
+
+## Installable web apps
+
+With `web.output: 'single'` Expo exports its default SPA page and **ignores
+`app/+html.tsx`**, so a `<link rel="manifest">` written there never reaches the
+browser and the site cannot be installed: alia.onl served a valid manifest and
+worker that no page linked. Run `oxy-web-pwa` on the export instead; it works
+on the exported HTML, so `single` and `static` output are the same:
+
+```json
+"build": "expo export --platform web --output-dir dist && oxy-web-pwa dist"
+```
+
+The app keeps its own `public/manifest.json` and icons. The step:
+
+- **fails the build** (exit 1) when the exported manifest is missing or a
+  browser would refuse it: no `name`/`short_name`, no `start_url`, a `display`
+  other than `standalone`/`fullscreen`/`minimal-ui`, no 192x192 or 512x512
+  icon, an icon the export does not contain, or `prefer_related_applications`.
+  A missing `maskable` icon, `theme_color` or `background_color` is a warning;
+- adds to every exported page (`_expo/` and `assets/` excepted) whichever of
+  these it lacks, never touching one that is there: the manifest link,
+  `apple-touch-icon` (when `public/apple-touch-icon.png` exists), `theme-color`
+  (from the manifest), `mobile-web-app-capable`, `apple-mobile-web-app-capable`,
+  `apple-mobile-web-app-title`, and `<script src="/oxy-sw-register.js" defer>`
+  (a file, not inline, so no CSP needs an exception). Running it twice changes
+  nothing;
+- ships the Oxy base service worker as `/oxy-sw-base.js`, and `/sw.js` when the
+  app has no `public/sw.js`. An app with its own worker (web push) keeps it and
+  opts in with `importScripts('/oxy-sw-base.js');` as its first line; until it
+  does, the step warns. A worker that already answers `fetch` (Inbosh, Nilo)
+  must not import it. `--no-sw` ships no worker.
+
+The base worker (`web/oxy-sw-base.js`, from Inbosh's) answers navigations
+network-first with the one `/index.html` shell as the offline fallback, and
+same-origin static files (`/_expo/`, `/assets/`, images, fonts, JS, CSS)
+stale-while-revalidate. It never stores or serves anything else: cross-origin
+requests (every Oxy API), non-GET, `/api/`, requests carrying `Authorization`,
+`credentials: 'include'` or `Range`, and `private`/`no-store` responses. Its
+cache name is a hash of the export, so each deploy installs a new worker and
+drops the old cache; the cache holds at most 150 entries.
+
+Serve `/sw.js` with `Cache-Control: no-cache` (`public/_headers`). `@oxy.so/doctor`
+1.10.0+ warns (`web-not-installable`) about a web export without this step.
 
 ## Usage
 
@@ -514,6 +559,6 @@ the web host; native scroll remains owned by the native Screen/ScrollView.
 
 Configure this in the stylesheet, not only in a custom `+html.tsx`: Expo's
 `web.output="single"` export uses its default HTML and does not render that custom
-document. Static output must keep its script/style `headNodes` and `bodyNodes`.
+document (the same trap that left apps uninstallable; see "Installable web apps"). Static output must keep its script/style `headNodes` and `bodyNodes`.
 The generated scaffold defaults to a bounded host. Changing the host permission
 is separate from choosing the scroll owner for each route.
