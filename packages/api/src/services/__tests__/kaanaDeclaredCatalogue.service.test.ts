@@ -103,6 +103,38 @@ describe('the declared catalogue cache', () => {
     expect(await cache.current()).toEqual({ status: 'unavailable' });
   });
 
+  it('reads a live line and the default kind it names (Kaana ADR 0012), and refuses two defaults of a kind', async () => {
+    const live = (modelId: string) =>
+      declaredModel({
+        modelId,
+        inputModalities: ['audio'],
+        outputModalities: ['audio'],
+        realtime: { transports: ['websocket'], sessionKinds: ['live'], defaultKinds: ['live'] },
+      });
+    const fallback = declaredModel({
+      modelId: 'acme/voice-fallback',
+      inputModalities: ['audio'],
+      outputModalities: ['audio'],
+      realtime: { transports: ['websocket'], sessionKinds: ['conversation', 'live'] },
+    });
+    const observed = await createDeclaredCatalogueCache({
+      readDeclaredCatalogue: async () => catalogue(live('acme/voice'), fallback),
+    }).current();
+    expect(observed.status).toBe('observed');
+    if (observed.status !== 'observed') return;
+    expect(observed.models.get('acme/voice')?.capabilities.realtime).toEqual({
+      transports: ['websocket'],
+      sessionKinds: ['live'],
+      defaultKinds: ['live'],
+    });
+
+    // One active default per kind, or Kaana declared a choice it did not make.
+    const twoDefaults = createDeclaredCatalogueCache({
+      readDeclaredCatalogue: async () => catalogue(live('acme/voice'), live('acme/other-voice')),
+    });
+    expect(await twoDefaults.current()).toEqual({ status: 'unavailable' });
+  });
+
   it('refuses a catalogue that declares one model twice', async () => {
     const model = declaredModel({ modelId: 'acme/one', pricing: prices('v1') });
     const cache = createDeclaredCatalogueCache({

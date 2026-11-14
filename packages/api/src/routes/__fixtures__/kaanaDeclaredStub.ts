@@ -42,7 +42,12 @@ export interface DeclaredModelInput {
   readonly inputModalities?: readonly string[];
   readonly outputModalities?: readonly string[];
   readonly apiFormats?: readonly string[];
-  readonly realtime?: { readonly transports: readonly string[]; readonly sessionKinds: readonly string[] };
+  readonly realtime?: {
+    readonly transports: readonly string[];
+    readonly sessionKinds: readonly string[];
+    /** The kinds this line is Kaana's default for (`@kaana.ai/contracts` 8.16.0). */
+    readonly defaultKinds?: readonly string[];
+  };
   readonly maxContextTokens?: number;
   readonly maxOutputTokens?: number;
   readonly powerClass?: 'instant' | 'medium' | 'high' | 'pro' | 'ultra';
@@ -87,6 +92,9 @@ export function declaredModel(input: DeclaredModelInput): DeclaredModel {
             realtime: {
               transports: [...input.realtime.transports],
               sessionKinds: [...input.realtime.sessionKinds],
+              ...(input.realtime.defaultKinds === undefined
+                ? {}
+                : { defaultKinds: [...input.realtime.defaultKinds] }),
             },
           }),
     },

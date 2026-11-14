@@ -249,6 +249,20 @@ const REALTIME_TRANSCRIBED_MINUTE_UNITS: Partial<Record<UsageUnit, number>> = {
   input_transcription_milliseconds: 60_000,
 };
 
+/**
+ * One minute of a line billed by the session clock alone (Kaana ADR 0012 §5:
+ * OpenAI GPT-Live, `session_milliseconds` per second), with the one request a
+ * session is attributed as; and the same minute for a line that prices no
+ * request, which an unpriced `requests` would otherwise fail closed.
+ */
+const REALTIME_CLOCK_MINUTE: Partial<Record<UsageUnit, number>> = {
+  session_milliseconds: 60_000,
+};
+const REALTIME_CLOCK_MINUTE_REQUEST: Partial<Record<UsageUnit, number>> = {
+  requests: 1,
+  ...REALTIME_CLOCK_MINUTE,
+};
+
 /** Per-message framing tokens, as the edge counts them (`MESSAGE_TOKEN_OVERHEAD`). */
 const SPEECH_FRAMING_TOKENS = 8;
 
@@ -554,9 +568,16 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         // is refused before this is read). A line that prices input
         // transcription apart is quoted WITH it (Alia's calls transcribe their
         // input); one whose session price includes it (xAI) is quoted without.
+        // A line that charges for the session clock and nothing else (GPT-Live,
+        // Kaana ADR 0012 §5) prices no audio unit, so neither quotes: it is
+        // quoted on the clock alone, with its request where it prices one, and
+        // only when no other unit is priced above zero (`exhaustive`) — a
+        // token-priced line, whose session clock is priced at zero, is not.
         plans: () => [
           { metering: 'duration', scenarios: [REALTIME_TRANSCRIBED_MINUTE_UNITS] },
           { metering: 'duration', scenarios: [REALTIME_MINUTE_UNITS] },
+          { metering: 'session', scenarios: [REALTIME_CLOCK_MINUTE_REQUEST], exhaustive: true },
+          { metering: 'session', scenarios: [REALTIME_CLOCK_MINUTE], exhaustive: true },
         ],
       };
     }

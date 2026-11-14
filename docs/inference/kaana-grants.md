@@ -301,7 +301,8 @@ carry its hold, so a shadow-metering deployment answers 503 instead.
 
 Terms in `config/inferenceEconomicPolicy.ts` (policy version
 `oxy-inference-economics/2026-10-15.2`, unchanged in `.3`; `transcription`
-sessions added in `2026-10-28.2`), read only by the grant API:
+sessions added in `2026-10-28.2`, `live` sessions in `2026-11-14.2`), read only
+by the grant API:
 
 - **`realtime_session`** (`conversation` and, since `2026-10-28.2`,
   `transcription`: Alia's word-by-word dictation, Kaana ADR 0006 and Alia ADR
@@ -316,6 +317,21 @@ sessions added in `2026-10-28.2`), read only by the grant API:
   `session_milliseconds` ($0.20/h) and `audio_output_milliseconds` at zero: a
   minute quotes $0.005 and the stream settles its wall clock. One dictation is
   one grant (and one capacity request) instead of one per phrase.
+- **`live` sessions** (since `2026-11-14.2`, Kaana ADR 0012, approved by the
+  owner on 2026-11-14, `@kaana.ai/contracts` 8.16.0): voice mode, a spoken
+  conversation whose turns the caller's backend answers; those turns are
+  ordinary grants of their own, never folded into the session. Same ceiling,
+  same slot, no hold. The first line is OpenAI GPT-Live (`openai/gpt-live-1`),
+  priced in `session_milliseconds` alone at $0.05 a minute: it prices no audio
+  unit, so the two minutes above do not quote, and it is quoted on the clock
+  alone (`session_milliseconds: 60 000`, plus `requests: 1` where the line prices
+  requests). That plan is **exhaustive**: it is taken only on a price version
+  that prices no other unit above zero, so a token-priced line, whose clock is
+  priced at zero, is never admitted at nothing a minute (`exclusions`
+  `unquoted:<reason>`). xAI's Voice Agent, the fallback, is quoted as before.
+  The declared catalogue may name the default line of a kind
+  (`capabilities.realtime.defaultKinds`); a grant never reads it, the caller
+  names the exact line.
 - **Text completions** on a line whose price version prices
   `cache_write_input_tokens` (`@kaana.ai/contracts` 8.4.0) are held with a third
   prompt vertex for it; a line that does not price it is held as before.
@@ -342,7 +358,12 @@ sessions added in `2026-10-28.2`), read only by the grant API:
   `priced-transcript`, `priced-rerank-output`, `over-price`, `unquoted:<reason>`).
 
 A commercial realtime session is refused: the facts carry no session duration,
-so no hold sized from them would be a bound.
+so no hold sized from them would be a bound. A `live` line billed by the clock
+alone would be held at exactly `session_milliseconds` = the session's maximum
+duration plus the bounded open, and `requests: 1` (Kaana ADR 0012 §5), the
+plan the old edge already holds (`realtimeSessionClockCeiling`,
+[realtime.md](realtime.md#session-clock-routes-openai-gpt-live)), once the
+authorization carries that maximum.
 
 ## Embeddings for `clarity-kaana` (Clarity search)
 

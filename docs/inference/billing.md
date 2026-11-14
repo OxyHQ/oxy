@@ -172,10 +172,14 @@ route leaves any of them unpriced — see [realtime.md](./realtime.md).
 **`session_milliseconds` is a realtime session's wall clock** (contract set
 3.3.0): the milliseconds the session was open with the upstream provider,
 reported only by a provider that bills session time (xAI's Voice Agent API under
-`server_vad`, $0.08/min) and never beside a per-audio reading of the same span.
+`server_vad`, $0.08/min; OpenAI GPT-Live, $0.05/min per second, Kaana ADR 0012)
+and never beside a per-audio reading of the same span.
 It is not an audio unit and belongs to no token partition: it is charged beside
 them. Every realtime route prices it — at zero where the provider bills no
-session time — because every session's hold includes it.
+session time — because every session's hold includes it. A route that charges
+for the clock and nothing else (GPT-Live) is held on the clock alone, and only
+while no other unit it prices is above zero —
+[realtime.md](./realtime.md#session-clock-routes-openai-gpt-live).
 
 **`input_transcription_milliseconds` is a second model's reading** (contract
 set 3.9.0, `@kaana.ai/contracts` 4.1.0, migration 0159): the milliseconds of a

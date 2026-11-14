@@ -9,11 +9,15 @@
  * Kaana meters (`internal/provider/openairealtime/meter.go`).
  */
 
-import type { RealtimeClientCommand } from '@oxy.so/contracts';
+import type { RealtimeClientCommand, UsageUnit } from '@oxy.so/contracts';
+import { closePostgres, connectPostgres } from '../../config/postgres';
 import type { NormalizedEdgeRequest } from '../../schemas/inferenceEdge.schemas';
+import type { PriceSnapshotInput } from '../inferenceLedger.service';
 import {
+  quoteRouteCeiling,
   REALTIME_AUDIO_BYTES_PER_MS,
   realtimeDurationCeiling,
+  realtimeSessionClockCeiling,
   routeCeilingPlans,
 } from '../inferenceEdge.service';
 import { realtimeTextItemBilled } from '../inferenceRealtime.service';
@@ -114,14 +118,18 @@ describe('realtimeDurationCeiling', () => {
 describe('routeCeilingPlans', () => {
   const route = { maxContextTokens: 32_000, maxOutputTokens: 4_096 };
 
-  it('tries tokens-and-duration, then tokens, then duration, for a realtime session', () => {
+  it('tries tokens-and-duration, then tokens, then duration, then the session clock alone, for a realtime session', () => {
     const plans = routeCeilingPlans(request(operation()), route, 10, 0);
     expect(plans.map((plan) => plan.metering)).toEqual([
       'tokens_and_duration',
       'tokens',
       'duration',
+      'session',
     ]);
-    const [both, tokens, duration] = plans;
+    const [both, tokens, duration, session] = plans;
+    // Only the clock-only plan leaves units out, so only it is exhaustive.
+    expect(plans.map((plan) => plan.exhaustive === true)).toEqual([false, false, false, true]);
+    expect(session.scenarios).toEqual([{ requests: 20, session_milliseconds: 660_000 }]);
     expect(duration.scenarios).toEqual([
       {
         audio_input_milliseconds: 600_000,
@@ -155,6 +163,113 @@ describe('routeCeilingPlans', () => {
     expect(routeCeilingPlans(completion, route, 10, 100).map((plan) => plan.metering)).toEqual([
       'tokens',
     ]);
+  });
+});
+
+describe('realtimeSessionClockCeiling', () => {
+  it('is the session clock at the signed duration plus the open, and the edge-enforced text items', () => {
+    expect(realtimeSessionClockCeiling(operation())).toEqual({
+      requests: 20,
+      session_milliseconds: 660_000,
+    });
+    expect(
+      realtimeSessionClockCeiling(
+        operation({ maxSessionMilliseconds: 1_860_000, maxTextItems: 1 }),
+      ),
+    ).toEqual({ requests: 1, session_milliseconds: 1_860_000 });
+  });
+});
+
+describe('quoteRouteCeiling over a realtime session’s plans (Kaana ADR 0012 §5)', () => {
+  // The quote is the ledger's own SQL arithmetic, over a list handed by value.
+  beforeAll(connectPostgres);
+  afterAll(closePostgres);
+  const route = { maxContextTokens: 32_000, maxOutputTokens: 4_096 };
+  const plans = routeCeilingPlans(request(operation()), route, 10, 0);
+  const list = (
+    prices: Readonly<Partial<Record<UsageUnit, { amount: string; per: number }>>>,
+  ): PriceSnapshotInput => ({
+    priceVersionId: 'pv-test',
+    currency: 'USD',
+    unitPrices: Object.entries(prices).map(([unit, price]) => ({
+      unit: unit as UsageUnit,
+      amount: price?.amount ?? '0',
+      per: price?.per ?? 1,
+    })),
+  });
+  const minute = (amount: string) => ({ amount, per: 60_000 });
+  const free = { amount: '0', per: 1 };
+
+  it('holds a line billed by the session clock alone (GPT-Live, $0.05 a minute) on that clock', async () => {
+    const quote = await quoteRouteCeiling(
+      list({ session_milliseconds: minute('0.05'), requests: free }),
+      plans,
+    );
+    // 660 000 ms (ten minutes plus the bounded open) at $0.05 a minute.
+    expect(quote).toEqual({
+      status: 'quoted',
+      amount: '0.550000000000',
+      currency: 'USD',
+      metering: 'session',
+    });
+  });
+
+  it('holds xAI’s Voice Agent exactly as before: audio both ways, the clock and its text items', async () => {
+    const quote = await quoteRouteCeiling(
+      list({
+        audio_input_milliseconds: minute('0.08'),
+        audio_output_milliseconds: minute('0.08'),
+        session_milliseconds: minute('0.08'),
+        requests: { amount: '0.004', per: 1 },
+      }),
+      plans,
+    );
+    expect(quote).toEqual({
+      status: 'quoted',
+      amount: '2.560000000000',
+      currency: 'USD',
+      metering: 'duration',
+    });
+  });
+
+  it('holds a token-priced line on its tokens, never on its zero-priced clock', async () => {
+    const perMillion = (amount: string) => ({ amount, per: 1_000_000 });
+    const quote = await quoteRouteCeiling(
+      list({
+        input_tokens: perMillion('4'),
+        cached_input_tokens: perMillion('0.4'),
+        audio_input_tokens: perMillion('32'),
+        cached_audio_input_tokens: perMillion('0.4'),
+        output_tokens: perMillion('16'),
+        reasoning_tokens: perMillion('16'),
+        audio_output_tokens: perMillion('64'),
+        session_milliseconds: minute('0'),
+        requests: free,
+      }),
+      plans,
+    );
+    expect(quote).toMatchObject({ status: 'quoted', metering: 'tokens' });
+  });
+
+  it('refuses the clock alone on a line that also charges for a unit it does not bound', async () => {
+    // Audio in is priced, audio out is not: the duration plan cannot quote, and
+    // holding the clock alone would leave the priced input audio unheld.
+    const quote = await quoteRouteCeiling(
+      list({
+        audio_input_milliseconds: minute('0.06'),
+        session_milliseconds: minute('0.05'),
+        requests: free,
+      }),
+      plans,
+    );
+    expect(quote).toEqual({ status: 'unquoted', reason: 'unpriced-units' });
+  });
+
+  it('still needs the request priced, at zero if free, as every realtime route on this edge', async () => {
+    expect(await quoteRouteCeiling(list({ session_milliseconds: minute('0.05') }), plans)).toEqual({
+      status: 'unquoted',
+      reason: 'unpriced-units',
+    });
   });
 });
 

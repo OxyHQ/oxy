@@ -186,6 +186,7 @@ import {
   type EdgeRoute,
 } from './inferenceCatalogue.service';
 import {
+  positivelyPricedUnits,
   quoteUnits,
   reserve,
   settle,
@@ -3885,16 +3886,47 @@ export function realtimeDurationCeiling(
 }
 
 /**
+ * The session-clock ceiling of one realtime session, for a route that prices
+ * nothing but the session's wall clock and its requests (OpenAI GPT-Live,
+ * `openai/gpt-live-1`, $0.05 a minute: Kaana ADR 0012 §5):
+ *
+ *  - `session_milliseconds` ≤ `maxDurationMs` plus the bounded open, as on
+ *    every realtime plan;
+ *  - `requests` ≤ `maxTextItems`, as {@link realtimeDurationCeiling} holds them
+ *    and the edge enforces them. A `live` session sends no text item, so for it
+ *    this is the one request it is attributed as.
+ *
+ * It bounds no audio and no token, so it is sound only on a route that charges
+ * for neither: its plan is `exhaustive` ({@link RouteCeilingPlan}), and a route
+ * pricing any other unit above zero is never held at it.
+ */
+export function realtimeSessionClockCeiling(
+  operation: RealtimeSessionOperation
+): Partial<Record<UsageUnit, number>> {
+  return {
+    requests: operation.maxTextItems,
+    session_milliseconds: operation.maxSessionMilliseconds,
+  };
+}
+
+/**
  * What a route's hold was sized over. `tokens` is every one-shot request and a
- * token-priced realtime route; the other two are realtime only, and are what
+ * token-priced realtime route; the other three are realtime only, and are what
  * makes the session enforce its text-item cap.
  */
-export type RouteCeilingMetering = 'tokens' | 'duration' | 'tokens_and_duration';
+export type RouteCeilingMetering = 'tokens' | 'duration' | 'tokens_and_duration' | 'session';
 
 export interface RouteCeilingPlan {
   readonly metering: RouteCeilingMetering;
   /** Every scenario must quote for the plan to hold; the dearest one is the ceiling. */
   readonly scenarios: readonly Partial<Record<UsageUnit, number>>[];
+  /**
+   * The plan bounds every unit the route can charge for, so it holds only on a
+   * price version that prices no unit outside its scenarios above zero. A plan
+   * that omits a unit it does not know to be free (the session clock alone,
+   * beside audio or tokens a route still charges) is otherwise an under-hold.
+   */
+  readonly exhaustive?: boolean;
 }
 
 /**
@@ -3908,10 +3940,14 @@ export interface RouteCeilingPlan {
  *  1. `tokens_and_duration` — a route pricing both shapes is held for both,
  *     because Oxy does not know which one the data plane will report for it;
  *  2. `tokens` — the token partition scenarios alone (OpenAI Realtime);
- *  3. `duration` — {@link realtimeDurationCeiling} alone (xAI Voice Agent).
+ *  3. `duration` — {@link realtimeDurationCeiling} alone (xAI Voice Agent);
+ *  4. `session` — {@link realtimeSessionClockCeiling} alone (OpenAI GPT-Live),
+ *     exhaustive: only on a route that charges for nothing else.
  *
  * A token-priced route fails plan 1 at its first quote (it prices no audio
- * milliseconds) and is then held at exactly the ceiling it always was.
+ * milliseconds) and is then held at exactly the ceiling it always was. Plan 4
+ * is reached only by a route every earlier plan failed to quote, so no route
+ * that quoted before is held differently.
  */
 export function routeCeilingPlans(
   request: NormalizedEdgeRequest,
@@ -3935,6 +3971,11 @@ export function routeCeilingPlans(
     },
     { metering: 'tokens', scenarios: tokens },
     { metering: 'duration', scenarios: [duration] },
+    {
+      metering: 'session',
+      scenarios: [realtimeSessionClockCeiling(request.operation)],
+      exhaustive: true,
+    },
   ];
 }
 
@@ -3947,13 +3988,27 @@ export type RouteCeilingQuote =
     }
   | { readonly status: 'unquoted'; readonly reason: string };
 
-/** The first fully-quoted plan's dearest scenario, with the ledger's own arithmetic. */
+/**
+ * The first fully-quoted plan's dearest scenario, with the ledger's own
+ * arithmetic. An `exhaustive` plan is skipped, before any quote, on a price
+ * version that charges for a unit none of its scenarios bounds.
+ */
 export async function quoteRouteCeiling(
   priceVersionId: PriceRef,
   plans: readonly RouteCeilingPlan[]
 ): Promise<RouteCeilingQuote> {
   let reason = 'no-ceiling-plan';
+  let charged: readonly UsageUnit[] | undefined;
   for (const plan of plans) {
+    if (plan.exhaustive === true) {
+      charged ??= await positivelyPricedUnits(priceVersionId);
+      const bounded = new Set(plan.scenarios.flatMap((scenario) => Object.keys(scenario)));
+      if (charged.some((unit) => !bounded.has(unit))) {
+        // An earlier plan's own failure names the missing price better.
+        if (reason === 'no-ceiling-plan') reason = 'unbounded-priced-unit';
+        continue;
+      }
+    }
     let dearest: { readonly amount: string; readonly currency: string } | undefined;
     let quotedEvery = true;
     for (const units of plan.scenarios) {

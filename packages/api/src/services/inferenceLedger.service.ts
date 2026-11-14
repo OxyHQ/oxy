@@ -579,6 +579,29 @@ export async function publishedUnitPrice(
 }
 
 /**
+ * The units a price version publishes ABOVE zero, sorted.
+ *
+ * What a plan that bounds only some units needs to know before it may hold a
+ * line: a unit it leaves out is sound only if the line charges nothing for it
+ * (`quoteRouteCeiling`, an `exhaustive` plan). A unit priced at exactly zero
+ * is free; an unpriced one cannot be settled at all.
+ */
+export async function positivelyPricedUnits(price: PriceRef): Promise<readonly UsageUnit[]> {
+  const entries =
+    typeof price === 'string'
+      ? await getDb()
+          .select({ unit: priceVersionUnitPrices.unit, amount: priceVersionUnitPrices.amount })
+          .from(priceVersionUnitPrices)
+          .where(eq(priceVersionUnitPrices.priceVersionId, price))
+      : price.unitPrices;
+  return [
+    ...new Set(
+      entries.filter((entry) => !/^0+(\.0+)?$/.test(entry.amount)).map((entry) => entry.unit),
+    ),
+  ].sort();
+}
+
+/**
  * What a set of metered units costs under one price version.
  *
  * Exposed so the public edge can size a HOLD with the same arithmetic

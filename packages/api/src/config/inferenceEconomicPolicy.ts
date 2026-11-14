@@ -40,6 +40,7 @@
  * monetary hold must not remove the limit the hold used to imply.
  */
 
+import type { RealtimeSessionKind } from '@kaana.ai/contracts';
 import type { GrantOperation } from '@kaana.ai/contracts/internal';
 import type {
   InferenceEconomicTreatment,
@@ -57,7 +58,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-11-14.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-11-14.2';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -176,8 +177,11 @@ export interface InternalMeteredSpeechPilot {
  * What the relationship decides is which models it may run on, by price:
  */
 export interface InternalMeteredRealtimePilot {
-  /** The session kinds admitted; Alia's calls are `conversation` sessions. */
-  readonly sessionKinds: readonly ('conversation' | 'transcription' | 'translation')[];
+  /**
+   * The session kinds admitted: Alia's and Gemies' calls are `live` sessions
+   * (Kaana ADR 0012), `conversation` the earlier speech-to-speech calls.
+   */
+  readonly sessionKinds: readonly RealtimeSessionKind[];
   /**
    * Exact USD ceiling on ONE MINUTE of session on a model line, quoted at the
    * line's price version over every duration unit a session can be billed in
@@ -185,9 +189,10 @@ export interface InternalMeteredRealtimePilot {
    * `session_milliseconds`, each at 60 000) and, where the line prices it
    * apart, the input transcription of that minute
    * (`input_transcription_milliseconds`, `@kaana.ai/contracts` 4.1.0): Alia's
-   * calls transcribe their input. A line priced in tokens has no per-minute
-   * figure that is a bound rather than a guess, so it does not quote and is
-   * not admitted.
+   * calls transcribe their input. A line that charges for the session clock
+   * and nothing else (GPT-Live) is quoted on that clock alone. A line priced in
+   * tokens has no per-minute figure that is a bound rather than a guess, so it
+   * does not quote and is not admitted.
    */
   readonly maxPricePerMinuteUsd: string;
 }
@@ -527,8 +532,14 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       // session minute at $0.005 (the file transcription's $0.10/h audio plus
       // the stream's $0.20/h session time, both held), far under the same
       // ceiling; one dictation is one grant instead of one per phrase.
+      //
+      // Kaana ADR 0012 (accepted by the owner on 2026-11-14): voice mode is a
+      // `live` session, its turns answered by the caller's own backend, on
+      // OpenAI GPT-Live (`openai/gpt-live-1`, $0.05 a minute on the session
+      // clock alone) with xAI's Voice Agent as the fallback. Both are under the
+      // same USD 0.25 a minute; the backend's turns are ordinary grants.
       realtime: {
-        sessionKinds: ['conversation', 'transcription'],
+        sessionKinds: ['conversation', 'transcription', 'live'],
         maxPricePerMinuteUsd: '0.25',
       },
       // Alia's dictation clip is capped at 5 minutes (ADR 0017 §7). USD 0.05
