@@ -53,6 +53,9 @@ const transport = oxy.createServiceClient({
   actingFor: { accountId: personId },
 });
 
+// A Safety decision for the person (`oxy:safety`):
+await oxy.safety.publicationPolicy({ actingForAccountId: personId });
+
 // A catalogue tool operation (Gemies):
 await oxy.agency.createFirstPartyExecutionAuthorization(terms, { requesterAccountId: personId });
 ```

@@ -506,6 +506,12 @@ export const MENTION_TASK_WORKLOAD_IDENTITY = {
  */
 export const OXY_MOVE_APPLICATION_ID = '4bac8f1baed68fd02d65d592';
 
+/** Syra's application (its deployed id, as `GET /auth/oauth/client/:clientId` answers it). */
+export const SYRA_APPLICATION_ID = '6a2f851751b784a86fd0e93d';
+
+/** Peable's application, the receiving audience of its payments API (`oxy-service:<id>`). */
+export const PEABLE_APPLICATION_ID = '6a2f851751b784a86fd0e958';
+
 /**
  * The official Oxy ecosystem apps that integrate Oxy auth.
  * `name` is the idempotency key (with createdByUserId=oxyId) — DO NOT rename
@@ -607,6 +613,30 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: MENTION_APPLICATION_ID,
     name: 'Mention',
+    // ADR 0066: what Mention's backend does for the people who use it.
+    actsForPeople: [
+      {
+        on: platformReceiver('files'),
+        effect: 'write',
+        purpose: 'Keeps the media you post, and what you import, in your files.',
+      },
+      {
+        on: platformReceiver('safety'),
+        effect: 'read',
+        purpose:
+          'Checks your privacy and safety settings before showing or publishing posts for you.',
+      },
+      {
+        on: platformReceiver('tools'),
+        effect: 'read',
+        purpose: 'Reads your Oxy profile graph to recommend people you may know.',
+      },
+      {
+        on: PEABLE_APPLICATION_ID,
+        effect: 'read',
+        purpose: 'Reads the receipts of the memberships you pay for.',
+      },
+    ],
     trustedPublishers: [otaPublisher('OxyHQ/Mention', '899773466')],
     description: 'Official Oxy social media app with fediverse support.',
     websiteUrl: 'https://mention.earth',
@@ -666,6 +696,15 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: HOMIIO_APPLICATION_ID,
     name: 'Homiio',
+    // ADR 0066.
+    actsForPeople: [
+      {
+        on: platformReceiver('files'),
+        effect: 'write',
+        purpose:
+          'Keeps the photos and documents of your homes, leases and applications in your files.',
+      },
+    ],
     trustedPublishers: [otaPublisher('OxyHQ/Homiio', '950615787')],
     description: 'Official Oxy real estate platform.',
     websiteUrl: 'https://homiio.com',
@@ -806,7 +845,16 @@ export const SEED_APPS: SeedAppSpec[] = [
     operatorPermissions: [],
   },
   {
+    id: SYRA_APPLICATION_ID,
     name: 'Syra',
+    // ADR 0066: also when an MCP client asked Syra to generate an episode.
+    actsForPeople: [
+      {
+        on: platformReceiver('files'),
+        effect: 'write',
+        purpose: 'Keeps your uploads, covers and the episodes Syra makes for you in your files.',
+      },
+    ],
     trustedPublishers: [otaPublisher('OxyHQ/Syra', '1110776513')],
     description: 'Official Oxy app.',
     websiteUrl: 'https://syra.fm',
@@ -878,6 +926,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     ],
   },
   {
+    id: PEABLE_APPLICATION_ID,
     name: 'Peable',
     trustedPublishers: [otaPublisher('OxyHQ/Peable', '1265522443')],
     description: 'Official Peable payments app.',
@@ -1068,6 +1117,24 @@ export const SEED_APPS: SeedAppSpec[] = [
   {
     id: OXY_MOVE_APPLICATION_ID,
     name: 'Oxy Move',
+    // ADR 0066: a move you start runs in the background until it is done.
+    actsForPeople: [
+      {
+        on: platformReceiver('files'),
+        effect: 'write',
+        purpose: 'Stores the media of the posts you move into your files.',
+      },
+      {
+        on: platformReceiver('linked-accounts'),
+        effect: 'read',
+        purpose: 'Reads the accounts you linked to know where you are moving from.',
+      },
+      {
+        on: MENTION_APPLICATION_ID,
+        effect: 'write',
+        purpose: 'Publishes the posts you move into your Mention account.',
+      },
+    ],
     trustedPublishers: [otaPublisher('OxyHQ/Move', '1387757667')],
     description:
       'Bring your account to Oxy: connect Mastodon, Bluesky and more, and your profile, follows and posts come with you.',

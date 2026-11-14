@@ -1257,6 +1257,17 @@ describe('what Oxy services do for people (ADR 0066)', () => {
           (spec.actsForPeople ?? []).map((entry) => `${entry.on} ${entry.effect}`),
         ]),
       ),
-    ).toEqual({ Alia: ['oxy:files write', 'oxy:tools write'] });
+    ).toEqual({
+      Mention: [
+        'oxy:files write',
+        'oxy:safety read',
+        'oxy:tools read',
+        '6a2f851751b784a86fd0e958 read',
+      ],
+      Homiio: ['oxy:files write'],
+      Alia: ['oxy:files write', 'oxy:tools write'],
+      Syra: ['oxy:files write'],
+      'Oxy Move': ['oxy:files write', 'oxy:linked-accounts read', '6a2f851751b784a86fd0e916 write'],
+    });
   });
 });

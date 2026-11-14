@@ -57820,6 +57820,20 @@
                           "requesterContext"
                         ],
                         "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "actingForAccountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "actingForAccountId"
+                        ],
+                        "additionalProperties": false
                       }
                     ]
                   }
@@ -58336,6 +58350,20 @@
                         },
                         "required": [
                           "requesterContext"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "actingForAccountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "actingForAccountId"
                         ],
                         "additionalProperties": false
                       }
@@ -58896,6 +58924,20 @@
                         },
                         "required": [
                           "requesterContext"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "actingForAccountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "actingForAccountId"
                         ],
                         "additionalProperties": false
                       }
@@ -60156,6 +60198,20 @@
                           "requesterContext"
                         ],
                         "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "actingForAccountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "actingForAccountId"
+                        ],
+                        "additionalProperties": false
                       }
                     ]
                   }
@@ -60558,6 +60614,20 @@
                         },
                         "required": [
                           "requesterContext"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "actingForAccountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "actingForAccountId"
                         ],
                         "additionalProperties": false
                       }
@@ -61699,6 +61769,20 @@
                           "requesterContext"
                         ],
                         "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "actingForAccountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "actingForAccountId"
+                        ],
+                        "additionalProperties": false
                       }
                     ]
                   }
@@ -62213,6 +62297,20 @@
                         },
                         "required": [
                           "requesterContext"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "actingForAccountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "actingForAccountId"
                         ],
                         "additionalProperties": false
                       }
@@ -63134,6 +63232,20 @@
                         },
                         "required": [
                           "requesterContext"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "actingForAccountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          }
+                        },
+                        "required": [
+                          "actingForAccountId"
                         ],
                         "additionalProperties": false
                       }
