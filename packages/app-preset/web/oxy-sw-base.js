@@ -24,10 +24,21 @@
  *   Private responses must never be cached by URL: Inbosh once served one
  *   signed-in user's API response to the next.
  *
- * `__OXY_SW_VERSION__` is replaced by `oxy-web-pwa` with a hash of the export,
- * so the bytes change on every deploy and the browser installs the new worker
- * (imported scripts are compared byte for byte too). The cache is bounded and
- * old caches are dropped on `activate`.
+ * Updates. `__OXY_SW_VERSION__` is replaced by `oxy-web-pwa` with a hash of
+ * the export, so this file's bytes change on every deploy; the browser compares
+ * imported scripts byte for byte, so it installs the new worker, which takes
+ * over at once (`skipWaiting`, `clients.claim`). App code is never stale: a
+ * navigation is network-first, so the next load or reload runs the new deploy,
+ * and a page still running the old one keeps loading its own chunks.
+ *
+ * Cleanup. The cache name is fixed (`oxy-sw-v1`), not per deploy: hashed
+ * chunks never collide, so one cache holds both deploys and a tab opened
+ * before a deploy can still lazy-load the chunks it was built with (the server
+ * no longer has them). It holds at most 150 entries, oldest dropped first, the
+ * shell never. `activate` deletes every other `oxy-sw-*` cache, so bumping the
+ * name here (when a strategy changes what a cached entry means) clears old
+ * entries everywhere on the next deploy. `oxy-web-pwa --remove-sw` retires the
+ * worker and its caches entirely.
  */
 (() => {
   if (self.__oxySwBase) return;
@@ -35,7 +46,8 @@
 
   const VERSION = '__OXY_SW_VERSION__';
   const CACHE_PREFIX = 'oxy-sw-';
-  const CACHE_NAME = `${CACHE_PREFIX}${VERSION}`;
+  const CACHE_NAME = `${CACHE_PREFIX}v1`;
+  self.__oxySwVersion = VERSION;
   const SHELL_KEY = '/index.html';
   const MAX_ENTRIES = 150;
   const STATIC_FILE = /\.(?:js|mjs|css|woff2?|ttf|otf|png|jpe?g|gif|svg|ico|webp|avif|wasm)$/i;
@@ -149,5 +161,5 @@
     else if (strategy === 'static') event.respondWith(staleWhileRevalidate(event));
   });
 
-  self.__oxySwBaseInternals = { strategyFor, cacheable, CACHE_NAME, SHELL_KEY, MAX_ENTRIES };
+  self.__oxySwBaseInternals = { strategyFor, cacheable, trim, CACHE_NAME, SHELL_KEY, MAX_ENTRIES };
 })();

@@ -27,6 +27,7 @@ const REQUIRED_ICON_SIZES = ['192x192', '512x512'];
 const SKIPPED_DIRS = new Set(['_expo', 'assets', 'node_modules']);
 const SW_BASE = 'oxy-sw-base.js';
 const SW_REGISTER = 'oxy-sw-register.js';
+const SW_REMOVE = 'oxy-sw-remove.js';
 const WEB_DIR = __dirname;
 
 class PwaError extends Error {}
@@ -203,7 +204,15 @@ importScripts('/${SW_BASE}');
  * Runs the whole step on `dist`. Throws PwaError on anything that leaves the
  * app uninstallable; returns what it did and any warnings.
  */
-function makeInstallable(dist, { serviceWorker = true, themeColors } = {}) {
+function makeInstallable(
+  dist,
+  { serviceWorker = true, removeServiceWorker = false, themeColors } = {},
+) {
+  if (removeServiceWorker && !serviceWorker)
+    throw new PwaError(
+      '--remove-sw and --no-sw cannot be combined; --remove-sw ships no worker either',
+    );
+  if (removeServiceWorker) serviceWorker = false;
   if (themeColors !== undefined) {
     const valid = /^(?:#[0-9a-f]{3,8}|[a-z]+|(?:rgb|hsl)a?\([^"<>]*\))$/i;
     if (
@@ -250,7 +259,14 @@ function makeInstallable(dist, { serviceWorker = true, themeColors } = {}) {
   }
 
   let worker = null;
-  if (serviceWorker) {
+  if (removeServiceWorker) {
+    if (existsSync(join(dist, 'sw.js')))
+      throw new PwaError(
+        '--remove-sw replaces /sw.js, but the app ships its own public/sw.js; drop its importScripts line instead',
+      );
+    writeFileSync(join(dist, 'sw.js'), readFileSync(join(WEB_DIR, SW_REMOVE)));
+    worker = 'removal (retires the worker and its caches)';
+  } else if (serviceWorker) {
     const version = exportVersion(pages);
     const base = readFileSync(join(WEB_DIR, SW_BASE), 'utf8').replace(
       /__OXY_SW_VERSION__/g,
@@ -281,4 +297,5 @@ module.exports = {
   wantedTags,
   SW_BASE,
   SW_REGISTER,
+  SW_REMOVE,
 };

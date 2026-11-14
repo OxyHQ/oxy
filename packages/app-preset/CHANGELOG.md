@@ -1,5 +1,23 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.7.2
+
+### Added
+
+- `oxy-web-pwa --remove-sw` ships a `/sw.js` that deletes the Oxy caches and
+  unregisters itself: the way to take the worker away (shipping none leaves the
+  old one running).
+- The registration skips the HTTP cache (`updateViaCache: 'none'`) and a page
+  back in the foreground checks for a new worker at most once an hour, so an
+  installed app left open picks up deploys.
+
+### Fixed
+
+- A deploy no longer empties the cache: its name was a hash of the export, so
+  `activate` dropped the previous deploy's chunks while a tab opened before the
+  deploy could still need them. The cache is now `oxy-sw-v1`, bounded at 150
+  entries oldest first; `activate` drops other `oxy-sw-*` caches.
+
 ## 6.7.1
 
 ### Added

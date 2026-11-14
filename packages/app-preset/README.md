@@ -100,7 +100,8 @@ The app keeps its own `public/manifest.json` and icons. The step:
   app has no `public/sw.js`. An app with its own worker (web push) keeps it and
   opts in with `importScripts('/oxy-sw-base.js');` as its first line; until it
   does, the step warns. A worker that already answers `fetch` (Inbosh, Nilo)
-  must not import it. `--no-sw` ships no worker.
+  must not import it. `--no-sw` ships no worker; `--remove-sw` retires one
+  shipped before (see Cleanup below).
 
 `theme-color` comes from the manifest's `theme_color`, one tag. An app whose
 startup colour is a light/dark pair (Bloom adopts one and owns it at runtime)
@@ -112,12 +113,28 @@ network-first with the one `/index.html` shell as the offline fallback, and
 same-origin static files (`/_expo/`, `/assets/`, images, fonts, JS, CSS)
 stale-while-revalidate. It never stores or serves anything else: cross-origin
 requests (every Oxy API), non-GET, `/api/`, requests carrying `Authorization`
-or `Range`, and `private`/`no-store` responses. Its
-cache name is a hash of the export, so each deploy installs a new worker and
-drops the old cache; the cache holds at most 150 entries.
+or `Range`, and `private`/`no-store` responses.
 
-Serve `/sw.js` with `Cache-Control: no-cache` (`public/_headers`). `@oxy.so/doctor`
-1.10.0+ warns (`web-not-installable`) about a web export without this step.
+**Updates.** `oxy-web-pwa` stamps `/oxy-sw-base.js` with a hash of the export,
+so every deploy changes its bytes and the browser installs the new worker, which
+takes over at once. The registration uses `updateViaCache: 'none'`, and a page
+that returns to the foreground checks for an update at most once an hour (an
+installed app can stay open for days without a navigation). App code is never
+stale: navigations are network-first, so the next load runs the new deploy.
+
+**Cleanup.** One cache, `oxy-sw-v1`, holds at most 150 entries, oldest dropped
+first and the shell never. It is not renamed per deploy: hashed chunks never
+collide, so a tab opened before a deploy can still lazy-load the chunks the
+server has already dropped. `activate` deletes every other `oxy-sw-*` cache, so
+bumping the name in the base worker clears old entries everywhere on the next
+deploy. To take the worker away, build with `--remove-sw`: it ships a `/sw.js`
+that deletes the Oxy caches and unregisters itself (shipping no `/sw.js` would
+leave the old worker running, since a failed update check keeps it).
+
+Serve `/sw.js` and `/oxy-sw-base.js` with `Cache-Control: no-cache` or
+`max-age=0, must-revalidate` (Cloudflare's default for unhashed assets).
+`@oxy.so/doctor` 1.10.0+ warns (`web-not-installable`) about a web export
+without this step.
 
 ## Usage
 
