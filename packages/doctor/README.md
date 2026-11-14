@@ -137,6 +137,21 @@ nor a list of strings (`non-string`), a translation key the source lacks
 rendered in English) and a placeholder set that differs from the source
 (`placeholder-mismatch`).
 
+## Installable web exports
+
+A workspace whose scripts run `expo export --platform web` (or `-p web`) and
+never `oxy-web-pwa` gets a **warning** (`web-not-installable`): with
+`web.output: 'single'` Expo ignores `app/+html.tsx`, so a manifest link written
+there never reaches the page and browsers will not offer to install the site.
+Add the step from `@oxy.so/app-preset` 6.7.0+ right after the export:
+
+```json
+"build": "expo export --platform web --output-dir dist && oxy-web-pwa dist"
+```
+
+A surface that must not be installable (a sign-in popup, an operator console)
+opts out in its `package.json`: `"oxy": { "webInstallable": false }`.
+
 ## Web export size budgets
 
 `oxy-doctor-web-budget` checks an Expo web export (`expo export --platform web`)

@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/doctor",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Read-only health checks for Oxy ecosystem repositories",
   "repository": {
     "type": "git",

@@ -42,6 +42,10 @@ Each bullet is a rule that held up after a build or check reported success while
 
 A module reachable from two `import()`-ed routes is hoisted into `/__common.js`, which Expo's static-export serializer emits as an unconditional `<script>`, so it downloads at first paint. There is no threshold or opt-out in the serializer versions Oxy apps have used, `customSerializer` is bypassed on that path, and `splitChunks: false` is strictly worse; the only serializer-level remedy is duplication. Quote marginal gzip size from an A/B build, never per-source attribution. Re-verify after an Expo upgrade.
 
+## Expo web: `+html.tsx` and installability
+
+With `web.output: 'single'` Expo exports its default SPA page and ignores `app/+html.tsx` entirely: tags written there (the manifest link, theme colour, Apple tags) never reach the browser, and the site cannot be installed even though `/manifest.json` and `/sw.js` are deployed (alia.onl, Clarity, Nilo, Mercaria and Moovo all shipped that way). `+html.tsx` renders only for `static`/`server` output. Make an export installable with `oxy-web-pwa dist` after `expo export` (`@oxy.so/app-preset` 6.7.0+, README "Installable web apps"); `@oxy.so/doctor` warns (`web-not-installable`) when it is missing. Check the served HTML, not the source: `curl -s https://<app>/ | grep 'rel="manifest"'`.
+
 ## Reanimated (web): three distinct failure modes
 
 - **(A) Animations started from mappers never tick.** Returning `withTiming` or `withRepeat` from `useDerivedValue` or `useAnimatedStyle` silently fails. Drive a `useSharedValue` imperatively; `useAnimatedStyle` only reads.

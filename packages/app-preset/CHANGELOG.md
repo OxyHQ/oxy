@@ -1,5 +1,21 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.7.0
+
+### Added
+
+- `oxy-web-pwa <dist>`: makes an Expo web export installable. With
+  `web.output: 'single'` Expo ignores `app/+html.tsx`, so the manifest link most
+  Oxy apps wrote there never reached the page and no browser offered to install
+  them. Run after `expo export`, the step fails the build on a manifest browsers
+  refuse (or icons the export lacks), adds the manifest link, Apple tags,
+  `theme-color` and the worker registration to every exported page that lacks
+  them, and ships the Oxy base service worker. See README "Installable web apps".
+- `web/oxy-sw-base.js`: the shared service worker, from Inbosh's: network-first
+  navigation with an offline shell, stale-while-revalidate for same-origin
+  hashed files, and nothing private or cross-origin ever stored. Apps with their
+  own worker import it with `importScripts('/oxy-sw-base.js')`.
+
 ## 6.6.0
 
 ### Added

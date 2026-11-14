@@ -1,13 +1,14 @@
 {
   "name": "@oxy.so/app-preset",
-  "version": "6.6.0",
+  "version": "6.7.0",
   "description": "The Oxy distro of Expo \u2014 centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, \u2026). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
     "access": "public"
   },
   "bin": {
-    "oxy-check-keychain-entitlements": "./bin/oxy-check-keychain-entitlements.js"
+    "oxy-check-keychain-entitlements": "./bin/oxy-check-keychain-entitlements.js",
+    "oxy-web-pwa": "./bin/oxy-web-pwa.js"
   },
   "exports": {
     ".": "./app.plugin.js",
@@ -16,6 +17,7 @@
     "./plugin/withOxyKeychain": "./plugin/withOxyKeychain.js",
     "./plugin/oxyKeychainGroups": "./plugin/oxyKeychainGroups.js",
     "./check-entitlements": "./bin/oxy-check-keychain-entitlements.js",
+    "./web-pwa": "./web/pwa.js",
     "./plugin/withOxyBuildProperties": "./plugin/withOxyBuildProperties.js",
     "./plugin/withOxyAndroidRelease": "./plugin/withOxyAndroidRelease.js",
     "./plugin/withOxyAndroidWebp": "./plugin/withOxyAndroidWebp.js",
@@ -41,6 +43,7 @@
     "build-id",
     "eslint",
     "certs",
+    "web",
     "css",
     "tsconfig",
     "README.md"
