@@ -787,7 +787,18 @@ export const SEED_APPS: SeedAppSpec[] = [
     // Syra plays a person's private audio it stored for them through play
     // sessions and reads it back (`files:linked:read`, bounded by the person's
     // per-file consent).
-    scopes: ['user:read', ...PRODUCT_FILE_SCOPES, 'files:user-media:write', 'files:linked:read'],
+    // - The `syra` capability catalog: Syra's public MCP server
+    //   (api.syra.fm/mcp, Syra docs/mcp.md) signs people in through Oxy's MCP
+    //   OAuth, and its API registers that catalog at startup (`catalogs:write`,
+    //   `catalog:syra`) so Oxy can resolve the resource.
+    scopes: [
+      'user:read',
+      'catalogs:write',
+      ...PRODUCT_FILE_SCOPES,
+      'files:user-media:write',
+      'files:linked:read',
+    ],
+    capabilities: [catalogApplicationCapability('syra')],
     operatorPermissions: [
       {
         key: 'compliance.review',

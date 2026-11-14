@@ -12,6 +12,7 @@ import {
   INFERENCE_ECONOMIC_POLICY_VERSION,
   INTERNAL_METERED_RELATIONSHIPS,
   MENTION_INFERENCE_CONSUMER_APPLICATION_ID,
+  SYRA_INFERENCE_CONSUMER_APPLICATION_ID,
   pilotTextTerms,
   resolveEconomicTreatment,
   type EconomicTreatmentPrincipal,
@@ -114,7 +115,7 @@ describe('alia-kaana grant terms for voice (Alia ADR 0017, Kaana ADR 0002)', () 
   });
 
   it('stamps the version that introduced transcription sessions', () => {
-    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-28.2');
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-11-14.1');
   });
 
   it('admits transcriptions of at most Alia’s 5-minute clip under a per-request ceiling', () => {
@@ -271,6 +272,59 @@ describe('Mention: decisions and level text, each its own relationship; nothing 
       resolveEconomicTreatment({ ...mention, applicationType: 'third_party' }, 'decisions')
         .treatment,
     ).toBe('commercial');
+  });
+});
+
+describe('syra-kaana-shows: Syra’s generated episodes, a script and its voices; nothing else', () => {
+  const relationship = INTERNAL_METERED_RELATIONSHIPS.find(
+    (candidate) => candidate.relationshipId === 'syra-kaana-shows',
+  );
+  const syra: EconomicTreatmentPrincipal = {
+    lane: 'service_token',
+    applicationId: SYRA_INFERENCE_CONSUMER_APPLICATION_ID,
+    environment: 'production',
+    applicationIsInternal: false,
+    applicationType: 'first_party',
+  };
+
+  it('applies to Syra’s first-party workload for the script and speech only', () => {
+    for (const operation of ['responses', 'audio_speech'] as const) {
+      expect(resolveEconomicTreatment(syra, operation)).toMatchObject({
+        treatment: 'internal_metered',
+        relationship: { relationshipId: 'syra-kaana-shows' },
+      });
+    }
+    for (const operation of ['chat_completions', 'images_generations', 'embeddings'] as const) {
+      expect(resolveEconomicTreatment(syra, operation).treatment).toBe('commercial');
+    }
+    expect(resolveEconomicTreatment(syra).treatment).toBe('commercial');
+    expect(
+      resolveEconomicTreatment({ ...syra, environment: 'development' }, 'responses').treatment,
+    ).toBe('commercial');
+    expect(
+      resolveEconomicTreatment({ ...syra, applicationType: 'third_party' }, 'responses').treatment,
+    ).toBe('commercial');
+  });
+
+  it('writes at the medium level and speaks on Alia’s one reviewed speech route', () => {
+    const pilot = relationship?.pilot;
+    expect(pilot).toBeDefined();
+    if (pilot === undefined) return;
+    expect(pilotTextTerms(pilot)).toBeUndefined();
+    expect(Object.keys(pilot).sort()).toEqual(['levelText', 'speech']);
+    expect(pilot.levelText?.levels).toEqual(['medium']);
+    const alia = INTERNAL_METERED_RELATIONSHIPS.find(
+      (candidate) => candidate.relationshipId === 'alia-kaana',
+    );
+    expect(pilot.speech).toEqual(alia?.pilot?.speech);
+  });
+
+  it('bounds the day and the concurrency on its own rows', () => {
+    expect(relationship?.capacity).toEqual({
+      maxConcurrentRequests: 16,
+      maxRequestsPerUtcDay: 5_000,
+      scope: 'relationship',
+    });
   });
 });
 
