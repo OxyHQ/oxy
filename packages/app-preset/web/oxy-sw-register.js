@@ -9,6 +9,11 @@
  * so the page's state is checked first. Failure is silent: the app works
  * without a worker.
  *
+ * First visit: the page loads its bundles and route chunks before the worker
+ * controls it, so none of them goes through the worker's cache. When the worker
+ * takes over, this sends it the same-origin files the page has loaded so far
+ * (`OXY_SW_STORE`), and the app works offline from the first visit.
+ *
  * Updates: `updateViaCache: 'none'` makes every update check fetch `/sw.js` and
  * `/oxy-sw-base.js` past the HTTP cache. The browser checks on each navigation,
  * but an installed app can stay open for days without one, so a page that
@@ -18,6 +23,17 @@
   if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
   const HOUR = 60 * 60 * 1000;
   let checked = Date.now();
+  const sendLoaded = () => {
+    const worker = navigator.serviceWorker.controller;
+    if (!worker || typeof performance === 'undefined') return;
+    const urls = performance
+      .getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .filter((name) => name.startsWith(`${location.origin}/`));
+    worker.postMessage({ type: 'OXY_SW_STORE', urls });
+  };
+  if (!navigator.serviceWorker.controller)
+    navigator.serviceWorker.addEventListener('controllerchange', sendLoaded, { once: true });
   const register = () => {
     navigator.serviceWorker
       .register('/sw.js', { updateViaCache: 'none' })
