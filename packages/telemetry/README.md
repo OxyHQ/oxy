@@ -137,8 +137,37 @@ and on changes. Registration/removal updates immediately; heartbeats run every
 registry refresh). Only reporting instances are included. The publisher must be
 installed in each service before this can represent the whole ecosystem.
 
-The authenticated publisher is `createEcosystemTraffic` from `@oxy.so/core/server`.
-It exposes HTTP middleware, `wrapFetch`, `record` for explicit transport events,
+A service starts its publisher with one call, `startEcosystemTraffic` from
+`@oxy.so/core/server`, at process bootstrap and awaits `stop()` on shutdown:
+
+```ts
+import { startEcosystemTraffic } from '@oxy.so/core/server';
+import { createAwsWorkloadCredentialProvider } from '@oxy.so/core/server/aws';
+
+const traffic = startEcosystemTraffic({
+  service: 'allo', // the ECS service name the dashboard registry lists
+  ready: () => server.listening,
+  workloadCredentials: createAwsWorkloadCredentialProvider(),
+});
+app.use(traffic.observeHttp);
+io.on('connection', (socket) => traffic.observeSocket(socket));
+// on shutdown
+await traffic.stop();
+```
+
+It reads the environment, starts the publisher and installs the outbound
+`fetch`/`http` observation. It always returns a handle: where the process does
+not publish, the handle is inert (`observeHttp` calls `next()`), so there is no
+`undefined` to guard and no per-app wrapper module. `OXY_ECOSYSTEM_ACTIVITY_ENABLED`
+is `true` or `false` when set (anything else throws) and wins; unset, it publishes
+where `AWS_REGION` (else `AWS_DEFAULT_REGION`) is configured, or with
+`deployedOnly: true`, only where the process can attest its workload identity
+(an ECS task). Once it should publish, a missing region throws. Optional
+`baseURL`, `location`, `onError` and `onRecover` pass through; `env` replaces
+`process.env` (tests).
+
+`startEcosystemTraffic` builds on `createEcosystemTraffic`, which stays exported for
+a process that needs its own gating. The handle exposes HTTP middleware, `wrapFetch`, `record` for explicit transport events,
 and `stop` for graceful removal. It requires a known infrastructure region (or
 explicit infrastructure coordinates) and registered temporary workload identity
 for own service publication ([ADR 0049](../../docs/adr/0049-first-party-platform-authority.md)).

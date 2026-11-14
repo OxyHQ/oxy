@@ -498,7 +498,7 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "7.50.0",
+      "version": "7.51.0",
       "dependencies": {
         "@noble/ciphers": "^2.4.0",
         "@noble/curves": "catalog:",

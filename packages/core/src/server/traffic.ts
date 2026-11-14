@@ -68,8 +68,8 @@ export function publishBackoffMs(failures: number, random: () => number = Math.r
   return Math.round(ceiling / 2 + random() * (ceiling / 2));
 }
 
-/** Install once per service process, before registering HTTP routes. */
-export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
+/** What {@link createEcosystemTraffic} and {@link startEcosystemTraffic} hand back. */
+export interface EcosystemTraffic {
   middleware: RequestHandler;
   record(flow: Omit<TrafficFlow, 'service' | 'region'>): void;
   wrapFetch(fetcher: typeof fetch): typeof fetch;
@@ -84,7 +84,10 @@ export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
     options?: Parameters<typeof observeTrafficWebSocket>[4],
   ): () => void;
   stop(): Promise<void>;
-} {
+}
+
+/** Install once per service process, before registering HTTP routes. */
+export function createEcosystemTraffic(options: EcosystemTrafficOptions): EcosystemTraffic {
   const region = options.region ?? process.env.AWS_REGION ?? 'unknown';
   const baseURL = options.baseURL ?? process.env.OXY_API_URL ?? 'https://api.oxy.so';
   const oxy = new OxyServer({ baseURL, workloadCredentials: options.workloadCredentials });

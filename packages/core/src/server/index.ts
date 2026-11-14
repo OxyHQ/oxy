@@ -327,7 +327,9 @@ export {
 } from '../utils/officialOrigins';
 
 export { createEcosystemTraffic } from './traffic';
-export type { EcosystemTrafficOptions } from './traffic';
+export type { EcosystemTraffic, EcosystemTrafficOptions } from './traffic';
+export { startEcosystemTraffic } from './startTraffic';
+export type { StartEcosystemTrafficOptions } from './startTraffic';
 
 export { observeNodeHttp, withoutNodeHttpObservation } from './trafficNodeHttp';
 

@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.51.0
+
+### Added
+
+- **`startEcosystemTraffic` in `@oxy.so/core/server`: one call to start a service's ecosystem activity.** About twenty apps each carried a near-identical wrapper around `createEcosystemTraffic` (env parsing, region gate, `installFetch`, a module singleton with a pass-through middleware, a socket observer and a stop function). The call takes `service`, `ready` and optionally `workloadCredentials`, `baseURL`, `location`, `onError`/`onRecover`, `deployedOnly` and `env`, and returns an `EcosystemTraffic` handle that is inert when the process does not publish. `OXY_ECOSYSTEM_ACTIVITY_ENABLED` (`true`/`false`, anything else throws) wins; unset, it publishes where `AWS_REGION` (else `AWS_DEFAULT_REGION`) is set, or with `deployedOnly` only where the process can attest its workload identity. New type exports `EcosystemTraffic` and `StartEcosystemTrafficOptions`. `createEcosystemTraffic` is unchanged.
+
 ## 7.50.0
 
 ### Added
