@@ -26,6 +26,7 @@ jest.mock('../../scripts/seedOxyApplicationsSpecs', () => {
                 effect: 'read',
                 purpose: 'Test receiver.',
               },
+              { on: 'oxy:safety', effect: 'read', purpose: 'Test safety.' },
             ],
           }
         : spec,
@@ -58,6 +59,7 @@ import { bindWorkloadIdentity } from '../../services/workloadIdentityBinding.ser
 import assetsRouter from '../assets';
 import privacyRouter from '../privacy';
 import internalRouter from '../internal';
+import supervisionRouter from '../supervision';
 import { errorHandler } from '../../middleware/errorHandler';
 
 const app = express();
@@ -65,6 +67,7 @@ app.use(express.json());
 app.use('/assets', assetsRouter);
 app.use('/privacy', privacyRouter);
 app.use('/internal', internalRouter);
+app.use('/safety', supervisionRouter);
 app.use(errorHandler);
 
 beforeAll(async () => {
@@ -214,4 +217,18 @@ it('lets another Oxy product verify a declared caller acting for a person, and n
   expect(
     (await verify(presented, { effect: 'read', requesterId: f.other.id })).body.data.authorized,
   ).toBe(false);
+});
+
+it('lets a declared service ask Safety for the person it acts for, and no one else', async () => {
+  const f = await fixture();
+  const ask = (token: string, requester: unknown) =>
+    request(app)
+      .post('/safety/service/profile-access')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ input: { subjectAccountId: f.other.id }, requester });
+  const allowed = await ask(f.gemies.token(), { actingForAccountId: f.person.id });
+  expect(allowed.status).toBe(200);
+  expect(allowed.body).toMatchObject({ allowed: true });
+  // An Oxy service that declares no Safety use is refused.
+  expect((await ask(f.undeclared.token(), { actingForAccountId: f.person.id })).status).toBe(403);
 });

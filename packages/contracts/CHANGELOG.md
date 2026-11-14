@@ -1,5 +1,15 @@
 # Changelog: `@oxy.so/contracts`
 
+## 7.2.0
+
+Additive only: no export removed.
+
+### Added — an Oxy service acting for a person in Safety (ADR 0066)
+
+- `safetyRequesterSchema` admits `{ actingForAccountId }`: the account an Oxy service acts for on
+  what its first-party registry entry declares (`oxy:safety`). The API refuses it from any other
+  caller. The proof variants (`requesterContext`, `capabilityTicket`) are retiring.
+
 ## 7.1.0
 
 Additive only: no export removed.

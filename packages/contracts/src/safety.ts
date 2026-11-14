@@ -298,6 +298,15 @@ export const safetyRequesterSchema = z.union([
   z
     .object({ requesterContext: z.string().check(utf16MinLength(1)).check(utf16MaxLength(16384)) })
     .strict(),
+  /**
+   * The account an Oxy service acts for, on what its first-party registry entry
+   * declares (`oxy:safety`, ADR 0066). Only an Oxy service may send it.
+   */
+  z
+    .object({
+      actingForAccountId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+    })
+    .strict(),
 ]);
 export type SafetyRequester = z.infer<typeof safetyRequesterSchema>;
 export type ProfileAccessBatchInput = z.infer<typeof profileAccessBatchInputSchema>;

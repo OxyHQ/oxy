@@ -1,6 +1,8 @@
 import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import type { NamedRouteParams } from '../types/routeParams';
 import { resolveRequesterContext } from '../services/requesterContext.service';
+import { resolveDelegatedRequester } from '../services/firstPartyDelegation.service';
+import { platformReceiver } from '../utils/firstPartyDelegation';
 import {
   resolveCapabilityRequester,
   requireRequesterEffect,
@@ -86,7 +88,7 @@ import * as supervision from '../services/supervision.service';
 import * as policy from '../services/supervisionPolicy.service';
 import { resolveLiveMcpAccessToken } from '../services/mcpOAuth.service';
 import { resolveMcpConnectionState } from '../services/mcpConnection.service';
-import { ApiError } from '../utils/error';
+import { ApiError, ForbiddenError } from '../utils/error';
 import { logger } from '../utils/logger';
 const router = Router();
 router.use((_req, res, next) => {
@@ -194,6 +196,24 @@ async function serviceContext(req: ServiceAuthRequest, requireUser: boolean) {
       );
     requireRequesterEffect(resolved, req.path.startsWith('/service/purchases') ? 'write' : 'read');
     user = resolved.subjectAccountId;
+  } else if ('actingForAccountId' in proof) {
+    // ADR 0066: an Oxy service on its declared authority; a third party never.
+    if (live.authority !== 'first_party')
+      throw new supervision.SafetyError(403, 'forbidden', 'Only an Oxy service acts for a person');
+    try {
+      user = (
+        await resolveDelegatedRequester({
+          applicationId: live.applicationId,
+          on: platformReceiver('safety'),
+          effect: req.path.startsWith('/service/purchases') ? 'write' : 'read',
+          accountId: proof.actingForAccountId,
+        })
+      ).subjectAccountId;
+    } catch (error) {
+      if (error instanceof ForbiddenError)
+        throw new supervision.SafetyError(403, 'forbidden', error.message);
+      throw error;
+    }
   } else if ('connectionToken' in proof) {
     const resolved = await resolveLiveMcpAccessToken(proof.connectionToken, live.applicationId);
     if (!resolved)
