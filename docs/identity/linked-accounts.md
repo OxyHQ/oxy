@@ -137,12 +137,11 @@ All routes are under `/linked-accounts`.
    account is someone else's live link). Repeating it within the five minutes
    returns the same link. An unknown, expired or burned code is 404.
 5. **`GET /`** lists the user's live links. **`DELETE /:id`** revokes one.
-6. **`GET /by-user/:userId`** is for registered first-party workloads acting
-   for that exact account. Use
-   `oxy.linkedAccounts.withRequester({ requesterToken }).forUser(userId)` for
-   a live shared session, or `{ taskId }` for a durable job. Forwarded
-   `{ requesterContext }` is also supported. Oxy verifies the proof and account
-   on every read; a service identity or raw user-id header alone is insufficient.
+6. **`GET /by-user/:userId`** is for Oxy services whose registry entry declares
+   `oxy:linked-accounts` read (ADR 0066), acting for that exact account:
+   `oxy.linkedAccounts.actingFor({ accountId: userId }).forUser(userId)`. Oxy
+   checks the declaration and the account on every read; an undeclared service
+   is refused. The retiring requester proofs still work until their callers move.
    It returns live links, each with `federatedUserId`. Customer keys cannot use
    this private migration endpoint, even when issued by an official application.
    The finite pre-migration workload cohort temporarily retains its old

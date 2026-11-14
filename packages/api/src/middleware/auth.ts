@@ -3,10 +3,11 @@ import {
   resolveExternalMcpMediaRequest,
   type ExternalMcpMediaOperation,
 } from '../services/externalMcpMediaRequester.service';
+import type { RequesterAccounts } from './firstPartyRequester';
 import type { NamedRouteParams } from '../types/routeParams';
 import { ForbiddenError } from '../utils/error';
 import { resolveServiceRequester } from '../services/serviceRequester.service';
-import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
+import type { ServiceRequesterBinding } from '../services/foregroundCapabilityRequester.service';
 import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
@@ -310,8 +311,12 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
  */
 export interface ServiceAuthRequest extends Request<NamedRouteParams> {
   serviceApp?: ServiceTokenPayload;
-  serviceRequester?: ForegroundRequesterBinding;
+  serviceRequester?: ServiceRequesterBinding;
   serviceExternalMedia?: ExternalMcpMediaOperation;
+  /** What `firstPartyRequesterFor` resolved for this request, per area and effect (ADR 0066). */
+  serviceDelegations?: Map<string, RequesterAccounts>;
+  /** The account `requesterAuthMiddleware` resolved for a service caller. */
+  serviceActingFor?: RequesterAccounts;
 }
 
 /**

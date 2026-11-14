@@ -37,6 +37,10 @@ import {
   type ApplicationScope,
 } from '../../utils/applicationScopes';
 import { isTrustedApplication } from '../../utils/trustedApplication';
+import {
+  DELEGATION_PURPOSE_MAX_LENGTH,
+  isPlatformReceiver,
+} from '../../utils/firstPartyDelegation';
 import { isAccountRole } from '../../utils/accountRoles';
 import {
   GITHUB_REPOSITORY_PATTERN,
@@ -1222,5 +1226,37 @@ describe('trusted publishers (ADR 0057)', () => {
       Atlas: ['OxyHQ/Atlas#1328114802'],
       CrowdSource: ['OxyHQ/CrowdSource#1315214837'],
     });
+  });
+});
+
+describe('what Oxy services do for people (ADR 0066)', () => {
+  const declaring = SEED_APPS.filter((spec) => spec.actsForPeople !== undefined);
+
+  it('only an entry with its exact id declares, each receiver is real, each purpose readable', () => {
+    const ids = new Set(SEED_APPS.flatMap((spec) => (spec.id ? [spec.id] : [])));
+    for (const spec of declaring) {
+      expect(spec.id).toBeDefined();
+      const receivers = (spec.actsForPeople ?? []).map((entry) => entry.on);
+      expect(new Set(receivers).size).toBe(receivers.length);
+      for (const entry of spec.actsForPeople ?? []) {
+        expect(isPlatformReceiver(entry.on) || (ids.has(entry.on) && entry.on !== spec.id)).toBe(
+          true,
+        );
+        expect(['read', 'write']).toContain(entry.effect);
+        expect(entry.purpose.trim().length).toBeGreaterThan(0);
+        expect(entry.purpose.length).toBeLessThanOrEqual(DELEGATION_PURPOSE_MAX_LENGTH);
+      }
+    }
+  });
+
+  it('declares exactly what each service does for people', () => {
+    expect(
+      Object.fromEntries(
+        declaring.map((spec) => [
+          spec.name,
+          (spec.actsForPeople ?? []).map((entry) => `${entry.on} ${entry.effect}`),
+        ]),
+      ),
+    ).toEqual({ Alia: ['oxy:files write', 'oxy:tools write'] });
   });
 });

@@ -1,7 +1,7 @@
 import { hasExternalMcpMediaProof } from '../services/externalMcpMediaRequester.service';
 import { ForbiddenError } from '../utils/error';
 import { resolveServiceRequester } from '../services/serviceRequester.service';
-import type { ForegroundRequesterBinding } from '../services/foregroundCapabilityRequester.service';
+import type { ServiceRequesterBinding } from '../services/foregroundCapabilityRequester.service';
 import { resolveLiveServiceTokenAuthority } from '../services/liveServiceTokenAuthority.service';
 import { OptionalAuthenticationPolicyError } from './optionalAuthError';
 /**
@@ -144,7 +144,7 @@ const VIEWER_DELEGATION_SCOPE = 'user:read';
  */
 export interface OptionalUserOrServiceRequest extends AuthenticatedRequest {
   serviceApp?: ServiceTokenPayload;
-  serviceRequester?: ForegroundRequesterBinding;
+  serviceRequester?: ServiceRequesterBinding;
 }
 
 /**

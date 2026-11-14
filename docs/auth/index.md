@@ -39,7 +39,8 @@ the five distinct meanings of "sign out":
 | Tokens and credentials (v2 claims) | [tokens-and-credentials.md](./tokens-and-credentials.md) | shipped |
 | Opt-in live session-row validation and rollout | [live-session-authority.md](./live-session-authority.md) | opt-in |
 | Published client compatibility during rollout | [published-client-compatibility.md](./published-client-compatibility.md) | published tarballs checked; UI adoption gate |
-| Own service requester context and durable tasks | [first-party-tasks.md](./first-party-tasks.md) | deployed; [fleet cutover verified](./workload-v1-retirement.md) |
+| Oxy services acting for people (declared, no permissions) | [first-party-delegation.md](./first-party-delegation.md) | ADR 0066; consumers migrating |
+| Retiring own requester proofs and tasks | [first-party-tasks.md](./first-party-tasks.md) | superseded by ADR 0066; removed when their last callers move |
 | Third-party integration | [integration-guide.md](./integration-guide.md) | shipped |
 | The IdP's own shape | [README.md](./README.md) | shipped |
 | The native cross-app device credential | [../SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § Cold boot | built, not verified on a device |

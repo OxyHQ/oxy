@@ -48,6 +48,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 
 **Identity, auth, privacy** — auth-and-identity.md#auth--session-contract
 - Own Oxy apps use shared sessions/workload authority, never app scopes, consent or agent per-app levels; retain account boundaries and external grants — docs/auth/first-party-platform-access.md
+- First-party never asks people for permissions, tasks or consent; an Oxy service acts for a person on its registry `actsForPeople` declaration via `actingFor`; permissions are for third parties — docs/adr/0066
 - Own Oxy apps' operator keys are declared in code (`operatorPermissions` in `seedOxyApplicationsSpecs.ts`, applied by the seed) and held by the owning org's roles; never per-person Console grants or env lists — docs/adr/0056
 - `displayName` is optional; the one fallback is the handle via `getNormalizedUserHandle` — #user-identity-contract
 - Zero cookies on every origin, `auth.oxy.so` included; no third-party cookies, iframes, FedCM, `prompt=none` or silent redirects.
@@ -84,4 +85,4 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 
 - [SDK usage, i18n, publishing](docs/engineering/oxy-sdk-usage.md) · [npm releases](docs/npm-releases.md) · [lint and format](docs/engineering/lint-and-format.md) · [application roles](docs/auth/application-roles.md) · [Postgres and Drizzle](docs/postgres-and-drizzle.md) · [agent team](docs/engineering/agent-team-workflow.md)
 
-Owner: Oxy platform team. Last reviewed 2026-11-11.
+Owner: Oxy platform team. Last reviewed 2026-11-14.

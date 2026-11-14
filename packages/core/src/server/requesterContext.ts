@@ -29,7 +29,53 @@ export function bindRequesterLane(original: ServiceLane, proof: RequesterProof):
     capabilityTicket: proof.capabilityTicket,
     requesterContext: proof.requesterContext,
     actAs: proof.accountId,
+    requesterAccountId: undefined,
   };
+  return bindLane(original, fixed);
+}
+
+/**
+ * The account an Oxy service acts for (ADR 0066), and the person when they
+ * operate that account. No proof: the service acts with the authority its
+ * first-party registry entry declares, and Oxy checks the accounts live.
+ */
+export interface ActingFor {
+  accountId: string;
+  requesterAccountId?: string;
+}
+
+function exactAccountId(value: string | undefined): boolean {
+  return value === undefined || (value.length > 0 && value.length <= 128 && !/\s/.test(value));
+}
+
+export function bindActingForLane(original: ServiceLane, actingFor: ActingFor): ServiceLane {
+  if (
+    !actingFor.accountId ||
+    !exactAccountId(actingFor.accountId) ||
+    !exactAccountId(actingFor.requesterAccountId)
+  )
+    throw new Error('An exact account id is required');
+  return bindLane(original, {
+    actAs: actingFor.accountId,
+    requesterAccountId: actingFor.requesterAccountId,
+  });
+}
+
+type LaneAuthority = NonNullable<Parameters<ServiceLane['request']>[3]>;
+
+/** One lane whose authority headers are fixed and never taken from a caller. */
+function bindLane(
+  original: ServiceLane,
+  fixed: Pick<
+    LaneAuthority,
+    | 'actAs'
+    | 'requesterAccountId'
+    | 'requesterToken'
+    | 'taskId'
+    | 'capabilityTicket'
+    | 'requesterContext'
+  >,
+): ServiceLane {
   return {
     get available() {
       return original.available;
@@ -40,6 +86,7 @@ export function bindRequesterLane(original: ServiceLane, proof: RequesterProof):
         if (
           [
             'x-oxy-user-id',
+            'x-oxy-requester-id',
             'x-oxy-task-id',
             'x-oxy-requester-token',
             'x-oxy-capability-ticket',

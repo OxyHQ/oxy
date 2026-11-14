@@ -7,6 +7,7 @@ import {
 } from '../services/externalMcpMediaRequester.service';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 import { createSupervisedAssetPolicy, isSupervised } from '../services/supervisionPolicy.service';
+import { firstPartyRequesterFor } from '../middleware/firstPartyRequester';
 import express from 'express';
 import recordingIngestRouter from './recordingIngest';
 import { withoutServerSvgMetadata } from '../utils/svgSanitizer';
@@ -1320,12 +1321,24 @@ router.post(
  * authority check — shared by the upload and the import (ADR 0043 D7), so the
  * two can never disagree on who may attribute a file to a person.
  *
- * Own workloads use a verified requester session/task account; the explicit
- * owner must match it. A task may select only its root account or exact self bot
- * with live operator membership. External credentials retain files:user-media:write
- * or the legacy files:write + federation:write pair. An owner header alone is
- * never requester proof for an own workload.
+ * An Oxy service writes for the account it acts for (`X-Oxy-User-Id`, with the
+ * person in `X-Oxy-Requester-Id` when they operate it) when its registry entry
+ * declares `oxy:files` write (ADR 0066); the explicit owner must be that
+ * account. External credentials retain files:user-media:write or the legacy
+ * files:write + federation:write pair.
  */
+/** The account an Oxy service writes user media for; `undefined` when it names another. */
+async function firstPartyMediaOwner(
+  req: ServiceAuthRequest,
+  ownerUserId: string,
+): Promise<string | undefined> {
+  if (req.serviceExternalMedia) return req.serviceExternalMedia.effectiveAccountId;
+  // Refused before it is resolved, so a write for someone else is never counted as done.
+  if (!req.serviceRequester && getSingleHeader(req, 'x-oxy-user-id')?.trim() !== ownerUserId)
+    return undefined;
+  return (await firstPartyRequesterFor(req, 'files', 'write'))?.subjectAccountId;
+}
+
 async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
   if (!hasServiceAuthority(req.serviceApp, USER_MEDIA_WRITE_SCOPE)) {
     requireServiceScope(req, 'files:write');
@@ -1339,10 +1352,9 @@ async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
 
   if (
     req.serviceApp?.authority === 'first_party' &&
-    (req.serviceExternalMedia?.effectiveAccountId ?? req.serviceRequester?.subjectAccountId) !==
-      ownerUserId
+    (await firstPartyMediaOwner(req, ownerUserId)) !== ownerUserId
   ) {
-    throw new ForbiddenError('User media requires the authenticated requester account.');
+    throw new ForbiddenError('User media requires the account the service acts for.');
   }
 
   // Same reasoning as `/service/federation` above: a malformed id matches no
@@ -3809,16 +3821,21 @@ router.post(
 
     const files = await assetService.getFilesByIds(ids);
 
-    const requesterAccount =
-      req.serviceApp?.authority === 'first_party'
-        ? req.serviceRequester?.subjectAccountId
-        : undefined;
+    // A person's files are added only for a service that acts for them; any
+    // other answer omits them, as this route omits every file it refuses.
+    const requesterAccount = await firstPartyRequesterFor(req, 'files', 'read').then(
+      (accounts) => accounts?.subjectAccountId,
+      (refusal: unknown) => {
+        if (refusal instanceof ForbiddenError) return undefined;
+        throw refusal;
+      },
+    );
     const readable = await Promise.all(
       files.map(async (file) => {
         if (!isServableStatus(file)) return null;
         if (mayApplicationRead(file, appId)) return file;
-        // Account authority comes from the separately verified requester proof,
-        // never from the file owner or an arbitrary account header.
+        // The account is the one the service acts for (ADR 0066), checked live;
+        // never the file owner.
         if (
           requesterAccount &&
           !file.ownerApplicationId &&

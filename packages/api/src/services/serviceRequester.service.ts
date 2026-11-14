@@ -3,7 +3,7 @@ import type { IncomingHttpHeaders } from 'node:http';
 import type { LiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
 import {
   validateForegroundRequesterBearer,
-  type ForegroundRequesterBinding,
+  type ServiceRequesterBinding,
 } from './foregroundCapabilityRequester.service';
 import { resolveFirstPartyTask, taskAllowsEffectiveAccount } from './firstPartyTasks.service';
 import { resolveCapabilityRequester, requireRequesterEffect } from './capabilityRequester.service';
@@ -14,7 +14,7 @@ export async function resolveServiceRequester(
   principal: LiveAgencyServicePrincipal,
   headers: IncomingHttpHeaders,
   effect: 'read' | 'write' = 'read',
-): Promise<ForegroundRequesterBinding | undefined> {
+): Promise<ServiceRequesterBinding | undefined> {
   const token = headers['x-oxy-requester-token'];
   const taskId = headers['x-oxy-task-id'];
   const ticket = headers['x-oxy-capability-ticket'];

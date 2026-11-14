@@ -69,15 +69,15 @@ audience compatibility does not admit retired workload-v1 tokens.
 
 ## Requester authority and attribution
 
-A service identity authorizes the service's own operations. Access to private
-resources additionally needs a verified original requester and effective account:
-use the shared session/task/context facilities in
-[first-party tasks](auth/first-party-tasks.md). Downstream services use the
-verified derived context; they cannot reuse another coordinator's naked task id.
-Resource ownership, membership, bot identity and operation constraints remain.
-No own app connection grant or permission level is required.
+A service identity authorizes the service's own operations. An Oxy service acts
+on a person's private resources when its first-party registry entry declares
+that receiver and effect, naming the account with `actingFor` (ADR 0066,
+[Oxy services acting for people](auth/first-party-delegation.md)); Oxy checks
+the declaration, the accounts and the person's membership live. Resource
+ownership, privacy and operation constraints remain. No session, task, grant or
+permission level is involved.
 
-`X-Oxy-User-Id` by itself is not proof. Inference's immutable `kaana.ai`
+From any other caller, `X-Oxy-User-Id` by itself is not proof. Inference's immutable `kaana.ai`
 attribution is deliberately separate from private-data authority. The billing
 principal comes from the verified application owner and credential/workload
 identity, never a forwarded user header; see

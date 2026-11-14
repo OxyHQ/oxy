@@ -27,7 +27,7 @@ import { accountNameParts, formatUserNameResponse } from '../utils/displayName';
 import { accountNameColumns } from '../utils/publicUserProjection';
 
 const router = express.Router();
-router.use(requesterAuthMiddleware);
+router.use(requesterAuthMiddleware('privacy'));
 
 // Get privacy settings (own settings only)
 const getPrivacySettings = asyncHandler(async (req, res) => {

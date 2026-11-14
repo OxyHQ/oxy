@@ -1,3 +1,5 @@
+import { firstPartyRequesterFor } from '../middleware/firstPartyRequester';
+import { resolveDelegatedRequester } from '../services/firstPartyDelegation.service';
 import { utf16MaxLength, utf16MinLength } from '@oxy.so/contracts';
 import {
   issueRequesterContext,
@@ -238,6 +240,10 @@ const serviceActingAsVerifyQuery = z.object({
   environment: z.enum(OXY_SERVICE_ENVIRONMENTS).optional(),
   appId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
   userId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)),
+  /** The person, when the caller acts on an account they operate (ADR 0066). */
+  requesterId: z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).optional(),
+  /** What the received request does; absent is `write`, the stricter one. */
+  effect: z.enum(['read', 'write']).optional(),
 });
 
 /**
@@ -252,11 +258,65 @@ router.get(
   serviceActingAsVerifyLimiter,
   validate({ query: serviceActingAsVerifyQuery }),
   asyncHandler(async (req: ServiceAuthRequest, res) => {
-    const { appId, userId, credentialId, ownerAccountId, environment, taskId } =
-      serviceActingAsVerifyQuery.parse(req.query);
+    const {
+      appId,
+      userId,
+      credentialId,
+      ownerAccountId,
+      environment,
+      taskId,
+      requesterId,
+      effect,
+    } = serviceActingAsVerifyQuery.parse(req.query);
     const requesterToken = req.headers['x-oxy-requester-token'];
     const presentedContext = req.headers['x-oxy-presented-requester-context'];
     const presentedToken = req.headers['x-oxy-presented-service-token'];
+    // ADR 0066: an Oxy service names the account and nothing else. It is acted
+    // for when the caller's registry entry declares this receiver.
+    if (
+      requesterToken === undefined &&
+      taskId === undefined &&
+      presentedContext === undefined &&
+      presentedToken !== undefined
+    ) {
+      const denied = () =>
+        sendSuccess(res, { authorized: false, authority: 'first_party', epoch: '0' });
+      if (req.serviceApp?.authority !== 'first_party' || !credentialId || !ownerAccountId)
+        return denied();
+      const binding = await resolveLiveAgencyWorkloadByHandle(appId, credentialId);
+      const received =
+        typeof presentedToken === 'string'
+          ? verifyServiceToken(presentedToken, `oxy-service:${req.serviceApp.appId}`)
+          : null;
+      if (
+        !binding?.environmentBound ||
+        binding.ownerAccountId !== ownerAccountId ||
+        binding.environment !== environment ||
+        !received?.ok ||
+        received.payload.authority !== 'first_party' ||
+        received.payload.appId !== appId ||
+        received.payload.credentialId !== credentialId
+      )
+        return denied();
+      try {
+        const delegated = await resolveDelegatedRequester({
+          applicationId: appId,
+          on: req.serviceApp.appId,
+          effect: effect ?? 'write',
+          accountId: userId,
+          ...(requesterId ? { requesterAccountId: requesterId } : {}),
+        });
+        return sendSuccess(res, {
+          authorized: true,
+          authority: 'first_party',
+          epoch: '0',
+          requesterId: delegated.principalAccountId,
+        });
+      } catch (error) {
+        if (error instanceof ForbiddenError) return denied();
+        throw error;
+      }
+    }
     if (
       requesterToken !== undefined ||
       taskId !== undefined ||
@@ -568,12 +628,10 @@ router.post(
     if (req.serviceRequester?.operation || req.serviceRequester?.forwardedContext)
       throw new ForbiddenError('Operation context cannot mint shared sessions.');
     const operator = serviceAccountSwitchOperator.safeParse(
-      req.serviceRequester?.principalAccountId,
+      (await firstPartyRequesterFor(req, 'account-switch', 'write'))?.principalAccountId,
     );
     if (!operator.success) {
-      throw new BadRequestError(
-        'Verified requester session or task proof is required for this account switch.',
-      );
+      throw new BadRequestError('The service must name the person switching (ADR 0066).');
     }
     const operatorId = operator.data;
     const accountId = req.params.id;

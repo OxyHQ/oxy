@@ -9,7 +9,7 @@ import { ForbiddenError } from '../utils/error';
 import type { LiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
 import { listActiveCapabilityCatalogs } from './capabilityCatalog.service';
 import { reauthorizeCapabilityTicket } from './capabilityAuthority.service';
-import type { ForegroundRequesterBinding } from './foregroundCapabilityRequester.service';
+import type { ServiceRequesterBinding } from './foregroundCapabilityRequester.service';
 
 export interface CapabilityRequesterOperation {
   readonly claims: CapabilityTicketClaims;
@@ -20,7 +20,7 @@ export interface CapabilityRequesterOperation {
 export async function resolveCapabilityRequester(
   ticket: string,
   presenter: LiveAgencyServicePrincipal,
-): Promise<ForegroundRequesterBinding | null> {
+): Promise<ServiceRequesterBinding | null> {
   if (presenter.authority !== 'first_party' || !ticket || ticket.length > 16384) return null;
   const signing = capabilityTicketSigningConfig();
   const registrations = (await listActiveCapabilityCatalogs()).filter(
@@ -66,25 +66,30 @@ export async function resolveCapabilityRequester(
     .from(capabilityExecutionAuthorizations)
     .where(eq(capabilityExecutionAuthorizations.id, claims.executionAuthorization.id))
     .limit(1);
+  // A delegated operation (ADR 0066) has neither; a session-bound one has both.
   if (
     execution?.authority !== 'first_party' ||
-    !execution.requesterSessionId ||
-    !execution.requesterSessionBindingDigest
+    !execution.requesterSessionId !== !execution.requesterSessionBindingDigest
   )
     return null;
-  return {
-    sessionId: execution.requesterSessionId,
-    digest: execution.requesterSessionBindingDigest,
+  const accounts = {
     principalAccountId: claims.requesterAccountId,
     subjectAccountId: claims.resource.effectiveAccountId,
     expiresAt: new Date(Math.min(execution.expiresAt.getTime(), claims.exp * 1000)),
     operation: { claims, receiverApplicationId: presenter.applicationId, effect },
   };
+  return execution.requesterSessionId && execution.requesterSessionBindingDigest
+    ? {
+        ...accounts,
+        sessionId: execution.requesterSessionId,
+        digest: execution.requesterSessionBindingDigest,
+      }
+    : { ...accounts, sessionId: null, digest: null };
 }
 
 /** Operation policy stays attached to nested reads and effects; it is not an app grant. */
 export function requireRequesterEffect(
-  requester: ForegroundRequesterBinding | undefined,
+  requester: ServiceRequesterBinding | undefined,
   effect: 'read' | 'write',
 ): void {
   if (

@@ -149,9 +149,13 @@ request with no person (anonymous, or a service token). `oxy.asUser(req)`
 returns the client itself when it must outlive one callback; `dispose()` it
 when the request ends. Never hand-build `new OxyServices()` with a user token.
 
-For work your SERVICE does with the person's proof — a forwarded session, a
-task, a capability ticket — use `oxy.withRequester({ requesterToken | taskId | capabilityTicket })`;
-durable work keeps only a `taskId` from `oxy.agency.createTask(…)`.
+For work your SERVICE does for a person — now or in the background — declare it
+in your application's `actsForPeople` in Oxy's first-party registry and name the
+account: `oxy.actingFor({ accountId })` (`oxy.assets.actingFor`,
+`createServiceClient({ actingFor })`). No session, task or consent; Oxy checks
+the declaration and the accounts live (ADR 0066,
+[Oxy services acting for people](https://github.com/OxyHQ/oxy/blob/main/docs/auth/first-party-delegation.md)).
+`withRequester` and tasks are retiring.
 
 ## Files
 
@@ -160,7 +164,7 @@ Everything is on `oxy.assets`: uploads (`uploadAppFile`, `uploadAppFileLarge`,
 `linkedDownloadUrls`, `publicUrl`), usage (`references.add` / `remove` /
 `reconcile`), re-hosted remote media (`mediaCache.upload` / `delete`,
 `federatedMedia.upload` / `delete`; a 429's wait is `retryAfterSecondsOf(error)`),
-and `withRequester` for a person's private file. Receive file
+and `actingFor({ accountId })` for a person's files. Receive file
 events with `verifyFileEventSignature`, mounted before the body parser. A
 person may attach a file only if `metadataByIds` says it is theirs and
 `active`. No raw HTTP to `/assets` or `cloud.oxy.so`.

@@ -1,3 +1,4 @@
+import { firstPartyRequesterFor } from '../middleware/firstPartyRequester';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * `/chains` — the app-authored write to a person's signed chain.
@@ -67,23 +68,24 @@ router.post(
     }
 
     const body = req.body as AppendChainRecordBody;
+    const requester = await firstPartyRequesterFor(req, 'chains', 'write');
     if (
       req.serviceApp?.authority === 'first_party' &&
-      req.serviceRequester?.subjectAccountId !== body.oxyUserId
+      requester?.subjectAccountId !== body.oxyUserId
     )
-      throw new ForbiddenError('The chain must belong to the verified requester account.');
+      throw new ForbiddenError('The chain must belong to the account the service acts for.');
     const result = await appendAppRecord({
       appId,
       oxyUserId: body.oxyUserId,
       collection: body.collection,
       rkey: body.rkey,
       record: body.record,
-      ...(req.serviceApp?.authority === 'first_party' && req.serviceRequester
+      ...(req.serviceApp?.authority === 'first_party' && requester
         ? {
             requester: {
               authority: 'first_party' as const,
               applicationId: req.serviceApp.appId,
-              accountId: req.serviceRequester.subjectAccountId,
+              accountId: requester.subjectAccountId,
             },
           }
         : {}),

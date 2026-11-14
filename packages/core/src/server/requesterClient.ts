@@ -2,14 +2,16 @@ import { OxyServices } from '../OxyServices';
 import type { HttpMethod, ServiceLane } from '../client/context';
 import type { RequestOptions, ResponsePayload } from '../HttpService';
 import { ServerAssetsApi } from './namespaces';
-import { bindRequesterLane, type RequesterProof } from './requesterContext';
 
-/** Oxy namespaces bound to one verified requester, without sharing mutable auth state. */
+/**
+ * Oxy namespaces bound to one account (`actingFor`, ADR 0066) or one requester
+ * proof, without sharing mutable auth state. The lane arrives already bound.
+ */
 export class OxyRequesterClient extends OxyServices {
   private readonly requesterLane: ServiceLane;
-  constructor(baseURL: string, cloudURL: string, original: ServiceLane, proof: RequesterProof) {
+  constructor(baseURL: string, cloudURL: string, bound: ServiceLane) {
     super({ baseURL, cloudURL });
-    this.requesterLane = bindRequesterLane(original, proof);
+    this.requesterLane = bound;
     this.context.service = this.requesterLane;
   }
   override request<T>(

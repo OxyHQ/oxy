@@ -8,7 +8,8 @@ for implementation and rollout state; this page is not a deployment claim.
 |---|---|---|
 | Person in an Oxy product | One `OxyProvider`, existing device session and linked clients | Active account, ownership, membership and domain policy; no app scopes or OAuth consent |
 | Own backend | Attested workload, active application/binding, explicit environment | `authority: first_party`; exact recipient audience; account/resource rules, no scopes |
-| Own agent acting for a person | Verified requester/effective account carried through run and ticket | Live internal catalogue; correct person's data, no per-app levels |
+| Own backend acting for a person | Its workload, naming the account (`actingFor`; ADR 0066) | What its registry entry declares (`actsForPeople`), live accounts and `account:act_as`; no session, task or consent |
+| Own agent acting for a person | The coordinator's workload naming requester and effective account per operation | Live internal catalogue (`oxy:tools`); correct person's data, no per-app levels |
 | Bot acting as itself | Its own bot identity | Its own resources, never a requester's or owner's data by inference |
 | External OAuth/MCP client | Explicit account connection with PKCE and isolated bearer | Requested/registered scopes, user consent and live revocation |
 | Customer API key | External credential | Credential limits/scopes and resource authority; never promoted by app branding |
@@ -38,9 +39,12 @@ of the person whose private resource is requested.
 
 Keep the original caller's authority when proxying external traffic. Never infer
 full access from the fact that an Oxy backend performed the final HTTP hop.
-Public reads, person-bound calls and asynchronous operations are distinct:
-a worker retains the original account and operation binding, not a persistent
-copy of the user's bearer or a caller-supplied user ID.
+Public reads, person-bound calls and asynchronous operations are distinct: a
+worker names the account it works for and acts on its service's declared
+authority ([ADR 0066](../adr/0066-first-party-services-act-for-people-without-permissions.md),
+[Oxy services acting for people](first-party-delegation.md)), never a stored
+copy of the user's bearer, a task or a caller-supplied user id from an
+undeclared service.
 
 For streaming uploads, a product SDK can call the service transport's
 `fetchReplayable(url, { method: 'POST', bodyFactory, signal, headers })`.
@@ -72,8 +76,8 @@ Own agents and Alia can use the live own-app catalogue across products. Remove
 per-app permission selectors and grant/ceiling lookups, retaining model/tool
 selection, product entitlements and domain rules. A turn by person B with an
 agent owned by A operates on B's effective account; choosing that agent must
-not expose A's mail. A scheduled task continues as its verified original
-requester/account and ends when that authority is no longer valid.
+not expose A's mail. Scheduled work names the same person and account each time
+it runs and stops when the person turns the feature off or loses the account.
 
 Do not confuse OAuth scopes with lexical variables, database tenant boundaries,
 cloud bucket restrictions, app roles or signed operation tickets. Those names

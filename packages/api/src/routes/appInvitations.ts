@@ -1,3 +1,4 @@
+import { firstPartyRequesterFor } from '../middleware/firstPartyRequester';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
 /**
  * Invitation emails an application has Oxy send for it (`invitations:email`).
@@ -88,7 +89,10 @@ router.post(
         idempotencyKey,
         ...body,
       },
-      { principal: serviceApp, requester: req.serviceRequester },
+      {
+        principal: serviceApp,
+        requester: await firstPartyRequesterFor(req, 'app-invitations', 'write'),
+      },
     );
     const answer: z.input<typeof appInvitationEmailResponseSchema> = {
       data: {

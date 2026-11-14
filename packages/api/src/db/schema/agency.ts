@@ -343,8 +343,10 @@ export const capabilityExecutionAuthorizations = pgTable(
       'capability_execution_requester_session_check',
       sql`
       case when coalesce(${t.authority}, 'external') = 'first_party' then
-        (${t.requesterSessionId} is not null and length(${t.requesterSessionId}) > 0
-         and ${t.requesterSessionBindingDigest} is not null and ${t.requesterSessionBindingDigest} ~ '^[a-f0-9]{64}$' and ${t.ceilingId} is null)
+        ((${t.requesterSessionId} is not null and length(${t.requesterSessionId}) > 0
+         and ${t.requesterSessionBindingDigest} is not null and ${t.requesterSessionBindingDigest} ~ '^[a-f0-9]{64}$')
+         or (${t.requesterSessionId} is null and ${t.requesterSessionBindingDigest} is null and ${t.taskId} is null))
+        and ${t.ceilingId} is null
       else (${t.actorType} = 'requester' and ${t.requesterSessionId} is not null and length(${t.requesterSessionId}) > 0
        and ${t.requesterSessionBindingDigest} is not null
        and ${t.requesterSessionBindingDigest} ~ '^[a-f0-9]{64}$'

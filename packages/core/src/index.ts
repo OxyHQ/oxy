@@ -193,6 +193,7 @@ export type {
   ApplicationUsageStats,
   PublicApplication,
   ConnectedApp,
+  FirstPartyActivityEntry,
   ConnectedMcpClient,
   ApplicationDeleteResult,
   ApplicationFilesWebhook,

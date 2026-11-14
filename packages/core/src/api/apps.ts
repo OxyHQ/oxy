@@ -591,6 +591,28 @@ export class AppAssertionsApi {
 
 const SINGLE_ATTEMPT = { cache: false, deduplicate: false, retry: false } as const;
 
+/**
+ * What one Oxy service did for an account on one day (ADR 0066): Oxy's own
+ * apps never ask for permissions, and this is where the person sees them act.
+ */
+export interface FirstPartyActivityEntry {
+  application: { id: string; name: string | null };
+  /** The account acted on. */
+  accountId: string;
+  /** The person it was done for; `accountId` unless they operate it. */
+  requesterAccountId: string;
+  /** `oxy:<area>` or the receiving Oxy application's id. */
+  receiver: string;
+  effect: 'read' | 'write';
+  /** Why the application does it, as its registry entry declares; `null` once it no longer does. */
+  purpose: string | null;
+  /** `YYYY-MM-DD`, UTC. */
+  day: string;
+  count: number;
+  firstAt: string;
+  lastAt: string;
+}
+
 export class AppsApi {
   /** An application's OAuth client credentials. */
   readonly credentials: AppCredentialsApi;
@@ -603,6 +625,23 @@ export class AppsApi {
     this.credentials = new AppCredentialsApi(ctx);
     this.connected = new ConnectedAppsApi(ctx);
     this.assertions = new AppAssertionsApi(ctx);
+  }
+
+  /**
+   * What Oxy's own services did for this account (ADR 0066), newest first, up
+   * to 400 days back. `accountId`: an account the signed-in person operates;
+   * their own by default. `GET /capabilities/first-party-activity`, uncached.
+   */
+  async firstPartyActivity(accountId?: string): Promise<FirstPartyActivityEntry[]> {
+    const res = await this.ctx.request<{ activity?: FirstPartyActivityEntry[] }>(
+      'GET',
+      accountId
+        ? `/capabilities/first-party-activity?accountId=${enc(accountId)}`
+        : '/capabilities/first-party-activity',
+      undefined,
+      { cache: false },
+    );
+    return res.activity ?? [];
   }
 
   /**

@@ -76,6 +76,8 @@ export interface ServiceActingAsVerification {
   authorized: boolean;
   scopes?: string[];
   requesterContext?: string;
+  /** The person an Oxy service acts for (ADR 0066); the account itself unless they operate it. */
+  requesterId?: string;
 }
 
 /** The SET `events` member Oxy uses for an account deletion. */
@@ -356,6 +358,8 @@ export interface OxyMiddlewareHost {
       requesterContext?: string;
       presentedServiceToken?: string;
       taskId?: string;
+      requesterId?: string;
+      effect?: 'read' | 'write';
     },
   ): Promise<ServiceActingAsVerification | null>;
   introspectServiceToken?(token: string): Promise<ServiceIntrospection>;
@@ -888,6 +892,10 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               requesterToken: isExactNonEmptyServiceClaim(req.headers['x-oxy-requester-token'])
                 ? req.headers['x-oxy-requester-token']
                 : undefined,
+              requesterId: isExactNonEmptyServiceClaim(req.headers['x-oxy-requester-id'])
+                ? req.headers['x-oxy-requester-id']
+                : undefined,
+              effect: ['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? '') ? 'read' : 'write',
             });
             if (!grant || !grant.authorized) {
               logger.warn('[oxy.auth] Service token rejected — no delegation grant', {
@@ -929,6 +937,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
                     userId: oxyUserId,
                     authority: 'first_party',
                     ...(grant.requesterContext ? { requesterContext: grant.requesterContext } : {}),
+                    ...(grant.requesterId ? { requesterId: grant.requesterId } : {}),
                   }
                 : {
                     userId: oxyUserId,

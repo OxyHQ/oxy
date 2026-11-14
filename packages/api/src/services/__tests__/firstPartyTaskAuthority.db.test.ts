@@ -18,6 +18,8 @@ import {
 import { bindWorkloadIdentity } from '../workloadIdentityBinding.service';
 import { registerFirstPartyCapabilityCatalog } from '../capabilityCatalog.service';
 import { createFirstPartyTaskAuthorization } from '../firstPartyTaskAuthority.service';
+import { UNDECLARED_DELEGATION_MESSAGE } from '../firstPartyDelegation.service';
+import { ALIA_APPLICATION_ID } from '../../config/firstPartyApplications';
 import {
   evaluateCapabilityAuthority,
   reauthorizeCapabilityTicket,
@@ -41,19 +43,28 @@ afterAll(async () => {
   for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
   Object.assign(process.env, saved);
 });
-async function fixture() {
+/** `applicationId`: an application the first-party registry declares (ADR 0066). */
+async function fixture(applicationId?: string) {
   const [owner, user, other, bot] = await insertAccountFixtures([{}, {}, {}, { kind: 'bot' }]);
-  const [app] = await getDb()
+  await getDb()
     .insert(applications)
     .values({
-      name: 'Own task',
+      ...(applicationId ? { id: applicationId } : {}),
+      name: applicationId ? 'Declared own service' : 'Own task',
       ownerAccountId: owner.id,
       isOfficial: true,
       status: 'active',
       scopes: [],
       capabilities: [],
     })
-    .returning();
+    .onConflictDoNothing();
+  const [app] = applicationId
+    ? await getDb().select().from(applications).where(eq(applications.id, applicationId))
+    : await getDb()
+        .select()
+        .from(applications)
+        .where(eq(applications.ownerAccountId, owner.id))
+        .limit(1);
   const { binding } = await bindWorkloadIdentity({
     applicationId: app.id,
     subject: `arn:aws:iam::237343248947:role/own-task-${randomUUID()}`,
@@ -122,7 +133,7 @@ it('issues an own task for the original requester and distinct bot without any a
   const f = await fixture();
   const authorization = await createFirstPartyTaskAuthorization(
     f.input,
-    f.session.accessToken,
+    { kind: 'session', subjectToken: f.session.accessToken },
     f.presenter,
   );
   expect(authorization).toMatchObject({
@@ -147,19 +158,67 @@ it('issues an own task for the original requester and distinct bot without any a
   await sessionService.deactivateSession(f.session.sessionId);
   expect((await issue(f, authorization.id)).decision.allowed).toBe(false);
 });
+it("issues a tool operation on the service's declared authority alone: no session, task or grant (ADR 0066)", async () => {
+  const f = await fixture(ALIA_APPLICATION_ID);
+  const authorization = await createFirstPartyTaskAuthorization(
+    f.input,
+    { kind: 'delegated' },
+    f.presenter,
+  );
+  expect(authorization).toMatchObject({
+    authority: 'first_party',
+    taskId: null,
+    requesterSessionId: null,
+    requesterSessionBindingDigest: null,
+    requesterAccountId: f.user.id,
+    effectiveAccountId: f.user.id,
+    actorAccountId: f.bot.id,
+  });
+  const result = await issue(f, authorization.id);
+  expect(result.decision.allowed).toBe(true);
+  expect(result.claims).toMatchObject({
+    authority: 'first_party',
+    requesterAccountId: f.user.id,
+    resource: { effectiveAccountId: f.user.id },
+  });
+  // Signing out of everything changes nothing: no session backs it.
+  await sessionService.deactivateSession(f.session.sessionId);
+  expect((await issue(f, authorization.id)).decision.allowed).toBe(true);
+  // A bot account is acted on only for a person who operates it.
+  await expect(
+    createFirstPartyTaskAuthorization(
+      {
+        ...f.input,
+        resource: { ...f.input.resource, effectiveAccountId: f.bot.id, resourceId: f.bot.id },
+      },
+      { kind: 'delegated', requesterAccountId: f.other.id },
+      f.presenter,
+    ),
+  ).rejects.toThrow('The person does not operate this account.');
+});
+it('refuses a tool operation for a service the registry does not declare (ADR 0066)', async () => {
+  const f = await fixture();
+  await expect(
+    createFirstPartyTaskAuthorization(f.input, { kind: 'delegated' }, f.presenter),
+  ).rejects.toThrow(UNDECLARED_DELEGATION_MESSAGE);
+});
 it('never promotes an external presenter or app-bound OAuth proof, or substitutes another account', async () => {
   const f = await fixture();
   await expect(
-    createFirstPartyTaskAuthorization(f.input, f.session.accessToken, {
-      ...f.presenter,
-      authority: 'external',
-      scopes: ['user:read'],
-    }),
+    createFirstPartyTaskAuthorization(
+      f.input,
+      { kind: 'session', subjectToken: f.session.accessToken },
+      {
+        ...f.presenter,
+        authority: 'external',
+        scopes: ['user:read'],
+      },
+    ),
   ).rejects.toThrow();
   await expect(
     createFirstPartyTaskAuthorization(
       { ...f.input, resource: { ...f.input.resource, effectiveAccountId: f.other.id } },
-      f.session.accessToken,
+      { kind: 'session', subjectToken: f.session.accessToken },
       f.presenter,
     ),
   ).rejects.toThrow();
@@ -183,14 +242,18 @@ it('never promotes an external presenter or app-bound OAuth proof, or substitute
     },
   );
   await expect(
-    createFirstPartyTaskAuthorization(f.input, externalSession.accessToken, f.presenter),
+    createFirstPartyTaskAuthorization(
+      f.input,
+      { kind: 'session', subjectToken: externalSession.accessToken },
+      f.presenter,
+    ),
   ).rejects.toThrow();
 });
 it('keeps external and legacy tasks narrowed even when the owning app is marked own', async () => {
   const f = await fixture();
   const authorization = await createFirstPartyTaskAuthorization(
     f.input,
-    f.session.accessToken,
+    { kind: 'session', subjectToken: f.session.accessToken },
     f.presenter,
   );
   expect(
@@ -225,7 +288,7 @@ it('retains a scheduled task original requester after signout, but revokes the t
       automationId: randomUUID(),
       expiresAt: new Date(Date.now() + 3600_000).toISOString(),
     },
-    f.session.accessToken,
+    { kind: 'session', subjectToken: f.session.accessToken },
     f.presenter,
   );
   await sessionService.deactivateSession(f.session.sessionId);
@@ -242,7 +305,7 @@ it('rejects stale catalogue provenance or a demoted catalogue owner', async () =
   const f = await fixture();
   const authorization = await createFirstPartyTaskAuthorization(
     f.input,
-    f.session.accessToken,
+    { kind: 'session', subjectToken: f.session.accessToken },
     f.presenter,
   );
   await getDb()
@@ -269,9 +332,8 @@ it('derives background tools and child actors from one durable task, preserving 
   await sessionService.deactivateSession(f.session.sessionId);
   const authorization = await createFirstPartyTaskAuthorization(
     { ...f.input, actor: { type: 'agent', accountId: child.id } },
-    '',
+    { kind: 'task', taskId: task.id },
     f.presenter,
-    task.id,
   );
   expect(authorization).toMatchObject({
     taskId: task.id,
@@ -285,15 +347,14 @@ it('derives background tools and child actors from one durable task, preserving 
   await expect(
     createFirstPartyTaskAuthorization(
       { ...f.input, resource: { ...f.input.resource, effectiveAccountId: f.other.id } },
-      '',
+      { kind: 'task', taskId: task.id },
       f.presenter,
-      task.id,
     ),
   ).rejects.toThrow();
   await revokeFirstPartyTask(task.id, f.presenter);
   expect((await reauthorizeCapabilityTicket(result.claims!)).allowed).toBe(false);
   await expect(
-    createFirstPartyTaskAuthorization(f.input, '', f.presenter, task.id),
+    createFirstPartyTaskAuthorization(f.input, { kind: 'task', taskId: task.id }, f.presenter),
   ).rejects.toThrow();
 });
 
@@ -364,7 +425,11 @@ it('binds self tools to the root bot and current operator membership, never a su
     ...f.input,
     resource: { ...f.input.resource, effectiveAccountId: f.bot.id, resourceId: f.bot.id },
   };
-  const auth = await createFirstPartyTaskAuthorization(selfInput, '', f.presenter, task.id);
+  const auth = await createFirstPartyTaskAuthorization(
+    selfInput,
+    { kind: 'task', taskId: task.id },
+    f.presenter,
+  );
   expect(auth.effectiveAccountId).toBe(f.bot.id);
   await expect(
     createFirstPartyTaskAuthorization(
@@ -373,9 +438,8 @@ it('binds self tools to the root bot and current operator membership, never a su
         actor: { type: 'agent', accountId: child.id },
         resource: { ...selfInput.resource, effectiveAccountId: child.id, resourceId: child.id },
       },
-      '',
+      { kind: 'task', taskId: task.id },
       f.presenter,
-      task.id,
     ),
   ).rejects.toThrow();
   const result = await issue(f, auth.id);
@@ -398,7 +462,11 @@ it('deleting a root removes derived authority instead of orphaning it or blockin
     f.session.accessToken,
     f.presenter,
   );
-  const auth = await createFirstPartyTaskAuthorization(f.input, '', f.presenter, task.id);
+  const auth = await createFirstPartyTaskAuthorization(
+    f.input,
+    { kind: 'task', taskId: task.id },
+    f.presenter,
+  );
   expect((await issue(f, auth.id)).decision.allowed).toBe(true);
   await getDb().delete(firstPartyTasks).where(eq(firstPartyTasks.id, task.id));
   expect(
@@ -437,7 +505,11 @@ it('sweeps ended roots after thirty days, preserving live context, audit and eff
       f.session.accessToken,
       f.presenter,
     );
-    const auth = await createFirstPartyTaskAuthorization(f.input, '', f.presenter, task.id);
+    const auth = await createFirstPartyTaskAuthorization(
+      f.input,
+      { kind: 'task', taskId: task.id },
+      f.presenter,
+    );
     const result = await issue(f, auth.id);
     expect(result.decision.allowed).toBe(true);
     roots.push({ task, auth, state });

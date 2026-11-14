@@ -16,6 +16,26 @@ audiences are `oxy-service:<applicationId>`; Kaana's audience is `kaana.ai`.
 Correct requester/account/resource, external-grant restrictions, domain rules,
 revocation and operation binding remain mandatory.
 
+## ADR 0066: no permissions for Oxy's own services (2026-11-14)
+
+[ADR 0066](../adr/0066-first-party-services-act-for-people-without-permissions.md)
+replaces the requester proofs and tasks below with each service's declared
+`actsForPeople` and `actingFor`. Callers still on the retiring proofs, in
+migration order (`scripts/check-first-party-permission-vocabulary.mjs` lists
+the Oxy files):
+
+| Caller | Retiring machinery | State |
+|---|---|---|
+| Oxy API and `@oxy.so/core` | declared lane beside the proofs; activity record | source |
+| Gemies | channel, bot and session tasks, renewal, reauthorise, `alia_task_authorizations`, Files `withRequester` | pending |
+| Alia app | channel reauthorise screen and renewal hook | pending |
+| Syra | Files tasks, renewal, revocation outbox; MCP episodes kept as Syra copies | pending |
+| Move, Schedio | per-job and per-post tasks and columns | pending |
+| Mention, Homiio | Files `withRequester`, foreground authorizations, requester contexts | pending |
+| Peable, Kaana, CrowdSource SDKs | `requester` unions | pending |
+| OxyOS | `oxy-account` install consent for Oxy's own apps | pending |
+| Oxy cleanup | tasks, contexts, requester tokens, `first_party_tasks` | after all of the above |
+
 ## Workstreams (updated 2026-10-26)
 
 | Area | Source state | Required acceptance |
