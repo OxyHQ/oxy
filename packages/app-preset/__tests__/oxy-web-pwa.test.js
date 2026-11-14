@@ -169,7 +169,37 @@ test('the worker version changes with the export', (t) => {
   });
   makeInstallable(a);
   makeInstallable(b);
+  // New bytes make the browser install the new worker; the cache name stays, so
+  // the previous deploy's chunks remain available to a tab still running it.
   assert.notEqual(read(a, 'oxy-sw-base.js'), read(b, 'oxy-sw-base.js'));
+  const cacheName = (dist) =>
+    read(dist, 'oxy-sw-base.js').match(/CACHE_NAME = `\$\{CACHE_PREFIX\}(\w+)`/)[1];
+  assert.equal(cacheName(a), cacheName(b));
+});
+
+test('--remove-sw ships a worker that retires the old one and links no registration', (t) => {
+  const dist = exportDir();
+  const withPush = exportDir({ files: { 'sw.js': "self.addEventListener('push', () => {});\n" } });
+  t.after(() => {
+    for (const dir of [dist, withPush]) rmSync(dir, { recursive: true, force: true });
+  });
+  execFileSync(process.execPath, [BIN, dist, '--remove-sw']);
+  const worker = read(dist, 'sw.js');
+  assert.match(worker, /registration\.unregister\(\)/);
+  assert.match(worker, /caches\.delete/);
+  assert.doesNotMatch(worker, /addEventListener\('fetch'/);
+  assert.ok(!existsSync(join(dist, 'oxy-sw-base.js')));
+  assert.doesNotMatch(read(dist, 'index.html'), /oxy-sw-register/);
+  assert.match(read(dist, 'index.html'), /rel="manifest"/);
+
+  assert.throws(
+    () => makeInstallable(withPush, { removeServiceWorker: true }),
+    /ships its own public\/sw.js/,
+  );
+  assert.throws(
+    () => makeInstallable(dist, { removeServiceWorker: true, serviceWorker: false }),
+    /cannot be combined/,
+  );
 });
 
 test('--no-sw ships no worker and links no registration', (t) => {
@@ -217,15 +247,46 @@ test('the CLI exits 1 on an uninstallable export', (t) => {
 
 // ─── The base worker ────────────────────────────────────────────────
 
-function loadWorker() {
+function fakeCaches(names) {
+  const stores = new Map(names.map((name) => [name, []]));
+  return {
+    stores,
+    keys: async () => [...stores.keys()],
+    delete: async (name) => stores.delete(name),
+    open: async (name) => {
+      if (!stores.has(name)) stores.set(name, []);
+      const entries = stores.get(name);
+      return {
+        keys: async () => entries.map((url) => ({ url })),
+        delete: async (key) => {
+          entries.splice(entries.indexOf(key.url), 1);
+        },
+      };
+    },
+  };
+}
+
+function loadWorker(file = 'oxy-sw-base.js', caches = fakeCaches([])) {
+  const listeners = {};
   const self = {
     location: { origin: 'https://app.example' },
-    addEventListener() {},
+    addEventListener(type, listener) {
+      listeners[type] = listener;
+    },
     clients: { claim() {} },
+    registration: {
+      unregistered: false,
+      unregister: async () => (self.registration.unregistered = true),
+    },
     skipWaiting() {},
   };
-  vm.runInNewContext(read(join(__dirname, '..', 'web'), 'oxy-sw-base.js'), { self, URL });
-  return self.__oxySwBaseInternals;
+  vm.runInNewContext(read(join(__dirname, '..', 'web'), file), { self, URL, caches });
+  const fire = async (type) => {
+    const pending = [];
+    listeners[type]({ waitUntil: (promise) => pending.push(promise) });
+    await Promise.all(pending);
+  };
+  return { ...self.__oxySwBaseInternals, self, fire };
 }
 
 function request(
@@ -287,4 +348,74 @@ test('the base worker stores only complete, public, same-origin responses', () =
   assert.equal(cacheable(response(206, 'basic')), false);
   assert.equal(cacheable(response(200, 'basic', 'private, max-age=60')), false);
   assert.equal(cacheable(response(200, 'basic', 'no-store')), false);
+});
+
+test('activating the base worker drops older Oxy caches and nothing else', async () => {
+  const caches = fakeCaches(['oxy-sw-v1', 'oxy-sw-0123456789abcdef', 'inbox-v3']);
+  const { fire, CACHE_NAME } = loadWorker('oxy-sw-base.js', caches);
+  assert.equal(CACHE_NAME, 'oxy-sw-v1');
+  await fire('activate');
+  assert.deepEqual([...caches.stores.keys()], ['oxy-sw-v1', 'inbox-v3']);
+});
+
+test('the base cache drops its oldest entries past the bound, never the shell', async () => {
+  const caches = fakeCaches([]);
+  const { trim, MAX_ENTRIES, SHELL_KEY } = loadWorker('oxy-sw-base.js', caches);
+  const cache = await caches.open('oxy-sw-v1');
+  const store = caches.stores.get('oxy-sw-v1');
+  store.push(`https://app.example${SHELL_KEY}`);
+  for (let i = 0; i < MAX_ENTRIES + 5; i++) store.push(`https://app.example/_expo/${i}.js`);
+  await trim(cache);
+  assert.equal(store.length, MAX_ENTRIES);
+  assert.equal(store[0], `https://app.example${SHELL_KEY}`);
+  assert.equal(store[1], 'https://app.example/_expo/6.js');
+});
+
+test('the removal worker deletes the Oxy caches and unregisters', async () => {
+  const caches = fakeCaches(['oxy-sw-v1', 'other-app-cache']);
+  const { fire, self } = loadWorker('oxy-sw-remove.js', caches);
+  await fire('activate');
+  assert.deepEqual([...caches.stores.keys()], ['other-app-cache']);
+  assert.equal(self.registration.unregistered, true);
+});
+
+test('the registration skips the HTTP cache and re-checks a foregrounded app hourly', async () => {
+  let now = 0;
+  const calls = { register: [], update: 0 };
+  const docListeners = {};
+  const registration = { update: async () => calls.update++ };
+  const document = {
+    readyState: 'complete',
+    visibilityState: 'visible',
+    addEventListener: (type, listener) => {
+      docListeners[type] = listener;
+    },
+  };
+  const navigator = {
+    serviceWorker: {
+      register: async (...args) => {
+        calls.register.push(args);
+        return registration;
+      },
+    },
+  };
+  const window = { isSecureContext: true, addEventListener() {} };
+  const FakeDate = { now: () => now };
+  vm.runInNewContext(read(join(__dirname, '..', 'web'), 'oxy-sw-register.js'), {
+    navigator,
+    document,
+    window,
+    Date: FakeDate,
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    JSON.stringify(calls.register),
+    JSON.stringify([['/sw.js', { updateViaCache: 'none' }]]),
+  );
+  now = 10 * 60 * 1000;
+  docListeners.visibilitychange();
+  assert.equal(calls.update, 0);
+  now = 61 * 60 * 1000;
+  docListeners.visibilitychange();
+  assert.equal(calls.update, 1);
 });
