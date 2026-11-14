@@ -11,7 +11,8 @@
  * Strategies (ported from Inbosh's worker, which paid for each rule):
  *
  * - Navigation: network-first, so a deploy is visible on the next load. The
- *   one SPA shell is stored once under `/index.html` and served offline.
+ *   one SPA shell, fetched from `/`, is stored once under `/index.html` and
+ *   served offline, always as a response that went through no redirect.
  * - Same-origin static files (`/_expo/`, `/assets/`, images, fonts, JS, CSS):
  *   stale-while-revalidate. Metro hashes these names, so an entry is never
  *   stale in content, and chunks of the previous deploy stay loadable for a
@@ -54,14 +55,91 @@
 
   const offline = () => new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
 
+  /**
+   * A response a navigation can be answered with. Chrome refuses a response
+   * that went through a redirect for a navigation (`net::ERR_FAILED`), and
+   * hosts redirect: Cloudflare's static assets send `/index.html` to `/` with
+   * a 307. So a stored shell is always rebuilt as a plain response.
+   */
+  function servable(response) {
+    if (!response?.redirected) return response;
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  }
+
+  /** A same-origin static file this worker stores: a bundle, stylesheet, font or image. */
+  function isStatic(url) {
+    if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return false;
+    return (
+      url.pathname.startsWith('/_expo/') ||
+      url.pathname.startsWith('/assets/') ||
+      STATIC_FILE.test(url.pathname)
+    );
+  }
+
+  /** The static files the shell's own tags load (its bundles and CSS). */
+  function shellAssets(html) {
+    const urls = new Set();
+    for (const [, src] of html.matchAll(/<(?:script|link)\b[^>]*?\s(?:src|href)="([^"]+)"/gi)) {
+      const url = new URL(src, self.location.origin);
+      if (isStatic(url)) urls.add(url.href);
+    }
+    return [...urls];
+  }
+
+  /** Stores each of `urls` that is a static file and not stored yet; a failure is skipped. */
+  async function storeAssets(cache, urls) {
+    const wanted = [
+      ...new Set(
+        urls
+          .map((url) => {
+            try {
+              return new URL(url, self.location.origin);
+            } catch {
+              return null;
+            }
+          })
+          .filter((url) => url && isStatic(url))
+          .map((url) => url.href),
+      ),
+    ].slice(0, MAX_ENTRIES);
+    await Promise.all(
+      wanted.map(async (url) => {
+        try {
+          if (await cache.match(url)) return;
+          const asset = await fetch(url);
+          if (cacheable(asset)) await cache.put(url, asset);
+        } catch {
+          // A file left out is fetched (and stored) the next time the page asks for it.
+        }
+      }),
+    );
+    await trim(cache);
+  }
+
+  /**
+   * Stores the shell from `/` (the URL the host serves it at) and the bundles
+   * it loads. A first visit fetches those before this worker controls the page,
+   * so without this the app would only work offline from the second visit on.
+   */
+  async function storeShell() {
+    const response = await fetch('/', { cache: 'reload' });
+    if (!cacheable(response) || !(response.headers.get('content-type') || '').includes('text/html'))
+      return;
+    const html = await response.clone().text();
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(SHELL_KEY, servable(response));
+    await storeAssets(cache, shellAssets(html));
+  }
+
   self.addEventListener('install', (event) => {
     event.waitUntil(
-      caches
-        .open(CACHE_NAME)
-        .then((cache) => cache.add(new Request(SHELL_KEY, { cache: 'reload' })))
-        .catch(() => {
-          // Non-fatal: the shell is stored on the first navigation instead.
-        }),
+      storeShell().catch(() => {
+        // Non-fatal: the shell is stored on the first navigation instead.
+      }),
     );
     self.skipWaiting();
   });
@@ -81,8 +159,16 @@
     );
   });
 
+  /**
+   * `OXY_SW_STORE`: the files a page loaded before this worker controlled it
+   * (its route chunks, fonts), which `oxy-sw-register.js` sends when the worker
+   * takes over. Only static same-origin files are stored, whatever is sent.
+   */
   self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+    const data = event.data;
+    if (data?.type === 'SKIP_WAITING') self.skipWaiting();
+    if (data?.type === 'OXY_SW_STORE' && Array.isArray(data.urls))
+      event.waitUntil(caches.open(CACHE_NAME).then((cache) => storeAssets(cache, data.urls)));
   });
 
   /** `'navigation'`, `'static'`, or `null` for a request this worker leaves alone. */
@@ -93,13 +179,7 @@
     if (url.pathname.startsWith('/api/')) return null;
     if (request.headers.has('authorization') || request.headers.has('range')) return null;
     if (request.mode === 'navigate') return 'navigation';
-    if (
-      url.pathname.startsWith('/_expo/') ||
-      url.pathname.startsWith('/assets/') ||
-      STATIC_FILE.test(url.pathname)
-    )
-      return 'static';
-    return null;
+    return isStatic(url) ? 'static' : null;
   }
 
   /** Only a complete, same-origin, storable response is ever cached. */
@@ -127,12 +207,13 @@
         (response.headers.get('content-type') || '').includes('text/html')
       ) {
         const cache = await caches.open(CACHE_NAME);
-        await cache.put(SHELL_KEY, response.clone());
+        await cache.put(SHELL_KEY, servable(response.clone()));
       }
       return response;
     } catch {
       const cache = await caches.open(CACHE_NAME);
-      return (await cache.match(SHELL_KEY)) || offline();
+      // servable() again: a shell stored by 6.7.2 or earlier may be a redirected one.
+      return servable(await cache.match(SHELL_KEY)) || offline();
     }
   }
 
@@ -161,5 +242,17 @@
     else if (strategy === 'static') event.respondWith(staleWhileRevalidate(event));
   });
 
-  self.__oxySwBaseInternals = { strategyFor, cacheable, trim, CACHE_NAME, SHELL_KEY, MAX_ENTRIES };
+  self.__oxySwBaseInternals = {
+    strategyFor,
+    cacheable,
+    servable,
+    shellAssets,
+    storeAssets,
+    navigation,
+    storeShell,
+    trim,
+    CACHE_NAME,
+    SHELL_KEY,
+    MAX_ENTRIES,
+  };
 })();

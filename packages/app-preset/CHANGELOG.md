@@ -1,5 +1,23 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.7.3
+
+### Fixed
+
+- The base worker's offline shell failed in production (`net::ERR_FAILED` on
+  an offline reload of alia.onl). It was stored from `/index.html`, which
+  Cloudflare's static assets redirect to `/` (307), and Chrome refuses a
+  redirected response for a navigation. The shell is now fetched from `/`, and
+  any stored or served shell is rebuilt as a response that went through no
+  redirect (which also repairs shells stored by 6.7.2).
+- An app only worked offline from its second visit: the first one loads its
+  bundles and route chunks before the worker controls the page, so none of
+  them was cached. The worker now stores the bundles and CSS the shell links
+  when it installs, and `oxy-sw-register.js` sends it the same-origin files the
+  page loaded once it takes over (`OXY_SW_STORE`; only static same-origin
+  files are stored). Verified against alia.onl in Chromium: a first visit, then
+  offline, renders the app.
+
 ## 6.7.2
 
 ### Added

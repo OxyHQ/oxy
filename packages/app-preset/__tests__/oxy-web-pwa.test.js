@@ -266,7 +266,7 @@ function fakeCaches(names) {
   };
 }
 
-function loadWorker(file = 'oxy-sw-base.js', caches = fakeCaches([])) {
+function loadWorker(file = 'oxy-sw-base.js', caches = fakeCaches([]), fetch = undefined) {
   const listeners = {};
   const self = {
     location: { origin: 'https://app.example' },
@@ -280,10 +280,16 @@ function loadWorker(file = 'oxy-sw-base.js', caches = fakeCaches([])) {
     },
     skipWaiting() {},
   };
-  vm.runInNewContext(read(join(__dirname, '..', 'web'), file), { self, URL, caches });
-  const fire = async (type) => {
+  vm.runInNewContext(read(join(__dirname, '..', 'web'), file), {
+    self,
+    URL,
+    caches,
+    fetch,
+    Response,
+  });
+  const fire = async (type, data) => {
     const pending = [];
-    listeners[type]({ waitUntil: (promise) => pending.push(promise) });
+    listeners[type]({ data, waitUntil: (promise) => pending.push(promise) });
     await Promise.all(pending);
   };
   return { ...self.__oxySwBaseInternals, self, fire };
@@ -393,6 +399,8 @@ test('the registration skips the HTTP cache and re-checks a foregrounded app hou
   };
   const navigator = {
     serviceWorker: {
+      controller: null,
+      addEventListener() {},
       register: async (...args) => {
         calls.register.push(args);
         return registration;
@@ -418,4 +426,140 @@ test('the registration skips the HTTP cache and re-checks a foregrounded app hou
   now = 61 * 60 * 1000;
   docListeners.visibilitychange();
   assert.equal(calls.update, 1);
+});
+
+/** A cache store keyed by path that keeps real Response objects. */
+function responseCache() {
+  const entries = new Map();
+  const key = (request) =>
+    new URL(typeof request === 'string' ? request : request.url, 'https://app.example').pathname;
+  const cache = {
+    put: async (request, response) => {
+      entries.set(key(request), response);
+    },
+    match: async (request) => entries.get(key(request)),
+    keys: async () => [...entries.keys()].map((path) => ({ url: `https://app.example${path}` })),
+    delete: async (request) => entries.delete(key(request)),
+  };
+  return {
+    entries,
+    caches: { open: async () => cache, keys: async () => [], delete: async () => true },
+  };
+}
+
+/** What fetch() returns after following Cloudflare's 307 from /index.html to /. */
+function redirectedHtml(body) {
+  const response = new Response(body, { headers: { 'content-type': 'text/html' } });
+  Object.defineProperty(response, 'redirected', { value: true });
+  Object.defineProperty(response, 'type', { value: 'basic' });
+  return response;
+}
+
+test('the stored shell never went through a redirect, and the bundles it loads are stored with it', async () => {
+  const { entries, caches } = responseCache();
+  const requested = [];
+  const shellHtml =
+    '<html><head><link rel="stylesheet" href="/_expo/static/css/global-1.css">' +
+    '<script src="https://cdn.example/x.js"></script></head>' +
+    '<body><script src="/_expo/static/js/web/entry-1.js" defer></script></body></html>';
+  const asset = (body) => {
+    const response = new Response(body);
+    Object.defineProperty(response, 'type', { value: 'basic' });
+    return response;
+  };
+  const { storeShell, SHELL_KEY } = loadWorker('oxy-sw-base.js', caches, async (url, init) => {
+    requested.push(String(url));
+    if (url === '/') {
+      assert.equal(init.cache, 'reload');
+      return redirectedHtml(shellHtml);
+    }
+    return asset(`/* ${url} */`);
+  });
+  await storeShell();
+  const shell = entries.get(SHELL_KEY);
+  assert.equal(shell.redirected, false);
+  assert.equal(await shell.text(), shellHtml);
+  assert.deepEqual(
+    [...entries.keys()].sort(),
+    ['/_expo/static/css/global-1.css', '/_expo/static/js/web/entry-1.js', SHELL_KEY].sort(),
+  );
+  assert.ok(!requested.some((url) => url.includes('cdn.example')));
+});
+
+test('offline, a navigation gets the shell as a plain response, even one stored redirected', async () => {
+  const { entries, caches } = responseCache();
+  const { navigation, SHELL_KEY } = loadWorker('oxy-sw-base.js', caches, async () => {
+    throw new TypeError('Failed to fetch');
+  });
+  entries.set(SHELL_KEY, redirectedHtml('<html>old shell</html>'));
+  const response = await navigation({ url: 'https://app.example/inbox/42' });
+  assert.equal(response.redirected, false);
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), '<html>old shell</html>');
+
+  entries.clear();
+  assert.equal((await navigation({ url: 'https://app.example/' })).status, 503);
+});
+
+test('a page sends the worker the files it loaded before the worker controlled it', async () => {
+  const posted = [];
+  let onControllerChange;
+  const navigator = {
+    serviceWorker: {
+      controller: null,
+      addEventListener: (type, listener) => {
+        if (type === 'controllerchange') onControllerChange = listener;
+      },
+      register: async () => ({ update: async () => {} }),
+    },
+  };
+  const performance = {
+    getEntriesByType: () => [
+      { name: 'https://app.example/_expo/static/js/web/_layout-1.js' },
+      { name: 'https://api.oxy.so/users/me' },
+    ],
+  };
+  vm.runInNewContext(read(join(__dirname, '..', 'web'), 'oxy-sw-register.js'), {
+    navigator,
+    performance,
+    location: { origin: 'https://app.example' },
+    document: { readyState: 'complete', addEventListener() {} },
+    window: { isSecureContext: true, addEventListener() {} },
+    Date,
+  });
+  navigator.serviceWorker.controller = { postMessage: (message) => posted.push(message) };
+  onControllerChange();
+  assert.equal(
+    JSON.stringify(posted),
+    JSON.stringify([
+      { type: 'OXY_SW_STORE', urls: ['https://app.example/_expo/static/js/web/_layout-1.js'] },
+    ]),
+  );
+});
+
+test('the worker stores only the static same-origin files a page sends it', async () => {
+  const { entries, caches } = responseCache();
+  const fetched = [];
+  const { fire } = loadWorker('oxy-sw-base.js', caches, async (url) => {
+    fetched.push(url);
+    const response = new Response('x');
+    Object.defineProperty(response, 'type', { value: 'basic' });
+    return response;
+  });
+  await fire('message', {
+    type: 'OXY_SW_STORE',
+    urls: [
+      'https://app.example/_expo/static/js/web/_layout-1.js',
+      'https://app.example/assets/font.ttf',
+      'https://app.example/api/session',
+      'https://app.example/data.json',
+      'https://cdn.example/x.js',
+      'not a url ::',
+    ],
+  });
+  assert.deepEqual([...entries.keys()].sort(), [
+    '/_expo/static/js/web/_layout-1.js',
+    '/assets/font.ttf',
+  ]);
+  assert.equal(fetched.length, 2);
 });

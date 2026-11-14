@@ -109,9 +109,13 @@ passes it instead: `oxy-web-pwa dist --theme-color=#f9f2f6,#100d11` (hex or a
 colour name; a page that already has a `theme-color` keeps it).
 
 The base worker (`web/oxy-sw-base.js`, from Inbosh's) answers navigations
-network-first with the one `/index.html` shell as the offline fallback, and
+network-first with the one shell (fetched from `/`, stored under `/index.html`,
+never as a redirected response, which Chrome refuses for a navigation) as the
+offline fallback, and
 same-origin static files (`/_expo/`, `/assets/`, images, fonts, JS, CSS)
-stale-while-revalidate. It never stores or serves anything else: cross-origin
+stale-while-revalidate. On install it stores the shell's bundles and CSS, and
+the registration sends it the files the page loaded before it took control,
+so the app works offline from the first visit. It never stores or serves anything else: cross-origin
 requests (every Oxy API), non-GET, `/api/`, requests carrying `Authorization`
 or `Range`, and `private`/`no-store` responses.
 
