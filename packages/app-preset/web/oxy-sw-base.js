@@ -18,7 +18,9 @@
  *   page that is still running it.
  * - Everything else is left to the browser, never stored and never served
  *   from here: cross-origin requests (every Oxy API), non-GET, `/api/`, any
- *   request carrying credentials, range requests and `no-store` responses.
+ *   request carrying `Authorization`, range requests, and `private` or
+ *   `no-store` responses. (`credentials` is no test: every navigation is
+ *   `include`, and a same-origin request sends cookies either way.)
  *   Private responses must never be cached by URL: Inbosh once served one
  *   signed-in user's API response to the next.
  *
@@ -78,7 +80,6 @@
     if (url.origin !== self.location.origin) return null;
     if (url.pathname.startsWith('/api/')) return null;
     if (request.headers.has('authorization') || request.headers.has('range')) return null;
-    if (request.credentials === 'include') return null;
     if (request.mode === 'navigate') return 'navigation';
     if (
       url.pathname.startsWith('/_expo/') ||
