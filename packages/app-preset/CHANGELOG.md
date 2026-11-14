@@ -1,5 +1,23 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.7.1
+
+### Added
+
+- `oxy-web-pwa --theme-color=<light>,<dark>` writes the startup `theme-color`
+  as a pair scoped by `prefers-color-scheme`, the shape Bloom adopts and owns at
+  runtime, instead of the manifest's single `theme_color` (a brand accent such
+  as Alia's would otherwise colour the browser bar until the app hydrates).
+
+### Fixed
+
+- The base worker served no offline shell: it skipped every request with
+  `credentials: 'include'`, and every navigation has that mode, so an offline
+  reload got the browser's error page. The rule protected nothing (a
+  same-origin request sends cookies under `same-origin` too); private responses
+  stay out through the same-origin, `Authorization`, `/api/` and
+  `private`/`no-store` rules.
+
 ## 6.7.0
 
 ### Added

@@ -102,12 +102,17 @@ The app keeps its own `public/manifest.json` and icons. The step:
   does, the step warns. A worker that already answers `fetch` (Inbosh, Nilo)
   must not import it. `--no-sw` ships no worker.
 
+`theme-color` comes from the manifest's `theme_color`, one tag. An app whose
+startup colour is a light/dark pair (Bloom adopts one and owns it at runtime)
+passes it instead: `oxy-web-pwa dist --theme-color=#f9f2f6,#100d11` (hex or a
+colour name; a page that already has a `theme-color` keeps it).
+
 The base worker (`web/oxy-sw-base.js`, from Inbosh's) answers navigations
 network-first with the one `/index.html` shell as the offline fallback, and
 same-origin static files (`/_expo/`, `/assets/`, images, fonts, JS, CSS)
 stale-while-revalidate. It never stores or serves anything else: cross-origin
-requests (every Oxy API), non-GET, `/api/`, requests carrying `Authorization`,
-`credentials: 'include'` or `Range`, and `private`/`no-store` responses. Its
+requests (every Oxy API), non-GET, `/api/`, requests carrying `Authorization`
+or `Range`, and `private`/`no-store` responses. Its
 cache name is a hash of the export, so each deploy installs a new worker and
 drops the old cache; the cache holds at most 150 entries.
 

@@ -182,6 +182,30 @@ test('--no-sw ships no worker and links no registration', (t) => {
   assert.match(read(dist, 'index.html'), /rel="manifest"/);
 });
 
+test('--theme-color writes a light/dark pair instead of the manifest colour', (t) => {
+  const dist = exportDir();
+  t.after(() => rmSync(dist, { recursive: true, force: true }));
+  execFileSync(process.execPath, [BIN, dist, '--theme-color=#f9f2f6,#100d11']);
+  const html = read(dist, 'index.html');
+  assert.match(
+    html,
+    /<meta name="theme-color" content="#f9f2f6" media="\(prefers-color-scheme: light\)" \/>/,
+  );
+  assert.match(
+    html,
+    /<meta name="theme-color" content="#100d11" media="\(prefers-color-scheme: dark\)" \/>/,
+  );
+  assert.doesNotMatch(html, /#0c0e11/);
+  assert.deepEqual(makeInstallable(dist, { themeColors: ['#f9f2f6', '#100d11'] }).updated, []);
+});
+
+test('--theme-color refuses anything but one or two colours', (t) => {
+  const dist = exportDir();
+  t.after(() => rmSync(dist, { recursive: true, force: true }));
+  for (const themeColors of [[], ['#fff', '#000', '#111'], ['"><script>']])
+    assert.throws(() => makeInstallable(dist, { themeColors }), /--theme-color takes/);
+});
+
 test('the CLI exits 1 on an uninstallable export', (t) => {
   const dist = exportDir({ manifest: null });
   t.after(() => rmSync(dist, { recursive: true, force: true }));
@@ -231,7 +255,6 @@ test('the base worker never handles private, cross-origin or mutating requests',
     strategyFor(request(`${origin}/assets/a.png`, { headers: { Authorization: 'Bearer x' } })),
     null,
   );
-  assert.equal(strategyFor(request(`${origin}/assets/a.png`, { credentials: 'include' })), null);
   assert.equal(
     strategyFor(request(`${origin}/video.mp4`, { headers: { Range: 'bytes=0-' } })),
     null,
@@ -242,7 +265,11 @@ test('the base worker never handles private, cross-origin or mutating requests',
 test('the base worker serves navigations and same-origin static files', () => {
   const { strategyFor } = loadWorker();
   const origin = 'https://app.example';
-  assert.equal(strategyFor(request(`${origin}/inbox/42`, { mode: 'navigate' })), 'navigation');
+  // A navigation's credentials mode is always `include`; it must still get the offline shell.
+  assert.equal(
+    strategyFor(request(`${origin}/inbox/42`, { mode: 'navigate', credentials: 'include' })),
+    'navigation',
+  );
   assert.equal(strategyFor(request(`${origin}/_expo/static/js/web/index-1.js`)), 'static');
   assert.equal(strategyFor(request(`${origin}/icon-192.png`)), 'static');
 });

@@ -124,8 +124,10 @@ function missingTags(document, wanted) {
     if (tag.kind === 'script' && scripts.has(tag.src)) continue;
     if (tag.kind === 'link')
       out.push(`<link rel="${tag.rel}" href="${escapeAttribute(tag.href)}" />`);
-    if (tag.kind === 'meta')
-      out.push(`<meta name="${tag.name}" content="${escapeAttribute(tag.content)}" />`);
+    if (tag.kind === 'meta') {
+      const media = tag.media ? ` media="${escapeAttribute(tag.media)}"` : '';
+      out.push(`<meta name="${tag.name}" content="${escapeAttribute(tag.content)}"${media} />`);
+    }
     if (tag.kind === 'script')
       out.push(`<script src="${escapeAttribute(tag.src)}" defer></script>`);
   }
@@ -147,12 +149,36 @@ function injectHead(html, wanted) {
   return `${html.slice(0, end)}${block}${html.slice(end)}`;
 }
 
-function wantedTags(manifestName, manifest, dist, { serviceWorker }) {
+/**
+ * The startup `theme-color` tags: `--theme-color=<light>,<dark>` gives a pair
+ * scoped by `prefers-color-scheme` (what Bloom adopts and then owns at
+ * runtime); one colour, or none (the manifest's `theme_color`), gives one tag.
+ */
+function themeColorTags(manifest, themeColors) {
+  const colors = themeColors?.length ? themeColors : [manifest.theme_color].filter(Boolean);
+  if (colors.length === 2)
+    return [
+      {
+        kind: 'meta',
+        name: 'theme-color',
+        content: colors[0],
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        kind: 'meta',
+        name: 'theme-color',
+        content: colors[1],
+        media: '(prefers-color-scheme: dark)',
+      },
+    ];
+  return colors.map((content) => ({ kind: 'meta', name: 'theme-color', content }));
+}
+
+function wantedTags(manifestName, manifest, dist, { serviceWorker, themeColors }) {
   const wanted = [{ kind: 'link', rel: 'manifest', href: `/${manifestName}` }];
   if (existsSync(join(dist, 'apple-touch-icon.png')))
     wanted.push({ kind: 'link', rel: 'apple-touch-icon', href: '/apple-touch-icon.png' });
-  if (manifest.theme_color)
-    wanted.push({ kind: 'meta', name: 'theme-color', content: manifest.theme_color });
+  wanted.push(...themeColorTags(manifest, themeColors));
   wanted.push({ kind: 'meta', name: 'mobile-web-app-capable', content: 'yes' });
   wanted.push({ kind: 'meta', name: 'apple-mobile-web-app-capable', content: 'yes' });
   const title = manifest.short_name || manifest.name;
@@ -177,7 +203,18 @@ importScripts('/${SW_BASE}');
  * Runs the whole step on `dist`. Throws PwaError on anything that leaves the
  * app uninstallable; returns what it did and any warnings.
  */
-function makeInstallable(dist, { serviceWorker = true } = {}) {
+function makeInstallable(dist, { serviceWorker = true, themeColors } = {}) {
+  if (themeColors !== undefined) {
+    const valid = /^(?:#[0-9a-f]{3,8}|[a-z]+|(?:rgb|hsl)a?\([^"<>]*\))$/i;
+    if (
+      themeColors.length < 1 ||
+      themeColors.length > 2 ||
+      !themeColors.every((c) => valid.test(c))
+    )
+      throw new PwaError(
+        `--theme-color takes one colour or <light>,<dark>; got ${JSON.stringify(themeColors.join(','))}`,
+      );
+  }
   if (!existsSync(dist) || !statSync(dist).isDirectory())
     throw new PwaError(`${dist} is not a directory; run expo export first`);
   const manifestName = findManifest(dist);
@@ -197,7 +234,7 @@ function makeInstallable(dist, { serviceWorker = true } = {}) {
 
   const pages = htmlFiles(dist);
   if (pages.length === 0) throw new PwaError(`${dist} has no HTML page`);
-  const wanted = wantedTags(manifestName, manifest, dist, { serviceWorker });
+  const wanted = wantedTags(manifestName, manifest, dist, { serviceWorker, themeColors });
   const updated = [];
   for (const page of pages) {
     let next;
