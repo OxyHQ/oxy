@@ -39,6 +39,9 @@ import { resolveLiveAgencyCoordinator } from './agencyServicePrincipal.service';
 import { AGENCY_COORDINATE_CAPABILITY } from '../utils/applicationCapabilities';
 import { autonomousSensitiveToolLimitError, grantAllowsTool } from './capabilityGrantPolicy';
 import { capabilityLimitError } from './capabilityLimitPolicy';
+import { resolveDelegatedRequester } from './firstPartyDelegation.service';
+import { platformReceiver } from '../utils/firstPartyDelegation';
+import { ForbiddenError } from '../utils/error';
 
 const AUTONOMY_RANK: Readonly<Record<AutonomyLevel, number>> = {
   read_only: 0,
@@ -324,7 +327,31 @@ export async function evaluateCapabilityAuthority(
     !hasServiceAuthority(coordinator, 'capability-tickets:issue')
   )
     return denied('coordinator_no_longer_authorized');
-  if (firstParty) {
+  const delegated = firstParty && !authorization.taskId && !authorization.requesterSessionId;
+  if (delegated) {
+    // ADR 0066: the coordinator's declared authority, checked again now.
+    if (
+      authorization.requesterSessionBindingDigest ||
+      authorization.ceilingId ||
+      authorization.ownerAccountId !== authorization.effectiveAccountId
+    )
+      return denied('own_task_provenance_invalid');
+    try {
+      await resolveDelegatedRequester(
+        {
+          applicationId: coordinator.applicationId,
+          on: platformReceiver('tools'),
+          effect: authorization.maximumAutonomy === 'read_only' ? 'read' : 'write',
+          accountId: authorization.effectiveAccountId,
+          requesterAccountId: authorization.requesterAccountId,
+        },
+        { record: false },
+      );
+    } catch (error) {
+      if (error instanceof ForbiddenError) return denied('delegation_no_longer_declared');
+      throw error;
+    }
+  } else if (firstParty) {
     if (
       !authorization.requesterSessionId ||
       !authorization.requesterSessionBindingDigest ||

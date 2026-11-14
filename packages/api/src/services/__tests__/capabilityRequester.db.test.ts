@@ -162,7 +162,11 @@ async function fixture(effect: 'read' | 'write' = 'read') {
     session.accessToken,
     presenter,
   );
-  const authorization = await createFirstPartyTaskAuthorization(input, '', presenter, task.id);
+  const authorization = await createFirstPartyTaskAuthorization(
+    input,
+    { kind: 'task', taskId: task.id },
+    presenter,
+  );
   const base = { owner, user, other, bot, app, presenter, session, registration, input };
   const result = await issue(base, authorization.id);
   expect(result.decision.allowed).toBe(true);

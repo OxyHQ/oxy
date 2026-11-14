@@ -1,5 +1,5 @@
 import type { ServiceTokenPayload } from '../middleware/serviceToken';
-import type { ForegroundRequesterBinding } from './foregroundCapabilityRequester.service';
+import type { RequesterAccounts } from '../middleware/firstPartyRequester';
 import { resolveLiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
 /**
  * Invitation emails an application has Oxy send (`POST /apps/invitations/email`,
@@ -262,7 +262,7 @@ function retryAfterSeconds(oldest: Date | null, windowMs: number): number {
  */
 export async function acceptAppInvitationEmail(
   request: AppInvitationEmailRequest,
-  context?: { principal: ServiceTokenPayload; requester?: ForegroundRequesterBinding },
+  context?: { principal: ServiceTokenPayload; requester?: RequesterAccounts },
 ): Promise<AcceptedAppInvitationEmail> {
   if (!isOutboundRelayConfigured()) throw missingRelayError();
 

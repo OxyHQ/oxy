@@ -361,6 +361,6 @@ export type { ReplayableRequestInit, ServiceClientOptions, ServiceHttpClient } f
 export type { WorkloadCredentials, WorkloadCredentialProvider } from './workloadIdentity';
 
 export { OxyRequesterClient } from './requesterClient';
-export type { RequesterProof } from './requesterContext';
+export type { ActingFor, RequesterProof } from './requesterContext';
 
 export type { ExternalMcpMediaProof, ExternalMcpDocumentProof } from './externalMediaRequester';

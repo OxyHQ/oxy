@@ -29,7 +29,14 @@ export interface OxyRequestUser {
 export type OxyServiceAppContext = ServiceApp;
 
 export type OxyServiceActingAsContext =
-  | { userId: string; authority: 'first_party'; scopes?: never; requesterContext?: string }
+  | {
+      userId: string;
+      authority: 'first_party';
+      scopes?: never;
+      requesterContext?: string;
+      /** The person the Oxy service acts for (ADR 0066); `userId` unless they operate it. */
+      requesterId?: string;
+    }
   | { userId: string; authority?: 'external'; scopes: string[] };
 
 export interface OxyAuthRequest extends Request {

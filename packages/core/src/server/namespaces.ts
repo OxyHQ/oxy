@@ -71,7 +71,12 @@ import type {
   ServiceFederatedMediaDeletion,
   ServiceFederatedMediaDeleteResult,
 } from '../models/interfaces';
-import { bindRequesterLane, type RequesterProof } from './requesterContext';
+import {
+  bindActingForLane,
+  bindRequesterLane,
+  type ActingFor,
+  type RequesterProof,
+} from './requesterContext';
 import { AssetsApi } from '../api/assets';
 import {
   runLargeUpload,
@@ -308,6 +313,16 @@ export class ServerAssetsApi extends AssetsApi {
     return { uploadUserMediaLarge: assets.uploadUserMediaLarge.bind(assets) };
   }
 
+  /**
+   * Files of the account this service acts for (ADR 0066): its registry entry
+   * declares `oxy:files`, and Oxy checks the account live. No session or task.
+   */
+  actingFor(actingFor: ActingFor): ServerAssetsApi {
+    const service = bindActingForLane(lane(this.ctx), actingFor);
+    return new ServerAssetsApi({ ...this.ctx, request: service.request, service });
+  }
+
+  /** Superseded by {@link actingFor} (ADR 0066); removed with its cleanup. */
   withRequester(proof: RequesterProof): ServerAssetsApi {
     const service = bindRequesterLane(lane(this.ctx), proof);
     return new ServerAssetsApi({ ...this.ctx, request: service.request, service });
@@ -1425,12 +1440,19 @@ export class ServerNotificationsApi extends NotificationsApi {
 
 export class ServerLinkedAccountsApi extends LinkedAccountsApi {
   /** An isolated session, task or forwarded context for account-specific reads. */
+  /** Linked identities of the account this service acts for (ADR 0066, `oxy:linked-accounts`). */
+  actingFor(actingFor: ActingFor): ServerLinkedAccountsApi {
+    const service = bindActingForLane(lane(this.ctx), actingFor);
+    return new ServerLinkedAccountsApi({ ...this.ctx, request: service.request, service });
+  }
+
+  /** Superseded by {@link actingFor} (ADR 0066); removed with its cleanup. */
   withRequester(proof: RequesterProof): ServerLinkedAccountsApi {
     const service = bindRequesterLane(lane(this.ctx), proof);
     return new ServerLinkedAccountsApi({ ...this.ctx, request: service.request, service });
   }
 
-  /** Live linked identities for the account verified by withRequester(). */
+  /** Live linked identities of the account bound by actingFor(). */
   async forUser(userId: string): Promise<ServiceLinkedAccountListResponse> {
     return lane(this.ctx).request<ServiceLinkedAccountListResponse>(
       'GET',
@@ -1644,6 +1666,34 @@ export class ServerAgencyApi extends AgencyApi {
     return result.task;
   }
 
+  /**
+   * A tool operation this Oxy service performs for a person on its declared
+   * authority (ADR 0066, `oxy:tools`): no session or task. `requesterAccountId`
+   * names the person when the resource's account is one they operate (a bot
+   * account, an organization); it defaults to that account.
+   */
+  async createFirstPartyExecutionAuthorization(
+    input: FirstPartyExecutionAuthorizationInput,
+    options: { requesterAccountId?: string; signal?: AbortSignal } = {},
+  ): Promise<CapabilityExecutionAuthorization> {
+    const requester = options.requesterAccountId;
+    if (requester !== undefined && (!requester || requester.length > 128 || /\s/.test(requester)))
+      throw new Error('An exact requester account id is required');
+    const result = await lane(this.ctx).request<{
+      authorization: CapabilityExecutionAuthorization;
+    }>(
+      'POST',
+      '/capabilities/first-party-execution-authorizations',
+      {
+        ...firstPartyExecutionAuthorizationInputSchema.parse(input),
+        ...(requester ? { requesterAccountId: requester } : {}),
+      },
+      agencyAuthorityOptions(options.signal),
+    );
+    return result.authorization;
+  }
+
+  /** Superseded by {@link createFirstPartyExecutionAuthorization} (ADR 0066). */
   async createTaskExecutionAuthorization(
     taskId: string,
     input: FirstPartyExecutionAuthorizationInput,

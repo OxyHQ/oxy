@@ -252,7 +252,7 @@ button. Account ownership, organization roles, task revocation and resource
 policy still apply. A refusal must be handled under that actual account or
 operation contract, not by asking for broader app scopes. See
 [first-party platform access](first-party-platform-access.md) and
-[durable task authority](first-party-tasks.md).
+[Oxy services acting for people](first-party-delegation.md).
 
 ## Explicit re-consent for external connections
 

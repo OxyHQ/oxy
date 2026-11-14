@@ -18,6 +18,8 @@ import { isTrustedApplication } from '../utils/trustedApplication';
 import { BadRequestError, ForbiddenError } from '../utils/error';
 import { capabilityLimitError } from './capabilityLimitPolicy';
 import { autonomousSensitiveToolLimitError } from './capabilityGrantPolicy';
+import { resolveDelegatedRequester } from './firstPartyDelegation.service';
+import { platformReceiver } from '../utils/firstPartyDelegation';
 
 export async function liveFirstPartyCatalog(appSlug: string) {
   const registration = await activeCapabilityCatalog(appSlug);
@@ -41,32 +43,46 @@ export async function liveFirstPartyCatalog(appSlug: string) {
     : null;
 }
 
-/** A task names original requester, actor, resource and lifetime; never an app grant. */
+/**
+ * Where an own execution authorization's person comes from: the service's
+ * declared authority (ADR 0066), or, until every caller migrates, a present
+ * session or a durable task.
+ */
+export type FirstPartyAuthorizationSource =
+  | { kind: 'delegated'; requesterAccountId?: string }
+  | { kind: 'session'; subjectToken: string }
+  | { kind: 'task'; taskId: string };
+
+/** The tool operation names requester, actor, resource and lifetime; never an app grant. */
 export async function createFirstPartyTaskAuthorization(
   raw: FirstPartyExecutionAuthorizationInput,
-  subjectToken: string,
+  source: FirstPartyAuthorizationSource,
   presenter: LiveAgencyServicePrincipal,
-  taskId?: string,
 ) {
   const input = firstPartyExecutionAuthorizationInputSchema.parse(raw);
   if (presenter.authority !== 'first_party')
     throw new ForbiddenError('A live Oxy workload is required.');
-  const task = taskId ? await resolveFirstPartyTask(taskId, presenter) : null;
-  if (taskId && !task) throw new ForbiddenError('Task authority is no longer active.');
-  const requester = task
+  const task =
+    source.kind === 'task' ? await resolveFirstPartyTask(source.taskId, presenter) : null;
+  if (source.kind === 'task' && !task)
+    throw new ForbiddenError('Task authority is no longer active.');
+  const proven = task
     ? {
         principalAccountId: task.requesterAccountId,
         subjectAccountId: task.effectiveAccountId,
-        sessionId: task.requesterSessionId,
-        digest: task.requesterSessionBindingDigest,
-        expiresAt: task.expiresAt,
+        sessionId: task.requesterSessionId as string | null,
+        digest: task.requesterSessionBindingDigest as string | null,
+        expiresAt: task.expiresAt as Date | null,
       }
-    : await validateForegroundRequesterBearer(subjectToken, presenter);
+    : source.kind === 'session'
+      ? await validateForegroundRequesterBearer(source.subjectToken, presenter)
+      : null;
   if (
-    !requester ||
-    (task
-      ? !(await taskAllowsEffectiveAccount(task, input.resource.effectiveAccountId, input.actor))
-      : requester.subjectAccountId !== input.resource.effectiveAccountId)
+    source.kind !== 'delegated' &&
+    (!proven ||
+      (task
+        ? !(await taskAllowsEffectiveAccount(task, input.resource.effectiveAccountId, input.actor))
+        : proven.subjectAccountId !== input.resource.effectiveAccountId))
   ) {
     throw new ForbiddenError('The resource must belong to the authenticated requester account.');
   }
@@ -87,6 +103,28 @@ export async function createFirstPartyTaskAuthorization(
     !catalogToolAllowsActor(tool, input.actor.type)
   )
     throw new ForbiddenError('The tool is not available to this actor and resource.');
+  const delegate = async (requesterAccountId: string | undefined) => ({
+    ...(await resolveDelegatedRequester({
+      applicationId: presenter.applicationId,
+      on: platformReceiver('tools'),
+      effect: tool.effect === 'read' ? 'read' : 'write',
+      accountId: input.resource.effectiveAccountId,
+      requesterAccountId:
+        requesterAccountId ??
+        (input.actor.type === 'requester'
+          ? input.actor.accountId
+          : input.resource.effectiveAccountId),
+    })),
+    sessionId: null,
+    digest: null,
+    expiresAt: null,
+  });
+  if (source.kind !== 'delegated' && !proven)
+    throw new ForbiddenError('The resource must belong to the authenticated requester account.');
+  const requester =
+    source.kind === 'delegated' ? await delegate(source.requesterAccountId) : proven;
+  if (!requester)
+    throw new ForbiddenError('The resource must belong to the authenticated requester account.');
   if (
     input.actor.type === 'requester' &&
     (input.actor.accountId !== requester.principalAccountId || input.kind !== 'direct_request')
@@ -125,7 +163,9 @@ export async function createFirstPartyTaskAuthorization(
   if (
     expiresAt <= now ||
     expiresAt.getTime() - now.getTime() > maxLifetime ||
-    ((task || input.kind === 'direct_request') && expiresAt > requester.expiresAt)
+    (requester.expiresAt !== null &&
+      (task || input.kind === 'direct_request') &&
+      expiresAt > requester.expiresAt)
   )
     throw new BadRequestError('Task lifetime is out of range.');
   // This is operation policy, derived from a direct request or scheduled task.
@@ -143,7 +183,9 @@ export async function createFirstPartyTaskAuthorization(
     ? task.requesterAuthMethodId
       ? { authMethodId: task.requesterAuthMethodId }
       : null
-    : await readSessionAgentBinding(requester.sessionId, requester.principalAccountId);
+    : requester.sessionId
+      ? await readSessionAgentBinding(requester.sessionId, requester.principalAccountId)
+      : null;
   const [authorization] = await getDb()
     .insert(capabilityExecutionAuthorizations)
     .values({

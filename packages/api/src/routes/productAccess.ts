@@ -1,3 +1,5 @@
+import { firstPartyRequesterFor } from '../middleware/firstPartyRequester';
+import { ForbiddenError } from '../utils/error';
 import { Router, type Response } from 'express';
 import {
   subjectProductAccessQuerySchema,
@@ -93,7 +95,11 @@ router.get(
     const data = await readServiceAuthorizedSubjectProductGrantSnapshot(
       req.serviceApp,
       query,
-      req.serviceRequester,
+      // An undeclared service gets the same 404 as any unauthorized read.
+      await firstPartyRequesterFor(req, 'product-access', 'read').catch((refusal: unknown) => {
+        if (refusal instanceof ForbiddenError) return undefined;
+        throw refusal;
+      }),
     );
     res.set('Cache-Control', 'no-store');
     res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });

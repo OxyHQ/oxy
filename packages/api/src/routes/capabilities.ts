@@ -6,7 +6,7 @@ import { readSessionAgentBinding } from '../services/agentKeyAuthority.service';
 import { validateForegroundRequesterBearer } from '../services/foregroundCapabilityRequester.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { Router, type Response } from 'express';
-import { and, asc, desc, eq, gt, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   actorRefSchema,
@@ -81,6 +81,10 @@ import {
 } from '../services/capabilityGrantPolicy';
 import { capabilityLimitError } from '../services/capabilityLimitPolicy';
 import { logger } from '../utils/logger';
+import { applications } from '../db/schema/applications';
+import { listDelegatedActivity } from '../services/firstPartyDelegation.service';
+import { declaredDelegation } from '../utils/firstPartyDelegation';
+import { SEED_APPS } from '../scripts/seedOxyApplicationsSpecs';
 
 const router = Router();
 
@@ -888,9 +892,54 @@ router.post(
     const input = firstPartyExecutionAuthorizationInputSchema.parse(req.body);
     const authorization = await createFirstPartyTaskAuthorization(
       input,
-      '',
+      {
+        kind: 'task',
+        taskId: z
+          .string()
+          .check(utf16MinLength(1))
+          .check(utf16MaxLength(128))
+          .parse(req.params.taskId),
+      },
       principal,
-      z.string().check(utf16MinLength(1)).check(utf16MaxLength(128)).parse(req.params.taskId),
+    );
+    res.status(201).json({ authorization });
+  }),
+);
+
+/**
+ * An Oxy service's tool operation for a person, on its declared authority
+ * (ADR 0066: `actsForPeople` `oxy:tools` in the first-party registry). The body
+ * is the first-party execution authorization input; `requesterAccountId` names
+ * the person when the resource's account is one they operate (a gemie's own
+ * bot account, an organization). No session, task or consent.
+ */
+router.post(
+  '/first-party-execution-authorizations',
+  serviceAuthMiddleware,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const principal = await livePrincipal(
+      req,
+      res,
+      'capability-tickets:issue',
+      AGENCY_COORDINATE_CAPABILITY,
+    );
+    if (!principal) return;
+    const { requesterAccountId, ...body } = z
+      .object({
+        requesterAccountId: z
+          .string()
+          .check(utf16MinLength(1))
+          .check(utf16MaxLength(128))
+          .regex(/^\S+$/)
+          .optional(),
+      })
+      .passthrough()
+      .parse(req.body);
+    const input = firstPartyExecutionAuthorizationInputSchema.parse(body);
+    const authorization = await createFirstPartyTaskAuthorization(
+      input,
+      { kind: 'delegated', ...(requesterAccountId ? { requesterAccountId } : {}) },
+      principal,
     );
     res.status(201).json({ authorization });
   }),
@@ -1016,7 +1065,7 @@ router.post(
       }
       const authorization = await createFirstPartyTaskAuthorization(
         parsedOwn.data,
-        subjectToken,
+        { kind: 'session', subjectToken },
         presenter,
       );
       response.status(201).json({ authorization });
@@ -2022,5 +2071,50 @@ router.get('/audit', authMiddleware, async (request: AuthRequest, response: Resp
     .limit(200);
   response.json({ events: events.map((entry) => entry.event) });
 });
+
+/**
+ * What Oxy's own services did for this account (ADR 0066): per application,
+ * receiver, effect and day, with the purpose the application declares. The
+ * person's own account, or one they operate (`accountId`). Newest first, at
+ * most 400 days back.
+ */
+router.get(
+  '/first-party-activity',
+  authMiddleware,
+  async (request: AuthRequest, response: Response) => {
+    const userId = idOf(request);
+    const accountId =
+      typeof request.query.accountId === 'string' ? request.query.accountId : userId;
+    if (!(await canOperate(operatorOf(request), accountId, request.sessionId))) {
+      response.status(403).json({ error: 'account_authority_required' });
+      return;
+    }
+    const rows = await listDelegatedActivity(accountId);
+    const applicationIds = [...new Set(rows.map((row) => row.applicationId))];
+    const names = applicationIds.length
+      ? await getDb()
+          .select({ id: applications.id, name: applications.name })
+          .from(applications)
+          .where(inArray(applications.id, applicationIds))
+      : [];
+    const nameOf = new Map(names.map((row) => [row.id, row.name]));
+    response.json({
+      activity: rows.map((row) => ({
+        application: { id: row.applicationId, name: nameOf.get(row.applicationId) ?? null },
+        accountId: row.accountId,
+        requesterAccountId: row.requesterAccountId,
+        receiver: row.receiver,
+        effect: row.effect,
+        purpose:
+          declaredDelegation(SEED_APPS, row.applicationId, row.receiver, row.effect)?.purpose ??
+          null,
+        day: row.day,
+        count: row.count,
+        firstAt: row.firstAt.toISOString(),
+        lastAt: row.lastAt.toISOString(),
+      })),
+    });
+  },
+);
 
 export default router;

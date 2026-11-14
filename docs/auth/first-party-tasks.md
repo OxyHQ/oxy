@@ -1,4 +1,12 @@
-# Requester context for Oxy services and background tasks
+# Requester context for Oxy services and background tasks (retiring)
+
+> **Superseded by [ADR 0066](../adr/0066-first-party-services-act-for-people-without-permissions.md).**
+> An Oxy service now acts for a person on what its first-party registry entry
+> declares, naming the account with `actingFor`: no session, task, ticket chain,
+> requester context, renewal or reauthorisation. Use
+> [Oxy services acting for people](first-party-delegation.md). This page
+> describes the proofs only until their last callers move; do not add a new one
+> (`scripts/check-first-party-permission-vocabulary.mjs`).
 
 Oxy-owned workloads authenticate through their registered infrastructure identity.
 Their v2 service principal has `authority: "first_party"` and no `scopes` field.

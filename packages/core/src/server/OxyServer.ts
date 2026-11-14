@@ -1,5 +1,10 @@
 import { OxyRequesterClient } from './requesterClient';
-import type { RequesterProof } from './requesterContext';
+import {
+  bindActingForLane,
+  bindRequesterLane,
+  type ActingFor,
+  type RequesterProof,
+} from './requesterContext';
 import {
   applicationAccountRegistrationRequestSchema,
   applicationAccountRegistrationResponseSchema,
@@ -188,6 +193,11 @@ export interface OxyServerConfig extends OxyConfig {
  */
 export const ANONYMOUS_SERVICE_TOKEN_RETRY_MS = 30_000;
 
+/** An exact, bounded id: what an account id header or claim must be. */
+function exactServiceId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 128 && !/\s/.test(value);
+}
+
 /** `POST /auth/service-token`. */
 export interface ActingAsVerificationOptions {
   /** Only explicit read-only callers may reuse authority; effects always pass false. */
@@ -201,6 +211,10 @@ export interface ActingAsVerificationOptions {
   requesterContext?: string;
   presentedServiceToken?: string;
   taskId?: string;
+  /** The person, when the caller acts on an account they operate (`X-Oxy-Requester-Id`). */
+  requesterId?: string;
+  /** What the received request does; Oxy treats an absent one as `write`. */
+  effect?: 'read' | 'write';
 }
 
 interface ActingAsGeneration {
@@ -267,7 +281,12 @@ type ServiceClientRequester = { accountId: string } & (
 export type ServiceClientOptions = { baseURL: string } & (
   | {
       audience: ServiceTokenAudience;
-      /** Verified requester authority for product data. */
+      /**
+       * The account this Oxy service acts for, and the person when they operate
+       * it (ADR 0066): the receiver checks the service's declared authority.
+       */
+      actingFor?: ActingFor;
+      /** Superseded by `actingFor` (ADR 0066); removed with its cleanup. */
       requester?: ServiceClientRequester;
       attribution?: never;
     }
@@ -276,6 +295,7 @@ export type ServiceClientOptions = { baseURL: string } & (
       /** Inference attribution only; grants no user-data access or payer authority. */
       attribution: Readonly<{ accountId: string }>;
       requester?: never;
+      actingFor?: never;
     }
 );
 export interface ServiceHttpClient {
@@ -454,11 +474,21 @@ export class OxyServer extends OxyServices {
         ).length !== 1)
     )
       throw new Error('A requester requires an account id and session proof');
+    const actingFor = options.actingFor ? { ...options.actingFor } : undefined;
+    if (
+      actingFor &&
+      (requester !== undefined ||
+        !exactServiceId(actingFor.accountId) ||
+        (actingFor.requesterAccountId !== undefined &&
+          !exactServiceId(actingFor.requesterAccountId)))
+    )
+      throw new Error('actingFor requires an exact account id and no requester proof');
     const attribution = options.attribution?.accountId;
     if (
       options.attribution !== undefined &&
       (options.audience !== 'kaana.ai' ||
         requester !== undefined ||
+        actingFor !== undefined ||
         typeof attribution !== 'string' ||
         !attribution ||
         attribution.length > 64 ||
@@ -489,6 +519,7 @@ export class OxyServer extends OxyServices {
       );
       for (const name of [
         'X-Oxy-User-Id',
+        'X-Oxy-Requester-Id',
         'X-Oxy-Requester-Token',
         'X-Oxy-Task-Id',
         'X-Oxy-Requester-Context',
@@ -500,6 +531,11 @@ export class OxyServer extends OxyServices {
       ])
         headers.delete(name);
       if (attribution) headers.set('X-Oxy-User-Id', attribution);
+      if (actingFor) {
+        headers.set('X-Oxy-User-Id', actingFor.accountId);
+        if (actingFor.requesterAccountId)
+          headers.set('X-Oxy-Requester-Id', actingFor.requesterAccountId);
+      }
       if (requester) {
         headers.set('X-Oxy-User-Id', requester.accountId);
         if (requester.token) headers.set('X-Oxy-Requester-Token', requester.token);
@@ -576,11 +612,25 @@ export class OxyServer extends OxyServices {
     return result;
   }
 
-  /** An isolated Oxy client carrying the original session, task or operation proof. */
+  /**
+   * An isolated Oxy client acting for one account (ADR 0066): this service's
+   * declared authority, checked live by Oxy. No session, task or consent.
+   */
+  actingFor(actingFor: ActingFor): OxyRequesterClient {
+    const service = this.context.service;
+    if (!service) throw new Error('Acting for an account requires an authenticated service');
+    return new OxyRequesterClient(
+      this.baseURL,
+      this.cloudURL,
+      bindActingForLane(service, actingFor),
+    );
+  }
+
+  /** Superseded by {@link actingFor} (ADR 0066); removed with its cleanup. */
   withRequester(proof: RequesterProof): OxyRequesterClient {
     const service = this.context.service;
     if (!service) throw new Error('Requester context requires an authenticated service');
-    return new OxyRequesterClient(this.baseURL, this.cloudURL, service, proof);
+    return new OxyRequesterClient(this.baseURL, this.cloudURL, bindRequesterLane(service, proof));
   }
 
   // ── Server-side namespaces ───────────────────────────────────────────────
@@ -876,6 +926,7 @@ export class OxyServer extends OxyServices {
     data?: unknown,
     options: RequestOptions & {
       actAs?: string;
+      requesterAccountId?: string;
       requesterToken?: string;
       taskId?: string;
       capabilityTicket?: string;
@@ -898,6 +949,7 @@ export class OxyServer extends OxyServices {
     }
     const {
       actAs,
+      requesterAccountId,
       requesterToken,
       taskId,
       capabilityTicket,
@@ -908,6 +960,10 @@ export class OxyServer extends OxyServices {
     } = options;
     const merged: Record<string, string> = { ...headers };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
+    if (requesterAccountId) {
+      if (!actAs) throw new Error('A requester account needs the account acted on');
+      merged['X-Oxy-Requester-Id'] = requesterAccountId;
+    }
     if (
       [requesterToken, taskId, capabilityTicket, requesterContext].filter(
         (proof) => proof !== undefined,
@@ -1395,6 +1451,8 @@ export class OxyServer extends OxyServices {
           appId,
           userId,
           ...(options.taskId ? { taskId: options.taskId } : {}),
+          ...(options.requesterId ? { requesterId: options.requesterId } : {}),
+          ...(options.effect ? { effect: options.effect } : {}),
           ...(options.credentialId
             ? {
                 credentialId: options.credentialId,
@@ -1430,9 +1488,31 @@ export class OxyServer extends OxyServices {
       if (typeof rawEpoch !== 'string' || !/^(?:0|[1-9][0-9]{0,18})$/.test(rawEpoch)) return null;
       const epoch = BigInt(rawEpoch);
       if (epoch > 9223372036854775807n) return null;
+      if (
+        result.authority === 'first_party' &&
+        !options.requesterToken &&
+        !options.taskId &&
+        !options.requesterContext
+      ) {
+        // ADR 0066: the caller is an Oxy service acting with its declared authority.
+        if (
+          !options.presentedServiceToken ||
+          result.authorized !== true ||
+          result.scopes !== undefined ||
+          result.requesterContext !== undefined ||
+          typeof result.requesterId !== 'string' ||
+          !exactServiceId(result.requesterId)
+        )
+          return null;
+        return {
+          authorized: true,
+          authority: 'first_party',
+          epoch: rawEpoch,
+          requesterId: result.requesterId,
+        };
+      }
       if (result.authority === 'first_party') {
         if (
-          (!options.requesterToken && !options.taskId && !options.requesterContext) ||
           (options.presentedServiceToken &&
             (typeof result.requesterContext !== 'string' ||
               !result.requesterContext ||

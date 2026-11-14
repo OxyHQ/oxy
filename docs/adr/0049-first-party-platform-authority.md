@@ -1,6 +1,9 @@
 # ADR 0049 — Own Oxy applications share platform authority; scopes belong to external connections
 
-- Status: accepted; implementation and rollout tracked separately.
+- Status: accepted; implementation and rollout tracked separately. **Amended by
+  [0066](0066-first-party-services-act-for-people-without-permissions.md):** an own
+  workload acts on a person's account on what its registry entry declares, with
+  no requester session, task, ticket or context.
 - Date: 2026-10-23.
 - Decision: the owner requested removal of internal scopes, consent prompts and
   per-app agent access levels across the Oxy ecosystem, including direct product

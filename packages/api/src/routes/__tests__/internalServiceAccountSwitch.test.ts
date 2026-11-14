@@ -154,9 +154,11 @@ it('switches with verified requester proof, no grants/scopes, recording the real
     await sessionService.validateSessionById(first[0].sessionId, true, { useCache: false }),
   ).toBeNull();
 });
-it('rejects raw account headers, missing proof and logged out proof before minting', async () => {
+it('rejects an account header from a service that declares no account switch, and logged out proof, before minting', async () => {
   const f = await fixture();
-  expect((await call(f).set('X-Oxy-User-Id', f.user.id)).status).toBe(400);
+  // ADR 0066: naming an account is the request; an undeclared service is refused.
+  expect((await call(f).set('X-Oxy-User-Id', f.user.id)).status).toBe(403);
+  expect((await call(f)).status).toBe(400);
   await sessionService.deactivateSession(f.session.sessionId);
   expect((await call(f).set('X-Oxy-Requester-Token', f.session.accessToken)).status).toBe(403);
   expect(await rows(f.bot.id)).toEqual([]);

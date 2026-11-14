@@ -23,6 +23,7 @@ import { useSignInItems } from '@/components/security/useSignInItems';
 import { DevicesSection } from '@/components/security/devices-section';
 import { useDeviceItems } from '@/components/security/useDeviceItems';
 import { ConnectedAppsSection } from '@/components/security/connected-apps-section';
+import { FirstPartyActivitySection } from '@/components/security/first-party-activity-section';
 import { SecuritySkeleton } from '@/components/security/security-skeleton';
 
 export default function SecurityScreen() {
@@ -111,6 +112,8 @@ export default function SecurityScreen() {
         <SignInSection items={signInItems} />
 
         <DevicesSection items={deviceItems} deviceCount={devices.length} />
+
+        <FirstPartyActivitySection />
 
         <ConnectedAppsSection />
       </>

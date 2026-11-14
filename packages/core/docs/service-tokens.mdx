@@ -89,10 +89,12 @@ Three different things; pick by what you hold:
   `middleware.auth()`): call Oxy as them with
   `oxy.withUser(req, (user) => user.accounts.get(id))`. See
   [building a backend](./backend.mdx#as-the-person-behind-the-request).
-- **Your service acts with the person's proof** (a forwarded session, a task,
-  a capability ticket): `oxy.withRequester({ requesterToken | taskId | capabilityTicket })`,
-  or `createServiceClient({ requester })`. Durable work keeps the `taskId`
-  from `oxy.agency.createTask(…)`, never the bearer.
+- **Your Oxy service acts for the person** (now or in the background): declare
+  it in your application's `actsForPeople` in Oxy's first-party registry, then
+  `oxy.actingFor({ accountId, requesterAccountId? })` or
+  `createServiceClient({ actingFor })`. No session, task or consent (ADR 0066);
+  `withRequester` and tasks are retiring. A third-party service never acts for
+  people this way: it uses OAuth and the person's consent.
 - **No person present** (a long import): ask Oxy whether they may, with your
   own token — `oxy.accounts.accessFor(accountId, userId)`:
 
@@ -140,8 +142,8 @@ minute.
 
 ## What a service token cannot do
 
-- Act as a person for a human-facing action. Use the person's own session
-  (`withUser`) or their requester proof (`withRequester`).
+- Act for a person on anything its application does not declare in
+  `actsForPeople`. For the person's own request, use their session (`withUser`).
 - Hold an application's operator powers: `appPermissionsFor` and
   `requireAppPermission` refuse service-token requests. (An MCP tool call is
   different: the service token only proves your backend to Oxy, and the answer

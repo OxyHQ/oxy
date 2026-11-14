@@ -18,7 +18,7 @@ router.use((_req, res, next) => {
   next();
 });
 const optionalAuthMiddleware: RequestHandler<NamedRouteParams> = (req, res, next) =>
-  req.headers.authorization ? requesterAuthMiddleware(req, res, next) : next();
+  req.headers.authorization ? requesterAuthMiddleware('safety')(req, res, next) : next();
 /**
  * Decide whether the original optional bearer may read sensitive profile details.
  * @requestQuery profileAccessInputSchema

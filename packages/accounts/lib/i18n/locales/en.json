@@ -143,7 +143,8 @@
       "yourDevices": "Your devices",
       "yourDevicesSubtitle": "Where you're signed in ({{count}} devices total)",
       "yourDevicesSubtitle_one": "Where you're signed in ({{count}} device total)",
-      "connectedApps": "Connected apps"
+      "connectedApps": "Connected apps",
+      "firstPartyActivity": "What Oxy apps did for you"
     },
     "recommendations": {
       "biometric": "Enable biometric authentication",
@@ -540,6 +541,14 @@
     "emptyTitle": "No connected apps yet",
     "emptySubtitle": "When you grant third-party apps access to your Oxy account, they will appear here."
   },
+  "firstPartyActivity": {
+    "explainer": "Oxy's own apps never ask you for permissions. What each one does for you is set in Oxy's code, and every time it does it, it shows up here. To stop one, turn the feature off in that app.",
+    "row": "{{purpose}} · {{count}} times · {{time}}",
+    "row_one": "{{purpose}} · once · {{time}}",
+    "noLongerDeclared": "No longer does this",
+    "empty": "No Oxy app has acted for you yet.",
+    "pending": "Loading what Oxy apps did for you…"
+  },
   "connectedApps": {
     "loading": "Loading connected apps...",
     "lastUsed": "Last used {{time}}",
@@ -559,7 +568,7 @@
     "summaryPending": "Apps you've authorized to access your account",
     "manageRow": "Manage connected apps",
     "manageRowSubtitle": "Review and revoke app access",
-    "oxyApps": "Connected Oxy apps",
+    "thirdPartyApps": "Third-party apps",
     "externalMcp": "External MCP clients",
     "externalMcpHint": "Each connection is limited to the exact app resource, account and scopes you approved.",
     "noMcpClients": "No external MCP clients",

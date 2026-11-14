@@ -139,7 +139,7 @@ export default function ThirdPartyConnectionsScreen() {
     }
 
     return (
-      <Section title={t('connectedApps.oxyApps')} isFirst>
+      <Section title={t('connectedApps.thirdPartyApps')} isFirst>
         <AccountCard>
           {apps.map((app, index) => (
             <ConnectedAppRow

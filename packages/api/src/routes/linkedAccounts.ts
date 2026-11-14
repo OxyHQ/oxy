@@ -19,6 +19,7 @@
  * - `GET /atproto/client-metadata.json` (public) — the atproto OAuth client_id.
  */
 
+import { firstPartyRequesterFor } from '../middleware/firstPartyRequester';
 import { Router, type Request, type Response } from 'express';
 import {
   completeLinkedAccountRequestSchema,
@@ -122,8 +123,11 @@ router.get(
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
     const { userId } = req.params as { userId: string };
     const service = req.serviceApp;
-    if (service?.authority !== 'first_party' || req.serviceRequester?.subjectAccountId !== userId)
-      throw new ForbiddenError('A verified workload requester for this account is required.');
+    if (
+      service?.authority !== 'first_party' ||
+      (await firstPartyRequesterFor(req, 'linked-accounts', 'read'))?.subjectAccountId !== userId
+    )
+      throw new ForbiddenError('The service does not act for this account.');
     const linkedAccounts = await listLinkedAccountsForService(userId);
     sendSuccess(res, serviceLinkedAccountListResponseSchema.parse({ userId, linkedAccounts }));
   }),

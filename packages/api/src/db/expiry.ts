@@ -1,5 +1,9 @@
 import { accountInvitations } from './schema/accountInvitations';
 import { firstPartyTasks, FIRST_PARTY_TASK_RETENTION_SECONDS } from './schema/agency';
+import {
+  firstPartyDelegationActivity,
+  FIRST_PARTY_DELEGATION_ACTIVITY_RETENTION_SECONDS,
+} from './schema/firstPartyDelegationActivity';
 /**
  * Expiry Sweep Registry — row expiry for this schema
  *
@@ -162,6 +166,13 @@ export const EXPIRY_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
  * entry here is never swept.
  */
 export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
+  {
+    table: firstPartyDelegationActivity,
+    column: firstPartyDelegationActivity.lastAt,
+    retentionSeconds: FIRST_PARTY_DELEGATION_ACTIVITY_RETENTION_SECONDS,
+    reason:
+      'What Oxy services did for a person (ADR 0066), kept 400 days so the person can look back over a year; a day still being counted is never this old.',
+  },
   {
     table: firstPartyTasks,
     column: firstPartyTasks.expiresAt,

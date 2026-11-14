@@ -113,10 +113,11 @@ use `oxy-service:<applicationId>`; Oxy uses `oxy-api`, and inference uses
 (`packages/core/src/server/serviceTokenLifetime.ts`). Use the canonical
 [SDK examples](../inference/sdk.md), not application-local bearer refresh.
 
-Private data still requires the original requester and effective account. Shared
-session, durable task and derived requester-context proofs retain account,
-resource and operation boundaries. A caller-selected `X-Oxy-User-Id` alone
-confers no authority. See [first-party tasks](../auth/first-party-tasks.md).
+Private data needs the account the service acts for. An Oxy service names it
+with `actingFor` and acts on what its registry entry declares (ADR 0066); Oxy
+checks the declaration, the accounts and membership live, and resource rules
+still apply. From a service that declares nothing, `X-Oxy-User-Id` confers no
+authority. See [Oxy services acting for people](../auth/first-party-delegation.md).
 Oxy-hosted Inbox and ecosystem activity use this same workload transport;
 neither restores an internal key fallback.
 

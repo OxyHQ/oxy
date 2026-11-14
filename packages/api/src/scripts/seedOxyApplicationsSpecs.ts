@@ -23,6 +23,7 @@ import {
 import type { AccountRole } from '../utils/accountRoles';
 import type { DeclaredTrustedPublisher } from '../services/githubTrustedPublishing.service';
 import type { ApplicationScope } from '../utils/applicationScopes';
+import { platformReceiver, type FirstPartyDelegation } from '../utils/firstPartyDelegation';
 import {
   CLARITY_APPLICATION_ID,
   CLARITY_BACKEND_APPLICATION_ID,
@@ -162,6 +163,16 @@ export interface SeedAppSpec {
    * same name never matches.
    */
   trustedPublishers?: readonly DeclaredTrustedPublisher[];
+  /**
+   * What this application's backend does for a person without asking them
+   * (ADR 0066): on which receiver (`oxy:<area>`, or another Oxy application's
+   * exact id), reading or writing, and why — the purpose the person reads in
+   * their account's activity. Read by the API at runtime, never seeded: what an
+   * Oxy service may do for people is this diff. Only an entry with its exact
+   * `id` may declare. Third-party applications never act for people this way;
+   * they use OAuth scopes and the person's consent.
+   */
+  actsForPeople?: readonly FirstPartyDelegation[];
 }
 
 /** The caller workflow every Oxy app repository publishes its OTA updates from. */
@@ -443,6 +454,25 @@ import { ALIA_APPLICATION_ID } from '../config/firstPartyApplications';
  * id rather than by name.
  */
 export const GEMIES_APPLICATION_ID = 'a419815f0a04c0442edebc8a';
+
+/**
+ * What the Gemies backend does for the people who use their gemies (ADR 0066).
+ * Each one hangs off a feature the person can turn off in Gemies (a channel
+ * disconnected, email alerts switched off, a reminder deleted).
+ */
+export const GEMIES_ACTS_FOR_PEOPLE: readonly FirstPartyDelegation[] = [
+  {
+    on: platformReceiver('files'),
+    effect: 'write',
+    purpose: 'Keeps what you send to your gemies, and what they make for you, in your files.',
+  },
+  {
+    on: platformReceiver('tools'),
+    effect: 'write',
+    purpose:
+      'Uses your Oxy apps when you ask a gemie to, or when a gemie works for you on its own.',
+  },
+];
 
 /** Exact opaque identity already assigned to Homiio in production. */
 export const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';
@@ -737,6 +767,10 @@ export const SEED_APPS: SeedAppSpec[] = [
     // the coordinator routes require both, and the argument for holding them
     // is recorded there, once. Capabilities are UNIONed, never stripped.
     capabilities: [AGENCY_COORDINATE_CAPABILITY],
+    // ADR 0066. The Gemies backend attests as this application (role
+    // `oxy-alia-task`) until its cut-over: what gemies do for the person who
+    // uses them, in the foreground and in the background, with no task.
+    actsForPeople: GEMIES_ACTS_FOR_PEOPLE,
     // Alia's spend has to appear on its own line in the cost-centre report, so
     // it is owned by its own project account rather than by the platform owner
     // every other official app shares. See `ownerAccountUsername`.

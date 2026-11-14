@@ -1,5 +1,17 @@
 # Changelog — `@oxy.so/core`
 
+## 7.52.0
+
+### Added
+
+- **Oxy services act for people without permissions (ADR 0066).** An Oxy service whose first-party registry entry declares `actsForPeople` names the account it acts for and nothing else: `oxy.actingFor({ accountId, requesterAccountId? })`, `oxy.assets.actingFor(...)`, `oxy.linkedAccounts.actingFor(...)`, `createServiceClient({ actingFor })` and `oxy.agency.createFirstPartyExecutionAuthorization(terms, { requesterAccountId? })`. They send `X-Oxy-User-Id` (and `X-Oxy-Requester-Id` when the person operates the account) and strip any a caller passes; no session, task, ticket or requester context, so they work the same in the background. `serviceRequest` takes `requesterAccountId` beside `actAs`.
+- **Receivers admit it with no change.** `middleware.auth()` sends the request's effect (`read` for `GET`/`HEAD`/`OPTIONS`, else `write`) and `X-Oxy-Requester-Id` to Oxy's verification, and sets `req.serviceActingAs.requesterId` on a first-party answer. `verifyActingAs` accepts a first-party answer without a requester proof only with the caller's presented token, `authorized: true`, no scopes, no requester context and an exact `requesterId`.
+- **`oxy.apps.firstPartyActivity(accountId?)`**: what Oxy's own services did for an account, per application, receiver, effect and day (`FirstPartyActivityEntry`).
+
+### Deprecated
+
+- `withRequester`, `createServiceClient({ requester })`, `agency.createTask`, `createTaskExecutionAuthorization`, `createForegroundExecutionAuthorization` and `revokeTask` for Oxy's own services: superseded by `actingFor` (ADR 0066) and removed once their last callers move.
+
 ## 7.51.0
 
 ### Added

@@ -26,6 +26,8 @@ export interface ServiceLane {
     data?: unknown,
     options?: RequestOptions & {
       actAs?: string;
+      /** The person, when `actAs` is an account they operate (ADR 0066). */
+      requesterAccountId?: string;
       requesterToken?: string;
       taskId?: string;
       capabilityTicket?: string;

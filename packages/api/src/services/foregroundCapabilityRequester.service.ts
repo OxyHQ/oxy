@@ -29,6 +29,17 @@ export interface ForegroundRequesterBinding {
   forwardedContext?: RequesterContextClaims;
 }
 
+/**
+ * A service request's requester: a session- or task-backed binding, or the
+ * ticket of a delegated operation (ADR 0066), which no session backs.
+ */
+export type ServiceRequesterBinding =
+  | ForegroundRequesterBinding
+  | (Omit<ForegroundRequesterBinding, 'sessionId' | 'digest'> & {
+      sessionId: null;
+      digest: null;
+    });
+
 function sessionDigest(session: CachedSession): string {
   // Deliberately excludes access/refresh tokens and activity timestamps.
   return createHash('sha256')

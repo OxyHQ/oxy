@@ -1,4 +1,4 @@
-import type { ForegroundRequesterBinding } from './foregroundCapabilityRequester.service';
+import type { RequesterAccounts } from '../middleware/firstPartyRequester';
 import { applications } from '../db/schema/applications';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { hasServiceAuthority } from '../utils/serviceAuthority';
@@ -105,7 +105,7 @@ export async function readAuthorizedSubjectProductGrantSnapshot(
 export async function readServiceAuthorizedSubjectProductGrantSnapshot(
   identity: ServiceTokenPayload,
   input: SubjectProductAccessQuery,
-  requester?: ForegroundRequesterBinding,
+  requester?: RequesterAccounts,
 ) {
   const query = subjectProductAccessQuerySchema.parse(input);
   const required = ['user:read', SERVICE_ACTING_AS_SCOPE];
