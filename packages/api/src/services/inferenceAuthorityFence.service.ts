@@ -116,6 +116,15 @@ type LegacyRow = {
   request_id: string;
 };
 
+/** The retired Private Auto classifier child (removed in #1811) used one stable
+ * operation ID as its request ID, ledger key and Kaana operation:
+ * `oxy-private-auto:<parent metered UUID>`. No caller supplied that key, so its
+ * request-ID tombstone is its whole permanent alias. Historical settled rows of
+ * it remain in the ledger and must be fenced, never skipped.
+ */
+const RETIRED_PRIVATE_AUTO_OPERATION =
+  /^oxy-private-auto:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Exact prefixes only; an unrecognized ledger key prevents an incomplete export. */
 export function legacyInferenceFenceEntries(
   rows: readonly LegacyRow[],
@@ -148,7 +157,8 @@ export function legacyInferenceFenceEntries(
       add(row, 'idempotency_key', row.ledger_key.slice(prefix.length));
     } else if (
       row.ledger_key !== `oxy-edge:req:${row.request_id}` &&
-      row.ledger_key !== `kaana-grant:req:${row.request_id}`
+      row.ledger_key !== `kaana-grant:req:${row.request_id}` &&
+      !(row.ledger_key === row.request_id && RETIRED_PRIVATE_AUTO_OPERATION.test(row.request_id))
     ) {
       throw new Error('Unrecognized legacy idempotency namespace');
     }

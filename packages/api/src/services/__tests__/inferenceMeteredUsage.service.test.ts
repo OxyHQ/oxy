@@ -1506,4 +1506,37 @@ describe('permanent application authority cutover', () => {
       'ownership',
     );
   });
+  it('fences a retired Private Auto child by its stable request ID only', () => {
+    const operation = 'oxy-private-auto:01a109eb-8a76-7893-ad9e-edb5c8d38686';
+    const child = {
+      credential_id: 'wl_test',
+      ledger_key: operation,
+      legacy_id: 'metered:child',
+      request_id: operation,
+    };
+    expect(legacyInferenceFenceEntries([child])).toEqual([
+      {
+        credentialId: 'wl_test',
+        keyKind: 'request_id',
+        key: operation,
+        legacyAdmissionId: 'metered:child',
+        requestId: operation,
+        bodyDigest: null,
+        digestDomain: 'unknown',
+      },
+    ]);
+    // Only the exact retired shape, with request ID and ledger key identical.
+    for (const refused of [
+      { ...child, request_id: 'req-other' },
+      {
+        ...child,
+        ledger_key: 'oxy-private-auto:not-a-uuid',
+        request_id: 'oxy-private-auto:not-a-uuid',
+      },
+      { ...child, ledger_key: `${operation}:x`, request_id: `${operation}:x` },
+      { ...child, ledger_key: 'oxy-private-auto:', request_id: 'oxy-private-auto:' },
+    ]) {
+      expect(() => legacyInferenceFenceEntries([refused])).toThrow('namespace');
+    }
+  });
 });
