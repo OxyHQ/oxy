@@ -17,9 +17,9 @@ jest.mock('../../src/ui/components/FollowButton', () => ({
   __esModule: true,
   default: () => null,
 }));
-jest.mock('@oxy.so/bloom/chat-people', () => ({
+jest.mock('@oxy.so/bloom/list', () => ({
   ...jest.requireActual('@oxy.so/bloom'),
-  ContactRow: ({ name, onPress }: any) => <button onClick={onPress}>{name}</button>,
+  ListItem: ({ person, onPress }: any) => <button onClick={onPress}>{person.name}</button>,
 }));
 jest.mock('react-native', () => ({
   ...jest.requireActual('react-native'),

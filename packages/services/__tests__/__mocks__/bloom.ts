@@ -973,7 +973,7 @@ export const Search = ({
 
 export const ButtonGroup = ({ children }: { children?: ReactNode }) =>
   createElement('div', { role: 'group' }, children);
-export const ButtonGroupItem = Button;
+Button.Group = ButtonGroup;
 
 export const CoverHeader = passthrough('div');
 export const H2 = Text;

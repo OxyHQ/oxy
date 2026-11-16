@@ -1,7 +1,8 @@
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+
 import { Icons } from '@/constants/icons';
 import {
   Screen,
@@ -98,7 +99,7 @@ export default function OrganizationWalletsScreen() {
           minHeight={STATE_MIN_HEIGHT}
         />
       ) : (
-        <SettingsListGroup>
+        <GroupedSection>
           {organizations.data.map((organization) => (
             <OrganizationRow
               key={organization.accountId}
@@ -106,7 +107,7 @@ export default function OrganizationWalletsScreen() {
               onPress={open}
             />
           ))}
-        </SettingsListGroup>
+        </GroupedSection>
       )}
     </Screen>
   );

@@ -1,7 +1,8 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { View } from 'react-native';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
@@ -38,7 +39,7 @@ export function OrganizationClaims() {
   });
   if (!enabled || (!requests.isError && claims.length === 0)) return null;
   return (
-    <SettingsListGroup title={t('organizationDirectory.requests')}>
+    <GroupedSection title={t('organizationDirectory.requests')}>
       {requests.isError ? (
         <View>
           <Text accessibilityRole="alert">{t('organizationDirectory.requestError')}</Text>
@@ -47,7 +48,7 @@ export function OrganizationClaims() {
       ) : null}
       {!requests.isError &&
         claims.map((claim) => (
-          <SettingsListItem
+          <GroupedSectionItem
             key={claim.id}
             title={
               organizations.data?.find((item) => item.requestedAccountId === claim.accountId)
@@ -62,6 +63,6 @@ export function OrganizationClaims() {
           {t('organizationDirectory.loadMore')}
         </Button>
       ) : null}
-    </SettingsListGroup>
+    </GroupedSection>
   );
 }

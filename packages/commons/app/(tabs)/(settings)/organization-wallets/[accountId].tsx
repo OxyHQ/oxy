@@ -1,8 +1,9 @@
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useCallback } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '@oxy.so/bloom/button';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+
 import { Icons } from '@/constants/icons';
 import {
   Screen,
@@ -121,14 +122,14 @@ export default function OrganizationWalletScreen() {
           <ImportantBanner type="info" title={t('organizationWallet.detail.heldTitle')}>
             {t('organizationWallet.detail.heldBody')}
           </ImportantBanner>
-          <SettingsListGroup>
+          <GroupedSection>
             <SettingsListItem
               icon={<Icons.lock size="md" fill={colors.text} />}
               title={t('organizationWallet.detail.showPhrase')}
               onPress={() => go('phrase')}
             />
             {replace}
-          </SettingsListGroup>
+          </GroupedSection>
         </>
       ) : null}
 
@@ -146,7 +147,7 @@ export default function OrganizationWalletScreen() {
               ? t('organizationWallet.detail.staleBody')
               : t('organizationWallet.detail.elsewhereBody')}
           </ImportantBanner>
-          <SettingsListGroup>
+          <GroupedSection>
             <SettingsListItem
               icon={<Icons.key size="md" fill={colors.text} />}
               title={t('organizationWallet.detail.addKey')}
@@ -154,17 +155,17 @@ export default function OrganizationWalletScreen() {
               testID="organization-wallet-add"
             />
             {replace}
-          </SettingsListGroup>
+          </GroupedSection>
         </>
       ) : null}
 
       {state.publicKey ? (
-        <SettingsListGroup title={t('organizationWallet.detail.publicKey')}>
+        <GroupedSection title={t('organizationWallet.detail.publicKey')}>
           <SettingsListItem
             icon={<Icons.key size="md" fill={colors.text} />}
             title={shortenKey(state.publicKey)}
           />
-        </SettingsListGroup>
+        </GroupedSection>
       ) : null}
     </Screen>
   );

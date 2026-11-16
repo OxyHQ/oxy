@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Carousel, CarouselItem } from '@oxy.so/bloom/carousel';
 import { Card } from '@oxy.so/bloom/card';
-import { GlyphButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { H4, Text } from '@oxy.so/bloom/typography';
 import { AppIcon, Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
@@ -38,7 +38,7 @@ const CARD_WIDTH = 256;
  * The run is Bloom's `Carousel` rather than a bare horizontal `ScrollView`, so
  * it snaps, and — the part a `ScrollView` never had — announces itself as a
  * carousel and labels each card "N of M". The cards are Bloom `Card`s, and the
- * dismiss is a `GlyphButton`, the neutral icon button.
+ * dismiss is a plain icon `Button`, the neutral icon button.
  *
  * `showArrows={false}`: the arrows are a pointer affordance and Commons ships to
  * phones only. `showDots` stays on — it is the only thing that says more cards
@@ -60,7 +60,13 @@ export function GetStartedCarousel({
     <View className="gap-space-12">
       <View className="flex-row items-center justify-between">
         <H4>{title}</H4>
-        <GlyphButton icon={Icons.close} onPress={onDismiss} accessibilityLabel={dismissLabel} />
+        <Button
+          appearance="plain"
+          tone="neutral"
+          icon={Icons.close}
+          onPress={onDismiss}
+          accessibilityLabel={dismissLabel}
+        />
       </View>
 
       <Carousel accessibilityLabel={title} showArrows={false} align="start" gap={12}>

@@ -4,6 +4,10 @@ A comprehensive TypeScript UI library for the Oxy API providing authentication, 
 
 > **For web apps (Vite + React Native Web):** Use this same package — `OxyProvider` is universal. See the [Platform Guide](./PLATFORM_GUIDE.md).
 >
+> **Bloom compatibility:** Services 14.22 uses Bloom 22's `Button.Group`,
+> `GroupedSection` and `ListItem` owners. Upgrade Bloom with Services; removed
+> control/list aliases are not re-exported or recreated by this SDK.
+
 > **For backend / Node.js:** Use [`@oxy.so/core`](../core) only (`@oxy.so/core/server` for auth middleware).
 >
 > **For the full platform guide:** See [PLATFORM_GUIDE.md](./PLATFORM_GUIDE.md).

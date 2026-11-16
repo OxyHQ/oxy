@@ -1,7 +1,4 @@
-import {
-  SettingsListItem as BloomSettingsListItem,
-  type SettingsListItemProps,
-} from '@oxy.so/bloom/settings-list';
+import { GroupedSectionItem, type GroupedSectionItemProps } from '@oxy.so/bloom/grouped-section';
 
 /**
  * Bloom's settings row with nothing cut off.
@@ -16,9 +13,9 @@ export function SettingsListItem({
   titleNumberOfLines = 0,
   descriptionLines = 0,
   ...props
-}: SettingsListItemProps) {
+}: GroupedSectionItemProps) {
   return (
-    <BloomSettingsListItem
+    <GroupedSectionItem
       {...props}
       titleNumberOfLines={titleNumberOfLines}
       descriptionLines={descriptionLines}

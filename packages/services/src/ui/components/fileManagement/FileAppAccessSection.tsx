@@ -1,9 +1,10 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type React from 'react';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -79,9 +80,9 @@ export const FileAppAccessSection: React.FC<FileAppAccessSectionProps> = ({ file
           {t('fileManagement.appAccess.empty')}
         </Text>
       ) : (
-        <SettingsListGroup>
+        <GroupedSection>
           {apps.map((app) => (
-            <SettingsListItem
+            <GroupedSectionItem
               key={app.applicationId}
               icon={<Avatar source={app.icon} name={app.name} size={APP_ICON_SIZE} />}
               title={app.name}
@@ -104,7 +105,7 @@ export const FileAppAccessSection: React.FC<FileAppAccessSectionProps> = ({ file
               }
             />
           ))}
-        </SettingsListGroup>
+        </GroupedSection>
       )}
     </View>
   );

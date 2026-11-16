@@ -1,3 +1,4 @@
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import {
   useCallback,
   useEffect,
@@ -17,7 +18,7 @@ import {
 } from '@oxy.so/contracts/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
@@ -225,7 +226,7 @@ function OrganizationDirectorySearchContent({
   };
   if (selected)
     return (
-      <SettingsListGroup title={selected.name}>
+      <GroupedSection title={selected.name}>
         <View className="gap-space-16 p-space-16">
           <Text>{t(`organizationDirectory.${selected.claimStatus}`)}</Text>
           {selected.status === 'inactive' ? (
@@ -284,7 +285,7 @@ function OrganizationDirectorySearchContent({
             {t('organizationDirectory.back')}
           </Button>
         </View>
-      </SettingsListGroup>
+      </GroupedSection>
     );
   return (
     <View className="gap-space-16">
@@ -307,11 +308,11 @@ function OrganizationDirectorySearchContent({
         </View>
       ) : null}
       {results.data ? (
-        <SettingsListGroup title={t('organizationDirectory.title')}>
+        <GroupedSection title={t('organizationDirectory.title')}>
           {results.data.pages
             .flatMap((page) => page.items)
             .map((organization) => (
-              <SettingsListItem
+              <GroupedSectionItem
                 key={organization.accountId}
                 title={organization.name}
                 description={[
@@ -333,7 +334,7 @@ function OrganizationDirectorySearchContent({
               {t('organizationDirectory.loadMore')}
             </Button>
           ) : null}
-        </SettingsListGroup>
+        </GroupedSection>
       ) : null}
       {results.isSuccess && query === search.trim() ? (
         <>

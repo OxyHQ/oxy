@@ -1,9 +1,10 @@
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useCallback, useEffect, useState } from 'react';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+
 import { KeyManager } from '@oxy.so/core/crypto';
 import { Button } from '@oxy.so/bloom/button';
 import { Screen, StackHeader, SettingsListItem } from '@/components/ui';
@@ -96,7 +97,7 @@ export default function BackupRecoveryScreen() {
         </View>
       )}
 
-      <SettingsListGroup title={t('backupRecovery.methodsTitle')}>
+      <GroupedSection title={t('backupRecovery.methodsTitle')}>
         <SettingsListItem
           icon={<Icons.document size="md" fill={colors.text} />}
           title={t('backupRecovery.phraseTitle')}
@@ -126,7 +127,7 @@ export default function BackupRecoveryScreen() {
           onPress={handlePreviousKeys}
           showChevron
         />
-      </SettingsListGroup>
+      </GroupedSection>
     </Screen>
   );
 }

@@ -24,7 +24,7 @@ import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { logger } from '@oxy.so/core';
 import type { McpOAuthWriteAction } from '@oxy.so/contracts';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { Button, LinkButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { type Translate, useI18n } from '../hooks/useI18n';
@@ -209,9 +209,16 @@ function ConsentLink({
     });
   }, [url]);
   return (
-    <LinkButton testID={testID} onPress={handlePress} accessibilityRole="link" size="sm">
+    <Button
+      appearance="plain"
+      linkTone="primary"
+      testID={testID}
+      onPress={handlePress}
+      accessibilityRole="link"
+      size="sm"
+    >
       {label}
-    </LinkButton>
+    </Button>
   );
 }
 

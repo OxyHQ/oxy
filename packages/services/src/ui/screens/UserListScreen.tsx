@@ -7,7 +7,7 @@ import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { H6, Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
-import { ContactRow } from '@oxy.so/bloom/chat-people';
+import { ListItem } from '@oxy.so/bloom/list';
 import FollowButton from '../components/FollowButton';
 import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
@@ -157,15 +157,15 @@ const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, nav
 
       return (
         <View className="px-screen-margin flex-row items-center gap-space-12">
-          <ContactRow
-            id={itemUserId || displayName}
-            name={displayName}
-            subtitle={handle ? (item.username ? `@${handle}` : handle) : undefined}
-            avatar={item.avatar ? oxyServices.assets.publicUrl(item.avatar, 'thumb') : undefined}
-            horizontalInset={0}
+          <ListItem
+            person={{
+              name: displayName,
+              subtitle: handle ? (item.username ? `@${handle}` : handle) : undefined,
+              avatar: item.avatar ? oxyServices.assets.publicUrl(item.avatar, 'thumb') : undefined,
+            }}
             style={{ flex: 1 }}
             onPress={() => handleUserPress(item)}
-            identitySlot={
+            content={
               <View style={styles.userInfo}>
                 <Text variant="body-medium" numberOfLines={1}>
                   {displayName}

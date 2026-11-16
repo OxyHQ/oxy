@@ -1,3 +1,4 @@
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -5,7 +6,7 @@ import type { Organization, OrganizationType, UpdateOrganization } from '@oxy.so
 import { updateOrganizationCheck, checkContract } from '@oxy.so/contracts/client';
 import { Button } from '@oxy.so/bloom/button';
 import { toast } from '@oxy.so/bloom/toast';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
@@ -36,10 +37,10 @@ export function OrganizationSettings({
     );
   if (!canUpdate || !canUsePrivateApi)
     return (
-      <SettingsListGroup title={t('organizationDirectory.title')}>
+      <GroupedSection title={t('organizationDirectory.title')}>
         <Text>{t(`organizationDirectory.types.${organization.data.organizationType}`)}</Text>
         <Text>{t('organizationDirectory.readonly')}</Text>
-      </SettingsListGroup>
+      </GroupedSection>
     );
   return (
     <OrganizationForm
@@ -71,7 +72,7 @@ function OrganizationForm({ organization }: { organization: Organization }) {
     },
   });
   return (
-    <SettingsListGroup title={t('organizationDirectory.title')}>
+    <GroupedSection title={t('organizationDirectory.title')}>
       <View className="gap-space-16 p-space-16">
         <TextField>
           <TextFieldInput
@@ -123,6 +124,6 @@ function OrganizationForm({ organization }: { organization: Organization }) {
           {t('organizationDirectory.save')}
         </Button>
       </View>
-    </SettingsListGroup>
+    </GroupedSection>
   );
 }

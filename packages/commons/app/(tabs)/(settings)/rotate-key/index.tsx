@@ -1,8 +1,9 @@
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+
 import { useColors } from '@/hooks/useColors';
 import { Screen, StackHeader, ImportantBanner, SettingsListItem } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
@@ -49,7 +50,7 @@ export default function RotateKeyEntryScreen() {
         </ImportantBanner>
       </View>
 
-      <SettingsListGroup title={t('rotateKey.pathSection')}>
+      <GroupedSection title={t('rotateKey.pathSection')}>
         <SettingsListItem
           icon={<Icons.device size="md" fill={colors.text} />}
           title={t('rotateKey.pathDevice')}
@@ -62,7 +63,7 @@ export default function RotateKeyEntryScreen() {
           description={t('rotateKey.pathPhraseSubtitle')}
           onPress={handlePhrase}
         />
-      </SettingsListGroup>
+      </GroupedSection>
     </Screen>
   );
 }

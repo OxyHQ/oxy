@@ -1,3 +1,4 @@
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
@@ -13,7 +14,7 @@ import { Fab } from '@oxy.so/bloom/fab';
 import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+
 import { Screen, Section, useFabClearance, SettingsListItem } from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';
@@ -250,7 +251,7 @@ export default function IdScreen() {
 
         {/* Self-custody identity actions (native only). */}
         {isNative && (
-          <SettingsListGroup
+          <GroupedSection
             title={t('vault.home.yourIdentity')}
             footer={t('vault.home.yourIdentitySubtitle')}
           >
@@ -266,11 +267,11 @@ export default function IdScreen() {
               description={t('home.identity.publicKeySubtitle')}
               onPress={handleAboutIdentity}
             />
-          </SettingsListGroup>
+          </GroupedSection>
         )}
 
         {/* Real-life attestation — A shows a QR for B to confirm they met IRL */}
-        <SettingsListGroup
+        <GroupedSection
           title={t('civic.attest.section.title')}
           footer={t('civic.attest.section.subtitle')}
         >
@@ -280,7 +281,7 @@ export default function IdScreen() {
             description={t('civic.attest.section.actionSubtitle')}
             onPress={handleGetVerified}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {did && (
           <View>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
+
 import { Button } from '@oxy.so/bloom/button';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -222,10 +222,13 @@ export default function ScanSignInScreen() {
               <>
                 <Text style={styles.instructionText}>{t('signInApproval.scan.instructions')}</Text>
                 <View className="items-center gap-space-8">
-                  <FrostedIconButton
+                  <Button
+                    appearance="outline"
+                    tone="neutral"
+                    iconOnly
                     icon={Icons.flash}
-                    checked={flashOn}
-                    onCheckedChange={() => toggleFlash()}
+                    pressed={flashOn}
+                    onPressedChange={() => toggleFlash()}
                     accessibilityLabel={
                       flashOn
                         ? t('signInApproval.scan.a11y.flashOff')
@@ -241,7 +244,10 @@ export default function ScanSignInScreen() {
           </View>
         </View>
 
-        <FrostedIconButton
+        <Button
+          appearance="outline"
+          tone="neutral"
+          iconOnly
           icon={Icons.close}
           onPress={handleClose}
           accessibilityLabel={t('signInApproval.scan.a11y.close')}

@@ -27,10 +27,10 @@ jest.mock('@/components/ui', () => {
     SettingsListItem: ({ title }: { title: string }) => R.createElement('div', null, title),
   };
 });
-jest.mock('@oxy.so/bloom/settings-list', () => {
+jest.mock('@oxy.so/bloom/grouped-section', () => {
   const R = require('react');
   return {
-    SettingsListGroup: ({ children }: { children?: React.ReactNode }) =>
+    GroupedSection: ({ children }: { children?: React.ReactNode }) =>
       R.createElement('div', null, children),
   };
 });

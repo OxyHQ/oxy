@@ -1,10 +1,11 @@
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet, ActivityIndicator, Share, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AppIcon, Icons } from '@/constants/icons';
 import { buildUserDid } from '@oxy.so/core';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+
 import { useColors } from '@/hooks/useColors';
 import { Screen, StackHeader, SessionGate, SettingsListItem } from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
@@ -192,7 +193,7 @@ export default function AboutIdentityScreen() {
   const renderBody = () => (
     <>
       {/* Technical identifiers — tap a row to copy the full value. */}
-      <SettingsListGroup title={t('aboutIdentity.identifiersTitle')}>
+      <GroupedSection title={t('aboutIdentity.identifiersTitle')}>
         {publicKey && (
           <SettingsListItem
             icon={<Icons.key size="md" fill={colors.tint} />}
@@ -211,10 +212,10 @@ export default function AboutIdentityScreen() {
             onPress={() => handleCopy(did, 'aboutIdentity.didCopied')}
           />
         )}
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* Self-custody explainer */}
-      <SettingsListGroup
+      <GroupedSection
         title={t('aboutIdentity.selfCustodyTitle')}
         footer={t('aboutIdentity.selfCustodyDescription')}
       >
@@ -227,10 +228,10 @@ export default function AboutIdentityScreen() {
             showChevron={false}
           />
         ))}
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* Account settings */}
-      <SettingsListGroup title={t('aboutIdentity.accountSettings')}>
+      <GroupedSection title={t('aboutIdentity.accountSettings')}>
         <SettingsListItem
           icon={<Icons.pending size="md" fill={colors.tint} />}
           title={t('aboutIdentity.accountExpiration')}
@@ -242,7 +243,7 @@ export default function AboutIdentityScreen() {
             isSavingExpiration ? <ActivityIndicator size="small" color={colors.tint} /> : undefined
           }
         />
-      </SettingsListGroup>
+      </GroupedSection>
 
       <Text style={[styles.footnote, { color: colors.textSecondary }]}>
         {t('aboutIdentity.importantNotice')}

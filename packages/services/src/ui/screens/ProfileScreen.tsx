@@ -4,8 +4,8 @@ import { View, StyleSheet } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Button, LinkButton } from '@oxy.so/bloom/button';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { Button } from '@oxy.so/bloom/button';
+
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
@@ -277,14 +277,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
                 >
                   {t('editProfile.title') || 'Edit Profile'}
                 </Button>
-                <ButtonGroup>
-                  <ButtonGroupItem
+                <Button.Group>
+                  <Button
                     iconOnly
                     leadingIcon={RiSettings3Line}
                     accessibilityLabel={t('accountMenu.settings') || 'Settings'}
                     onPress={() => navigate?.('Preferences')}
                   />
-                </ButtonGroup>
+                </Button.Group>
               </View>
             ) : (
               <FollowButton
@@ -332,7 +332,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
           ))}
         </View>
         {websiteUrl ? (
-          <LinkButton
+          <Button
+            appearance="plain"
+            linkTone="primary"
             size="sm"
             href={websiteUrl}
             style={{ alignSelf: 'flex-start', paddingLeft: 0, paddingRight: 0 }}
@@ -341,7 +343,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
             icon={<Ionicons name="link-outline" size={INFO_ICON_SIZE} />}
           >
             {profile?.website}
-          </LinkButton>
+          </Button>
         ) : null}
         <View style={styles.statsRow}>
           {!isLoadingCounts && followingCount !== null ? (

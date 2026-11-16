@@ -1,3 +1,4 @@
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useCallback, useMemo } from 'react';
 import { withAlpha } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
@@ -10,7 +11,7 @@ import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+
 import {
   Screen,
   StackHeader,
@@ -158,7 +159,7 @@ export default function PersonhoodScreen() {
         </View>
 
         {/* Signals */}
-        <SettingsListGroup
+        <GroupedSection
           title={t('civic.personhood.signals.title')}
           footer={t('civic.personhood.signals.subtitle')}
         >
@@ -191,10 +192,10 @@ export default function PersonhoodScreen() {
               ) : undefined
             }
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {/* How to increase it */}
-        <SettingsListGroup
+        <GroupedSection
           title={t('civic.personhood.improve.title')}
           footer={t('civic.personhood.improve.subtitle')}
         >
@@ -216,7 +217,7 @@ export default function PersonhoodScreen() {
             description={t('civic.personhood.improve.bindBiometricDesc')}
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         <View>
           <Text style={[styles.footnote, { color: colors.textSecondary }]}>
