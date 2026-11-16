@@ -101,7 +101,7 @@
       "jsdom": "^30.1.3",
       "jszip": "^3.10.2",
       "nativewind": "5.0.0-rc.0",
-      "react-native-css": "3.1.0-rc.0",
+      "react-native-css": "3.1.0-rc.1",
       "pino": "^10.4.0",
       "postgres": "3.4.9",
       "radix-ui": "^1.8.1",
