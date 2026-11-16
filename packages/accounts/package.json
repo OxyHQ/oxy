@@ -73,7 +73,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",
-    "react-native-audio-api": "^0.13.6",
+    "react-native-audio-api": "^1.0.0",
     "react-native-css": "catalog:",
     "react-native-gesture-handler": "catalog:",
     "react-native-keyboard-controller": "catalog:",
