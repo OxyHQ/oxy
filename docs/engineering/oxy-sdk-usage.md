@@ -13,6 +13,16 @@ NativeWind and Expo rules from that guide live in the Bloom repository.
 - **Profile identity:** `name.displayName` is optional. When absent, fall back to the normalized handle (`displayName?.trim() || handle`, or `getNormalizedUserHandle`). Never recompose from `name.first`/`name.last`/`name.full` and never duplicate instance suffixes. Fix a wrong `displayName` in the serializer or the SDK type, not in a frontend helper. Types come from `@oxy.so/contracts`.
 - Post DTOs for an app's own feed are hydrated by that app's backend (Mention uses `PostHydrationService`); controllers never hand-build post `user` objects.
 
+## Shared UI compatibility
+
+Upgrade Services together with Bloom when Bloom retires a public component API.
+The tested minimum is `packages/services/package.json#peerDependencies`; the root
+catalog and the external compatibility fixture must exercise that API. Services
+uses `Button` for individual actions, `HeaderActions` for grouped commands, and
+`GroupedSection` for settings. These owners span the supported Bloom versions.
+Do not restore removed component names with app-local shims. Preserve the action
+callbacks and the shared account/auth state while migrating their presentation.
+
 ## App language (i18n)
 
 - **Oxy resolves which language; an app never re-derives it.** Pass `OxyProvider`'s `language` prop (`{ supportedLocales, fallbackLocale, onChange }`); `onChange` is the app's own translation library's switch function (for example `i18next.changeLanguage`). No app effect, hook or sync component reads `useOxy().currentLanguage` to drive its own i18n. ADR 0022 retired exactly that defect (Mention, Allo and Homiio each reinvented an account-blind, locally stored guess): [ADR 0022](../adr/0022-app-i18n-follows-oxy-language.md).

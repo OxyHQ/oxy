@@ -5,7 +5,7 @@ import { isHttpRequestError } from '@oxy.so/core';
 import type { OrganizationClaimReview as OrganizationClaimReviewInput } from '@oxy.so/contracts';
 import { organizationClaimReviewCheck, parseContract } from '@oxy.so/contracts/client';
 import { Button } from '@oxy.so/bloom/button';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
@@ -17,14 +17,14 @@ export function OrganizationClaimReview() {
   const { user, canUsePrivateApi } = useOxy();
   const [open, setOpen] = useState(false);
   return (
-    <SettingsListGroup>
-      <SettingsListItem
+    <GroupedSection>
+      <GroupedSectionItem
         title={t('organizationDirectory.review.title')}
         disabled={!canUsePrivateApi}
         onPress={() => setOpen((value) => !value)}
       />
       {open && user?.kind === 'personal' && canUsePrivateApi ? <ReviewQueue key={user.id} /> : null}
-    </SettingsListGroup>
+    </GroupedSection>
   );
 }
 function ReviewQueue() {
@@ -78,7 +78,7 @@ function ReviewQueue() {
     <View className="gap-space-16 p-space-16">
       {claims.length === 0 ? <Text>{t('organizationDirectory.review.empty')}</Text> : null}
       {claims.map((claim) => (
-        <SettingsListItem
+        <GroupedSectionItem
           key={claim.id}
           title={
             organizations.data?.find((item) => item.requestedAccountId === claim.accountId)

@@ -27,7 +27,7 @@ type ToastFn = (message: string, options?: Record<string, unknown>) => void;
  * `disabled` Button is un-pressable in tests), and `testID` (as `data-testid`);
  * other RN-only props are dropped so they do not leak onto the DOM node.
  */
-export const Button = ({
+const ButtonBase = ({
   children,
   trailing,
   accessibilityLabel,
@@ -64,6 +64,26 @@ export const Button = ({
     trailing,
   );
 
+export const Button = ButtonBase;
+
+export const HeaderActions = ({
+  actions,
+}: {
+  actions: ReadonlyArray<{ id: string; label: string; disabled?: boolean; onPress: () => void }>;
+}) =>
+  createElement(
+    'div',
+    { role: 'group' },
+    actions.map((action) =>
+      createElement(Button, {
+        key: action.id,
+        accessibilityLabel: action.label,
+        disabled: action.disabled,
+        onPress: action.onPress,
+      }),
+    ),
+  );
+
 // Shared follow visual: business tests observe binding, Bloom tests own animation.
 export const FollowButton = ({
   following,
@@ -97,26 +117,6 @@ export const Loading = () => createElement('span', null, 'loading');
 /** `@oxy.so/bloom/loading` `SpinnerIcon`: an unnamed glyph. */
 export const SpinnerIcon = () =>
   createElement('span', { 'data-testid': 'spinner-icon', 'aria-hidden': 'true' });
-
-/** `@oxy.so/bloom/button` `CloseButton`: an icon-only button named by its label. */
-export const CloseButton = ({
-  onPress,
-  disabled,
-  accessibilityLabel,
-}: {
-  onPress?: () => void;
-  disabled?: boolean;
-  accessibilityLabel: string;
-}) =>
-  createElement('button', {
-    type: 'button',
-    onClick: onPress,
-    disabled,
-    'aria-label': accessibilityLabel,
-  });
-
-/** `@oxy.so/bloom/button` `LinkButton`: a text action, pressable like `Button`. */
-export const LinkButton = Button;
 
 /**
  * `@oxy.so/bloom/locale`: the real context semantics (nearest provider, a
@@ -588,14 +588,14 @@ export const prompt = surfaces.prompt;
 export const PressableScale = Button;
 
 /**
- * `@oxy.so/bloom/settings-list` stubs. The real `SettingsListItem` renders a
+ * `@oxy.so/bloom/grouped-section` stubs. The real `GroupedSectionItem` renders a
  * Pressable (→ button role) carrying `title`/`description`/`value` as text, an
  * `icon` + `rightElement`, and an `accessibilityLabel` — the account switcher
  * queries rows by their display name (`getByText` / `getByRole('button', …)`)
  * and taps them, so the stub must forward those props rather than swallow them.
  * A `disabled` item renders a disabled `<button>` (un-clickable in jsdom).
  */
-export const SettingsListGroup = ({
+export const GroupedSection = ({
   title,
   children,
   testID,
@@ -607,7 +607,7 @@ export const SettingsListGroup = ({
     children,
   );
 
-export const SettingsListItem = ({
+export const GroupedSectionItem = ({
   icon,
   title,
   description,
@@ -690,8 +690,8 @@ export const CompositionBar = ({
       ),
   );
 
-/** `@oxy.so/bloom/settings-list` hairline between rows. */
-export const SettingsListDivider = () => createElement('hr', { 'aria-hidden': 'true' });
+/** `@oxy.so/bloom/grouped-section` hairline between rows. */
+export const GroupedSectionDivider = () => createElement('hr', { 'aria-hidden': 'true' });
 
 export const Switch = ({
   checked,
@@ -903,8 +903,6 @@ export function RiMoreLine() {
   return createElement('svg', { 'data-testid': 'more-icon' });
 }
 
-// Neutral API and compatibility names share one implementation in Bloom.
-export const GroupedSection = SettingsListGroup;
 export const GroupedSectionCollapse = ({
   open,
   children,
@@ -912,7 +910,6 @@ export const GroupedSectionCollapse = ({
   open: boolean;
   children: ReactNode;
 }) => (open ? createElement('div', null, children) : null);
-export const GroupedSectionItem = SettingsListItem;
 
 export const GroupedSectionIcon = ({
   children,
@@ -970,10 +967,6 @@ export const Search = ({
     onChange: (event: { target: { value: string } }) =>
       (onValueChange ?? onChangeText)?.(event.target.value),
   });
-
-export const ButtonGroup = ({ children }: { children?: ReactNode }) =>
-  createElement('div', { role: 'group' }, children);
-export const ButtonGroupItem = Button;
 
 export const CoverHeader = passthrough('div');
 export const H2 = Text;
