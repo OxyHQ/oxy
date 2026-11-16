@@ -166,7 +166,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, nav
             style={{ flex: 1 }}
             onPress={() => handleUserPress(item)}
             content={
-              <View style={styles.userInfo}>
+              <View pointerEvents="none" style={styles.userInfo}>
                 <Text variant="body-medium" numberOfLines={1}>
                   {displayName}
                 </Text>
