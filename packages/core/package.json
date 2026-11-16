@@ -248,7 +248,7 @@
     "express": "catalog:",
     "express-rate-limit": "catalog:",
     "jest": "^30.5.2",
-    "regexpu-core": "^6.5.3",
+    "regexpu-core": "^6.5.4",
     "typescript": "catalog:",
     "helmet": "catalog:",
     "socket.io": "^4.8.4",

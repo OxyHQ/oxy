@@ -87,7 +87,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.3.4",
+    "@tailwindcss/postcss": "4.3.5",
     "@testing-library/react": "^16.3.3",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.3.0",
@@ -96,7 +96,7 @@
     "eslint-plugin-expo": "catalog:",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "catalog:",
-    "tailwindcss": "4.3.4",
+    "tailwindcss": "4.3.5",
     "ts-jest": "^29.4.15",
     "typescript": "catalog:"
   },

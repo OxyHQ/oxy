@@ -76,7 +76,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.3.4",
+    "@tailwindcss/postcss": "4.3.5",
     "@testing-library/react": "^16.3.3",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.3.0",
@@ -88,7 +88,7 @@
     "lightningcss": "1.33.0",
     "postcss": "^8.5.32",
     "sharp": "catalog:",
-    "tailwindcss": "4.3.4",
+    "tailwindcss": "4.3.5",
     "ts-jest": "^29.4.15",
     "typescript": "catalog:"
   },
