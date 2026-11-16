@@ -977,12 +977,31 @@ export const Item = ({
   subtitle,
   leading,
   trailing,
+  children,
+  onPress,
+  disabled,
+  accessibilityLabel,
 }: {
   title?: ReactNode;
   subtitle?: ReactNode;
   leading?: ReactNode;
   trailing?: ReactNode;
-}) => createElement('div', null, leading, title, subtitle, trailing);
+  children?: ReactNode;
+  onPress?: () => void;
+  disabled?: boolean;
+  accessibilityLabel?: string;
+}) =>
+  createElement(
+    onPress ? 'button' : 'div',
+    {
+      ...(onPress ? { type: 'button', onClick: onPress, disabled } : {}),
+      'aria-label': accessibilityLabel,
+    },
+    leading,
+    children ?? title,
+    children == null ? subtitle : null,
+    trailing,
+  );
 
 export const Textarea = ({
   value,
