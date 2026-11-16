@@ -11,7 +11,7 @@ interface GroupedListProps {
  * no per-row box: the flat language the reputation screen was designed in (see
  * `docs/superpowers/specs/2026-06-27-reputation-screen-redesign.md`).
  *
- * Not `SettingsListGroup`, which draws a rounded CARD: the settings screens are
+ * Not `GroupedSection`, which draws a rounded CARD: the settings screens are
  * grouped cards, and these flat lists deliberately are not.
  */
 export function GroupedList({ children }: GroupedListProps) {

@@ -2,7 +2,7 @@ import React from 'react';
 import { Text } from '@oxy.so/bloom/typography';
 import { View, StyleSheet } from 'react-native';
 import { Badge } from '@oxy.so/bloom/badge';
-import { GlyphButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
@@ -32,10 +32,12 @@ export function ReputationHeader({ title, pendingCount, onOpenDuty }: Reputation
       </Text>
 
       <Badge content={pendingCount} max={9} invisible={pendingCount <= 0} placement="top-right">
-        <GlyphButton
+        <Button
+          appearance="plain"
+          tone="neutral"
           icon={Icons.validation}
           size={44}
-          glyphSize={20}
+          iconSize={20}
           color={colors.text}
           fill={colors.card}
           onPress={onOpenDuty}

@@ -54,6 +54,5 @@ export function Button({
   );
 }
 
-export const GlyphButton = Button;
 export const CloseButton = Button;
 export default Button;

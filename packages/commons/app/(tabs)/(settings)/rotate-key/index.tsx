@@ -2,9 +2,9 @@ import { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, ImportantBanner, SettingsListItem } from '@/components/ui';
+import { Screen, StackHeader, ImportantBanner, GroupedSectionItem } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 
@@ -49,20 +49,20 @@ export default function RotateKeyEntryScreen() {
         </ImportantBanner>
       </View>
 
-      <SettingsListGroup title={t('rotateKey.pathSection')}>
-        <SettingsListItem
+      <GroupedSection title={t('rotateKey.pathSection')}>
+        <GroupedSectionItem
           icon={<Icons.device size="md" fill={colors.text} />}
           title={t('rotateKey.pathDevice')}
           description={t('rotateKey.pathDeviceSubtitle')}
           onPress={handleDevice}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<Icons.key size="md" fill={colors.text} />}
           title={t('rotateKey.pathPhrase')}
           description={t('rotateKey.pathPhraseSubtitle')}
           onPress={handlePhrase}
         />
-      </SettingsListGroup>
+      </GroupedSection>
     </Screen>
   );
 }
