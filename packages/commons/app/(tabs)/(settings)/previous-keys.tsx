@@ -18,11 +18,11 @@ import { useOxy } from '@oxy.so/services';
 import {
   ImportantBanner,
   KeyboardAwareScrollViewWrapper,
-  SettingsListItem,
+  GroupedSectionItem,
   StackHeader,
 } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { Icons } from '@/constants/icons';
 import { RECOVERY_PHRASE_LENGTH } from '@/constants/auth';
 import { BACKUP_OWED_QUERY_KEY } from '@/hooks/identity/useBackupOwed';
@@ -210,16 +210,16 @@ export default function PreviousKeysScreen() {
       ) : null}
 
       {held && held.length > 0 ? (
-        <SettingsListGroup title={t('previousKeys.heldTitle')}>
+        <GroupedSection title={t('previousKeys.heldTitle')}>
           {held.map((key) => (
-            <SettingsListItem
+            <GroupedSectionItem
               key={key.publicKey}
               icon={<Icons.history size="md" fill={colors.text} />}
               title={KeyManager.shortenPublicKey(key.publicKey)}
               description={t('previousKeys.heldItem')}
             />
           ))}
-        </SettingsListGroup>
+        </GroupedSection>
       ) : held ? (
         <Text style={[styles.empty, { color: colors.textSecondary }]}>
           {t('previousKeys.none')}

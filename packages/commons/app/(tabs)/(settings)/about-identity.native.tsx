@@ -4,9 +4,9 @@ import { View, StyleSheet, ActivityIndicator, Share, Platform } from 'react-nati
 import { useRouter } from 'expo-router';
 import { AppIcon, Icons } from '@/constants/icons';
 import { buildUserDid } from '@oxy.so/core';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useColors } from '@/hooks/useColors';
-import { Screen, StackHeader, SessionGate, SettingsListItem } from '@/components/ui';
+import { Screen, StackHeader, SessionGate, GroupedSectionItem } from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
@@ -192,9 +192,9 @@ export default function AboutIdentityScreen() {
   const renderBody = () => (
     <>
       {/* Technical identifiers — tap a row to copy the full value. */}
-      <SettingsListGroup title={t('aboutIdentity.identifiersTitle')}>
+      <GroupedSection title={t('aboutIdentity.identifiersTitle')}>
         {publicKey && (
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Icons.key size="md" fill={colors.tint} />}
             title={t('aboutIdentity.publicKeyRow')}
             rightElement={copyValue(shorten(publicKey))}
@@ -203,7 +203,7 @@ export default function AboutIdentityScreen() {
           />
         )}
         {did && (
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Icons.web size="md" fill={colors.tint} />}
             title={t('aboutIdentity.didRow')}
             rightElement={copyValue(shorten(did, 6, 4))}
@@ -211,15 +211,15 @@ export default function AboutIdentityScreen() {
             onPress={() => handleCopy(did, 'aboutIdentity.didCopied')}
           />
         )}
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* Self-custody explainer */}
-      <SettingsListGroup
+      <GroupedSection
         title={t('aboutIdentity.selfCustodyTitle')}
         footer={t('aboutIdentity.selfCustodyDescription')}
       >
         {selfCustodyItems.map((item) => (
-          <SettingsListItem
+          <GroupedSectionItem
             key={item.id}
             icon={<AppIcon name={item.icon} size="md" fill={item.iconColor} />}
             title={item.title}
@@ -227,11 +227,11 @@ export default function AboutIdentityScreen() {
             showChevron={false}
           />
         ))}
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* Account settings */}
-      <SettingsListGroup title={t('aboutIdentity.accountSettings')}>
-        <SettingsListItem
+      <GroupedSection title={t('aboutIdentity.accountSettings')}>
+        <GroupedSectionItem
           icon={<Icons.pending size="md" fill={colors.tint} />}
           title={t('aboutIdentity.accountExpiration')}
           value={formatExpirationSetting(currentExpirationDays)}
@@ -242,7 +242,7 @@ export default function AboutIdentityScreen() {
             isSavingExpiration ? <ActivityIndicator size="small" color={colors.tint} /> : undefined
           }
         />
-      </SettingsListGroup>
+      </GroupedSection>
 
       <Text style={[styles.footnote, { color: colors.textSecondary }]}>
         {t('aboutIdentity.importantNotice')}

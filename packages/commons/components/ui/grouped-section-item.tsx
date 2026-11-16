@@ -1,7 +1,7 @@
 import {
-  SettingsListItem as BloomSettingsListItem,
-  type SettingsListItemProps,
-} from '@oxy.so/bloom/settings-list';
+  GroupedSectionItem as BloomGroupedSectionItem,
+  type GroupedSectionItemProps,
+} from '@oxy.so/bloom/grouped-section';
 
 /**
  * Bloom's settings row with nothing cut off.
@@ -12,13 +12,13 @@ import {
  * personas de con…", Pixel 8a). Every Commons row shows its text whole; a
  * caller can still clamp one by passing the limit.
  */
-export function SettingsListItem({
+export function GroupedSectionItem({
   titleNumberOfLines = 0,
   descriptionLines = 0,
   ...props
-}: SettingsListItemProps) {
+}: GroupedSectionItemProps) {
   return (
-    <BloomSettingsListItem
+    <BloomGroupedSectionItem
       {...props}
       titleNumberOfLines={titleNumberOfLines}
       descriptionLines={descriptionLines}

@@ -13,8 +13,8 @@ import { Fab } from '@oxy.so/bloom/fab';
 import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { useTabBarFootprint } from '@oxy.so/bloom/tab-bar';
 import { useColors } from '@/hooks/useColors';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
-import { Screen, Section, useFabClearance, SettingsListItem } from '@/components/ui';
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
+import { Screen, Section, useFabClearance, GroupedSectionItem } from '@/components/ui';
 import { Ticket as OxyID } from '@/components/OxyID';
 import { FrontSide } from '@/components/OxyID/front-side';
 import { BackSide } from '@/components/OxyID/back-side';
@@ -250,37 +250,37 @@ export default function IdScreen() {
 
         {/* Self-custody identity actions (native only). */}
         {isNative && (
-          <SettingsListGroup
+          <GroupedSection
             title={t('vault.home.yourIdentity')}
             footer={t('vault.home.yourIdentitySubtitle')}
           >
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<Icons.shield size="md" fill={colors.text} />}
               title={t('home.identity.selfCustody')}
               description={t('home.identity.selfCustodySubtitle')}
               onPress={handleAboutIdentity}
             />
-            <SettingsListItem
+            <GroupedSectionItem
               icon={<Icons.key size="md" fill={colors.text} />}
               title={t('home.identity.publicKey')}
               description={t('home.identity.publicKeySubtitle')}
               onPress={handleAboutIdentity}
             />
-          </SettingsListGroup>
+          </GroupedSection>
         )}
 
         {/* Real-life attestation — A shows a QR for B to confirm they met IRL */}
-        <SettingsListGroup
+        <GroupedSection
           title={t('civic.attest.section.title')}
           footer={t('civic.attest.section.subtitle')}
         >
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Icons.handshake size="md" fill={colors.text} />}
             title={t('civic.attest.section.action')}
             description={t('civic.attest.section.actionSubtitle')}
             onPress={handleGetVerified}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {did && (
           <View>

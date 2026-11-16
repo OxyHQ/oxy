@@ -1,12 +1,12 @@
 import { useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { Icons } from '@/constants/icons';
 import {
   Screen,
   StackHeader,
-  SettingsListItem,
+  GroupedSectionItem,
   LoadingState,
   STATE_MIN_HEIGHT,
 } from '@/components/ui';
@@ -40,7 +40,7 @@ function OrganizationRow({
     ? t(STATUS_KEYS[wallet.data.status])
     : t('organizationWallet.list.statusUnknown');
   return (
-    <SettingsListItem
+    <GroupedSectionItem
       icon={<Icons.people size="md" fill={colors.text} />}
       title={organization.name}
       description={description}
@@ -98,7 +98,7 @@ export default function OrganizationWalletsScreen() {
           minHeight={STATE_MIN_HEIGHT}
         />
       ) : (
-        <SettingsListGroup>
+        <GroupedSection>
           {organizations.data.map((organization) => (
             <OrganizationRow
               key={organization.accountId}
@@ -106,7 +106,7 @@ export default function OrganizationWalletsScreen() {
               onPress={open}
             />
           ))}
-        </SettingsListGroup>
+        </GroupedSection>
       )}
     </Screen>
   );

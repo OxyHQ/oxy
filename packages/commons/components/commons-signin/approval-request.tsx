@@ -1,6 +1,6 @@
 import { Text } from '@oxy.so/bloom/typography';
 import { Admonition } from '@oxy.so/bloom/admonition';
-import { Button, GlyphButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { View, Image, StyleSheet } from 'react-native';
 import { Icons } from '@/constants/icons';
 import { LogoIcon } from '@oxy.so/services';
@@ -127,7 +127,9 @@ export function ApprovalRequest({
 
   return (
     <View className="pb-7">
-      <GlyphButton
+      <Button
+        appearance="plain"
+        tone="neutral"
         icon={Icons.close}
         onPress={onClose}
         accessibilityLabel={t('common.close')}

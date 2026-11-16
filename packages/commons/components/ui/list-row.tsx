@@ -75,7 +75,7 @@ export function ListRow({
       subtitle={subtitle}
       // Whole, never cut: in Commons a row explains an identity, a key or a
       // node, and in Spanish the default clamps ended sentences mid-word
-      // ("incluso cuando ...", Pixel 8a). See `settings-list-item.tsx`.
+      // ("incluso cuando ...", Pixel 8a). See `grouped-section-item.tsx`.
       titleNumberOfLines={0}
       subtitleNumberOfLines={0}
       trailing={tail}

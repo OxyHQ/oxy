@@ -10,14 +10,14 @@ import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import {
   Screen,
   StackHeader,
   SessionGate,
   LoadingState,
   STATE_MIN_HEIGHT,
-  SettingsListItem,
+  GroupedSectionItem,
 } from '@/components/ui';
 import { useMyPersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
@@ -158,11 +158,11 @@ export default function PersonhoodScreen() {
         </View>
 
         {/* Signals */}
-        <SettingsListGroup
+        <GroupedSection
           title={t('civic.personhood.signals.title')}
           footer={t('civic.personhood.signals.subtitle')}
         >
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Icons.community size="md" fill={colors.text} />}
             title={t('civic.personhood.signals.vouches')}
             description={t('civic.personhood.signals.vouchesDesc')}
@@ -170,13 +170,13 @@ export default function PersonhoodScreen() {
             // row and cut the title off ("Confirmaciones en …").
             value={String(status.vouchCount)}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Icons.handshake size="md" fill={colors.text} />}
             title={t('civic.personhood.signals.realLife')}
             description={t('civic.personhood.signals.realLifeDesc')}
             value={String(status.realLifeCount)}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Icons.personhood size="md" fill={colors.text} />}
             title={t('civic.personhood.signals.biometric')}
             description={t('civic.personhood.signals.biometricDesc')}
@@ -191,32 +191,32 @@ export default function PersonhoodScreen() {
               ) : undefined
             }
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         {/* How to increase it */}
-        <SettingsListGroup
+        <GroupedSection
           title={t('civic.personhood.improve.title')}
           footer={t('civic.personhood.improve.subtitle')}
         >
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Icons.vouched size="md" fill={colors.text} />}
             title={t('civic.personhood.improve.getVouched')}
             description={t('civic.personhood.improve.getVouchedDesc')}
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Icons.handshake size="md" fill={colors.text} />}
             title={t('civic.personhood.improve.doRealLife')}
             description={t('civic.personhood.improve.doRealLifeDesc')}
             showChevron={false}
           />
-          <SettingsListItem
+          <GroupedSectionItem
             icon={<Icons.personhood size="md" fill={colors.text} />}
             title={t('civic.personhood.improve.bindBiometric')}
             description={t('civic.personhood.improve.bindBiometricDesc')}
             showChevron={false}
           />
-        </SettingsListGroup>
+        </GroupedSection>
 
         <View>
           <Text style={[styles.footnote, { color: colors.textSecondary }]}>
