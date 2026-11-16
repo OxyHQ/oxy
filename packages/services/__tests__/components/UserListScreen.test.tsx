@@ -32,7 +32,12 @@ jest.mock('react-native', () => ({
     </div>
   ),
 }));
-const person = (id: string, displayName: string) => ({ id, username: id, name: { displayName } });
+const person = (id: string, displayName: string) => ({
+  id,
+  username: id,
+  name: { displayName },
+  bio: `About ${displayName}`,
+});
 beforeEach(() => {
   jest.clearAllMocks();
 });
@@ -44,6 +49,8 @@ test('searches subsequent follower pages, clears the search and opens a profile'
   const navigate = jest.fn();
   render(<UserListScreen userId="owner" mode="followers" navigate={navigate} />);
   await screen.findByText('First Person');
+  expect(screen.getByText('@first')).toBeTruthy();
+  expect(screen.getByText('About First Person')).toBeTruthy();
   expect(header.mock.lastCall[0].subtitle).toBe('userList.followersDescription');
   act(() => header.mock.lastCall[0].actions[0].onPress());
   fireEvent.change(screen.getByLabelText('userList.search'), { target: { value: 'last' } });

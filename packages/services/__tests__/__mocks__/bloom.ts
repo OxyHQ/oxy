@@ -972,6 +972,30 @@ export const CoverHeader = passthrough('div');
 export const H2 = Text;
 
 export const useSurfaceFill = () => '#ffffff';
+export const ListItem = ({
+  person,
+  supporting,
+  trailing,
+  onPress,
+}: {
+  person?: { name: string; subtitle?: string };
+  supporting?: ReactNode;
+  trailing?: ReactNode;
+  onPress?: () => void;
+}) =>
+  createElement(
+    'div',
+    null,
+    createElement(
+      'button',
+      { type: 'button', onClick: onPress },
+      person?.name,
+      person?.subtitle ? createElement('span', null, person.subtitle) : null,
+      supporting ? createElement('span', null, supporting) : null,
+    ),
+    trailing,
+  );
+
 export const Item = ({
   title,
   subtitle,

@@ -7,8 +7,7 @@ import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { H6, Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
-import { Avatar } from '@oxy.so/bloom/avatar';
-import { Item } from '@oxy.so/bloom/item';
+import { ListItem } from '@oxy.so/bloom/list';
 import FollowButton from '../components/FollowButton';
 import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
@@ -157,39 +156,19 @@ const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, nav
       const handle = getAccountFallbackHandle(item);
 
       return (
-        <View className="px-screen-margin flex-row items-center gap-space-12">
-          <Item
-            leading={
-              <Avatar
-                name={displayName}
-                source={
-                  item.avatar ? oxyServices.assets.publicUrl(item.avatar, 'thumb') : undefined
-                }
-                size={44}
-              />
-            }
-            style={{ flex: 1, paddingLeft: 0, paddingRight: 0 }}
-            accessibilityLabel={displayName}
-            onPress={() => handleUserPress(item)}
-          >
-            <View style={styles.userInfo}>
-              <Text variant="body-medium" numberOfLines={1}>
-                {displayName}
-              </Text>
-              {handle ? (
-                <Text className="text-text-secondary text-sm mt-space-2" numberOfLines={1}>
-                  {item.username ? `@${handle}` : handle}
-                </Text>
-              ) : null}
-              {description ? (
-                <Text className="text-text-secondary text-sm mt-space-4" numberOfLines={2}>
-                  {description}
-                </Text>
-              ) : null}
-            </View>
-          </Item>
-          {!isCurrentUser && itemUserId ? <FollowButton userId={itemUserId} size="sm" /> : null}
-        </View>
+        <ListItem
+          person={{
+            name: displayName,
+            subtitle: handle ? (item.username ? `@${handle}` : handle) : undefined,
+            avatar: item.avatar ? oxyServices.assets.publicUrl(item.avatar, 'thumb') : undefined,
+          }}
+          supporting={description || undefined}
+          supportingLines={2}
+          onPress={() => handleUserPress(item)}
+          trailing={
+            !isCurrentUser && itemUserId ? <FollowButton userId={itemUserId} /> : null
+          }
+        />
       );
     },
     [handleUserPress, currentUserId, oxyServices],
@@ -339,9 +318,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     flexGrow: 1,
-  },
-  userInfo: {
-    flex: 1,
   },
   emptyContainer: {
     flex: 1,
