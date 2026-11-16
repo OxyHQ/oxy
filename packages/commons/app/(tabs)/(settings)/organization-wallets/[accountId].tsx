@@ -2,12 +2,12 @@ import { useCallback } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '@oxy.so/bloom/button';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { Icons } from '@/constants/icons';
 import {
   Screen,
   StackHeader,
-  SettingsListItem,
+  GroupedSectionItem,
   ImportantBanner,
   LoadingState,
   STATE_MIN_HEIGHT,
@@ -87,7 +87,7 @@ export default function OrganizationWalletScreen() {
 
   const { state, status } = wallet.data;
   const replace = (
-    <SettingsListItem
+    <GroupedSectionItem
       icon={<Icons.refresh size="md" fill={colors.text} />}
       title={t('organizationWallet.detail.replaceKey')}
       description={t('organizationWallet.detail.replaceHint')}
@@ -121,14 +121,14 @@ export default function OrganizationWalletScreen() {
           <ImportantBanner type="info" title={t('organizationWallet.detail.heldTitle')}>
             {t('organizationWallet.detail.heldBody')}
           </ImportantBanner>
-          <SettingsListGroup>
-            <SettingsListItem
+          <GroupedSection>
+            <GroupedSectionItem
               icon={<Icons.lock size="md" fill={colors.text} />}
               title={t('organizationWallet.detail.showPhrase')}
               onPress={() => go('phrase')}
             />
             {replace}
-          </SettingsListGroup>
+          </GroupedSection>
         </>
       ) : null}
 
@@ -146,25 +146,25 @@ export default function OrganizationWalletScreen() {
               ? t('organizationWallet.detail.staleBody')
               : t('organizationWallet.detail.elsewhereBody')}
           </ImportantBanner>
-          <SettingsListGroup>
-            <SettingsListItem
+          <GroupedSection>
+            <GroupedSectionItem
               icon={<Icons.key size="md" fill={colors.text} />}
               title={t('organizationWallet.detail.addKey')}
               onPress={() => go('add')}
               testID="organization-wallet-add"
             />
             {replace}
-          </SettingsListGroup>
+          </GroupedSection>
         </>
       ) : null}
 
       {state.publicKey ? (
-        <SettingsListGroup title={t('organizationWallet.detail.publicKey')}>
-          <SettingsListItem
+        <GroupedSection title={t('organizationWallet.detail.publicKey')}>
+          <GroupedSectionItem
             icon={<Icons.key size="md" fill={colors.text} />}
             title={shortenKey(state.publicKey)}
           />
-        </SettingsListGroup>
+        </GroupedSection>
       ) : null}
     </Screen>
   );

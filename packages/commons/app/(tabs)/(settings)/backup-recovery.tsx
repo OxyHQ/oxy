@@ -3,10 +3,10 @@ import { Admonition } from '@oxy.so/bloom/admonition';
 import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { KeyManager } from '@oxy.so/core/crypto';
 import { Button } from '@oxy.so/bloom/button';
-import { Screen, StackHeader, SettingsListItem } from '@/components/ui';
+import { Screen, StackHeader, GroupedSectionItem } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 
@@ -96,8 +96,8 @@ export default function BackupRecoveryScreen() {
         </View>
       )}
 
-      <SettingsListGroup title={t('backupRecovery.methodsTitle')}>
-        <SettingsListItem
+      <GroupedSection title={t('backupRecovery.methodsTitle')}>
+        <GroupedSectionItem
           icon={<Icons.document size="md" fill={colors.text} />}
           title={t('backupRecovery.phraseTitle')}
           description={
@@ -107,7 +107,7 @@ export default function BackupRecoveryScreen() {
           showChevron={!noPhrase}
           disabled={noPhrase}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<Icons.sealedDocument size="md" fill={colors.text} />}
           title={t('backupRecovery.encryptedTitle')}
           description={
@@ -119,14 +119,14 @@ export default function BackupRecoveryScreen() {
           showChevron={!noPhrase}
           disabled={noPhrase}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<Icons.history size="md" fill={colors.text} />}
           title={t('backupRecovery.previousKeysTitle')}
           description={t('backupRecovery.previousKeysSubtitle')}
           onPress={handlePreviousKeys}
           showChevron
         />
-      </SettingsListGroup>
+      </GroupedSection>
     </Screen>
   );
 }

@@ -15,7 +15,7 @@ import {
 
 /**
  * Horizontal gutter shared by every Commons screen: Bloom's `screen-margin`.
- * Bloom's grouped lists (`SettingsListGroup`) no longer inset themselves; the
+ * Bloom's grouped lists (`GroupedSection`) no longer inset themselves; the
  * ONE horizontal inset is the screen's, so cards, section labels and banners
  * all line up on it. A screen that zeroed this to let the list "own" its
  * gutter drew every card edge to edge with its rounded corners clipped.

@@ -19,7 +19,9 @@ Upgrade Services together with Bloom when Bloom retires a public component API.
 The tested minimum is `packages/services/package.json#peerDependencies`; the root
 catalog and the external compatibility fixture must exercise that API. Services
 uses `Button` for individual actions, `HeaderActions` for grouped commands, and
-`GroupedSection` for settings. These owners span the supported Bloom versions.
+`GroupedSection` for settings, and `ListItem` with its person recipe for user rows.
+The person recipe owns avatars, names, handles and supporting bios; consumers
+provide data and their business action in the trailing slot.
 Do not restore removed component names with app-local shims. Preserve the action
 callbacks and the shared account/auth state while migrating their presentation.
 

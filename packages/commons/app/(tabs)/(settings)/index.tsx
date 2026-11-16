@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
-import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
+import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useOxy } from '@oxy.so/services';
-import { Screen, StackHeader, SettingsListItem } from '@/components/ui';
+import { Screen, StackHeader, GroupedSectionItem } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
@@ -82,39 +82,39 @@ export default function SettingsScreen() {
       <PreSplitExposureNotice />
 
       {/* Key-management actions */}
-      <SettingsListGroup title={t('vault.home.manageKeys')}>
-        <SettingsListItem
+      <GroupedSection title={t('vault.home.manageKeys')}>
+        <GroupedSectionItem
           icon={<Icons.shield size="md" fill={colors.text} />}
           title={t('vault.home.actions.backupRecovery')}
           description={t('vault.home.actions.backupRecoverySubtitle')}
           onPress={handleBackupRecovery}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<Icons.key size="md" fill={colors.text} />}
           title={t('rotateKey.settingsEntry')}
           description={t('rotateKey.settingsEntrySubtitle')}
           onPress={handleRotateKey}
         />
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* The Peable wallets of the organizations this person owns or
           administers (ADR 0061): their keys are created and kept here. */}
-      <SettingsListGroup title={t('organizationWallet.settingsSection')}>
-        <SettingsListItem
+      <GroupedSection title={t('organizationWallet.settingsSection')}>
+        <GroupedSectionItem
           icon={<Icons.people size="md" fill={colors.text} />}
           title={t('organizationWallet.settingsEntry')}
           description={t('organizationWallet.settingsEntrySubtitle')}
           onPress={handleOrganizationWallets}
           testID="settings-organization-wallets"
         />
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* Notifications: the one setting a sign-in request needs to reach this
           phone. Asks when Commons never has; otherwise opens the system
           settings, the only place an answered permission can change. */}
       {notifications.snapshot?.supported ? (
-        <SettingsListGroup title={t('notificationSettings.section')}>
-          <SettingsListItem
+        <GroupedSection title={t('notificationSettings.section')}>
+          <GroupedSectionItem
             icon={<Icons.notification size="md" fill={colors.text} />}
             title={t('notificationSettings.title')}
             description={
@@ -125,47 +125,47 @@ export default function SettingsScreen() {
             onPress={() => void notifications.pressSettingsRow()}
             testID="settings-notifications"
           />
-        </SettingsListGroup>
+        </GroupedSection>
       ) : null}
 
       {/* Trust & verification — Fase 3 personhood + Fase 4 credentials */}
-      <SettingsListGroup title={t('civic.personhood.settingsSection')}>
-        <SettingsListItem
+      <GroupedSection title={t('civic.personhood.settingsSection')}>
+        <GroupedSectionItem
           icon={<Icons.vouched size="md" fill={colors.text} />}
           title={t('civic.personhood.settingsEntry')}
           description={t('civic.personhood.settingsEntrySubtitle')}
           onPress={handlePersonhood}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<Icons.credential size="md" fill={colors.text} />}
           title={t('civic.credentials.settingsEntry')}
           description={t('civic.credentials.settingsEntrySubtitle')}
           onPress={handleCredentials}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<Icons.node size="md" fill={colors.text} />}
           title={t('civic.nodes.settingsEntry')}
           description={t('civic.nodes.settingsEntrySubtitle')}
           onPress={handleNode}
         />
-      </SettingsListGroup>
+      </GroupedSection>
 
       {/* Account management — opens the SDK's in-app account surface */}
-      <SettingsListGroup title={t('vault.home.account')} footer={t('vault.home.accountSubtitle')}>
-        <SettingsListItem
+      <GroupedSection title={t('vault.home.account')} footer={t('vault.home.accountSubtitle')}>
+        <GroupedSectionItem
           icon={<Icons.settings size="md" fill={colors.text} />}
           title={t('vault.home.actions.manageAccount')}
           description={t('vault.home.actions.manageAccountSubtitle')}
           onPress={handleManageAccount}
         />
-        <SettingsListItem
+        <GroupedSectionItem
           icon={<Icons.delete size="md" fill={colors.error} />}
           title={t('vault.home.actions.deleteAccount')}
           description={t('vault.home.actions.deleteAccountSubtitle')}
           onPress={handleDeleteAccount}
           destructive
         />
-      </SettingsListGroup>
+      </GroupedSection>
     </Screen>
   );
 }

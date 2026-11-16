@@ -7,7 +7,6 @@ import { Icons } from '@/constants/icons';
 import { parseIdentityLinkQrPayload } from '@oxy.so/contracts/client';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
-import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -111,7 +110,9 @@ export default function ScanLinkScreen() {
           </Button>
         ) : null}
       </View>
-      <FrostedIconButton
+      <Button
+        appearance="outline"
+        tone="neutral"
         icon={Icons.close}
         onPress={() => router.back()}
         accessibilityLabel={t('common.close')}

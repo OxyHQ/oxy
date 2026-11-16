@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { GlyphButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Icons } from '@/constants/icons';
@@ -25,10 +25,12 @@ function closeAction({
   closeAccessibilityLabel,
 }: Pick<StackHeaderProps, 'onClose' | 'closeAccessibilityLabel'>) {
   return onClose ? (
-    <GlyphButton
+    <Button
+      appearance="plain"
+      tone="neutral"
       icon={Icons.close}
       onPress={onClose}
-      // GlyphButton REQUIRES a name: it draws only a glyph, so without one it
+      // An icon-only Button requires a name: it draws only a glyph, so without one it
       // announces as nothing.
       accessibilityLabel={closeAccessibilityLabel ?? 'Close'}
     />
