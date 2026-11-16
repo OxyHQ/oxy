@@ -109,3 +109,16 @@ above. It
 publishes to `production` on push to `main` with `permissions: id-token: write`
 and `contents: read`, runs the lockfile-pinned CLI with `bunx --no-install`, and
 needs no repository secret.
+
+## Test isolation
+
+Run `bun run test`, which isolates each test file. The publish orchestration test
+replaces `config` and `exec` with module mocks; those replacements must never reach
+the OIDC tests that verify the real client refuses missing publisher credentials.
+The orchestration call records also reset before each test.
+
+On Bun 1.4.3, `bun test --randomize --seed=2 src` reproduced three OIDC failures
+on unchanged main: `createShipClient` returned the orchestration fake, bypassing
+two refusal assertions and lacking `listChannels`. Adding `--isolate` passes all
+52 tests. Seeds 1 and 2 exercise the opposite orchestration-test orders after the
+per-test record reset; no authentication assertion or production code is changed.

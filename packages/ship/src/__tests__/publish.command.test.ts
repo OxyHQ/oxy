@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeAll, afterAll, mock } from 'bun:test';
+import { test, expect, describe, beforeAll, beforeEach, afterAll, mock } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -91,6 +91,13 @@ beforeAll(() => {
   );
 });
 
+beforeEach(() => {
+  initCalls.length = 0;
+  uploadCalls.length = 0;
+  completeCalls.length = 0;
+  createCalls.length = 0;
+});
+
 afterAll(() => {
   fs.rmSync(distDir, { recursive: true, force: true });
 });
@@ -138,7 +145,6 @@ describe('publishCommand orchestration', () => {
   });
 
   test('sends a whole squash-merge commit message as its subject line', async () => {
-    createCalls.length = 0;
     await publishCommand({
       channel: 'production',
       'skip-export': true,
