@@ -1,6 +1,6 @@
 import type { OrganizationType } from '@oxy.so/contracts';
 import { ORGANIZATION_TYPES } from '@oxy.so/contracts/client';
-import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';
 
@@ -15,9 +15,9 @@ export function OrganizationTypePicker({
 }) {
   const { t } = useI18n();
   return (
-    <SettingsListGroup title={t('organizationDirectory.type')}>
+    <GroupedSection title={t('organizationDirectory.type')}>
       {ORGANIZATION_TYPES.map((type) => (
-        <SettingsListItem
+        <GroupedSectionItem
           key={type}
           title={t(`organizationDirectory.types.${type}`)}
           accessibilityLabel={t(`organizationDirectory.types.${type}`)}
@@ -27,6 +27,6 @@ export function OrganizationTypePicker({
           rightElement={value === type ? <Text>✓</Text> : undefined}
         />
       ))}
-    </SettingsListGroup>
+    </GroupedSection>
   );
 }

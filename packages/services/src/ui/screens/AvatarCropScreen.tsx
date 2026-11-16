@@ -1,6 +1,7 @@
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { LinkButton } from '@oxy.so/bloom/button';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { Button } from '@oxy.so/bloom/button';
+import { HeaderActions } from '@oxy.so/bloom/page-header';
+
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiSubtractLine } from '@oxy.so/bloom/icons/RiSubtractLine';
 /**
@@ -1093,36 +1094,46 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
             className="absolute bottom-4 left-0 right-0 items-center"
             style={styles.footerPointerEvents}
           >
-            <ButtonGroup>
-              <ButtonGroupItem
-                iconOnly
-                leadingIcon={RiSubtractLine}
-                accessibilityLabel={t('editProfile.crop.zoomOut')}
-                disabled={zoomOutDisabled}
-                onPress={() => applyZoom(-1)}
-              />
-              <ButtonGroupItem
-                iconOnly
-                leadingIcon={RiAddLine}
-                accessibilityLabel={t('editProfile.crop.zoomIn')}
-                disabled={zoomInDisabled}
-                onPress={() => applyZoom(1)}
-              />
-            </ButtonGroup>
+            <HeaderActions
+              actions={[
+                {
+                  id: 'zoom-out',
+                  group: 'zoom',
+                  label: t('editProfile.crop.zoomOut'),
+                  icon: RiSubtractLine,
+                  labelVisibility: 'hidden',
+                  overflow: 'never',
+                  disabled: zoomOutDisabled,
+                  onPress: () => applyZoom(-1),
+                },
+                {
+                  id: 'zoom-in',
+                  group: 'zoom',
+                  label: t('editProfile.crop.zoomIn'),
+                  icon: RiAddLine,
+                  labelVisibility: 'hidden',
+                  overflow: 'never',
+                  disabled: zoomInDisabled,
+                  onPress: () => applyZoom(1),
+                },
+              ]}
+            />
           </View>
         ) : null}
       </View>
 
       <View style={styles.helperBlock}>
         <Text style={styles.helper}>{t('editProfile.crop.helper')}</Text>
-        <LinkButton
+        <Button
+          appearance="plain"
+          linkTone="primary"
           accessibilityLabel={t('editProfile.crop.a11yReset')}
           onPress={resetTransform}
           disabled={!isModified || isProcessing}
           size="sm"
         >
           {t('editProfile.crop.resetToCenter')}
-        </LinkButton>
+        </Button>
       </View>
     </View>
   );

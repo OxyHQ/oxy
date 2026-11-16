@@ -1,7 +1,8 @@
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import type React from 'react';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
-import { Button, CloseButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { useTheme } from '@oxy.so/bloom/theme';
 import {
@@ -120,7 +121,10 @@ export const AccountCategoriesSection: React.FC<AccountCategoriesSectionProps> =
                       {t('accounts.settings.categories.makePrimary')}
                     </Button>
                   ) : null}
-                  <CloseButton
+                  <Button
+                    appearance="plain"
+                    tone="neutral"
+                    icon={RiCloseLine}
                     size="xs"
                     disabled={disabled}
                     onPress={() => toggle(id)}

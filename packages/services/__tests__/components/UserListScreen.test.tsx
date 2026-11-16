@@ -15,11 +15,7 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
 }));
 jest.mock('../../src/ui/components/FollowButton', () => ({
   __esModule: true,
-  default: () => null,
-}));
-jest.mock('@oxy.so/bloom/chat-people', () => ({
-  ...jest.requireActual('@oxy.so/bloom'),
-  ContactRow: ({ name, onPress }: any) => <button onClick={onPress}>{name}</button>,
+  default: ({ userId }: { userId: string }) => <button type="button">Follow {userId}</button>,
 }));
 jest.mock('react-native', () => ({
   ...jest.requireActual('react-native'),
@@ -56,6 +52,8 @@ test('searches subsequent follower pages, clears the search and opens a profile'
   expect(screen.queryByText('First Person')).toBeNull();
   fireEvent.click(screen.getByText('Last Match'));
   expect(navigate).toHaveBeenCalledWith('Profile', { userId: 'last' });
+  fireEvent.click(screen.getByRole('button', { name: 'Follow last' }));
+  expect(navigate).toHaveBeenCalledTimes(1);
   fireEvent.change(screen.getByLabelText('userList.search'), { target: { value: 'absent' } });
   expect(screen.getByText('userList.noSearchResults')).toBeTruthy();
   act(() => header.mock.lastCall[0].actions[0].onPress());

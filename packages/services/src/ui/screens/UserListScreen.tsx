@@ -7,7 +7,8 @@ import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { H6, Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
-import { ContactRow } from '@oxy.so/bloom/chat-people';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Item } from '@oxy.so/bloom/item';
 import FollowButton from '../components/FollowButton';
 import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
@@ -157,32 +158,36 @@ const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, nav
 
       return (
         <View className="px-screen-margin flex-row items-center gap-space-12">
-          <ContactRow
-            id={itemUserId || displayName}
-            name={displayName}
-            subtitle={handle ? (item.username ? `@${handle}` : handle) : undefined}
-            avatar={item.avatar ? oxyServices.assets.publicUrl(item.avatar, 'thumb') : undefined}
-            horizontalInset={0}
-            style={{ flex: 1 }}
-            onPress={() => handleUserPress(item)}
-            identitySlot={
-              <View style={styles.userInfo}>
-                <Text variant="body-medium" numberOfLines={1}>
-                  {displayName}
-                </Text>
-                {handle ? (
-                  <Text className="text-text-secondary text-sm mt-space-2" numberOfLines={1}>
-                    {item.username ? `@${handle}` : handle}
-                  </Text>
-                ) : null}
-                {description ? (
-                  <Text className="text-text-secondary text-sm mt-space-4" numberOfLines={2}>
-                    {description}
-                  </Text>
-                ) : null}
-              </View>
+          <Item
+            leading={
+              <Avatar
+                name={displayName}
+                source={
+                  item.avatar ? oxyServices.assets.publicUrl(item.avatar, 'thumb') : undefined
+                }
+                size={44}
+              />
             }
-          />
+            style={{ flex: 1, paddingLeft: 0, paddingRight: 0 }}
+            accessibilityLabel={displayName}
+            onPress={() => handleUserPress(item)}
+          >
+            <View style={styles.userInfo}>
+              <Text variant="body-medium" numberOfLines={1}>
+                {displayName}
+              </Text>
+              {handle ? (
+                <Text className="text-text-secondary text-sm mt-space-2" numberOfLines={1}>
+                  {item.username ? `@${handle}` : handle}
+                </Text>
+              ) : null}
+              {description ? (
+                <Text className="text-text-secondary text-sm mt-space-4" numberOfLines={2}>
+                  {description}
+                </Text>
+              ) : null}
+            </View>
+          </Item>
           {!isCurrentUser && itemUserId ? <FollowButton userId={itemUserId} size="sm" /> : null}
         </View>
       );

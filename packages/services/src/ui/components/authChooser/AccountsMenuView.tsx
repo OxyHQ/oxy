@@ -5,7 +5,7 @@ import { View } from 'react-native-css/components';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { Button, LinkButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { RiSparklingFill } from '@oxy.so/bloom/icons/RiSparklingFill';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { UsageCard } from '@oxy.so/bloom/usage-card';
@@ -327,13 +327,13 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
 
       {/* FOOTER. */}
       <View className="flex-row items-center justify-center gap-space-12 px-space-12 pt-space-12 pb-space-8">
-        <LinkButton size="sm" linkTone="secondary" onPress={menu.onPrivacy}>
+        <Button appearance="plain" size="sm" linkTone="secondary" onPress={menu.onPrivacy}>
           {t('accountMenu.privacy')}
-        </LinkButton>
+        </Button>
         <Text className="text-bodySmall text-text-tertiary">·</Text>
-        <LinkButton size="sm" linkTone="secondary" onPress={menu.onTerms}>
+        <Button appearance="plain" size="sm" linkTone="secondary" onPress={menu.onTerms}>
           {t('accountMenu.terms')}
-        </LinkButton>
+        </Button>
       </View>
     </View>
   );

@@ -5,7 +5,7 @@
  */
 
 import type React from 'react';
-import { LinkButton } from '@oxy.so/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 import { authChooserStyles as styles } from './styles';
 
 /**
@@ -16,7 +16,7 @@ import { authChooserStyles as styles } from './styles';
  * behind "Having trouble?". Keeping them all on one component is what stops an
  * alternative from quietly growing into a co-equal button again.
  *
- * Bloom's `LinkButton` in the secondary tone at `sm`: no fill or border, the
+ * Bloom's plain `Button` in the secondary link tone at `sm`: no fill or border, the
  * secondary text colour, underlined under a pointer, and Bloom's link hit slop
  * for the touch target. The vertical padding keeps the stack's old rhythm.
  */
@@ -26,7 +26,8 @@ export const SubtleLink: React.FC<{
   disabled?: boolean;
   testID?: string;
 }> = ({ label, onPress, disabled, testID }) => (
-  <LinkButton
+  <Button
+    appearance="plain"
     linkTone="secondary"
     size="sm"
     onPress={onPress}
@@ -36,5 +37,5 @@ export const SubtleLink: React.FC<{
     testID={testID}
   >
     {label}
-  </LinkButton>
+  </Button>
 );
