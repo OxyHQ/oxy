@@ -165,9 +165,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, nav
           supporting={description || undefined}
           supportingLines={2}
           onPress={() => handleUserPress(item)}
-          trailing={
-            !isCurrentUser && itemUserId ? <FollowButton userId={itemUserId} /> : null
-          }
+          trailing={!isCurrentUser && itemUserId ? <FollowButton userId={itemUserId} /> : null}
         />
       );
     },

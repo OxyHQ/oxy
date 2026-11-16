@@ -54,5 +54,4 @@ export function Button({
   );
 }
 
-export const CloseButton = Button;
 export default Button;
