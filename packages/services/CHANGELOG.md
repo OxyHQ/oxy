@@ -1,5 +1,13 @@
 # Changelog
 
+## 14.22.0
+
+- Shared account, profile, consent and organization UI uses Bloom 22's canonical
+  Button, Button.Group, GroupedSection and ListItem APIs. Existing actions,
+  account boundaries and translated labels are retained.
+- Requires Bloom >=22.0.0. The Expo 54 compatibility fixture keeps its existing
+  React/React Native/Expo floors while exercising the new Bloom API.
+
 ## 14.21.0
 
 - Built on `@oxy.so/contracts` 7 and `@oxy.so/core` 7.49: a bot's character has no paint; its colour
