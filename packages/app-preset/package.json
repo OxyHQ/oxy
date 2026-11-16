@@ -96,7 +96,7 @@
   "devDependencies": {
     "expo": "catalog:",
     "nativewind": "catalog:",
-    "tailwindcss": "4.3.4",
+    "tailwindcss": "4.3.5",
     "react": "catalog:",
     "react-dom": "catalog:",
     "jsdom": "catalog:",

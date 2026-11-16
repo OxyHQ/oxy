@@ -20,7 +20,7 @@
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/core": "*",
     "@oxy.so/services": "*",
-    "@tailwindcss/vite": "^4.3.4",
+    "@tailwindcss/vite": "^4.3.5",
     "@tanstack/react-query": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
@@ -36,7 +36,7 @@
     "react-native-web": "^0.21.4",
     "socket.io-client": "catalog:",
     "tailwind-merge": "^3.7.0",
-    "tailwindcss": "^4.3.4",
+    "tailwindcss": "^4.3.5",
     "tw-animate-css": "catalog:",
     "vite": "catalog:"
   },

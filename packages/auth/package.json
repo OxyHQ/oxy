@@ -18,7 +18,7 @@
     "@oxy.so/core": "workspace:*",
     "@oxy.so/protocol": "workspace:*",
     "@oxy.so/services": "workspace:*",
-    "@tailwindcss/postcss": "^4.3.4",
+    "@tailwindcss/postcss": "^4.3.5",
     "@tanstack/react-query": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -28,7 +28,7 @@
     "react-native-svg": "catalog:",
     "react-native-web": "^0.21.4",
     "react-router-dom": "^7.18.5",
-    "tailwindcss": "^4.3.4",
+    "tailwindcss": "^4.3.5",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -41,7 +41,7 @@
     "@babel/core": "catalog:",
     "@rolldown/plugin-babel": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "dotenv": "^18.0.9",
+    "dotenv": "^18.0.10",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-react-native-web": "catalog:"
