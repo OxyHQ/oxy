@@ -36,6 +36,16 @@
  * the bytes it names) and its blocks can still change. `closed_at` is set
  * exactly when it is not (CHECK).
  *
+ * ## Referrals (ADR 0043 D14)
+ *
+ * An Oxy service can refer content it hosts (`POST /content-claims/referrals`)
+ * because it may be illegal. A referral is a claim with a `referral_reason`
+ * and NO claimant: no `relationship`, no `content_claim_claimants` row and no
+ * email to one. It is reviewed, blocked and reversed by the same states. For
+ * `child_safety` the owners of blocked files are not sent the claim email and
+ * cannot answer it with a counter-notice; staff can still record a dispute
+ * and reinstate.
+ *
  * ## The erasure deadline
  *
  * A privacy claim by the affected person is the GDPR erasure request (art.
@@ -63,9 +73,11 @@ import {
   CONTENT_CLAIM_STATES,
   CONTENT_CLAIM_TARGET_RESOLUTIONS,
   CONTENT_CLAIM_TARGET_SOURCES,
+  CONTENT_REFERRAL_REASONS,
   OPEN_CONTENT_CLAIM_STATES,
 } from '@oxy.so/contracts';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
+import { applications } from './applications';
 import { files } from './files';
 import { users } from './users';
 
@@ -97,7 +109,22 @@ export const contentClaims = pgTable(
      */
     reference: text().notNull(),
     kind: text({ enum: CONTENT_CLAIM_KINDS }).notNull(),
-    relationship: text({ enum: CLAIMANT_RELATIONSHIPS }).notNull(),
+    /** Who the claimant is to the content; NULL for exactly the referrals (CHECK). */
+    relationship: text({ enum: CLAIMANT_RELATIONSHIPS }),
+    /** Why an Oxy service referred this content; NULL for a claimant's claim. */
+    referralReason: text({ enum: CONTENT_REFERRAL_REASONS }),
+    /**
+     * The application that referred it. `SET NULL`: the claim and its blocks
+     * outlive the application; `referral_reason` is what makes it a referral.
+     */
+    referredByApplicationId: text().references(() => applications.id, { onDelete: 'set null' }),
+    /**
+     * What makes a referral retry-safe: a digest of the application, the
+     * reason and the sorted targets. Unique among OPEN referrals, so the same
+     * referral sent twice is one claim, and the same content can be referred
+     * again once an earlier referral closed.
+     */
+    referralKey: text(),
     state: text({ enum: CONTENT_CLAIM_STATES }).notNull().default('received'),
     /**
      * The signed-in account that submitted it, when there was one. The claim
@@ -120,6 +147,24 @@ export const contentClaims = pgTable(
       'content_claims_relationship_check',
       sql`${t.relationship} in (${sql.raw(inList(CLAIMANT_RELATIONSHIPS))})`,
     ),
+    check(
+      'content_claims_referral_reason_check',
+      sql`${t.referralReason} in (${sql.raw(inList(CONTENT_REFERRAL_REASONS))})`,
+    ),
+    // A claim has a claimant or is a referral, never both and never neither.
+    check(
+      'content_claims_referral_check',
+      sql`(${t.referralReason} is null) = (${t.relationship} is not null) and (${t.referralReason} is null) = (${t.referralKey} is null) and (${t.referralReason} is not null or ${t.referredByApplicationId} is null) and (${t.referralReason} is null or ${t.kind} = 'illegal_content')`,
+    ),
+    uniqueIndex('content_claims_open_referral_key')
+      .on(t.referralKey)
+      .where(
+        sql`${t.referralKey} is not null and ${t.state} in (${sql.raw(inList(OPEN_CONTENT_CLAIM_STATES))})`,
+      ),
+    // The FK probe an application's deletion runs (SET NULL).
+    index('content_claims_referred_by_application_id_idx')
+      .on(t.referredByApplicationId)
+      .where(sql`${t.referredByApplicationId} is not null`),
     check(
       'content_claims_state_check',
       sql`${t.state} in (${sql.raw(inList(CONTENT_CLAIM_STATES))})`,
@@ -330,6 +375,8 @@ export const CONTENT_CLAIM_NOTIFICATION_KINDS = [
   'counter_notice_received',
   /** To the staff who review claims (legal@oxy.so): an owner sent a counter-notice. */
   'counter_notice_staff',
+  /** To the staff who review claims: an Oxy service referred content. */
+  'referral_staff',
 ] as const;
 
 /** The kinds that are about ONE owner's counter-notice, and name it. */

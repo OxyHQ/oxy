@@ -6,7 +6,7 @@ import type { ContentClaimCounterNoticeView, ContentClaimDetailView } from '@oxy
 import { View } from 'react-native';
 
 import { useTranslation } from '@/lib/i18n';
-import { ClaimDeadlineBadge, ClaimStateBadge } from './ClaimBadges';
+import { ClaimDeadlineBadge, ClaimReferralBadge, ClaimStateBadge } from './ClaimBadges';
 
 /** A labelled free-text statement, shown in full: it is someone's own words. */
 function Statement({ label, children }: { label: string; children: string }) {
@@ -94,10 +94,19 @@ export function ClaimOverview({ claim }: { claim: ContentClaimDetailView }) {
           title={t('claimsPage.columns.kind')}
           value={t(`claimsPage.kinds.${claim.kind}`)}
         />
-        <GroupedSectionItem
-          title={t('claimsPage.detail.relationship')}
-          value={t(`claimsPage.relationships.${claim.relationship}`)}
-        />
+        {claim.referral ? (
+          <GroupedSectionItem
+            title={t('claimsPage.detail.referredBy')}
+            value={claim.referral.applicationId ?? t('claimsPage.detail.referredByDeleted')}
+            rightElement={<ClaimReferralBadge referral={claim.referral} />}
+          />
+        ) : null}
+        {claim.relationship ? (
+          <GroupedSectionItem
+            title={t('claimsPage.detail.relationship')}
+            value={t(`claimsPage.relationships.${claim.relationship}`)}
+          />
+        ) : null}
         <GroupedSectionItem
           title={t('claimsPage.columns.received')}
           value={new Date(claim.receivedAt).toLocaleString()}
@@ -129,7 +138,9 @@ export function ClaimOverview({ claim }: { claim: ContentClaimDetailView }) {
           <CardTitle>{t('claimsPage.sections.claimant')}</CardTitle>
         </CardHeader>
         <CardBody>
-          {claimant === null ? (
+          {claim.referral ? (
+            <Muted>{t('claimsPage.claimant.referral')}</Muted>
+          ) : claimant === null ? (
             <Muted>
               {claim.claimantExpiresAt
                 ? t('claimsPage.claimant.erasedOn', {

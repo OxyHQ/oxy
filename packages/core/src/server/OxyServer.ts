@@ -8,6 +8,10 @@ import {
 import {
   applicationAccountRegistrationRequestSchema,
   applicationAccountRegistrationResponseSchema,
+  contentReferralResponseSchema,
+  contentReferralSchema,
+  type ContentReferralReason,
+  type ContentReferralResponse,
   applicationAccountTotalSchema,
   type ApplicationAccountTotal,
   type OxySessionRevocationEvent,
@@ -883,6 +887,29 @@ export class OxyServer extends OxyServices {
     )
       throw new Error('Product grant response attribution differs');
     return snapshot;
+  }
+
+  /**
+   * Refer content this service hosts to Oxy's claim review because it may be
+   * illegal (ADR 0043 D14; `POST /content-claims/referrals`). Name the Oxy
+   * files, the pages that show the content, or both. Workload identity only:
+   * the referring application is the workload's, and no person is named.
+   *
+   * A person on Oxy's staff reviews it; nothing is blocked until they act.
+   * When they do, every application using a blocked file is sent
+   * `file.blocked`. Idempotent: the same reason and targets answer with the
+   * open claim they already have, so a retry never opens a second one.
+   */
+  async referContent(referral: {
+    reason: ContentReferralReason;
+    fileIds?: readonly string[];
+    pageUrls?: readonly string[];
+  }): Promise<ContentReferralResponse> {
+    const body = contentReferralSchema.parse(referral);
+    const answer = await this.serviceRequest<unknown>('POST', '/content-claims/referrals', body, {
+      cache: false,
+    });
+    return contentReferralResponseSchema.parse(answer);
   }
 
   /**

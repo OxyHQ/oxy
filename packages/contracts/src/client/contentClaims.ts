@@ -27,6 +27,25 @@ export const CLAIMANT_RELATIONSHIPS = [
 
 export type ClaimantRelationship = (typeof CLAIMANT_RELATIONSHIPS)[number];
 
+/**
+ * Why an Oxy service refers content to the claim review (ADR 0043 D14).
+ *
+ * A referral is a claim with no claimant: the service that hosts the content
+ * hands it to Oxy's staff because it may be illegal, on a reason from this
+ * closed list. `child_safety` is material that may sexualise or exploit a
+ * minor: it never goes to a community jury, its owner is not sent the claim
+ * email and cannot answer it with a counter-notice.
+ */
+export const CONTENT_REFERRAL_REASONS = ['child_safety'] as const;
+export type ContentReferralReason = (typeof CONTENT_REFERRAL_REASONS)[number];
+
+/** The bounds of one referral. */
+export const CONTENT_REFERRAL_LIMITS = {
+  maxFileIds: 50,
+  maxFileId: 64,
+  maxPageUrls: 20,
+} as const;
+
 /** The bounds of a submission. The website fills its validation messages from these. */
 export const CONTENT_CLAIM_LIMITS = {
   minUrls: 1,

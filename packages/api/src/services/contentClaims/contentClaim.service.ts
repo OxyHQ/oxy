@@ -57,6 +57,8 @@ import {
   ERASURE_REQUEST_DEADLINE_DAYS,
   isErasureRequest,
   OPEN_CONTENT_CLAIM_STATES,
+  type ContentReferral,
+  type ContentReferralReason,
 } from '@oxy.so/contracts';
 import { isUniqueViolation, qualified, uuidv7 } from '@oxy.so/db';
 import { getDb, type Transaction } from '../../config/postgres';
@@ -208,6 +210,25 @@ async function queueNotifications(
   }
   if (values.length > 0) await tx.insert(contentClaimNotifications).values(values);
   return values.length;
+}
+
+/**
+ * Whether a claim has a claimant to write to. A referral (ADR 0043 D14) has
+ * none: the service that referred it is not a person, and is told nothing.
+ */
+function hasClaimant(claim: Pick<ContentClaimRow, 'referralReason'>): boolean {
+  return claim.referralReason === null;
+}
+
+/**
+ * Whether the owners of a claim's blocked files are sent its emails and may
+ * answer it with a counter-notice. Not for `child_safety`: the email invites
+ * a dispute and names the reference a counter-notice quotes, and neither
+ * belongs with material that may exploit a minor. Staff can still record a
+ * dispute and reinstate.
+ */
+function ownersAreTold(claim: Pick<ContentClaimRow, 'referralReason'>): boolean {
+  return claim.referralReason !== 'child_safety';
 }
 
 /** Lock the claim row; 404 when there is none. */
@@ -363,6 +384,155 @@ export async function submitContentClaim(
 }
 
 // ---------------------------------------------------------------------------
+// A service's referral (ADR 0043 D14)
+// ---------------------------------------------------------------------------
+
+export interface SubmitContentReferralOptions {
+  /** The Oxy application referring the content: the verified workload's, never a body field. */
+  applicationId: string;
+  now?: Date;
+}
+
+/** What makes two referrals the same one: who, why and exactly which targets. */
+function referralKeyOf(
+  applicationId: string,
+  reason: ContentReferralReason,
+  fileIds: readonly string[],
+  pageUrls: readonly string[],
+): string {
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify([applicationId, reason, [...fileIds].sort(), [...pageUrls].sort()]))
+    .digest('hex');
+}
+
+/**
+ * An Oxy service refers content it hosts to the claim review: a claim with a
+ * reason and no claimant, its targets, its first event and the email that
+ * tells the staff.
+ *
+ * Every file must exist (a referral naming a file Oxy does not hold is a
+ * mistake the service should hear about, `400`). The same referral again
+ * answers with the open claim it already has: the unique index on
+ * `referral_key` among open claims decides, not a read before the write.
+ */
+export async function submitContentReferral(
+  input: ContentReferral,
+  options: SubmitContentReferralOptions,
+): Promise<{ id: string; reference: string }> {
+  const now = options.now ?? new Date();
+  const fileIds = [...new Set(input.fileIds)];
+  const pageUrls = [...new Set(input.pageUrls)];
+  const referralKey = referralKeyOf(options.applicationId, input.reason, fileIds, pageUrls);
+
+  const named =
+    fileIds.length === 0
+      ? []
+      : await getDb()
+          .select({ id: files.id, sha256: files.sha256 })
+          .from(files)
+          .where(inArray(files.id, fileIds));
+  if (named.length !== fileIds.length) {
+    const found = new Set(named.map((file) => file.id));
+    throw new ApiError(
+      400,
+      'A referral names files Oxy does not hold',
+      'CONTENT_REFERRAL_UNKNOWN_FILES',
+      { fileIds: fileIds.filter((id) => !found.has(id)) },
+    );
+  }
+
+  const existing = async () => {
+    const [open] = await getDb()
+      .select({ id: contentClaims.id, reference: contentClaims.reference })
+      .from(contentClaims)
+      .where(
+        and(
+          eq(contentClaims.referralKey, referralKey),
+          inArray(contentClaims.state, [...OPEN_STATES]),
+        ),
+      )
+      .limit(1);
+    return open;
+  };
+
+  for (let attempt = 1; ; attempt += 1) {
+    const id = uuidv7();
+    const reference = newClaimReference();
+    try {
+      await getDb().transaction(async (tx) => {
+        await tx.insert(contentClaims).values({
+          id,
+          reference,
+          kind: 'illegal_content',
+          relationship: null,
+          referralReason: input.reason,
+          referredByApplicationId: options.applicationId,
+          referralKey,
+          createdAt: now,
+          updatedAt: now,
+        });
+        await tx.insert(contentClaimTargets).values([
+          ...named.map((file) => ({
+            claimId: id,
+            source: 'service' as const,
+            url: null,
+            resolution: 'file' as const,
+            fileId: file.id,
+            sha256: file.sha256,
+          })),
+          ...pageUrls.map((url) => ({
+            claimId: id,
+            source: 'service' as const,
+            url,
+            resolution: 'unresolved' as const,
+            fileId: null,
+            sha256: null,
+          })),
+        ]);
+        await appendEvent(tx, {
+          claimId: id,
+          action: 'referred',
+          actorUserId: null,
+          toState: 'received',
+          details: {
+            reason: input.reason,
+            applicationId: options.applicationId,
+            files: named.length,
+            pages: pageUrls.length,
+          },
+        });
+        await tx
+          .insert(contentClaimNotifications)
+          .values({ claimId: id, kind: 'referral_staff', recipient: 'staff' });
+      });
+      logger.info('[ContentClaims] Referral received', {
+        claimId: id,
+        reason: input.reason,
+        applicationId: options.applicationId,
+        files: named.length,
+        pages: pageUrls.length,
+      });
+      return { id, reference };
+    } catch (error) {
+      if (isUniqueViolation(error, 'content_claims_open_referral_key')) {
+        const open = await existing();
+        if (open) return open;
+        // It closed between the refusal and the read: this referral is new again.
+        if (attempt < REFERENCE_ATTEMPTS) continue;
+      }
+      if (
+        attempt < REFERENCE_ATTEMPTS &&
+        isUniqueViolation(error, 'content_claims_reference_key')
+      ) {
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The queue and the detail
 // ---------------------------------------------------------------------------
 
@@ -371,6 +541,8 @@ export type ContentClaimDeadlineFilter = 'overdue' | 'due_soon' | 'any';
 export interface ListContentClaimsOptions {
   states?: readonly ContentClaimState[];
   kinds?: readonly ContentClaimKind[];
+  /** Only referrals for one of these reasons. */
+  referralReasons?: readonly ContentReferralReason[];
   /** Only claims with a statutory deadline: past it, within 7 days of it, or any. */
   deadline?: ContentClaimDeadlineFilter;
   limit: number;
@@ -417,6 +589,9 @@ function summaryOf(
     reference: row.reference,
     kind: row.kind,
     relationship: row.relationship,
+    referral: row.referralReason
+      ? { reason: row.referralReason, applicationId: row.referredByApplicationId }
+      : null,
     state: row.state,
     deadlineAt: row.deadlineAt?.toISOString() ?? null,
     targetCount: row.targetCount,
@@ -440,6 +615,9 @@ export async function listContentClaims(
   const filters = [
     options.states?.length ? inArray(contentClaims.state, [...options.states]) : undefined,
     options.kinds?.length ? inArray(contentClaims.kind, [...options.kinds]) : undefined,
+    options.referralReasons?.length
+      ? inArray(contentClaims.referralReason, [...options.referralReasons])
+      : undefined,
   ];
   if (byDeadline) {
     filters.push(
@@ -798,11 +976,11 @@ export async function blockClaimTargets(
     const fromState = claim.state;
     if (fromState === 'reviewing') {
       await transition(tx, claim, ['reviewing'], 'actioned', 'acted on', now);
-      await queueNotifications(tx, claimId, 'claim_actioned', { claimant: true });
+      await queueNotifications(tx, claimId, 'claim_actioned', { claimant: hasClaimant(claim) });
     }
-    const owners = [
-      ...new Set(blocked.map((row) => row.ownerUserId).filter((id): id is string => !!id)),
-    ];
+    const owners = ownersAreTold(claim)
+      ? [...new Set(blocked.map((row) => row.ownerUserId).filter((id): id is string => !!id))]
+      : [];
     const ownersNotified = await queueNotifications(tx, claimId, 'content_blocked', {
       accountIds: owners,
     });
@@ -859,7 +1037,7 @@ export async function rejectContentClaim(
       toState: 'rejected',
       note: reason,
     });
-    await queueNotifications(tx, claimId, 'claim_rejected', { claimant: true });
+    await queueNotifications(tx, claimId, 'claim_rejected', { claimant: hasClaimant(claim) });
   });
 }
 
@@ -885,7 +1063,9 @@ export async function recordCounterNotice(
       toState: 'counter_noticed',
       note,
     });
-    await queueNotifications(tx, claimId, 'claim_counter_noticed', { claimant: true });
+    await queueNotifications(tx, claimId, 'claim_counter_noticed', {
+      claimant: hasClaimant(claim),
+    });
   });
 }
 
@@ -950,10 +1130,10 @@ export async function reinstateContentClaim(
       .where(
         and(eq(contentClaimTargets.claimId, claimId), isNotNull(contentClaimTargets.blockedAt)),
       );
-    await queueNotifications(tx, claimId, 'claim_reinstated', { claimant: true });
-    const owners = [
-      ...new Set(restored.map((row) => row.ownerUserId).filter((id): id is string => !!id)),
-    ];
+    await queueNotifications(tx, claimId, 'claim_reinstated', { claimant: hasClaimant(claim) });
+    const owners = ownersAreTold(claim)
+      ? [...new Set(restored.map((row) => row.ownerUserId).filter((id): id is string => !!id))]
+      : [];
     await queueNotifications(tx, claimId, 'content_reinstated', { accountIds: owners });
     await appendEvent(tx, {
       claimId,
@@ -1233,6 +1413,8 @@ export async function submitCounterNotice(
   try {
     return await getDb().transaction(async (tx) => {
       const claim = await lockClaim(tx, claimId);
+      // Not answerable by its owners at all: said exactly like no claim.
+      if (!ownersAreTold(claim)) throw noSuchClaim();
       // Re-read under the lock: a reinstatement or an owner's delete cannot
       // slip between the check and the record.
       const covered = await ownersBlockedFiles(tx, claimId, owners, requested);

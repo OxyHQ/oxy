@@ -5,7 +5,11 @@ import { integerCheck, urlCheck, utf16MaxLength, utf16MinLength } from '@oxy.so/
  * the Oxy website's form.
  */
 import { z } from 'zod';
-import { CONTENT_CLAIM_KINDS, CONTENT_CLAIM_STATES } from '@oxy.so/contracts';
+import {
+  CONTENT_CLAIM_KINDS,
+  CONTENT_CLAIM_STATES,
+  CONTENT_REFERRAL_REASONS,
+} from '@oxy.so/contracts';
 
 const NOTE_MAX = 5000;
 
@@ -26,6 +30,8 @@ export const contentClaimListQuerySchema = z
   .object({
     state: listOf(CONTENT_CLAIM_STATES).optional(),
     kind: listOf(CONTENT_CLAIM_KINDS).optional(),
+    /** Only what an Oxy service referred, for one of these reasons. */
+    referral: listOf(CONTENT_REFERRAL_REASONS).optional(),
     /** Only claims with a statutory deadline (erasure requests): past it, due within 7 days, or any. */
     deadline: z.enum(['overdue', 'due_soon', 'any']).optional(),
     limit: z.coerce.number().check(integerCheck()).min(1).max(100).default(50),

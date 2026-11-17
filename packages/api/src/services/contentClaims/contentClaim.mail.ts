@@ -214,6 +214,11 @@ export function renderContentClaimMail(
         'A person on our team will review it. For a copyright claim, we send a copy to the person who made the claim, as the law requires; if they do not tell us within 10 business days that they have gone to court, we may restore the content.',
         quote,
       ]);
+    case 'referral_staff':
+      return write(`Content referred for review: ${context.reference}`, [
+        `An Oxy service referred content for review (${what}, reference ${context.reference}): ${context.fileCount ?? 0} ${context.fileCount === 1 ? 'file' : 'files'}, ${context.targetCount} ${context.targetCount === 1 ? 'target' : 'targets'} in all.`,
+        'Review it on the claim in the console (Staff → Content claims). Nothing is blocked until a person acts on it.',
+      ]);
     case 'counter_notice_staff':
       return write(`Counter-notice received: ${context.reference}`, [
         `The owner of content removed after ${what} (reference ${context.reference}) sent a counter-notice covering ${context.fileCount ?? 0} ${context.fileCount === 1 ? 'file' : 'files'}.`,

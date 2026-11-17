@@ -177,7 +177,7 @@ async function ownerFileNames(
   return rows.map((row) => row.originalName || `File ${row.id}`);
 }
 
-/** Where staff are told of an owner's counter-notice: the mailbox the claim emails name. */
+/** Where staff are told of a counter-notice or a referral: the mailbox the claim emails name. */
 export function contentClaimStaffAddress(): string {
   return getEnvVar('CONTENT_CLAIM_STAFF_EMAIL', LEGAL_CONTACT).trim() || LEGAL_CONTACT;
 }
@@ -211,6 +211,23 @@ async function compose(
   claim: ContentClaimRow,
 ): Promise<ContentClaimMail & { to: string }> {
   const db = getDb();
+  if (row.recipient === 'staff' && row.kind === 'referral_staff') {
+    // Counts only: the email names no file and no page of the referred content.
+    const targets = await db
+      .select({ resolution: contentClaimTargets.resolution })
+      .from(contentClaimTargets)
+      .where(eq(contentClaimTargets.claimId, claim.id));
+    const mail = renderContentClaimMail(row.kind, {
+      reference: claim.reference,
+      claimKind: claim.kind,
+      greetingName: null,
+      note: null,
+      fileNames: [],
+      targetCount: targets.length,
+      fileCount: targets.filter((target) => target.resolution === 'file').length,
+    });
+    return { ...mail, to: contentClaimStaffAddress() };
+  }
   if (row.recipient === 'staff') {
     const notice = await counterNoticeOf(row);
     const mail = renderContentClaimMail(row.kind, {

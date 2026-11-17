@@ -1,5 +1,18 @@
 # Changelog: `@oxy.so/contracts`
 
+## 7.4.0
+
+Additive, with one widened type: `ContentClaimSummaryView.relationship` is now `ClaimantRelationship | null`.
+
+### Added — a service's referral to the claim review (ADR 0043 D14)
+
+- `CONTENT_REFERRAL_REASONS` (`child_safety`), `ContentReferralReason`, `CONTENT_REFERRAL_LIMITS`,
+  `contentReferralSchema`, `ContentReferral`, `ContentReferralResponse`: what an Oxy service sends
+  to `POST /content-claims/referrals`.
+- `ContentClaimSummaryView.referral` (`{ reason, applicationId } | null`); `relationship` is null
+  for a referral, which has no claimant.
+- `CONTENT_CLAIM_TARGET_SOURCES` gains `service`; `CONTENT_CLAIM_EVENT_ACTIONS` gains `referred`.
+
 ## 7.3.0
 
 Additive only: no export removed.
