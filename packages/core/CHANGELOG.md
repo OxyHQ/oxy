@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.55.0
+
+### Added
+
+- **`OxyServer.accountsInQuietHours(accountIds)` (ADR 0068).** Which of these accounts are in their quiet hours right now; ask before a push that can wait until morning.
+
 ## 7.54.0
 
 ### Added

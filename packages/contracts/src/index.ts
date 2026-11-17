@@ -106,12 +106,16 @@ export {
   DATE_OF_BIRTH_PATTERN,
   DATE_OF_BIRTH_REFUSALS,
   MINIMUM_UNSUPERVISED_AGE_YEARS,
+  MINOR_QUIET_HOURS,
   MIN_BIRTH_YEAR,
   ageBandOf,
   ageInYears,
   isSelfServiceBandChange,
+  isWithinQuietHours,
+  localTimeIn,
+  protectionsFor,
 } from './client/age';
-export type { AgeBand, DateOfBirthRefusal } from './client/age';
+export type { AgeBand, AgeProtections, DateOfBirthRefusal } from './client/age';
 
 export {
   // Schemas

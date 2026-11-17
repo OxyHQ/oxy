@@ -65952,6 +65952,227 @@
         "operationId": "postSafetyServicePurchasesReserve"
       }
     },
+    "/safety/service/quiet-hours": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Which of these accounts are in their quiet hours now (ADR 0068). An Oxy",
+        "description": "service asks before a push that can wait until morning. It answers the quiet\nsubset only, and only to a first-party workload.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The accounts that are in their quiet hours.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "quietAccountIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "maxItems": 100
+                    }
+                  },
+                  "required": [
+                    "quietAccountIds"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Consumer required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an Oxy service.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid batch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accountIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "accountIds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "operationId": "postSafetyServiceQuietHours"
+      }
+    },
     "/safety/service/session": {
       "post": {
         "tags": [

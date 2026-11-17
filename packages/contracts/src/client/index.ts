@@ -314,12 +314,16 @@ export {
   DATE_OF_BIRTH_PATTERN,
   DATE_OF_BIRTH_REFUSALS,
   MINIMUM_UNSUPERVISED_AGE_YEARS,
+  MINOR_QUIET_HOURS,
   MIN_BIRTH_YEAR,
   ageBandOf,
   ageInYears,
   isSelfServiceBandChange,
+  isWithinQuietHours,
+  localTimeIn,
+  protectionsFor,
 } from './age';
-export type { AgeBand, DateOfBirthRefusal } from './age';
+export type { AgeBand, AgeProtections, DateOfBirthRefusal } from './age';
 
 export {
   APP_ASSERTION_CHALLENGE_PURPOSES,

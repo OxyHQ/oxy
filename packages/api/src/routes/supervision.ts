@@ -57,6 +57,8 @@ import {
   supervisionAcceptInputSchema,
   supervisionContactInputSchema,
   dateOfBirthCorrectionInputSchema,
+  quietHoursInputSchema,
+  quietHoursResponseSchema,
   supervisionReviewInputSchema,
   purchaseReviewInputSchema,
   supervisionStateSchema,
@@ -85,6 +87,7 @@ import {
 import sessionService from '../services/session.service';
 import { formatUserResponse } from '../utils/userTransform';
 import { userService } from '../services/user.service';
+import { accountsInQuietHours } from '../services/quietHours.service';
 import { verifyReauth } from '../services/reauth.service';
 import * as supervision from '../services/supervision.service';
 import * as policy from '../services/supervisionPolicy.service';
@@ -611,6 +614,30 @@ router.post(
       notificationAccessBatchResponseSchema.parse(
         await policy.decideNotificationsBatch(input.items, live),
       ),
+    );
+  }),
+);
+/**
+ * Which of these accounts are in their quiet hours now (ADR 0068). An Oxy
+ * service asks before a push that can wait until morning. It answers the quiet
+ * subset only, and only to a first-party workload.
+ * @requestBody quietHoursInputSchema
+ * @response 200 quietHoursResponseSchema The accounts that are in their quiet hours.
+ * @response 401 safetyErrorSchema Consumer required.
+ * @response 403 safetyErrorSchema Not an Oxy service.
+ * @response 422 safetyErrorSchema Invalid batch.
+ */
+router.post(
+  '/service/quiet-hours',
+  handler(async (req, res) => {
+    const input = quietHoursInputSchema.parse(req.body);
+    if (req.serviceApp?.authority !== 'first_party')
+      throw new supervision.SafetyError(403, 'forbidden', 'Only an Oxy service asks this');
+    const quiet = await accountsInQuietHours(input.accountIds);
+    res.json(
+      quietHoursResponseSchema.parse({
+        quietAccountIds: input.accountIds.filter((id) => quiet.has(id)),
+      }),
     );
   }),
 );
