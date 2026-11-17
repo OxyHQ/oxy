@@ -1828,6 +1828,20 @@
       "when": 1794949249159,
       "tag": "0261_supervision_awaiting_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 262,
+      "version": "7",
+      "when": 1794952247694,
+      "tag": "0262_content_referrals",
+      "breakpoints": true
+    },
+    {
+      "idx": 263,
+      "version": "7",
+      "when": 1794952264260,
+      "tag": "0263_content_referrals_validate_fk",
+      "breakpoints": true
     }
   ]
 }

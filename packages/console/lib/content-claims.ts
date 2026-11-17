@@ -1,6 +1,7 @@
 import {
   CONTENT_CLAIM_KINDS,
   CONTENT_CLAIM_STATES,
+  CONTENT_REFERRAL_REASONS,
   OPEN_CONTENT_CLAIM_STATES,
   type ClaimantRelationship,
   type ContentClaimEventAction,
@@ -8,6 +9,7 @@ import {
   type ContentClaimState,
   type ContentClaimTargetResolution,
   type ContentClaimTargetView,
+  type ContentReferralReason,
 } from '@oxy.so/contracts';
 
 /**
@@ -23,7 +25,7 @@ import {
  *   actioned → counter_noticed → reinstated | upheld
  */
 
-export { CONTENT_CLAIM_KINDS, CONTENT_CLAIM_STATES };
+export { CONTENT_CLAIM_KINDS, CONTENT_CLAIM_STATES, CONTENT_REFERRAL_REASONS };
 
 /** Days before an erasure deadline the queue calls it "due soon" (the API's own window). */
 export const DUE_SOON_DAYS = 7;
@@ -99,11 +101,18 @@ export function claimStateVariant(
 export interface ContentClaimFilters {
   states: ContentClaimState[];
   kinds: ContentClaimKind[];
+  /** Only what an Oxy service referred, for one of these reasons. */
+  referrals: ContentReferralReason[];
   /** Only open erasure requests: past due, due soon, or any of them. */
   deadline: 'overdue' | 'due_soon' | 'any' | null;
 }
 
-export const EMPTY_CLAIM_FILTERS: ContentClaimFilters = { states: [], kinds: [], deadline: null };
+export const EMPTY_CLAIM_FILTERS: ContentClaimFilters = {
+  states: [],
+  kinds: [],
+  referrals: [],
+  deadline: null,
+};
 
 /** The query parameters `GET /content-claims` takes for these filters (empty ones omitted). */
 export function claimQueryParams(
@@ -115,6 +124,7 @@ export function claimQueryParams(
     limit,
     ...(filters.states.length > 0 ? { state: filters.states.join(',') } : {}),
     ...(filters.kinds.length > 0 ? { kind: filters.kinds.join(',') } : {}),
+    ...(filters.referrals.length > 0 ? { referral: filters.referrals.join(',') } : {}),
     ...(filters.deadline ? { deadline: filters.deadline } : {}),
     ...(cursor ? { cursor } : {}),
   };

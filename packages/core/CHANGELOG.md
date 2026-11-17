@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.54.0
+
+### Added
+
+- **`OxyServer.referContent({ reason, fileIds?, pageUrls? })` (ADR 0043 D14).** An Oxy service refers content it hosts to Oxy's claim review because it may be illegal. Workload identity only; idempotent; nothing is blocked until a person on the staff acts, and `file.blocked` reaches every referencing application when they do.
+
 ## 7.53.0
 
 ### Added

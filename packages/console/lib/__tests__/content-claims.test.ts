@@ -81,7 +81,12 @@ describe('claimQueryParams', () => {
     expect(claimQueryParams(EMPTY_CLAIM_FILTERS)).toEqual({ limit: 50 });
     expect(
       claimQueryParams(
-        { states: ['received', 'reviewing'], kinds: ['privacy'], deadline: 'overdue' },
+        {
+          states: ['received', 'reviewing'],
+          kinds: ['privacy'],
+          referrals: [],
+          deadline: 'overdue',
+        },
         'cur_1',
         20,
       ),
@@ -92,6 +97,9 @@ describe('claimQueryParams', () => {
       deadline: 'overdue',
       cursor: 'cur_1',
     });
+    expect(
+      claimQueryParams({ ...EMPTY_CLAIM_FILTERS, referrals: ['child_safety'] }),
+    ).toEqual({ limit: 50, referral: 'child_safety' });
   });
 
   it('toggles a filter value in place', () => {

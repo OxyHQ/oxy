@@ -40,6 +40,7 @@ function claim(state: ContentClaimDetailView['state'] = 'reviewing'): ContentCla
     reference: 'OXY-7K3M-9Q2D',
     kind: 'copyright',
     relationship: 'rights_holder',
+    referral: null,
     state,
     deadlineAt: null,
     targetCount: 1,

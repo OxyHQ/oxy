@@ -1,5 +1,5 @@
 import { Badge, type BadgeProps } from '@oxy.so/bloom/badge';
-import type { ContentClaimState } from '@oxy.so/contracts';
+import type { ContentClaimState, ContentReferralReason } from '@oxy.so/contracts';
 
 import { claimStateVariant, deadlineStatus } from '@/lib/content-claims';
 import { useTranslation } from '@/lib/i18n';
@@ -22,6 +22,28 @@ export function ClaimStateBadge({ state }: { state: ContentClaimState }) {
       size="label-small"
       content={t(`claimsPage.states.${state}`)}
       {...STATE_BADGE[claimStateVariant(state)]}
+    />
+  );
+}
+
+/**
+ * A claim an Oxy service referred (ADR 0043 D14), by its reason. Solid red: a
+ * referral is content a service thinks may be illegal, and it has no claimant
+ * waiting, so the badge is what makes it stand out in the queue.
+ */
+export function ClaimReferralBadge({
+  referral,
+}: {
+  referral: { reason: ContentReferralReason } | null;
+}) {
+  const { t } = useTranslation();
+  if (referral === null) return null;
+  return (
+    <Badge
+      size="label-small"
+      variant="solid"
+      color="error"
+      content={t(`claimsPage.referrals.${referral.reason}`)}
     />
   );
 }

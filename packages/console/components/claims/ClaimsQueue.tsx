@@ -13,12 +13,13 @@ import { useContentClaims } from '@/hooks/use-content-claims';
 import {
   CONTENT_CLAIM_KINDS,
   CONTENT_CLAIM_STATES,
+  CONTENT_REFERRAL_REASONS,
   type ContentClaimFilters,
   EMPTY_CLAIM_FILTERS,
   toggleFilterValue,
 } from '@/lib/content-claims';
 import { useTranslation } from '@/lib/i18n';
-import { ClaimDeadlineBadge, ClaimStateBadge } from './ClaimBadges';
+import { ClaimDeadlineBadge, ClaimReferralBadge, ClaimStateBadge } from './ClaimBadges';
 
 type ClaimRow = ContentClaimListResponse['claims'][number];
 
@@ -60,7 +61,12 @@ export function ClaimsQueue() {
         id: 'kind',
         header: t('claimsPage.columns.kind'),
         basis: 130,
-        cell: ({ row }) => <Text>{t(`claimsPage.kinds.${row.kind}`)}</Text>,
+        cell: ({ row }) => (
+          <View className="items-start gap-1">
+            <Text>{t(`claimsPage.kinds.${row.kind}`)}</Text>
+            <ClaimReferralBadge referral={row.referral} />
+          </View>
+        ),
       },
       {
         id: 'state',
@@ -136,6 +142,27 @@ export function ClaimsQueue() {
                 }
               >
                 {t(`claimsPage.kinds.${kind}`)}
+              </Chip>
+            ))}
+          </ChipRow>
+        </View>
+        <View className="gap-1">
+          <Muted className="text-xs">{t('claimsPage.filters.referral')}</Muted>
+          <ChipRow accessibilityLabel={t('claimsPage.filters.referral')}>
+            {CONTENT_REFERRAL_REASONS.map((reason) => (
+              <Chip
+                key={reason}
+                size="sm"
+                role="checkbox"
+                selected={filters.referrals.includes(reason)}
+                onPress={() =>
+                  setFilters((current) => ({
+                    ...current,
+                    referrals: toggleFilterValue(current.referrals, reason),
+                  }))
+                }
+              >
+                {t(`claimsPage.referrals.${reason}`)}
               </Chip>
             ))}
           </ChipRow>

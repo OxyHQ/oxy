@@ -11,6 +11,10 @@
  * - Everything else is the staff review, behind the `content:claims` staff
  *   capability (`middleware/requireStaff.ts`): the queue, a claim in full (the
  *   claimant's statement opened), and the actions on it.
+ * - `POST /referrals` is an Oxy SERVICE's (ADR 0043 D14): a first-party
+ *   workload refers content it hosts, on a reason from a closed list. No
+ *   person is named and none is told; the staff are. A customer key or a
+ *   third-party application is refused.
  * - `POST /counter-notices` is the OWNER's: a signed-in account disputes a
  *   claim that took down its files (17 U.S.C. § 512(g)). Limited per network
  *   ({@link COUNTER_NOTICE_PER_IP}) and per account
@@ -29,10 +33,18 @@ import {
   type ContentClaimCounterNoticeValidationKey,
   type ContentClaimSubmission,
   type ContentClaimValidationKey,
+  type ContentReferral,
   contentClaimCounterNoticeSchema,
   contentClaimSubmissionSchema,
+  contentReferralResponseSchema,
+  contentReferralSchema,
 } from '@oxy.so/contracts';
-import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import {
+  authMiddleware,
+  serviceAuthMiddleware,
+  type AuthRequest,
+  type ServiceAuthRequest,
+} from '../middleware/auth';
 import { resolveOperatorId } from '../middleware/operator';
 import { optionalAuthMiddleware } from '../middleware/optionalAuth';
 import { rateLimit } from '../middleware/rateLimiter';
@@ -68,6 +80,7 @@ import {
   rejectContentClaim,
   startContentClaimReview,
   submitContentClaim,
+  submitContentReferral,
   submitCounterNotice,
   upholdContentClaim,
 } from '../services/contentClaims/contentClaim.service';
@@ -463,6 +476,45 @@ router.post(
   }),
 );
 
+/** Referrals a service's network may send per minute: a busy report queue, not a flood. */
+export const REFERRALS_PER_MINUTE = 120;
+
+const referralLimiter = rateLimit({
+  prefix: 'rl:content-claims:referrals:',
+  windowMs: 60 * 1000,
+  max: REFERRALS_PER_MINUTE,
+});
+
+/**
+ * An Oxy service refers content it hosts to the claim review (ADR 0043 D14).
+ *
+ * The referring application is the verified workload's, never a body field.
+ * Idempotent: the same reason and targets from the same application answer
+ * with the open claim they already have.
+ * @response 200 contentReferralResponseSchema The claim's id and reference.
+ * @response 400 Error The referral is malformed or names a file Oxy does not hold.
+ * @response 403 Error The caller is not a first-party workload.
+ */
+router.post(
+  '/referrals',
+  referralLimiter,
+  serviceAuthMiddleware,
+  validate({ body: contentReferralSchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
+    const principal = req.serviceApp;
+    if (principal?.authority !== 'first_party' || !principal.appId)
+      throw new ForbiddenError('A first-party workload is required.');
+    res.set('Cache-Control', 'no-store');
+    res.json(
+      contentReferralResponseSchema.parse(
+        await submitContentReferral(req.body as ContentReferral, {
+          applicationId: principal.appId,
+        }),
+      ),
+    );
+  }),
+);
+
 /**
  * Whether the signed-in account may review claims — the console asks before it
  * shows the queue. Answers `{ canReview }` to anyone signed in; never a 403.
@@ -541,6 +593,7 @@ router.get(
       await listContentClaims({
         states: query.state,
         kinds: query.kind,
+        referralReasons: query.referral,
         deadline: query.deadline,
         limit: query.limit,
         cursor: query.cursor,

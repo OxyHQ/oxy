@@ -1358,6 +1358,7 @@ const en: LocaleDict = {
     filters: {
       state: 'State',
       kind: 'Kind',
+      referral: 'Referred by a service',
       deadline: 'Deadline',
     },
     deadlines: {
@@ -1386,6 +1387,9 @@ const en: LocaleDict = {
       illegal_content: 'Illegal content',
       other: 'Other',
     },
+    referrals: {
+      child_safety: 'Child safety',
+    },
     relationships: {
       rights_holder: 'Rights holder',
       authorized_agent: 'Authorized agent',
@@ -1393,6 +1397,7 @@ const en: LocaleDict = {
       other: 'Other',
     },
     events: {
+      referred: 'Referred by a service',
       submitted: 'Submitted',
       review_started: 'Review started',
       targets_attached: 'Files attached',
@@ -1412,6 +1417,8 @@ const en: LocaleDict = {
       back: 'Back to content claims',
       deadline: 'A GDPR erasure request: answer it by {{date}}.',
       relationship: 'Relationship',
+      referredBy: 'Referred by',
+      referredByDeleted: 'An application that no longer exists',
       closedLabel: 'Closed',
       submittedLabel: 'Submitted signed in as',
     },
@@ -1422,6 +1429,8 @@ const en: LocaleDict = {
       audit: 'Audit trail',
     },
     claimant: {
+      referral:
+        'An Oxy service referred this content. A referral has no claimant: nobody is written to, and the owners of blocked files cannot answer it with a counter-notice.',
       erased:
         "The claimant's identity and statement were erased at the end of their retention period.",
       erasedOn:

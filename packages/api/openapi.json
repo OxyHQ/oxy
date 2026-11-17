@@ -22729,6 +22729,21 @@
             }
           },
           {
+            "name": "referral",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "child_safety"
+                ]
+              },
+              "maxItems": 1
+            }
+          },
+          {
             "name": "deadline",
             "in": "query",
             "required": false,
@@ -23063,6 +23078,139 @@
           }
         },
         "operationId": "postContentClaimsCounterNotices"
+      }
+    },
+    "/content-claims/referrals": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "An Oxy service refers content it hosts to the claim review (ADR 0043 D14).",
+        "description": "The referring application is the verified workload's, never a body field.\nIdempotent: the same reason and targets from the same application answer\nwith the open claim they already have.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The claim's id and reference.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string",
+                      "pattern": "^OXY-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "reference"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The referral is malformed or names a file Oxy does not hold.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not a first-party workload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "child_safety"
+                    ]
+                  },
+                  "fileIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "maxItems": 50,
+                    "default": []
+                  },
+                  "pageUrls": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2048
+                    },
+                    "maxItems": 20,
+                    "default": []
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "operationId": "postContentClaimsReferrals"
       }
     },
     "/content-claims/{id}": {

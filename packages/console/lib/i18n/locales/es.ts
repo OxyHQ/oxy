@@ -1368,6 +1368,7 @@ const es: LocaleDict = {
     filters: {
       state: 'Estado',
       kind: 'Tipo',
+      referral: 'Remitida por un servicio',
       deadline: 'Plazo',
     },
     deadlines: {
@@ -1396,6 +1397,9 @@ const es: LocaleDict = {
       illegal_content: 'Contenido ilegal',
       other: 'Otro',
     },
+    referrals: {
+      child_safety: 'Seguridad infantil',
+    },
     relationships: {
       rights_holder: 'Titular de derechos',
       authorized_agent: 'Agente autorizado',
@@ -1403,6 +1407,7 @@ const es: LocaleDict = {
       other: 'Otro',
     },
     events: {
+      referred: 'Remitida por un servicio',
       submitted: 'Enviada',
       review_started: 'Revisión iniciada',
       targets_attached: 'Archivos adjuntados',
@@ -1422,6 +1427,8 @@ const es: LocaleDict = {
       back: 'Volver a las reclamaciones de contenido',
       deadline: 'Una solicitud de supresión del RGPD: respóndela antes del {{date}}.',
       relationship: 'Relación',
+      referredBy: 'Remitida por',
+      referredByDeleted: 'Una aplicación que ya no existe',
       closedLabel: 'Cerrada',
       submittedLabel: 'Enviada con sesión iniciada como',
     },
@@ -1432,6 +1439,8 @@ const es: LocaleDict = {
       audit: 'Registro de auditoría',
     },
     claimant: {
+      referral:
+        'Un servicio de Oxy remitió este contenido. Una remisión no tiene reclamante: no se escribe a nadie y los propietarios de los archivos bloqueados no pueden responder con un contraaviso.',
       erased:
         'La identidad y la declaración del reclamante se borraron al terminar su periodo de retención.',
       erasedOn:

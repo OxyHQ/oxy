@@ -231,6 +231,44 @@ objects no store held (oxy-infra runbook 61).
   content-hash lock (`deleteObjectsNoLiveRowUses`), with a census of direct
   deletes.
 
+### D14 — Referral: an Oxy service hands content to the claim review
+
+Added 2026-11-17 (owner: the legal queue is the application's process, and Oxy
+already has the reviewed takedown; child-safety reports had no place to go).
+
+- An Oxy service refers content it hosts because it may be illegal:
+  `POST /content-claims/referrals` (`OxyServer.referContent`), with a first-party
+  workload identity. The referring application is the workload's, never a body
+  field; a customer key or a third-party application is refused.
+- A referral is a claim (`kind = illegal_content`) with a `referral_reason` from
+  a closed list and **no claimant**: no `relationship`, no statement row, no
+  email to one. It names Oxy files, the pages that show the content, or both.
+  The service tells Oxy nothing about who reported it.
+- It is retry-safe: the same application, reason and targets answer with the
+  open claim they already have (`content_claims_open_referral_key`). Once that
+  claim closes the content can be referred again.
+- It enters the same queue and the same states as any claim. **Nothing is
+  blocked until a person on the staff acts**: a referral is a report, not a
+  verdict, and one report must not take content down. The staff mailbox is
+  emailed counts only (no file name, no page).
+- Actioning it is D10's takedown unchanged: the bytes are blocked for every
+  owner, on the blocklist, and `file.blocked` reaches every referencing
+  application (D9).
+- For `child_safety`, the first reason: the owners of blocked files are **not
+  sent the claim email and cannot answer it with a counter-notice** (their
+  attempt is answered exactly like no claim). That email invites a dispute and
+  names the reference a counter-notice quotes; neither belongs with material
+  that may exploit a minor. A wrong block is still reversible: staff record the
+  dispute and reinstate.
+- What Oxy does NOT do here: scan content, decide on its own, or report to an
+  authority. Reporting confirmed material to the competent authority is a staff
+  step under a protocol legal counsel defines; the claim's audit trail and the
+  evidence hold (bytes an open claim names are not purged) are what that step
+  works from.
+
+Mention is the first caller: it refers the media of a post reported for child
+safety, and of a post a jury escalated to the legal queue.
+
 ## Rollout
 
 1. **Oxy core**: D12; schema (owner, `file_references`, `unreferenced_since`,

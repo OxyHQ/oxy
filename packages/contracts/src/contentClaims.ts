@@ -20,9 +20,12 @@ import {
   CONTENT_CLAIM_KINDS,
   CONTENT_CLAIM_LIMITS,
   CONTENT_CLAIM_REFERENCE_PATTERN,
+  CONTENT_REFERRAL_LIMITS,
+  CONTENT_REFERRAL_REASONS,
   type ClaimantRelationship,
   type ContentClaimKind,
   type ContentClaimState,
+  type ContentReferralReason,
 } from './client/contentClaims';
 export {
   CLAIMANT_RELATIONSHIPS,
@@ -33,6 +36,8 @@ export {
   CONTENT_CLAIM_LIMITS,
   CONTENT_CLAIM_REFERENCE_PATTERN,
   CONTENT_CLAIM_STATES,
+  CONTENT_REFERRAL_LIMITS,
+  CONTENT_REFERRAL_REASONS,
   COUNTER_NOTICE_STATEMENT_VERSION,
   COUNTER_NOTICE_STATEMENTS,
   ERASURE_REQUEST_DEADLINE_DAYS,
@@ -45,6 +50,7 @@ export type {
   ContentClaimErrorCode,
   ContentClaimKind,
   ContentClaimState,
+  ContentReferralReason,
 } from './client/contentClaims';
 
 /** Every key a submission's validation can produce, under `contentClaim.errors.*`. */
@@ -177,6 +183,57 @@ export interface ContentClaimSubmissionError {
 }
 
 // ---------------------------------------------------------------------------
+// A service's referral (`POST /content-claims/referrals`)
+// ---------------------------------------------------------------------------
+
+const R = CONTENT_REFERRAL_LIMITS;
+
+/**
+ * `POST /content-claims/referrals`: an Oxy service refers content it hosts to
+ * the claim review. It names the Oxy files (`fileIds`), the pages that show the
+ * content (`pageUrls`, for content with no file), or both; at least one.
+ * Strict, and with nothing about who reported it to the service: a referral
+ * carries no person.
+ *
+ * The same referral sent again answers with the same claim, so a retry never
+ * opens a second one.
+ */
+export const contentReferralSchema = z
+  .object({
+    reason: z.enum(CONTENT_REFERRAL_REASONS),
+    fileIds: z
+      .array(z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(R.maxFileId)))
+      .max(R.maxFileIds)
+      .default([]),
+    pageUrls: z
+      .array(
+        z
+          .string()
+          .trim()
+          .check(utf16MaxLength(CONTENT_CLAIM_LIMITS.maxUrlLength))
+          .refine(isHttpsUrl, 'pageUrls must be https URLs'),
+      )
+      .max(R.maxPageUrls)
+      .default([]),
+  })
+  .strict()
+  .refine((referral) => referral.fileIds.length + referral.pageUrls.length > 0, {
+    message: 'A referral names at least one file or page',
+  });
+
+export type ContentReferral = z.infer<typeof contentReferralSchema>;
+
+/** `200` to a referral: the claim it opened, or the open one it already had. */
+export const contentReferralResponseSchema = z
+  .object({
+    id: z.string(),
+    reference: z.string().regex(CONTENT_CLAIM_REFERENCE_PATTERN),
+  })
+  .strict();
+
+export type ContentReferralResponse = z.infer<typeof contentReferralResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // The staff review (`/content-claims` behind the `content:claims` capability)
 // ---------------------------------------------------------------------------
 
@@ -190,14 +247,19 @@ export const CONTENT_CLAIM_TARGET_RESOLUTIONS = [
 
 export type ContentClaimTargetResolution = (typeof CONTENT_CLAIM_TARGET_RESOLUTIONS)[number];
 
-/** Who added a target: the claimant's URL, or staff attaching a file by id. */
-export const CONTENT_CLAIM_TARGET_SOURCES = ['claimant', 'staff'] as const;
+/**
+ * Who added a target: the claimant's URL, staff attaching a file by id, or the
+ * Oxy service that referred it (a file it uses, or the page that shows it).
+ */
+export const CONTENT_CLAIM_TARGET_SOURCES = ['claimant', 'staff', 'service'] as const;
 
 export type ContentClaimTargetSource = (typeof CONTENT_CLAIM_TARGET_SOURCES)[number];
 
 /** What the audit trail records. */
 export const CONTENT_CLAIM_EVENT_ACTIONS = [
   'submitted',
+  /** An Oxy service referred the content (`POST /content-claims/referrals`). */
+  'referred',
   'review_started',
   'targets_attached',
   'targets_blocked',
@@ -256,7 +318,10 @@ export interface ContentClaimSummaryView {
   id: string;
   reference: string;
   kind: ContentClaimKind;
-  relationship: ClaimantRelationship;
+  /** Who the claimant is to the content; null for a referral, which has no claimant. */
+  relationship: ClaimantRelationship | null;
+  /** Set when an Oxy service referred the content: why, and which application (null once it is deleted). */
+  referral: { reason: ContentReferralReason; applicationId: string | null } | null;
   state: ContentClaimState;
   /** The statutory deadline (an erasure request), or null. */
   deadlineAt: string | null;
