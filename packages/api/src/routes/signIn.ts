@@ -323,6 +323,7 @@ router.post(
           {
             languages: body.languages,
             campaignAttribution: body.campaignAttribution,
+            dateOfBirth: body.dateOfBirth,
           },
         );
       });

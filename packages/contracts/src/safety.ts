@@ -15,7 +15,7 @@ import {
 } from './client/safety';
 import { ORGANIZATION_TYPES } from './organizations';
 import { reauthProofSchema } from './signIn';
-import { userResponseSchema } from './userResponse';
+import { dateOfBirthSchema, userResponseSchema } from './userResponse';
 
 export {
   PURCHASE_APPROVAL_STATUSES,
@@ -522,6 +522,19 @@ export const supervisionReviewInputSchema = z
     reauth: reauthProofSchema,
   })
   .strict();
+/**
+ * `POST /safety/supervision/date-of-birth`: a staff member corrects an
+ * account's date of birth on reviewed evidence (ADR 0067). It is the only way
+ * a date moves to an OLDER age band; the person's own edits cannot.
+ */
+export const dateOfBirthCorrectionInputSchema = z
+  .object({
+    accountId,
+    dateOfBirth: dateOfBirthSchema,
+    evidenceReference: z.string().trim().check(utf16MinLength(1)).check(utf16MaxLength(2048)),
+    reauth: reauthProofSchema,
+  })
+  .strict();
 export const purchaseReviewInputSchema = z
   .object({ decision: z.enum(['approved', 'rejected']), reauth: reauthProofSchema })
   .strict();
@@ -530,6 +543,7 @@ export type SupervisionAcceptInput = z.infer<typeof supervisionAcceptInputSchema
 export type SupervisionContactInput = z.infer<typeof supervisionContactInputSchema>;
 export type SupervisionReviewInput = z.infer<typeof supervisionReviewInputSchema>;
 export type PurchaseReviewInput = z.infer<typeof purchaseReviewInputSchema>;
+export type DateOfBirthCorrectionInput = z.infer<typeof dateOfBirthCorrectionInputSchema>;
 
 export const safetySessionInputSchema = z
   .object({

@@ -223,6 +223,7 @@ export {
   supervisionContactsResponseCheck,
   supervisionInvitationCheck,
   supervisionInviteInputCheck,
+  dateOfBirthCorrectionInputCheck,
   supervisionReviewInputCheck,
   supervisionStateCheck,
 } from './safety';
@@ -303,6 +304,20 @@ export {
   isErasureRequest,
   isRightsClaim,
 } from './contentClaims';
+
+export {
+  ADULT_AGE_YEARS,
+  AGE_BANDS,
+  DATE_OF_BIRTH_MESSAGES,
+  DATE_OF_BIRTH_PATTERN,
+  DATE_OF_BIRTH_REFUSALS,
+  MINIMUM_UNSUPERVISED_AGE_YEARS,
+  MIN_BIRTH_YEAR,
+  ageBandOf,
+  ageInYears,
+  isSelfServiceBandChange,
+} from './age';
+export type { AgeBand, DateOfBirthRefusal } from './age';
 
 export {
   APP_ASSERTION_CHALLENGE_PURPOSES,

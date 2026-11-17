@@ -122,6 +122,14 @@ const dict = {
       invalid: '올바른 이메일 주소를 입력하세요.',
     },
     commonsSubtitle: '또는 Commons에서 아이덴티티를 만들고 직접 키를 보관하세요.',
+    birthdate: {
+      title: '생년월일을 알려 주세요',
+      subtitle: '나이에 맞는 보호 기능을 적용하는 데 사용합니다. 다른 사람에게는 보이지 않습니다.',
+      label: '생년월일',
+      required: '생년월일을 선택하세요.',
+      guardianNote:
+        '만 13세 미만이면 계정에 부모님 또는 보호자가 필요합니다. 계정을 만든 직후 보호자를 초대합니다.',
+    },
     laterNote: '비밀번호나 인증 앱은 나중에 계정의 보안 설정에서 추가할 수 있습니다.',
   },
   accountSwitcher: {

@@ -6,6 +6,7 @@ import type {
   SupervisionAcceptInput,
   SupervisionContactInput,
   SupervisionInviteInput,
+  DateOfBirthCorrectionInput,
   SupervisionReviewInput,
 } from '@oxy.so/contracts';
 import {
@@ -24,6 +25,7 @@ import {
   supervisionContactsResponseCheck,
   supervisionInvitationCheck,
   supervisionInviteInputCheck,
+  dateOfBirthCorrectionInputCheck,
   supervisionReviewInputCheck,
   supervisionStateCheck,
 } from '@oxy.so/contracts/client';
@@ -166,6 +168,19 @@ export class SafetyApi {
       'POST',
       '/safety/supervision/review',
       parseContract(supervisionReviewInputCheck, input),
+      { cache: false, retry: false },
+    );
+  }
+
+  /**
+   * A staff member corrects an account's date of birth on reviewed evidence
+   * (ADR 0067): the only way a date moves to an older age band.
+   */
+  async correctDateOfBirth(input: DateOfBirthCorrectionInput) {
+    await this.ctx.request(
+      'POST',
+      '/safety/supervision/date-of-birth',
+      parseContract(dateOfBirthCorrectionInputCheck, input),
       { cache: false, retry: false },
     );
   }

@@ -122,6 +122,14 @@ const dict = {
       invalid: "Inserisci un'email valida.",
     },
     commonsSubtitle: 'Oppure crea la tua identità in Commons e tieni la tua chiave.',
+    birthdate: {
+      title: 'Quando sei nato?',
+      subtitle: 'Serve ad applicare le protezioni adatte alla tua età. Nessun altro la vede.',
+      label: 'Data di nascita',
+      required: 'Scegli la tua data di nascita.',
+      guardianNote:
+        'Se hai meno di 13 anni, il tuo account ha bisogno di un genitore o di un tutore. Lo inviti subito dopo averlo creato.',
+    },
     laterNote:
       "Più avanti puoi aggiungere una password o un'app di autenticazione nelle impostazioni di sicurezza del tuo account.",
   },

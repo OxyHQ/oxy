@@ -99,6 +99,19 @@ export {
 
 export { PRONOUNS, PROFILE_LINKS_MAX, PROFILE_LINK_TITLE_MAX } from './client/userResponse';
 export type { Pronouns } from './client/userResponse';
+export {
+  ADULT_AGE_YEARS,
+  AGE_BANDS,
+  DATE_OF_BIRTH_MESSAGES,
+  DATE_OF_BIRTH_PATTERN,
+  DATE_OF_BIRTH_REFUSALS,
+  MINIMUM_UNSUPERVISED_AGE_YEARS,
+  MIN_BIRTH_YEAR,
+  ageBandOf,
+  ageInYears,
+  isSelfServiceBandChange,
+} from './client/age';
+export type { AgeBand, DateOfBirthRefusal } from './client/age';
 
 export {
   // Schemas

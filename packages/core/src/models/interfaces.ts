@@ -1,4 +1,5 @@
 import type {
+  AgeBand,
   AccountKind,
   AccountCategoryId,
   AvatarCharacter,
@@ -153,6 +154,12 @@ export interface User {
    * on every read of the owner's own profile.
    */
   isAdult?: boolean;
+  /**
+   * The account's age band (ADR 0067), derived from `dateOfBirth` on every
+   * read. Absent when there is no date of birth: unknown is neither an adult
+   * nor a minor. Present on the owner's own profile only.
+   */
+  ageBand?: AgeBand;
   website?: string;
   createdAt?: string;
   updatedAt?: string;

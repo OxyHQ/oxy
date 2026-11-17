@@ -2,6 +2,7 @@ import { isLanguageTag } from './client/language';
 import { campaignAttributionSchema } from './campaignAttribution';
 import { integerCheck } from './numberChecks';
 import { utf16MaxLength, utf16MinLength } from './stringChecks';
+import { dateOfBirthSchema } from './userResponse';
 /**
  * Signing in: an email code or link, an optional password,
  * and an optional authenticator app (TOTP) as a second factor.
@@ -281,6 +282,14 @@ export const signUpRequestSchema = z
       .max(10)
       .optional(),
     campaignAttribution: campaignAttributionSchema.optional(),
+    /**
+     * The person's date of birth (ADR 0067). The sign-up panel always asks for
+     * it; it is optional on the wire only while clients published before it
+     * are still in use, and an account created without one has no age band.
+     * A date below the minimum unsupervised age creates the account under
+     * supervision, awaiting a guardian.
+     */
+    dateOfBirth: dateOfBirthSchema.optional(),
     ...sessionEnvelope,
   })
   .strict();

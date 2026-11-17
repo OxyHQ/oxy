@@ -31,6 +31,17 @@ export const supervisionProfiles = pgTable(
     consentVersion: text().notNull(),
     /** Tokens minted before this transition cannot survive a cache or session restore. */
     sessionsValidAfter: timestamptz().notNull().defaultNow(),
+    /**
+     * Set when the account was created under supervision because of its age
+     * and no guardian has accepted yet (ADR 0067); NULL in every other case.
+     *
+     * It is what tells a first guardian from a replacement one. While it is
+     * set, a guardian accepting the child's invitation ACTIVATES supervision;
+     * once a guardian has ever held the profile it is cleared for good, and a
+     * later change of guardian needs reviewed evidence (ADR 0041). Policy reads
+     * do not consult it: a profile with no guardian already fails closed.
+     */
+    awaitingGuardianSince: timestamptz(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -38,6 +49,10 @@ export const supervisionProfiles = pgTable(
     check(
       'supervision_profiles_status_check',
       sql`${t.status} in (${values(SUPERVISION_STATUSES)})`,
+    ),
+    check(
+      'supervision_profiles_awaiting_guardian_check',
+      sql`${t.awaitingGuardianSince} is null or (${t.guardianAccountId} is null and ${t.status} = 'active')`,
     ),
     check(
       'supervision_profiles_distinct_guardian_check',

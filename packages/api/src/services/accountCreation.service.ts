@@ -23,7 +23,12 @@
 
 import { randomUUID } from 'node:crypto';
 import { normalizeLocale } from '@oxy.so/core';
-import { IDENTITY_ERROR_CODES, type CampaignAttribution } from '@oxy.so/contracts';
+import {
+  IDENTITY_ERROR_CODES,
+  SUPERVISION_CONSENT_VERSION,
+  ageBandOf,
+  type CampaignAttribution,
+} from '@oxy.so/contracts';
 import { accountAcquisition } from '../db/schema/accountAcquisition';
 import { usernameSchemaForAccountKind, type CreateOrganization } from '@oxy.so/contracts';
 import { isUniqueViolation } from '@oxy.so/db';
@@ -32,6 +37,7 @@ import { publicColumns } from '@oxy.so/db/assert';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { notifications } from '../db/schema/notifications';
 import { organizationProfiles } from '../db/schema/organizationProfiles';
+import { supervisionAudit, supervisionProfiles } from '../db/schema/supervision';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { userAncestors } from '../db/schema/userAncestors';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
@@ -312,7 +318,12 @@ export async function createPersonalAccount(
   tx: DatabaseOrTransaction,
   username: CanonicalUsername,
   credential: PersonalCredential,
-  acquisition?: { languages?: string[]; campaignAttribution?: CampaignAttribution },
+  acquisition?: {
+    languages?: string[];
+    campaignAttribution?: CampaignAttribution;
+    /** A validated ISO calendar date (`dateOfBirthSchema`). */
+    dateOfBirth?: string;
+  },
 ): Promise<AccountRow> {
   // A key that was ever an organization's, or a person's retired root, is never
   // a person's (ADR 0061 D2).
@@ -331,11 +342,34 @@ export async function createPersonalAccount(
     if (!canonical) throw new BadRequestError('Unsupported language', { field: 'languages' });
     return canonical;
   });
+  const dateOfBirth = acquisition?.dateOfBirth;
+  // Below the minimum unsupervised age the account exists only under
+  // supervision (ADR 0067): born private, with a supervision profile that has
+  // no guardian yet. Every policy read already fails closed on such a profile,
+  // so nothing the account can reach opens before a guardian accepts.
+  const awaitsGuardian = dateOfBirth !== undefined && ageBandOf(dateOfBirth) === 'under13';
   const account = await insertAccount(tx, {
     username,
     ...credential,
     ...(languages ? { languages: [...new Set(languages)] } : {}),
+    ...(dateOfBirth === undefined ? {} : { dateOfBirth }),
+    ...(awaitsGuardian ? { privacyIsPrivateAccount: true } : {}),
   });
+  if (awaitsGuardian) {
+    const now = new Date();
+    await tx.insert(supervisionProfiles).values({
+      childAccountId: account.id,
+      guardianAccountId: null,
+      consentVersion: SUPERVISION_CONSENT_VERSION,
+      sessionsValidAfter: now,
+      awaitingGuardianSince: now,
+    });
+    await tx.insert(supervisionAudit).values({
+      childAccountId: account.id,
+      actorAccountId: account.id,
+      action: 'guardian_required',
+    });
+  }
   const campaign = acquisition?.campaignAttribution;
   if (campaign) {
     await tx.insert(accountAcquisition).values({

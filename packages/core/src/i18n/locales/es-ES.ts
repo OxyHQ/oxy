@@ -13,6 +13,8 @@ const dict = {
     active: 'Supervisada por {{name}}',
     activeDescription:
       'Tu perfil permanece privado. En las aplicaciones compatibles se aplican los contactos aprobados, las restricciones de contenido y la autorización de compras. Otras actividades pueden no estar disponibles.',
+    guardianNeeded:
+      'Invita a tu madre, tu padre o un tutor para que supervise esta cuenta. Si ya tuvo un tutor, Oxy revisa el cambio antes de aplicarlo.',
     orphaned: 'La supervisión sigue activa, pero el tutor no está disponible.',
     notActive: 'La supervisión no está activa.',
     invite: 'Invitar a un tutor',
@@ -297,6 +299,14 @@ const dict = {
       invalid: 'Escribe un email válido.',
     },
     commonsSubtitle: 'O crea tu identidad en Commons y guarda tu propia clave.',
+    birthdate: {
+      title: '¿Cuándo naciste?',
+      subtitle: 'Sirve para aplicar las protecciones adecuadas a tu edad. Nadie más la ve.',
+      label: 'Fecha de nacimiento',
+      required: 'Elige tu fecha de nacimiento.',
+      guardianNote:
+        'Si tienes menos de 13 años, tu cuenta necesita a tu madre, tu padre o un tutor. Le invitas justo después de crearla.',
+    },
     laterNote:
       'Más adelante puedes añadir una contraseña o una app de autenticación en los ajustes de seguridad de tu cuenta.',
   },
@@ -393,6 +403,10 @@ const dict = {
         subtitle: 'Tu fecha de nacimiento',
         label: 'Fecha de nacimiento',
         placeholder: 'AAAA-MM-DD',
+        locked:
+          'Tu fecha de nacimiento ya está fijada. Para corregirla a una edad mayor, contacta con soporte.',
+        supervisionRequired:
+          'La cuenta de una persona menor de 13 años se configura mediante la supervisión, con un tutor.',
         day: 'Día',
         month: 'Mes',
         year: 'Año',

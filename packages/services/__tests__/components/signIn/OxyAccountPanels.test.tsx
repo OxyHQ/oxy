@@ -153,6 +153,25 @@ const type = (testID: string, value: string) =>
 const press = (testID: string) => fireEvent.click(screen.getByTestId(testID));
 const alertText = () => screen.getByRole('alert').textContent;
 
+/** An adult's date of birth, for the flows that are about something else. */
+const ADULT_BIRTHDATE = '1990-05-17';
+
+/** The ISO date of someone who turned `years` a month ago, in the device zone. */
+const bornYearsAgo = (years: number) => {
+  const now = new Date();
+  const date = new Date(now.getFullYear() - years, now.getMonth() - 1, 15);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-15`;
+};
+
+/** From the username step to the email step, giving a date of birth on the way. */
+const continueToEmail = async (dateOfBirth = ADULT_BIRTHDATE) => {
+  press('signup-username-continue');
+  await screen.findByTestId('signup-birthdate');
+  type('signup-birthdate', dateOfBirth);
+  press('signup-birthdate-continue');
+  await screen.findByTestId('signup-email');
+};
+
 beforeEach(() => {
   jest.clearAllMocks();
   user = { id: 'user-1', username: 'ada' };
@@ -163,18 +182,26 @@ beforeEach(() => {
 });
 
 describe('creating an account', () => {
-  it('walks username → email → code, and signs in with the confirmed email', async () => {
+  it('walks username → date of birth → email → code, and signs in with the confirmed email', async () => {
     const onSignedIn = jest.fn();
     render(<OxySignUpPanel onSignedIn={onSignedIn} onSignIn={jest.fn()} />);
 
-    // One bar across the three steps, named by where the person is.
+    // One bar across the four steps, named by where the person is.
     expect(screen.getByTestId('signup-progress').getAttribute('aria-label')).toBe(
-      'Step 1 of 3, Username',
+      'Step 1 of 4, Username',
     );
     type('signup-username', 'ada');
     press('signup-username-continue');
+    await screen.findByTestId('signup-birthdate');
+    expect(screen.getByTestId('signup-progress').getAttribute('aria-label')).toBe(
+      'Step 2 of 4, Date of birth',
+    );
+    // An adult's date brings no note about guardians.
+    type('signup-birthdate', ADULT_BIRTHDATE);
+    expect(screen.queryByTestId('signup-birthdate-guardian-note')).toBeNull();
+    press('signup-birthdate-continue');
     await screen.findByTestId('signup-email');
-    expect(screen.getByTestId('signup-progress').textContent).toBe('Step 2 of 3');
+    expect(screen.getByTestId('signup-progress').textContent).toBe('Step 3 of 4');
     expect(oxyServices.auth.checkUsername).toHaveBeenCalledWith('ada');
     expect(
       screen.getByText(
@@ -199,6 +226,7 @@ describe('creating an account', () => {
       username: 'ada',
       email: 'ada@example.com',
       emailTicket: TICKET,
+      dateOfBirth: ADULT_BIRTHDATE,
       languages: ['es-ES'],
       campaignAttribution: { utmSource: 'newsletter' },
     });
@@ -218,8 +246,7 @@ describe('creating an account', () => {
   it('drops spaces from the email as it is typed', async () => {
     render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
     type('signup-username', 'ada');
-    press('signup-username-continue');
-    await screen.findByTestId('signup-email');
+    await continueToEmail();
     type('signup-email', 'ada @example.com');
     expect((screen.getByTestId('signup-email') as HTMLInputElement).value).toBe('ada@example.com');
   });
@@ -253,8 +280,7 @@ describe('creating an account', () => {
     );
     render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
     type('signup-username', 'ada');
-    press('signup-username-continue');
-    await screen.findByTestId('signup-email');
+    await continueToEmail();
     type('signup-email', 'ada@example.com');
     press('signup-email-continue');
     await screen.findByTestId('email-code');
@@ -269,8 +295,7 @@ describe('creating an account', () => {
     const onSignedIn = jest.fn();
     render(<OxySignUpPanel onSignedIn={onSignedIn} onSignIn={jest.fn()} />);
     type('signup-username', 'ada');
-    press('signup-username-continue');
-    await screen.findByTestId('signup-email');
+    await continueToEmail();
     type('signup-email', 'ada@example.com');
     press('signup-email-continue');
     await screen.findByTestId('email-code');
@@ -287,8 +312,7 @@ describe('creating an account', () => {
     );
     render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
     type('signup-username', 'ada');
-    press('signup-username-continue');
-    await screen.findByTestId('signup-email');
+    await continueToEmail();
     type('signup-email', 'ada@example.com');
     press('signup-email-continue');
     await screen.findByTestId('email-code');
@@ -298,16 +322,66 @@ describe('creating an account', () => {
     expect(oxyServices.auth.signUp).not.toHaveBeenCalled();
   });
 
-  it('refuses an address that is not one', () => {
+  it('refuses an address that is not one', async () => {
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    type('signup-username', 'ada');
+    await continueToEmail();
+    type('signup-email', 'not-an-email');
+    press('signup-email-continue');
+    expect(alertText()).toBe('Enter a valid email address.');
+    expect(oxyServices.auth.email.startVerification).not.toHaveBeenCalled();
+  });
+
+  it('does not go on without a date of birth', async () => {
     render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
     type('signup-username', 'ada');
     press('signup-username-continue');
-    return screen.findByTestId('signup-email').then(() => {
-      type('signup-email', 'not-an-email');
-      press('signup-email-continue');
-      expect(alertText()).toBe('Enter a valid email address.');
-      expect(oxyServices.auth.email.startVerification).not.toHaveBeenCalled();
-    });
+    await screen.findByTestId('signup-birthdate');
+    press('signup-birthdate-continue');
+    expect(alertText()).toBe('Choose your date of birth.');
+    expect(screen.queryByTestId('signup-email')).toBeNull();
+
+    // Picking one clears the complaint.
+    type('signup-birthdate', ADULT_BIRTHDATE);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('tells someone under 13 that a guardian comes next, and still creates the account', async () => {
+    const onSignedIn = jest.fn();
+    const dateOfBirth = bornYearsAgo(10);
+    render(<OxySignUpPanel onSignedIn={onSignedIn} onSignIn={jest.fn()} />);
+    type('signup-username', 'ada');
+    press('signup-username-continue');
+    await screen.findByTestId('signup-birthdate');
+    type('signup-birthdate', dateOfBirth);
+    expect(screen.getByTestId('signup-birthdate-guardian-note').textContent).toBe(
+      'If you are under 13, your account needs a parent or guardian. You invite them right after creating it.',
+    );
+    // A teenager's date takes the note away again.
+    type('signup-birthdate', bornYearsAgo(15));
+    expect(screen.queryByTestId('signup-birthdate-guardian-note')).toBeNull();
+
+    type('signup-birthdate', dateOfBirth);
+    press('signup-birthdate-continue');
+    await screen.findByTestId('signup-email');
+    type('signup-email', 'ada@example.com');
+    press('signup-email-continue');
+    await screen.findByTestId('email-code');
+    type('email-code', '123456');
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    expect(oxyServices.auth.signUp).toHaveBeenCalledWith(expect.objectContaining({ dateOfBirth }));
+  });
+
+  it('goes back from the email to the date of birth, which it kept', async () => {
+    render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    type('signup-username', 'ada');
+    await continueToEmail();
+    press('signup-back');
+    expect((screen.getByTestId('signup-birthdate') as HTMLInputElement).value).toBe(
+      ADULT_BIRTHDATE,
+    );
+    press('signup-birthdate-back');
+    expect((screen.getByTestId('signup-username') as HTMLInputElement).value).toBe('ada');
   });
 
   it('offers Commons instead: its store page on the web', async () => {
@@ -344,8 +418,7 @@ describe('creating an account in the dialog', () => {
       <OxySignUpPanel host="dialog" onSignedIn={jest.fn()} onSignIn={jest.fn()} />,
     );
     type('signup-username', 'ada');
-    press('signup-username-continue');
-    await screen.findByTestId('signup-email');
+    await continueToEmail();
     type('signup-email', 'ada@example.com');
     first.unmount();
 

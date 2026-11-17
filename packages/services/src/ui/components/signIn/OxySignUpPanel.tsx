@@ -2,7 +2,10 @@
  * Creating an Oxy account, in the account dialog of every app (web and native)
  * and on auth.oxy.so's `/login`:
  *
- *   username → email → the code sent to it → signed in
+ *   username → date of birth → email → the code sent to it → signed in
+ *
+ * The date of birth sets the account's age band (ADR 0067); below the minimum
+ * unsupervised age the account is created under supervision, awaiting a guardian.
  *
  * The email is confirmed before the account exists, and it is how the account
  * signs in (a code or a link each time). A password and an authenticator app
@@ -13,12 +16,16 @@
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { Linking, Platform } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
+import { DatePicker } from '@oxy.so/bloom/date-picker';
+import { TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import type { EmailVerificationConfirmResponse } from '@oxy.so/contracts';
 import {
+  MIN_BIRTH_YEAR,
   SIGN_IN_ERROR_CODES,
   USERNAME_MAX_LENGTH,
+  ageBandOf,
   checkContract,
   emailAddressCheck,
   stripDisallowedUsernameCharacters,
@@ -28,12 +35,14 @@ import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useI18n } from '../../hooks/useI18n';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { isWebBrowser } from '../../utils/isWebBrowser';
+import { fromCalendarDate, toCalendarDate } from '../../utils/calendarDate';
 import { checkUsernameDraft, describeUsernameRefusal } from '../../utils/usernamePolicy';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
 import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
 import {
   AccountFlowAction,
+  AccountFlowErrorLine,
   AccountFlowField,
   AccountFlowNote,
   AccountFlowProgress,
@@ -45,7 +54,11 @@ import { withoutWhitespace } from '../../utils/withoutWhitespace';
 /** Commons' own identity-creation deep link. */
 const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
 
-type Step = { name: 'username' } | { name: 'email' } | { name: 'code'; verificationId: string };
+type Step =
+  | { name: 'username' }
+  | { name: 'birthdate' }
+  | { name: 'email' }
+  | { name: 'code'; verificationId: string };
 
 export interface OxySignUpPanelProps {
   /** The account exists and this origin is signed in as it. */
@@ -64,6 +77,8 @@ interface SavedSignUpFlow {
   step: Step;
   username: string;
   email: string;
+  /** `YYYY-MM-DD`, or empty until the person has picked it. */
+  dateOfBirth?: string;
 }
 const SIGN_UP_FLOW_KEY = 'signup';
 
@@ -86,6 +101,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
   const [step, setStep] = useState<Step>(saved?.step ?? { name: 'username' });
   const [username, setUsername] = useState(saved?.username ?? '');
   const [email, setEmail] = useState(saved?.email ?? '');
+  const [dateOfBirth, setDateOfBirth] = useState(saved?.dateOfBirth ?? '');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,8 +110,9 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
       step,
       username,
       email,
+      dateOfBirth,
     } satisfies SavedSignUpFlow);
-  }, [flowOwner, step, username, email]);
+  }, [flowOwner, step, username, email, dateOfBirth]);
 
   const run = (work: () => Promise<void>) => {
     if (pending) return;
@@ -127,8 +144,17 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
     run(async () => {
       const { available } = await oxyServices.auth.checkUsername(handle);
       if (!available) throw new UsernameTakenError();
-      setStep({ name: 'email' });
+      setStep({ name: 'birthdate' });
     });
+  };
+
+  const submitBirthdate = () => {
+    if (!dateOfBirth) {
+      setError(t('signup.birthdate.required'));
+      return;
+    }
+    setError(null);
+    setStep({ name: 'email' });
   };
 
   const sendCode = async (address: string) => {
@@ -158,11 +184,18 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
       setError(draft.error);
       return;
     }
+    // A flow restored from before this step existed carries no date.
+    if (!dateOfBirth) {
+      setStep({ name: 'birthdate' });
+      setError(t('signup.birthdate.required'));
+      return;
+    }
     try {
       const session = await oxyServices.auth.signUp({
         username: draft.username,
         email,
         emailTicket: ticket,
+        dateOfBirth,
         languages: [currentLanguage],
         ...(campaignAttribution ? { campaignAttribution } : {}),
       });
@@ -202,8 +235,13 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
       .catch(() => toast.error(t('accountSwitcher.linkOpenFailed')));
   };
 
-  // username → email → code, drawn as one segmented bar under each header.
-  const progressSteps = [t('signup.username.label'), t('signup.email.label'), t('emailCode.title')];
+  // username → date of birth → email → code, drawn as one segmented bar under each header.
+  const progressSteps = [
+    t('signup.username.label'),
+    t('signup.birthdate.label'),
+    t('signup.email.label'),
+    t('emailCode.title'),
+  ];
   const progress = (current: number) => (
     <AccountFlowProgress steps={progressSteps} current={current} testID="signup-progress" />
   );
@@ -217,7 +255,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
           onConfirmed={createAccount}
           onResend={() => sendCode(email)}
           back={{ label: t('emailCode.changeEmail'), onPress: () => setStep({ name: 'email' }) }}
-          progress={progress(2)}
+          progress={progress(3)}
         />
       );
     case 'email':
@@ -227,7 +265,7 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
             title={t('signup.email.title')}
             description={t('signup.email.subtitle')}
           />
-          {progress(1)}
+          {progress(2)}
           <AccountFlowField
             label={t('signup.email.label')}
             value={email}
@@ -252,8 +290,51 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
           />
           <SubtleLink
             label={t('signin.actions.back')}
-            onPress={() => setStep({ name: 'username' })}
+            onPress={() => setStep({ name: 'birthdate' })}
             testID="signup-back"
+          />
+          <OxyAuthTerms />
+        </OxyAuthScreen>
+      );
+    case 'birthdate':
+      return (
+        <OxyAuthScreen>
+          <OxyAuthScreenHeader
+            title={t('signup.birthdate.title')}
+            description={t('signup.birthdate.subtitle')}
+          />
+          {progress(1)}
+          <View style={{ gap: 8 }}>
+            <TextFieldLabel>{t('signup.birthdate.label')}</TextFieldLabel>
+            <DatePicker
+              value={fromCalendarDate(dateOfBirth)}
+              minDate={new Date(MIN_BIRTH_YEAR, 0, 1)}
+              maxDate={new Date()}
+              accessibilityLabel={t('signup.birthdate.label')}
+              placeholder={t('signup.birthdate.label')}
+              onChange={(date) => {
+                setDateOfBirth(date ? toCalendarDate(date) : '');
+                if (error) setError(null);
+              }}
+              testID="signup-birthdate"
+            />
+            {error ? <AccountFlowErrorLine message={error} /> : null}
+          </View>
+          {dateOfBirth && ageBandOf(dateOfBirth) === 'under13' ? (
+            <AccountFlowNote testID="signup-birthdate-guardian-note">
+              {t('signup.birthdate.guardianNote')}
+            </AccountFlowNote>
+          ) : null}
+          <AccountFlowAction
+            label={t('signin.actions.continue')}
+            onPress={submitBirthdate}
+            pending={pending}
+            testID="signup-birthdate-continue"
+          />
+          <SubtleLink
+            label={t('signin.actions.back')}
+            onPress={() => setStep({ name: 'username' })}
+            testID="signup-birthdate-back"
           />
           <OxyAuthTerms />
         </OxyAuthScreen>

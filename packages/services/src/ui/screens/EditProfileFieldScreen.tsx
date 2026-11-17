@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@oxy.so/bloom/select';
 import {
+  MIN_BIRTH_YEAR,
   PRONOUNS,
   USERNAME_MAX_LENGTH,
   stripDisallowedUsernameCharacters,
@@ -28,6 +29,7 @@ import { useUsernameAvailability } from '../hooks/useUsernameAvailability';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import type { User } from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';
+import { fromCalendarDate, toCalendarDate } from '../utils/calendarDate';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useProfileEditing } from '../hooks/useProfileEditing';
@@ -70,13 +72,6 @@ interface FieldConfig {
   /** Renders `renderBirthdayPicker` instead of the plain-text `fields`. */
   isDatePicker?: boolean;
 }
-
-/**
- * The earliest calendar year the birthday picker offers — matches the
- * platform's own lower bound (`dateOfBirthSchema`, `@oxy.so/contracts`) so a
- * value this picker can produce is never one the API would reject.
- */
-const MIN_BIRTH_YEAR = 1900;
 
 interface EditProfileFieldScreenProps extends BaseScreenProps {
   /** The field type to edit */
@@ -647,26 +642,17 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
 
   // Keep birthdays date-only: local calendar components avoid UTC day shifts.
   const renderBirthdayPicker = () => {
-    const value = fieldValues.dateOfBirth;
-    const parts = value ? value.split('-').map(Number) : null;
     return (
       <View className="gap-space-8">
         <TextFieldLabel>{fieldConfig.title}</TextFieldLabel>
         <DatePicker
-          value={parts ? new Date(parts[0], parts[1] - 1, parts[2]) : null}
+          value={fromCalendarDate(fieldValues.dateOfBirth)}
           minDate={new Date(MIN_BIRTH_YEAR, 0, 1)}
           maxDate={new Date()}
           accessibilityLabel={fieldConfig.title}
           placeholder={fieldConfig.fields[0].placeholder}
           disabled={isSaving}
-          onChange={(date) =>
-            handleFieldChange(
-              'dateOfBirth',
-              date
-                ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-                : '',
-            )
-          }
+          onChange={(date) => handleFieldChange('dateOfBirth', date ? toCalendarDate(date) : '')}
         />
       </View>
     );

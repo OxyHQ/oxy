@@ -775,6 +775,15 @@ const PAIRS: Pair[] = [
     ],
   },
   {
+    name: 'dateOfBirthCorrectionInput',
+    check: client.dateOfBirthCorrectionInputCheck,
+    schema: contracts.dateOfBirthCorrectionInputSchema,
+    samples: [
+      { accountId: 'person', dateOfBirth: '2008-02-29', evidenceReference: ' case-3 ', reauth },
+      { accountId: 'person', dateOfBirth: '1990-12-31', evidenceReference: 'case-4', reauth },
+    ],
+  },
+  {
     name: 'safetyPeopleInput',
     check: client.safetyPeopleInputCheck,
     schema: contracts.safetyPeopleInputSchema,

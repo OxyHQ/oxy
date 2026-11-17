@@ -56,6 +56,7 @@ import {
   supervisionInviteInputSchema,
   supervisionAcceptInputSchema,
   supervisionContactInputSchema,
+  dateOfBirthCorrectionInputSchema,
   supervisionReviewInputSchema,
   purchaseReviewInputSchema,
   supervisionStateSchema,
@@ -83,6 +84,7 @@ import {
 } from '../services/agencyServicePrincipal.service';
 import sessionService from '../services/session.service';
 import { formatUserResponse } from '../utils/userTransform';
+import { userService } from '../services/user.service';
 import { verifyReauth } from '../services/reauth.service';
 import * as supervision from '../services/supervision.service';
 import * as policy from '../services/supervisionPolicy.service';
@@ -271,13 +273,19 @@ router.post(
         'forbidden',
         'This consumer action is not supported for supervised accounts',
       );
+    const ageBand = await userService.getAgeBand(validated.session.userId);
     res.json(
       safetySessionValidationSchema.parse({
         valid: true,
         sessionId: validated.session.sessionId,
         expiresAt: validated.session.expiresAt.toISOString(),
         lastActivity: validated.session.lastActiveAt.toISOString(),
-        user: formatUserResponse(validated.user),
+        user: {
+          ...formatUserResponse(validated.user),
+          // The age band, for Oxy's own services only (ADR 0067): they apply
+          // the protective defaults. Never the date, and never to a third party.
+          ...(live.authority === 'first_party' && ageBand ? { ageBand } : {}),
+        },
         actor: accountActorChainFromSession({
           subjectAccountId: validated.session.userId,
           operatedByAccountId: validated.session.operatedByUserId,
@@ -976,6 +984,28 @@ router.put('/supervision/contacts', contactChange(true));
  * @response 503 safetyErrorSchema Request refused.
  */
 router.delete('/supervision/contacts', contactChange(false));
+/**
+ * Authoritative supervised-personal policy operation.
+ * @requestBody dateOfBirthCorrectionInputSchema
+ * @response 204 none No content.
+ * @response 401 safetyErrorSchema Request refused.
+ * @response 403 safetyErrorSchema Request refused.
+ * @response 404 safetyErrorSchema Request refused.
+ * @response 409 safetyErrorSchema Request refused.
+ * @response 422 safetyErrorSchema Request refused.
+ * @response 429 safetyErrorSchema Request refused.
+ * @response 503 safetyErrorSchema Request refused.
+ */
+router.post(
+  '/supervision/date-of-birth',
+  handler(async (req, res) => {
+    const actor = personal(req),
+      input = dateOfBirthCorrectionInputSchema.parse(req.body);
+    await verifyReauth(actor, input.reauth, 'supervision');
+    await supervision.correctDateOfBirth(actor, input);
+    res.status(204).end();
+  }),
+);
 /**
  * Authoritative supervised-personal policy operation.
  * @requestBody supervisionReviewInputSchema

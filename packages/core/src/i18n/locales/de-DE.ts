@@ -126,6 +126,15 @@ const dict = {
     },
     commonsSubtitle:
       'Oder erstelle deine Identität in Commons und behalte deinen eigenen Schlüssel.',
+    birthdate: {
+      title: 'Wann bist du geboren?',
+      subtitle:
+        'Damit gelten die passenden Schutzeinstellungen für dein Alter. Niemand sonst sieht es.',
+      label: 'Geburtsdatum',
+      required: 'Wähle dein Geburtsdatum.',
+      guardianNote:
+        'Wenn du unter 13 bist, braucht dein Konto einen Elternteil oder eine erziehungsberechtigte Person. Du lädst sie direkt nach dem Erstellen ein.',
+    },
     laterNote:
       'Ein Passwort oder eine Authenticator-App kannst du später in den Sicherheitseinstellungen deines Kontos hinzufügen.',
   },

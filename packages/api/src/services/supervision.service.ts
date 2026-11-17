@@ -7,6 +7,7 @@ import {
 } from './sessionRevocation.service';
 import { and, asc, desc, eq, gt, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import {
+  ageBandOf,
   supervisionSchema,
   supervisionInvitationSchema,
   purchaseApprovalSchema,
@@ -18,6 +19,7 @@ import {
   type ConfirmPurchase,
   type CancelPurchase,
   type SafetyErrorCode,
+  type DateOfBirthCorrectionInput,
   type SupervisionReviewInput,
   type SafetyPeopleInput,
 } from '@oxy.so/contracts';
@@ -43,6 +45,7 @@ const supervisionProfilesFields = {
   status: supervisionProfiles.status,
   consentVersion: supervisionProfiles.consentVersion,
   sessionsValidAfter: supervisionProfiles.sessionsValidAfter,
+  awaitingGuardianSince: supervisionProfiles.awaitingGuardianSince,
   createdAt: supervisionProfiles.createdAt,
   updatedAt: supervisionProfiles.updatedAt,
 };
@@ -370,7 +373,10 @@ export async function acceptInvitation(id: string, guardian: string) {
       .update(supervisionInvitations)
       .set({ status: 'accepted', acceptedAt: new Date() })
       .where(eq(supervisionInvitations.id, id));
-    if (!existing || existing.status === 'ended') {
+    // A profile created awaiting its FIRST guardian (ADR 0067) is activated by
+    // this acceptance exactly like a new enrolment. Any other live profile has
+    // had a guardian, and changing one takes reviewed evidence (ADR 0041).
+    if (!existing || existing.status === 'ended' || existing.awaitingGuardianSince) {
       const now = new Date();
       await invalidateGuardianApprovals(tx, candidate.childAccountId);
       await tx
@@ -388,6 +394,7 @@ export async function acceptInvitation(id: string, guardian: string) {
             status: 'active',
             consentVersion: '1',
             sessionsValidAfter: now,
+            awaitingGuardianSince: null,
           },
         });
       await tx
@@ -475,6 +482,55 @@ export async function changeContact(
       relatedAccountId: contact,
     });
   });
+}
+/**
+ * A staff member corrects an account's date of birth on reviewed evidence
+ * (ADR 0067).
+ *
+ * The person's own edits can keep a band or move to a younger one; this is the
+ * only way to an OLDER one, which is how a protection would otherwise be
+ * shed. It changes the date and nothing else: an account under supervision
+ * stays under it until that is ended by its own reviewed action, and a date
+ * below the minimum unsupervised age is refused for an account that is not
+ * supervised, which enrols through supervision instead.
+ */
+export async function correctDateOfBirth(actor: string, input: DateOfBirthCorrectionInput) {
+  await getDb().transaction(async (tx) => {
+    const [staff] = await tx
+      .select({ isStaff: users.isStaff })
+      .from(users)
+      .where(
+        and(eq(users.id, actor), eq(users.accountStatus, 'active'), eq(users.kind, 'personal')),
+      );
+    if (!staff?.isStaff || actor === input.accountId) throw forbidden();
+    const [account] = await tx
+      .select({ id: users.id, kind: users.kind })
+      .from(users)
+      .where(eq(users.id, input.accountId))
+      .for('no key update');
+    if (!account) throw missing();
+    if (account.kind !== 'personal') throw forbidden();
+    if (ageBandOf(input.dateOfBirth) === 'under13') {
+      const [profile] = await tx
+        .select({ status: supervisionProfiles.status })
+        .from(supervisionProfiles)
+        .where(
+          and(
+            eq(supervisionProfiles.childAccountId, input.accountId),
+            ne(supervisionProfiles.status, 'ended'),
+          ),
+        );
+      if (!profile) throw conflict();
+    }
+    await tx
+      .update(users)
+      .set({ dateOfBirth: input.dateOfBirth })
+      .where(eq(users.id, input.accountId));
+    await audit(tx, input.accountId, actor, 'date_of_birth_corrected', {
+      evidenceReference: input.evidenceReference,
+    });
+  });
+  userCache.invalidate(input.accountId);
 }
 export async function reviewSupervision(actor: string, input: SupervisionReviewInput) {
   const previousGuardian = await getDb().transaction(async (tx) => {

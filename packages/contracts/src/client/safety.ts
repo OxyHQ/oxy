@@ -28,6 +28,7 @@ import type {
   SupervisionContactsResponse,
   SupervisionInvitation,
   SupervisionInviteInput,
+  DateOfBirthCorrectionInput,
   SupervisionReviewInput,
   SupervisionState,
 } from '../safety';
@@ -61,6 +62,13 @@ import {
   union,
 } from './check';
 import { ORGANIZATION_TYPES } from './organizations';
+import {
+  DATE_OF_BIRTH_MESSAGES,
+  DATE_OF_BIRTH_PATTERN,
+  isBirthYearInRange,
+  isNotAfterToday,
+  isRealCalendarDate,
+} from './age';
 import { reauthProofCheck } from './signIn';
 
 /** Supervision is a personal-account safety policy, never a new login/account kind. */
@@ -180,6 +188,30 @@ export const supervisionReviewInputCheck = exact<SupervisionReviewInput>()(
     childAccountId: accountId,
     action: oneOf(['end', 'transfer']),
     guardianAccountId: optional(accountId),
+    evidenceReference: string(trim, minLength(1), maxLength(2048)),
+    reauth: reauthProofCheck,
+  }),
+);
+
+/** `dateOfBirthSchema`, rule for rule and message for message. */
+const dateOfBirthCheck = refine(
+  refine(
+    refine(
+      string(pattern(DATE_OF_BIRTH_PATTERN, DATE_OF_BIRTH_MESSAGES.format)),
+      isRealCalendarDate,
+      DATE_OF_BIRTH_MESSAGES.calendar,
+    ),
+    isBirthYearInRange,
+    DATE_OF_BIRTH_MESSAGES.tooEarly,
+  ),
+  (value) => isNotAfterToday(value),
+  DATE_OF_BIRTH_MESSAGES.future,
+);
+
+export const dateOfBirthCorrectionInputCheck = exact<DateOfBirthCorrectionInput>()(
+  strictObject({
+    accountId,
+    dateOfBirth: dateOfBirthCheck,
     evidenceReference: string(trim, minLength(1), maxLength(2048)),
     reauth: reauthProofCheck,
   }),

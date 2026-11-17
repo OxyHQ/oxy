@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.24.0
+
+### Added
+
+- **Sign-up asks for the date of birth (ADR 0067).** `OxySignUpPanel` has a date-of-birth step between the username and the email, and tells someone under 13 that a guardian comes next. `SupervisionScreen` offers the guardian invitation to an account with no guardian. A refused edit to a date of birth is worded (`DATE_OF_BIRTH_LOCKED`, `DATE_OF_BIRTH_SUPERVISION_REQUIRED`).
+
 ## 14.21.0
 
 - Built on `@oxy.so/contracts` 7 and `@oxy.so/core` 7.49: a bot's character has no paint; its colour

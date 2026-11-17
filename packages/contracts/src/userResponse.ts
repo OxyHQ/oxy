@@ -31,6 +31,15 @@ import { isoDateTime } from './stringChecks';
  */
 
 import { z } from 'zod';
+import {
+  AGE_BANDS,
+  DATE_OF_BIRTH_MESSAGES,
+  DATE_OF_BIRTH_PATTERN,
+  MIN_BIRTH_YEAR,
+  isBirthYearInRange,
+  isNotAfterToday,
+  isRealCalendarDate,
+} from './client/age';
 import { PRONOUNS, PROFILE_LINKS_MAX } from './client/userResponse';
 import { verifiedDomainSchema } from './identity';
 import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
@@ -116,27 +125,6 @@ export const themePreferenceSchema: z.ZodType<ThemePreference> = z.object({
 });
 
 /**
- * The earliest calendar year `dateOfBirthSchema` accepts.
- *
- * Not a real biological bound — it exists to catch an obviously-transposed
- * year (`1027` for `2027`, a stray OCR/typo digit) with a clear message
- * instead of the value quietly becoming a 150-year-old account. 1900 is
- * generous enough that no living person's real birthdate is rejected by it.
- */
-const MIN_BIRTH_YEAR = 1900;
-
-/**
- * `true` when `year`/`month`/`day` name a date that actually exists on the
- * Gregorian calendar — the check `z.string().regex(...)` alone cannot make,
- * since the regex only constrains digit COUNT and would pass `2024-02-30`.
- */
-function isRealCalendarDate(year: number, month: number, day: number): boolean {
-  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month - 1];
-}
-
-/**
  * A date of birth, `YYYY-MM-DD`, the sole structured representation this
  * platform stores going forward (`users.date_of_birth` — see
  * `packages/api/src/db/schema/users.ts`). `birthday` (below) stays as the
@@ -154,26 +142,16 @@ function isRealCalendarDate(year: number, month: number, day: number): boolean {
  *     and not after today (comparing the zero-padded ISO strings directly is
  *     a valid, simpler stand-in for a numeric comparison here, since two
  *     `YYYY-MM-DD` strings of equal length sort exactly the way their dates
- *     do). "Today" is UTC — see `computeIsAdult` in `user.service.ts` for why
+ *     do). "Today" is UTC — see `ageInYears` in `client/age.ts` for why
  *     a date with no timezone of its own is evaluated in UTC rather than any
  *     particular caller's local zone.
  */
 export const dateOfBirthSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'dateOfBirth must be an ISO 8601 calendar date (YYYY-MM-DD)')
-  .refine(
-    (value) => {
-      const [year, month, day] = value.split('-').map(Number);
-      return isRealCalendarDate(year, month, day);
-    },
-    { message: 'dateOfBirth is not a real calendar date' },
-  )
-  .refine((value) => Number(value.slice(0, 4)) >= MIN_BIRTH_YEAR, {
-    message: `dateOfBirth must not be before ${MIN_BIRTH_YEAR}`,
-  })
-  .refine((value) => value <= new Date().toISOString().slice(0, 10), {
-    message: 'dateOfBirth must not be in the future',
-  });
+  .regex(DATE_OF_BIRTH_PATTERN, DATE_OF_BIRTH_MESSAGES.format)
+  .refine(isRealCalendarDate, { message: DATE_OF_BIRTH_MESSAGES.calendar })
+  .refine(isBirthYearInRange, { message: DATE_OF_BIRTH_MESSAGES.tooEarly })
+  .refine((value) => isNotAfterToday(value), { message: DATE_OF_BIRTH_MESSAGES.future });
 
 /**
  * The canonical user object emitted by `formatUserResponse`.
@@ -224,6 +202,15 @@ export const userResponseSchema = z
      * not decided here.
      */
     isAdult: z.boolean().optional(),
+    /**
+     * The account's age band (ADR 0067), derived from `dateOfBirth` on every
+     * read and never stored. Absent when there is no date of birth: "unknown"
+     * is neither an adult nor a minor. The owner reads it on their own
+     * profile, and an Oxy service reads it on the session it validates
+     * (`POST /safety/service/session`); it never rides a public profile, and
+     * the date itself never leaves the owner's view.
+     */
+    ageBand: z.enum(AGE_BANDS).optional(),
     /** Avatar file id (string) or null. */
     avatar: z.string().nullable().optional(),
     /** Named Bloom color preset (e.g. `"blue"`) or null. */
