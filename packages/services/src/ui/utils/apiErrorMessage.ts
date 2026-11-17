@@ -6,7 +6,11 @@
  * English, and for a validation failure it is "Validation failed".
  */
 
-import { EMAIL_VERIFICATION_ERROR_CODES, SIGN_IN_ERROR_CODES } from '@oxy.so/contracts/client';
+import {
+  DATE_OF_BIRTH_REFUSALS,
+  EMAIL_VERIFICATION_ERROR_CODES,
+  SIGN_IN_ERROR_CODES,
+} from '@oxy.so/contracts/client';
 import {
   ErrorCodes,
   getErrorStatus,
@@ -54,6 +58,10 @@ export function describeApiError(error: unknown, t: Translate, fallback?: string
   const code = errorCode(error);
   if (code !== undefined && OFFLINE_ERROR_CODES.has(code)) return t('signin.errors.network');
   switch (code) {
+    case DATE_OF_BIRTH_REFUSALS.locked:
+      return t('editProfile.items.birthday.locked');
+    case DATE_OF_BIRTH_REFUSALS.supervisionRequired:
+      return t('editProfile.items.birthday.supervisionRequired');
     case SIGN_IN_ERROR_CODES.invalidCredentials:
       return t('signin.errors.invalidCredentials');
     case SIGN_IN_ERROR_CODES.requestInvalid:

@@ -167,6 +167,38 @@ export const CodeBlock = ({
     ),
   );
 
+/**
+ * `@oxy.so/bloom/date-picker` `DatePicker`: a native date input. It hands the
+ * picked day back as a local `Date`, as the real picker does, and `null` when
+ * the field is cleared.
+ */
+export const DatePicker = ({
+  value,
+  onChange,
+  accessibilityLabel,
+  disabled,
+  testID,
+}: {
+  value?: Date | null;
+  onChange?: (date: Date | null) => void;
+  accessibilityLabel?: string;
+  disabled?: boolean;
+  testID?: string;
+} & Record<string, unknown>) =>
+  createElement('input', {
+    type: 'date',
+    'aria-label': accessibilityLabel,
+    'data-testid': testID,
+    disabled,
+    value: value
+      ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+      : '',
+    onChange: (event: { target: { value: string } }) => {
+      const [year, month, day] = event.target.value.split('-').map(Number);
+      onChange?.(event.target.value ? new Date(year, month - 1, day) : null);
+    },
+  });
+
 /** `@oxy.so/bloom/wizard` `WizardProgress`: the count line, named like the real bar. */
 export const WizardProgress = ({
   steps,

@@ -485,7 +485,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "7.2.0",
+      "version": "7.3.0",
       "dependencies": {
         "zod": "catalog:",
       },
@@ -498,7 +498,7 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "7.52.0",
+      "version": "7.53.0",
       "dependencies": {
         "@noble/ciphers": "^2.4.0",
         "@noble/curves": "catalog:",
@@ -718,7 +718,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "14.23.0",
+      "version": "14.24.0",
       "dependencies": {
         "@oxy.so/contracts": "workspace:^",
         "@peable.to/sdk": "^4.0.0",

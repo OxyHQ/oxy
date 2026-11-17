@@ -125,6 +125,15 @@ const dict = {
       invalid: 'Masukkan alamat email yang valid.',
     },
     commonsSubtitle: 'Atau buat identitas Anda di Commons, dan pegang kunci Anda sendiri.',
+    birthdate: {
+      title: 'Kapan kamu lahir?',
+      subtitle:
+        'Ini dipakai untuk menerapkan perlindungan yang sesuai dengan usiamu. Tidak ada orang lain yang melihatnya.',
+      label: 'Tanggal lahir',
+      required: 'Pilih tanggal lahirmu.',
+      guardianNote:
+        'Jika usiamu di bawah 13 tahun, akunmu memerlukan orang tua atau wali. Kamu mengundangnya segera setelah akun dibuat.',
+    },
     laterNote:
       'Anda dapat menambahkan sandi atau aplikasi autentikator nanti, di setelan keamanan akun Anda.',
   },

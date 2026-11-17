@@ -1,5 +1,11 @@
 # Changelog — `@oxy.so/core`
 
+## 7.53.0
+
+### Added
+
+- **Age bands (ADR 0067).** `oxy.auth.signUp` takes `dateOfBirth`; `User.ageBand` is the derived band on the owner's own profile (absent when the date of birth is unknown); `oxy.safety.correctDateOfBirth` is the staff correction on evidence. New sign-up strings in every locale.
+
 ## 7.52.0
 
 ### Added

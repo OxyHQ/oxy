@@ -2,6 +2,7 @@
 
 - Status: implementation in progress; no consumer capability enabled
 - Date: 2026-10-15
+- Extended by: [0067](0067-age-bands-and-accounts-below-the-minimum-age.md), under which sign-up creates a supervision profile awaiting its first guardian for an account below the minimum unsupervised age.
 
 ## Identity and consent
 

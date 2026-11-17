@@ -123,6 +123,14 @@ const dict = {
       invalid: 'Escriu un correu vàlid.',
     },
     commonsSubtitle: 'O crea la teva identitat a Commons i guarda la teva pròpia clau.',
+    birthdate: {
+      title: 'Quan vas néixer?',
+      subtitle: 'Serveix per aplicar les proteccions adequades a la teva edat. Ningú més la veu.',
+      label: 'Data de naixement',
+      required: 'Tria la teva data de naixement.',
+      guardianNote:
+        'Si tens menys de 13 anys, el teu compte necessita la mare, el pare o un tutor. El convides just després de crear-lo.',
+    },
     laterNote:
       "Més endavant pots afegir una contrasenya o una app d'autenticació a la configuració de seguretat del compte.",
   },

@@ -118,6 +118,13 @@ const dict = {
       invalid: '请输入有效的邮箱地址。',
     },
     commonsSubtitle: '或者在 Commons 中创建你的身份，自己保管密钥。',
+    birthdate: {
+      title: '你的出生日期是？',
+      subtitle: '用于启用适合你年龄的保护措施。其他人看不到。',
+      label: '出生日期',
+      required: '请选择你的出生日期。',
+      guardianNote: '如果你未满 13 岁，你的账号需要一位家长或监护人。创建账号后即可邀请对方。',
+    },
     laterNote: '你之后可以在账户的安全设置中添加密码或身份验证器应用。',
   },
   accountSwitcher: {

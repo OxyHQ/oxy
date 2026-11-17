@@ -271,6 +271,17 @@ function SupervisionBody({
               )}
             </Text>
             <AccountFlowNote>{t('supervision.activeDescription')}</AccountFlowNote>
+            {own.guardianAccountId ? null : (
+              // No guardian holds this account: one created under supervision
+              // that awaits its first (ADR 0067), or one whose guardian is gone.
+              // The same invitation serves both; the server decides its effect.
+              <>
+                <AccountFlowNote>{t('supervision.guardianNeeded')}</AccountFlowNote>
+                <Button onPress={() => setAddingGuardian(!addingGuardian)}>
+                  {t('supervision.invite')}
+                </Button>
+              </>
+            )}
             <Button appearance="plain" onPress={() => navigate?.('HelpSupport')}>
               {t('supervision.transitionHelp')}
             </Button>

@@ -1654,11 +1654,19 @@ export class AuthApi {
   async signUp(
     request: Pick<
       SignUpRequest,
-      'username' | 'email' | 'emailTicket' | 'languages' | 'campaignAttribution'
+      'username' | 'email' | 'emailTicket' | 'languages' | 'campaignAttribution' | 'dateOfBirth'
     > &
       SignInDeviceOptions,
   ): Promise<LoginResult> {
-    const { username, email, emailTicket, languages, campaignAttribution, ...options } = request;
+    const {
+      username,
+      email,
+      emailTicket,
+      languages,
+      campaignAttribution,
+      dateOfBirth,
+      ...options
+    } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
       '/auth/signup',
@@ -1668,6 +1676,7 @@ export class AuthApi {
         emailTicket,
         ...(languages ? { languages } : {}),
         ...(campaignAttribution ? { campaignAttribution } : {}),
+        ...(dateOfBirth ? { dateOfBirth } : {}),
         ...(await signInEnvelope(this.ctx, options)),
       },
       { cache: false, skipAuth: true },

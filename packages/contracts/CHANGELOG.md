@@ -1,5 +1,22 @@
 # Changelog: `@oxy.so/contracts`
 
+## 7.3.0
+
+Additive only: no export removed.
+
+### Added — age bands and a date of birth at sign-up (ADR 0067)
+
+- `AGE_BANDS`, `AgeBand`, `ageBandOf`, `ageInYears`, `MINIMUM_UNSUPERVISED_AGE_YEARS`,
+  `ADULT_AGE_YEARS`: the one derivation of an account's age band from its date of birth.
+- `userResponseSchema` gains the derived `ageBand` (owner's own profile; Oxy services on the
+  session they validate). `isAdult` is unchanged.
+- `signUpRequestSchema` admits `dateOfBirth`.
+- `isSelfServiceBandChange` and `DATE_OF_BIRTH_REFUSALS`: which edits to a date of birth a person
+  may make themselves, and the error codes of the ones they may not.
+- `dateOfBirthCorrectionInputSchema` and its client check: the staff correction on evidence.
+- `MIN_BIRTH_YEAR`, `DATE_OF_BIRTH_PATTERN`, `DATE_OF_BIRTH_MESSAGES`: the date rules, for pickers and
+  client checks.
+
 ## 7.2.0
 
 Additive only: no export removed.

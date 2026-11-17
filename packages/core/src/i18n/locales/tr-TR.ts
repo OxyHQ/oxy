@@ -124,6 +124,14 @@ const dict = {
       invalid: 'Geçerli bir e-posta adresi girin.',
     },
     commonsSubtitle: "Ya da kimliğinizi Commons'ta oluşturun ve anahtarınızı kendiniz saklayın.",
+    birthdate: {
+      title: 'Ne zaman doğdun?',
+      subtitle: 'Yaşına uygun korumaların uygulanmasını sağlar. Başka kimse görmez.',
+      label: 'Doğum tarihi',
+      required: 'Doğum tarihini seç.',
+      guardianNote:
+        '13 yaşından küçüksen hesabının bir ebeveyne veya vasiye ihtiyacı var. Hesabı oluşturduktan hemen sonra onu davet edersin.',
+    },
     laterNote:
       'Daha sonra hesabınızın güvenlik ayarlarından şifre veya kimlik doğrulama uygulaması ekleyebilirsiniz.',
   },

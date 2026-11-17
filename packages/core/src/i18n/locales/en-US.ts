@@ -12,6 +12,8 @@ const dict = {
     active: 'Supervised by {{name}}',
     activeDescription:
       'Your profile stays private. Approved contacts, content restrictions and purchase approval apply in supported apps. Other account activities may be unavailable.',
+    guardianNeeded:
+      'Invite a parent or guardian to supervise this account. If it had a guardian before, Oxy reviews the change before it takes effect.',
     orphaned: 'Supervision remains active, but the guardian is unavailable.',
     notActive: 'Supervision is not active.',
     invite: 'Invite a guardian',
@@ -294,6 +296,14 @@ const dict = {
       invalid: 'Enter a valid email address.',
     },
     commonsSubtitle: 'Or create your identity in Commons, and hold your own key.',
+    birthdate: {
+      title: 'When were you born?',
+      subtitle: 'It sets the right protections for your age. Nobody else sees it.',
+      label: 'Date of birth',
+      required: 'Choose your date of birth.',
+      guardianNote:
+        'If you are under 13, your account needs a parent or guardian. You invite them right after creating it.',
+    },
     laterNote:
       "You can add a password or an authenticator app later, in your account's security settings.",
   },
@@ -691,6 +701,9 @@ const dict = {
         subtitle: 'Your date of birth',
         label: 'Birthday',
         placeholder: 'YYYY-MM-DD',
+        locked: 'Your date of birth is set. To correct it to an older age, contact support.',
+        supervisionRequired:
+          'An account for someone under 13 is set up through supervision, with a guardian.',
         day: 'Day',
         month: 'Month',
         year: 'Year',

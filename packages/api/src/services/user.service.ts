@@ -67,7 +67,7 @@ import {
   normalizeProfileName,
 } from '../utils/profileTextNormalization';
 import { normalizeUsername } from '../utils/username';
-import { BadRequestError, ConflictError, NotFoundError } from '../utils/error';
+import { ApiError, BadRequestError, ConflictError, NotFoundError } from '../utils/error';
 import { accountService } from './account.service';
 import type { Request } from 'express';
 import type {
@@ -98,7 +98,11 @@ import { userIdentityFields, deriveIsFederated, toThemePreference } from '../uti
 import { accountNameInvalidMessage, isValidAccountName, normalizeLocale } from '@oxy.so/core';
 import { buildUserDid } from './did.service';
 import {
+  DATE_OF_BIRTH_REFUSALS,
+  ageBandOf,
   dateOfBirthSchema,
+  isSelfServiceBandChange,
+  type AgeBand,
   isAccountKind,
   usernameSchemaForAccountKind,
   type UserRelationship,
@@ -432,38 +436,15 @@ function blankToNull(value: unknown): string | null {
 }
 
 /**
- * The age, in whole years, at which an app may treat an account as an adult
- * for gating purposes (Mention's `privacySensitiveContent` viewer preference
- * is the first consumer, wired in that app's own repo as a follow-up — this
- * pass only exposes the signal). Not configurable per app: the point of a
- * platform-level signal is that every app answers the same question the same
- * way, rather than each re-deriving its own threshold from the raw birthdate.
- */
-const ADULT_AGE_THRESHOLD_YEARS = 18;
-
-/**
- * Whether `dateOfBirth` is at least {@link ADULT_AGE_THRESHOLD_YEARS} years in
- * the past, evaluated against UTC "today".
+ * Whether the account holder is an adult: the `adult` age band (ADR 0067).
  *
- * UTC, not the server's local zone or any particular caller's: `dateOfBirth`
- * is a `date` column with no time-of-day and no timezone of its own (see its
- * comment in `db/schema/users.ts`), so there is no single "authoritative"
- * zone to evaluate it in, and UTC is the one choice every server process and
- * every caller agrees on without configuration. The practical effect is that
- * `isAdult` can flip up to a day earlier or later than a viewer's own local
- * midnight would — a one-day skew around a threshold that is itself a policy
- * approximation rather than a legal record, so the simplicity is worth it.
- *
- * Computed fresh on every read rather than stored: age changes daily, so a
- * cached or generated-column value would go stale on its own without any
- * write ever touching the row.
+ * `isAdult` predates the bands and stays for the apps that read it; both come
+ * from the one derivation in `@oxy.so/contracts` (`ageBandOf`, UTC "today",
+ * never stored), so they cannot disagree. Not configurable per app: the point
+ * of a platform signal is that every app answers the question the same way.
  */
 function computeIsAdult(dateOfBirth: string): boolean {
-  const [year, month, day] = dateOfBirth.split('-').map(Number);
-  const now = new Date();
-  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const thresholdUtc = Date.UTC(year + ADULT_AGE_THRESHOLD_YEARS, month - 1, day);
-  return thresholdUtc <= todayUtc;
+  return ageBandOf(dateOfBirth) === 'adult';
 }
 
 /**
@@ -892,6 +873,20 @@ export class UserService {
   }
 
   /**
+   * The account's age band (ADR 0067), or `undefined` when it has no date of
+   * birth. Reads the one protected column it derives from and returns only the
+   * band.
+   */
+  async getAgeBand(userId: string): Promise<AgeBand | undefined> {
+    const [row] = await getDb()
+      .select({ dateOfBirth: users.dateOfBirth })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return row?.dateOfBirth ? ageBandOf(row.dateOfBirth) : undefined;
+  }
+
+  /**
    * Get current authenticated user.
    *
    * Identical to {@link getUserById}; kept as its own name because the two
@@ -1048,13 +1043,48 @@ export class UserService {
       // legacy `birthday` text silently rewritten out from under it, nor vice
       // versa for a client that has not adopted the new field yet.
       if (key === 'dateOfBirth') {
+        const current = existing.dateOfBirth ?? undefined;
         if (value === null || value === '') {
+          // A date that was given stays given (ADR 0067): clearing it would
+          // return the account to "unknown" and drop its protections.
+          if (current !== undefined) {
+            throw new ApiError(
+              400,
+              'A date of birth cannot be removed once it is set',
+              DATE_OF_BIRTH_REFUSALS.locked,
+              { field: 'dateOfBirth' },
+            );
+          }
           filteredUpdates.dateOfBirth = null;
           continue;
         }
         const parsed = dateOfBirthSchema.safeParse(value);
         if (!parsed.success) {
           throw new BadRequestError(parsed.error.issues[0].message, { field: 'dateOfBirth' });
+        }
+        if (parsed.data !== current) {
+          const from = current === undefined ? undefined : ageBandOf(current);
+          const to = ageBandOf(parsed.data);
+          if (!isSelfServiceBandChange(from, to)) {
+            throw new ApiError(
+              400,
+              'This change to the date of birth needs a reviewed correction',
+              DATE_OF_BIRTH_REFUSALS.locked,
+              { field: 'dateOfBirth' },
+            );
+          }
+          // An account below the minimum unsupervised age is created under
+          // supervision at sign-up; an existing account does not become one by
+          // editing its profile. It enrols through supervision itself, which
+          // takes the guardian's consent as well as the person's (ADR 0041).
+          if (to === 'under13' && from !== 'under13') {
+            throw new ApiError(
+              400,
+              'An account for someone under 13 is set up through supervision',
+              DATE_OF_BIRTH_REFUSALS.supervisionRequired,
+              { field: 'dateOfBirth' },
+            );
+          }
         }
         filteredUpdates.dateOfBirth = parsed.data;
         continue;
@@ -2285,6 +2315,9 @@ export class UserService {
       // and `undefined` — not `false` — when there is no birthdate to derive
       // it from, so a consumer can tell "unknown" from "confirmed minor".
       response.isAdult = dateOfBirth ? computeIsAdult(dateOfBirth) : undefined;
+      // The band the same date falls in (ADR 0067), with the same "absent
+      // means unknown" rule.
+      response.ageBand = dateOfBirth ? ageBandOf(dateOfBirth) : undefined;
       // Portable theme preference — a personal setting, so it rides ONLY the
       // self payload (`GET /users/me`, `PUT /users/me`), which is what cold boot
       // loads. Gated with the other private fields so it never leaks onto other
