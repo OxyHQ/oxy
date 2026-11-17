@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/contracts`
 
+## 7.5.0
+
+Additive only: no export removed.
+
+### Added — protective defaults by age band, and quiet hours (ADR 0068)
+
+- `protectionsFor(ageBand)`, `AgeProtections`, `MINOR_QUIET_HOURS`: what an app applies to a minor's
+  account (feed profile, autoplay, quiet hours); the standard profile for an adult or unknown age.
+- `isWithinQuietHours`, `localTimeIn`: reading a quiet-hours window on a timezone's wall clock.
+- `quietHoursInputSchema`, `quietHoursResponseSchema`: `POST /safety/service/quiet-hours`.
+
 ## 7.4.0
 
 Additive, with one widened type: `ContentClaimSummaryView.relationship` is now `ClaimantRelationship | null`.

@@ -245,6 +245,26 @@ export const notificationAccessBatchInputSchema = z
 export const notificationAccessBatchResponseSchema = contentAccessBatchResponseSchema;
 export type NotificationAccessInput = z.infer<typeof notificationAccessInputSchema>;
 export type NotificationAccessBatchInput = z.infer<typeof notificationAccessBatchInputSchema>;
+/**
+ * `POST /safety/service/quiet-hours`: which of these accounts are in their
+ * quiet hours right now (ADR 0068). An Oxy service asks before a push that can
+ * wait until morning. The answer is the subset that is quiet and nothing else:
+ * no age, no band, no timezone.
+ */
+export const quietHoursInputSchema = z
+  .object({
+    accountIds: z
+      .array(accountId)
+      .min(1)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length, 'Account IDs must be unique'),
+  })
+  .strict();
+export const quietHoursResponseSchema = z
+  .object({ quietAccountIds: z.array(accountId).max(100) })
+  .strict();
+export type QuietHoursInput = z.infer<typeof quietHoursInputSchema>;
+export type QuietHoursResponse = z.infer<typeof quietHoursResponseSchema>;
 /** Live socket-recipient proof; a request ID correlates the result and never identifies an account. */
 export const messagingSessionsInputSchema = z
   .object({

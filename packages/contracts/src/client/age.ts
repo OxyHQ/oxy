@@ -127,3 +127,83 @@ export const DATE_OF_BIRTH_REFUSALS = {
 } as const;
 export type DateOfBirthRefusal =
   (typeof DATE_OF_BIRTH_REFUSALS)[keyof typeof DATE_OF_BIRTH_REFUSALS];
+
+/**
+ * The protective defaults an Oxy app applies to an account, from its age band
+ * (ADR 0068). One derivation, so every app protects the same people the same
+ * way and none re-derives a threshold of its own.
+ *
+ * - `feedProfile`: `protected` means a feed in the order it was posted, with
+ *   no ranking by engagement, and pages loaded when the person asks for them
+ *   instead of an endless scroll.
+ * - `autoplay`: `never` means video and animated media start only when the
+ *   person plays them; `personal` leaves it to the person's own setting.
+ * - `quietHours`: local wall-clock hours (`HH:MM`, in the account's own
+ *   timezone) during which nothing is pushed to the person's devices; `null`
+ *   when there are none. `end` is earlier than `start`: the window crosses
+ *   midnight.
+ *
+ * These are DEFAULTS FOR MINORS, not a verdict about anyone: a band comes from
+ * a self-declared date, and an account with no date has no band and gets the
+ * standard profile.
+ */
+export interface AgeProtections {
+  feedProfile: 'standard' | 'protected';
+  autoplay: 'personal' | 'never';
+  quietHours: { start: string; end: string } | null;
+}
+
+/** When nothing is pushed to a minor's devices, in their own timezone. */
+export const MINOR_QUIET_HOURS = { start: '22:00', end: '07:00' } as const;
+
+const STANDARD_PROTECTIONS: AgeProtections = {
+  feedProfile: 'standard',
+  autoplay: 'personal',
+  quietHours: null,
+};
+
+const MINOR_PROTECTIONS: AgeProtections = {
+  feedProfile: 'protected',
+  autoplay: 'never',
+  quietHours: MINOR_QUIET_HOURS,
+};
+
+/** The protective defaults for an age band; the standard profile when there is none. */
+export function protectionsFor(ageBand: AgeBand | undefined): AgeProtections {
+  return ageBand === 'under13' || ageBand === 'teen' ? MINOR_PROTECTIONS : STANDARD_PROTECTIONS;
+}
+
+/**
+ * Whether a local wall-clock time (`HH:MM`) falls inside quiet hours. The start
+ * is inside and the end is not, so `07:00` is the first minute a push goes out.
+ */
+export function isWithinQuietHours(
+  quietHours: AgeProtections['quietHours'],
+  localTime: string,
+): boolean {
+  if (quietHours === null) return false;
+  const { start, end } = quietHours;
+  return start <= end
+    ? localTime >= start && localTime < end
+    : localTime >= start || localTime < end;
+}
+
+/**
+ * The wall-clock time (`HH:MM`, 24 hours) in an IANA timezone at an instant.
+ * An unknown or missing zone reads as UTC: quiet hours then apply on UTC time
+ * rather than not at all.
+ */
+export function localTimeIn(timeZone: string | null | undefined, at: Date = new Date()): string {
+  const format = (zone: string) =>
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: zone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(at);
+  try {
+    return format(timeZone || 'UTC');
+  } catch {
+    return format('UTC');
+  }
+}

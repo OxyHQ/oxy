@@ -10,6 +10,8 @@ import {
   applicationAccountRegistrationResponseSchema,
   contentReferralResponseSchema,
   contentReferralSchema,
+  quietHoursInputSchema,
+  quietHoursResponseSchema,
   type ContentReferralReason,
   type ContentReferralResponse,
   applicationAccountTotalSchema,
@@ -887,6 +889,21 @@ export class OxyServer extends OxyServices {
     )
       throw new Error('Product grant response attribution differs');
     return snapshot;
+  }
+
+  /**
+   * Which of these accounts are in their quiet hours right now (ADR 0068;
+   * `POST /safety/service/quiet-hours`). Ask before a push that can wait until
+   * morning, and hold it for the accounts returned; never for a push the
+   * person needs at once to keep their account safe. At most 100 ids per call.
+   */
+  async accountsInQuietHours(accountIds: readonly string[]): Promise<Set<string>> {
+    if (accountIds.length === 0) return new Set();
+    const body = quietHoursInputSchema.parse({ accountIds: [...new Set(accountIds)] });
+    const answer = await this.serviceRequest<unknown>('POST', '/safety/service/quiet-hours', body, {
+      cache: false,
+    });
+    return new Set(quietHoursResponseSchema.parse(answer).quietAccountIds);
   }
 
   /**

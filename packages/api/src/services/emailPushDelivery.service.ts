@@ -22,6 +22,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { pushTokens } from '../db/schema/pushTokens';
 import { pushService } from './push.service';
+import { isInQuietHours } from './quietHours.service';
 import { resolveApplicationIdFromClientId } from '../utils/resolveApplicationFromClientId';
 import { logger } from '../utils/logger';
 
@@ -71,6 +72,11 @@ export async function sendInboxEmailPush(params: {
   const { userId, title, body, messageId, mailboxId } = params;
 
   try {
+    // New mail can wait until morning: it stays in the inbox, unread (ADR 0068).
+    if (await isInQuietHours(userId)) {
+      return;
+    }
+
     const tokens = await resolveInboxPushTokens(userId);
     if (tokens.length === 0) {
       return;
