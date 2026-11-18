@@ -382,6 +382,13 @@ export interface VariantConfigWithType extends VariantConfig {
  */
 /** The most pixels an SVG is rendered to, whatever its declared size (a sanitized SVG is still a decompression bomb candidate). */
 const SVG_RENDER_PIXEL_LIMIT = 64_000_000;
+/**
+ * The most pixels any stored raster is decoded to. Sharp's own default is ~268 Mpx,
+ * i.e. >1 GB of RGBA per decode; a 17 MB WebP of that size OOM-killed every
+ * `oxy-asset-variant-worker` task in a retry loop (2026-11-18). A 64 Mpx source
+ * (8000x8000) is bigger than any camera photo the ladder serves.
+ */
+const RASTER_INPUT_PIXEL_LIMIT = 64_000_000;
 /** librsvg's density bounds (dpi); 72 renders an SVG at its intrinsic size. */
 const SVG_BASE_DENSITY = 72;
 const SVG_MAX_DENSITY = 2400;
@@ -398,7 +405,7 @@ function imageInputOptions(
   mime: string,
   render: { intrinsicWidth?: number; targetWidth?: number } = {},
 ): sharp.SharpOptions {
-  if (!isSvgType(mime)) return { failOn: 'none' };
+  if (!isSvgType(mime)) return { failOn: 'none', limitInputPixels: RASTER_INPUT_PIXEL_LIMIT };
   const { intrinsicWidth, targetWidth } = render;
   const density =
     intrinsicWidth && targetWidth
@@ -448,6 +455,14 @@ async function renderableImageSource(
               .toBuffer();
     }
     const meta = await sharp(source, imageInputOptions(file.mime)).metadata();
+    // `metadata()` reads only the header and does not enforce `limitInputPixels`;
+    // refuse here so an oversized source is a permanent, non-retried failure
+    // rather than an OOM on the first decode.
+    if ((meta.width ?? 0) * (meta.height ?? 0) > RASTER_INPUT_PIXEL_LIMIT) {
+      throw new Error(
+        `image is ${meta.width}x${meta.height}, over the ${RASTER_INPUT_PIXEL_LIMIT} pixel limit`,
+      );
+    }
     return { source, meta };
   } catch (error) {
     // Both steps read only the bytes in hand: whatever they throw (an icon
