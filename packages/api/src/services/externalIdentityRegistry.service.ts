@@ -510,10 +510,94 @@ export async function registerExternalIdentity(input: RegisterExternalIdentityIn
   const network = canonicalAcct.slice(canonicalAcct.lastIndexOf('@') + 1);
   if (!canonicalAcct.includes('@') || !input.actorUri || !network)
     throw new Error('Invalid external identity');
+  // The common call re-registers an identity that is already settled; that touches
+  // only its own rows, so it takes the registry lock SHARED (plus a per-account
+  // lock) and runs beside other such refreshes. Anything that can converge
+  // identities across networks keeps the exclusive lock, which excludes everything.
+  if (await isSettledRefresh(getDb(), input, canonicalAcct, network)) {
+    try {
+      return await runRegistration(input, canonicalAcct, network, 'shared');
+    } catch (error) {
+      if (!(error instanceof NotASettledRefresh)) throw error;
+    }
+  }
+  return runRegistration(input, canonicalAcct, network, 'exclusive');
+}
+
+class NotASettledRefresh extends Error {}
+
+/**
+ * True when registering `input` can only rewrite rows that belong to its own
+ * canonical account: the identity and the actor row already exist and agree, the
+ * source is not Instagram/Threads (the networks whose claims link identities), it
+ * declares no claim on another network and has none recorded, and its stable id,
+ * user and legacy actor row are consistent. Then `registerExternalIdentity` below
+ * runs none of its convergence branches (`mergeUsers`, rename, claim linking), so it
+ * cannot interleave unsafely with a refresh of another account. Re-checked under
+ * the lock, because the read that chose the mode is not serialized.
+ */
+async function isSettledRefresh(
+  db: DatabaseOrTransaction,
+  input: RegisterExternalIdentityInput,
+  canonicalAcct: string,
+  network: string,
+): Promise<boolean> {
+  if (['instagram.com', 'threads.net'].includes(network)) return false;
+  if (input.protocol === INSTAGRAM_GRAPH_PROTOCOL) return false;
+  const claimed = (input.evidenceLinks ?? [])
+    .map(linkedSourceAcct)
+    .filter(
+      (acct): acct is string => !!acct && acct !== canonicalAcct && acct.split('@')[1] !== network,
+    );
+  if (claimed.length) return false;
+  const [identity] = await db
+    .select()
+    .from(externalIdentities)
+    .where(eq(externalIdentities.canonicalAcct, canonicalAcct));
+  if (!identity) return false;
+  if (identity.stableId && input.stableId && identity.stableId !== input.stableId) return false;
+  const [actor] = await db
+    .select({ canonicalAcct: externalIdentityActors.canonicalAcct })
+    .from(externalIdentityActors)
+    .where(eq(externalIdentityActors.actorUri, input.actorUri));
+  if (!actor || actor.canonicalAcct !== canonicalAcct) return false;
+  if ((await resolvePhysicalUserId(identity.userId, db)) !== identity.userId) return false;
+  const [legacy] = await db
+    .select({ id: users.id, type: users.type })
+    .from(users)
+    .where(eq(users.federationActorUri, input.actorUri));
+  if (legacy && (legacy.type !== 'federated' || legacy.id !== identity.userId)) return false;
+  const oldClaims = await db
+    .select({ targetAcct: externalIdentityClaims.targetAcct })
+    .from(externalIdentityClaims)
+    .where(eq(externalIdentityClaims.actorUri, input.actorUri))
+    .limit(1);
+  return oldClaims.length === 0;
+}
+
+async function runRegistration(
+  input: RegisterExternalIdentityInput,
+  canonicalAcct: string,
+  network: string,
+  mode: 'shared' | 'exclusive',
+) {
   return getDb()
     .transaction(async (tx) => {
-      // Serializes convergence across networks as well as concurrent bridge discovery.
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
+      if (mode === 'exclusive') {
+        // Serializes convergence across networks as well as concurrent bridge discovery.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
+      } else {
+        // Order is always registry lock, then account lock, so no two paths can
+        // wait on each other.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock_shared(hashtext('external-identity-registry'))`,
+        );
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${`external-identity-registry:${canonicalAcct}`}, 0))`,
+        );
+        if (!(await isSettledRefresh(tx, input, canonicalAcct, network)))
+          throw new NotASettledRefresh();
+      }
       let createdUser = false;
       let [identity] = await tx
         .select()

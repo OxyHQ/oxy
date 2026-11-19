@@ -331,3 +331,66 @@ it('follows a rename from a legacy bridge-domain identity to the derived network
   expect(renamed.userId).toBe(legacy.userId);
   expect(await lookupExternalIdentity(newAcct)).toBe(legacy.userId);
 });
+
+/** Hold the registry lock in SHARED mode until `release()` and run `during` meanwhile. */
+async function whileRegistryLockedShared<T>(during: () => Promise<T>): Promise<T> {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let locked!: () => void;
+  const isLocked = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const holder = getDb().transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock_shared(hashtext('external-identity-registry'))`,
+    );
+    locked();
+    await released;
+  });
+  await isLocked;
+  try {
+    return await during();
+  } finally {
+    release();
+    await holder;
+  }
+}
+const settles = (work: Promise<unknown>, ms: number) =>
+  Promise.race([
+    work.then(() => true),
+    new Promise<boolean>((resolve) => setTimeout(resolve, ms, false)),
+  ]);
+
+it('re-registering a settled identity runs beside other refreshes (shared registry lock)', async () => {
+  const acct = `${name()}@social.example`;
+  const first = await registerExternalIdentity(input(acct));
+  await whileRegistryLockedShared(async () => {
+    const refresh = registerExternalIdentity(input(acct));
+    expect(await settles(refresh, 3000)).toBe(true);
+    expect((await refresh).userId).toBe(first.userId);
+  });
+});
+
+it('a new identity still takes the exclusive registry lock and waits for every refresh', async () => {
+  const fresh = `${name()}@social.example`;
+  let creation!: Promise<unknown>;
+  await whileRegistryLockedShared(async () => {
+    creation = registerExternalIdentity(input(fresh));
+    expect(await settles(creation, 1500)).toBe(false);
+  });
+  await creation;
+  expect(await lookupExternalIdentity(fresh)).not.toBeNull();
+});
+
+it('an Instagram or Threads identity keeps the exclusive lock even when already registered', async () => {
+  const acct = `${name()}@threads.net`;
+  await registerExternalIdentity(input(acct));
+  let again!: Promise<unknown>;
+  await whileRegistryLockedShared(async () => {
+    again = registerExternalIdentity(input(acct));
+    expect(await settles(again, 1500)).toBe(false);
+  });
+  await again;
+});
