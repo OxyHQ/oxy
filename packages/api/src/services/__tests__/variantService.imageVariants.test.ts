@@ -512,4 +512,20 @@ describe('VariantService — icons and images that cannot be rendered', () => {
       ImageNotRenderableError,
     );
   });
+  it('refuses a source over the pixel limit without decoding it, with no retry', async () => {
+    const huge = await sharp({
+      create: { width: 8200, height: 8200, channels: 3, background: '#fff' },
+    })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+    const fakeS3 = makeFakeS3(huge);
+    const file = await makeFile('image/png');
+    const service = new VariantService(fakeS3 as unknown as S3Service);
+
+    await expect(service.generateVariants(file.id)).resolves.toBeUndefined();
+    expect(fakeS3.uploads).toHaveLength(0);
+    await expect(service.ensureImageVariant(file, 'w96')).rejects.toBeInstanceOf(
+      ImageNotRenderableError,
+    );
+  });
 });
