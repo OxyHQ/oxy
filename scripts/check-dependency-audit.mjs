@@ -88,13 +88,6 @@ import { inspectZodAuditPaths, ZOD_ADVISORY } from './zod-audit-paths.mjs';
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * picomatch's ReDoS through single-branch repeated extglobs. Named so the entry
- * below excuses THIS advisory only: a second high advisory against picomatch
- * fails the gate until somebody looks at it.
- */
-const PICOMATCH_ADVISORY = 'GHSA-fc5q-39xc-vjpf';
-
-/**
  * Severities this gate acts on. `moderate` and `low` are reported in the summary
  * and gate nothing — 76 of this tree's 152 advisories are already at or above
  * this line, and widening it would not change what anybody can act on.
@@ -123,20 +116,6 @@ const ACKNOWLEDGED_PACKAGES = [
       'bounded before the unavoidable Zod 3.25.76 parsers. ' +
       'The mandatory lock graph guard rejects every other vulnerable version or consumer. ' +
       'Evidence, limits and removal conditions: docs/security/zod-parser-boundary.md.',
-  },
-  {
-    package: 'picomatch',
-    advisories: [PICOMATCH_ADVISORY],
-    reachedBy:
-      'react-native, expo and metro tooling only: tinyglobby, @expo/metro-config, @expo/cli, ' +
-      'metro-file-map > micromatch, jest-util, vite, @parcel/watcher, @dotenvx/dotenvx',
-    reason:
-      'No patched release exists: the advisory covers every version up to the latest, 4.0.7. ' +
-      'It is a ReDoS on a hostile GLOB PATTERN. Every consumer here is a bundler, a file ' +
-      'watcher or a test runner matching patterns from developer configuration at build and ' +
-      'test time; no source file imports picomatch or a glob matcher, so no request served by ' +
-      'oxy-api or a shipped app supplies one. Remove this entry by raising picomatch as soon ' +
-      'as a release past the advisory is published.',
   },
 ];
 
