@@ -699,6 +699,24 @@ export const SEED_APPS: SeedAppSpec[] = [
     capabilities: [catalogApplicationCapability('mention'), AGENCY_COORDINATE_CAPABILITY],
   },
   {
+    // Vibbr (events and tickets, vibbr.co). No pinned `id` yet: the seed keys it by name, and the
+    // id the first run mints is read back and pinned here, as Mention's was.
+    name: 'Vibbr',
+    // ADR 0066: what Vibbr's backend does for the people who use it. Nothing is declared until
+    // a feature needs it; federation (organizers as their Oxy accounts, ADR 0002 in OxyHQ/Vibbr)
+    // adds its entry in the change that ships the code using it.
+    description: 'Events and tickets: discover, buy, resell and organize.',
+    websiteUrl: 'https://vibbr.co',
+    webOrigins: ['https://vibbr.co'],
+    type: 'first_party',
+    redirectUris: [
+      'https://vibbr.co/__oxy/sso-callback',
+      'https://www.vibbr.co/__oxy/sso-callback',
+      'http://localhost:8081/__oxy/sso-callback',
+    ],
+    scopes: ['user:read'],
+  },
+  {
     id: HOMIIO_APPLICATION_ID,
     name: 'Homiio',
     // ADR 0066.
