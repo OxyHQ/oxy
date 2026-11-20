@@ -22,7 +22,6 @@
  */
 
 import { QueryClient, onlineManager, type Query } from '@tanstack/react-query';
-import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { isDev, retryAfterSecondsOf } from '@oxy.so/core';
 import type { StorageInterface } from '../utils/storageHelpers';
 import { accountQueryOwnership, type AccountQueriesConfig } from './accountQueryPersistence';
@@ -233,8 +232,3 @@ export const clearQueryCache = async (storage: StorageInterface): Promise<void> 
     }
   }
 };
-
-/**
- * Re-export the persisted client shape so callers can type custom persisters.
- */
-export type { PersistedClient };

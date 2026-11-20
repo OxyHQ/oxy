@@ -61,7 +61,7 @@ function Shell() {
 }
 ```
 
-`GestureHandlerRootView` is required for the bottom-sheet pan gestures. The provider awaits `restored` (TanStack Query persist-client over `AsyncStorage`) before exposing the QueryClient — cached data renders on first paint.
+`GestureHandlerRootView` is required for the bottom-sheet pan gestures. The provider awaits `restored` (the SDK's persisted query cache over `AsyncStorage`) before exposing the QueryClient — cached data renders on first paint.
 
 ## Core concepts
 

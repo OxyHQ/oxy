@@ -10,7 +10,7 @@ order: 3
 
 ## Persisted query cache
 
-The provider configures `@tanstack/react-query-persist-client` over `AsyncStorage`:
+The provider persists the query cache over `AsyncStorage` itself (`persistedQueryCache.ts`, TanStack's persisted-client shape; no persister package needed):
 
 | Setting | Value |
 |---------|-------|
