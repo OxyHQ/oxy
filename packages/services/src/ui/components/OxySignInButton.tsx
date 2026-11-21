@@ -10,7 +10,6 @@ import {
   type PublicApplication,
 } from '@oxy.so/core';
 import { useAuthStore } from '../stores/authStore';
-import { useShallow } from 'zustand/react/shallow';
 import {
   SocialButton,
   socialButtonLabel,
@@ -202,9 +201,8 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
     startWebOAuthSignIn,
     startNativeOAuthSignIn,
   } = useOxy();
-  const { isAuthenticated, isLoading } = useAuthStore(
-    useShallow((state) => ({ isAuthenticated: state.isAuthenticated, isLoading: state.isLoading })),
-  );
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading);
   // Tracks whether the unified account dialog is open so we can show
   // "Signing in..." while it is. The manager reports visibility on every
   // change regardless of platform or what opened/closed it.
