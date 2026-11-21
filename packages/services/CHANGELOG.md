@@ -81,8 +81,9 @@ that was left is dropped.
 - `useOnlineStatus()` reads bloom-data's `environment`, which `OxyProvider` feeds from NetInfo on
   native; the browser feeds it on web.
 - `useFollow` reads whether the viewer follows a person, and their counts, from `User`
-  (`relationship`, `_count`), so a profile read, a feed author and a follow agree; its return keeps
-  its shape.
+  (`relationship`, `_count`), so a profile read, a feed author and a follow agree. It is
+  overloaded: a string gives `SingleFollowResult`, an array `MultiFollowResult`, so a caller that
+  passed `id || undefined` passes the id (or `''`) to get the single-person fields.
 - `clearAllAccountData()` deletes the account's bloom-data store (memory and disk) instead of
   clearing a query cache.
 - A device's session rows (`DeviceSession`) refer to their person in `User`, so a profile edit

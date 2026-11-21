@@ -1,26 +1,10 @@
 import { createRoot } from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OxyProvider } from '@oxy.so/services';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 
 import './index.css';
 import App from './App.tsx';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5,
-      gcTime: 1000 * 60 * 30,
-      retry: 1,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: 'always',
-    },
-    mutations: {
-      retry: 1,
-    },
-  },
-});
 
 const oxyBaseUrl = import.meta.env.VITE_OXY_URL || 'https://api.oxy.so';
 // Optional, for running against a local stack: the app's registered client id
@@ -41,17 +25,10 @@ if (!rootElement) {
 // sheets never paint. Console, accounts, and the auth IdP all render without
 // StrictMode for the same reason.
 createRoot(rootElement).render(
-  <QueryClientProvider client={queryClient}>
-    <BloomThemeProvider mode="system" colorPreset="oxy">
-      <ConnectionStatusToasts />
-      <OxyProvider
-        baseURL={oxyBaseUrl}
-        clientId={oxyClientId}
-        authorizeBaseUrl={oxyAuthorizeUrl}
-        queryClient={queryClient}
-      >
-        <App />
-      </OxyProvider>
-    </BloomThemeProvider>
-  </QueryClientProvider>,
+  <BloomThemeProvider mode="system" colorPreset="oxy">
+    <ConnectionStatusToasts />
+    <OxyProvider baseURL={oxyBaseUrl} clientId={oxyClientId} authorizeBaseUrl={oxyAuthorizeUrl}>
+      <App />
+    </OxyProvider>
+  </BloomThemeProvider>,
 );

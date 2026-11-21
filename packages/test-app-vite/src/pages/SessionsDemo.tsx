@@ -1,4 +1,7 @@
+import { useEntities } from '@oxy.so/bloom-data';
 import {
+  Device,
+  Session,
   useAuth,
   useSessions,
   useUserDevices,
@@ -36,8 +39,10 @@ interface DeviceInfo {
 
 export function SessionsDemo() {
   const { isAuthenticated } = useAuth();
-  const { data: sessions, isLoading: sessionsLoading } = useSessions();
-  const { data: devices, isLoading: devicesLoading } = useUserDevices();
+  const { ids: sessionIds, isLoading: sessionsLoading } = useSessions();
+  const sessions = useEntities(Session, sessionIds).filter((session) => session !== undefined);
+  const { ids: deviceIds, isLoading: devicesLoading } = useUserDevices();
+  const devices = useEntities(Device, deviceIds).filter((device) => device !== undefined);
   const switchSession = useSwitchSession();
   const logoutSession = useLogoutSession();
   const logoutAll = useLogoutAll();
@@ -56,7 +61,7 @@ export function SessionsDemo() {
 
   const handleSwitch = async (sessionId: string) => {
     try {
-      await switchSession.mutateAsync(sessionId);
+      await switchSession.run(sessionId);
       toast.success('Switched session');
     } catch (err) {
       toast.error('Failed to switch: ' + String(err));
@@ -65,7 +70,7 @@ export function SessionsDemo() {
 
   const handleLogoutSession = async (sessionId: string) => {
     try {
-      await logoutSession.mutateAsync(sessionId);
+      await logoutSession.run(sessionId);
       toast.success('Session logged out');
     } catch (err) {
       toast.error('Failed to logout session: ' + String(err));
@@ -74,7 +79,7 @@ export function SessionsDemo() {
 
   const handleLogoutAll = async () => {
     try {
-      await logoutAll.mutateAsync();
+      await logoutAll.run();
       toast.success('All sessions logged out');
     } catch (err) {
       toast.error('Failed to logout all: ' + String(err));
@@ -106,7 +111,7 @@ export function SessionsDemo() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : sessions && sessions.length > 0 ? (
+          ) : sessions.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -179,7 +184,7 @@ export function SessionsDemo() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : devices && Array.isArray(devices) && devices.length > 0 ? (
+          ) : devices.length > 0 ? (
             <div className="space-y-3">
               {devices.map((device: DeviceInfo) => (
                 <div
@@ -220,8 +225,8 @@ function Sessions() {
   const switchSession = useSwitchSession();
   const logoutAll = useLogoutAll();
 
-  await switchSession.mutateAsync(sessionId);
-  await logoutAll.mutateAsync();
+  await switchSession.run(sessionId);
+  await logoutAll.run();
 }`}
           </pre>
         </CardContent>
