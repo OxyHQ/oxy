@@ -84,7 +84,7 @@ jest.mock('../../src/ui/hooks/useI18n', () => ({
   useI18n: () => ({ t: (key: string) => key, locale: 'en-US' }),
 }));
 jest.mock('../../src/ui/hooks/queries/useAuthMethods', () => ({
-  useSignInMethods: () => ({ data: { hasPassword: true, hasEmail: false, totpEnabled: false } }),
+  useSignInMethods: () => ({ value: { hasPassword: true, hasEmail: false, totpEnabled: false } }),
 }));
 jest.mock('../../src/ui/components/signIn/ReauthStep', () => ({
   ReauthStep: ({

@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { skip, useRecord } from '@oxy.so/bloom-data';
 import { Platform, View, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
@@ -9,7 +9,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { H1, H4, H5, Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { queryKeys } from '../../hooks/queries/queryKeys';
+import { reputationBalance } from '../../data/trust';
 import { darkenColor, lightenColor } from '../../utils/colorUtils';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -87,12 +87,11 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
     title: t('trust.rewards.title') || 'Trust Rewards',
     subtitle: t('trust.rewards.subtitle') || 'Unlock special features and recognition',
   });
-  const balance = useQuery({
-    queryKey: queryKeys.reputation.balance(user?.id),
-    enabled: Boolean(user?.id) && isAuthenticated,
-    queryFn: () => oxyServices.reputation.balance(),
-  });
-  const reputationTotal = balance.data?.total || 0;
+  const balance = useRecord(
+    reputationBalance,
+    ...(user?.id && isAuthenticated ? [oxyServices, user.id] : [skip]),
+  );
+  const reputationTotal = balance.value?.balance.total || 0;
 
   const bloomTheme = useTheme();
   const colors = bloomTheme.colors;

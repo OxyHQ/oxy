@@ -120,11 +120,7 @@ export {
   queryKeys,
   invalidateAccountQueries,
   invalidateSessionQueries,
-  invalidateDeviceQueries,
-  invalidateSecurityQueries,
-  invalidateStorageQueries,
   invalidatePaymentsQueries,
-  invalidateAuthMethodsQueries,
 } from './hooks/queries/queryKeys';
 export {
   CLEARABLE_USER_FIELDS,

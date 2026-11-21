@@ -7,6 +7,7 @@
 
 import type React from 'react';
 import { useCallback, useState } from 'react';
+import { useEntity } from '@oxy.so/bloom-data';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { surfaces } from '@oxy.so/bloom/surfaces';
@@ -14,6 +15,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { logger as loggerUtil, type DeviceLinkedSession } from '@oxy.so/core';
 import { useOxy } from '../../context/oxyRuntimeContext';
+import { DeviceSession } from '../../data/sessions';
 import { useDeviceSessions } from '../../hooks/queries/useServicesQueries';
 import { useI18n } from '../../hooks/useI18n';
 import Ionicons from '../../icons/Ionicons';
@@ -54,16 +56,17 @@ export const SessionsSection: React.FC = () => {
   const { t } = useI18n();
   const { isAuthenticated, oxyServices, activeSessionId } = useOxy();
   const {
-    data: deviceSessions,
+    ids: deviceIds,
+    extra: deviceSessionsExtra,
     isLoading: deviceSessionsLoading,
-    refetch: refetchDeviceSessions,
+    refresh: refetchDeviceSessions,
   } = useDeviceSessions({ enabled: isAuthenticated && !!activeSessionId });
 
   const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
   const [signingOutAllDevices, setSigningOutAllDevices] = useState(false);
 
-  const deviceRows: DeviceLinkedSession[] = (deviceSessions ?? []) as DeviceLinkedSession[];
-  const otherDevices = deviceRows.filter((d) => !d.isCurrent);
+  const current = deviceSessionsExtra?.current ?? [];
+  const otherDevices = deviceIds.filter((id) => !current.includes(id));
 
   const confirmRemoveDevice = useCallback(
     async (device: DeviceLinkedSession) => {
@@ -153,7 +156,7 @@ export const SessionsSection: React.FC = () => {
           showChevron={false}
           disabled
         />
-      ) : deviceRows.length === 0 ? (
+      ) : deviceIds.length === 0 ? (
         <GroupedSectionItem
           icon={<SettingsIcon name="cellphone" color={bloomTheme.colors.textTertiary} />}
           title={t('manageAccount.sessions.empty') || 'No active sessions'}
@@ -161,33 +164,12 @@ export const SessionsSection: React.FC = () => {
           disabled
         />
       ) : (
-        deviceRows.map((device) => (
-          <GroupedSectionItem
-            key={`device-${device.sessionId}`}
-            icon={
-              <SettingsIcon
-                name={device.isCurrent ? 'cellphone' : 'cellphone-basic'}
-                color={device.isCurrent ? bloomTheme.colors.success : bloomTheme.colors.primary}
-              />
-            }
-            title={deviceSessionTitle(device, t)}
-            description={
-              t('manageAccount.sessions.lastActive', {
-                relative: formatRelative(device.lastActive),
-              }) || `Last active ${formatRelative(device.lastActive)}`
-            }
-            onPress={device.isCurrent ? undefined : () => confirmRemoveDevice(device)}
-            disabled={device.isCurrent || removingDeviceId === device.sessionId}
-            rightElement={
-              !device.isCurrent ? (
-                removingDeviceId === device.sessionId ? (
-                  <SpinnerIcon color={bloomTheme.colors.error} size={16} />
-                ) : (
-                  <Ionicons name="log-out-outline" size={18} color={bloomTheme.colors.error} />
-                )
-              ) : undefined
-            }
-            showChevron={false}
+        deviceIds.map((id) => (
+          <DeviceSessionRow
+            key={`device-${id}`}
+            id={id}
+            removing={removingDeviceId === id}
+            onRemove={confirmRemoveDevice}
           />
         ))
       )}
@@ -214,5 +196,47 @@ export const SessionsSection: React.FC = () => {
         />
       ) : null}
     </GroupedSection>
+  );
+};
+
+interface DeviceSessionRowProps {
+  id: string;
+  removing: boolean;
+  onRemove: (device: DeviceLinkedSession) => void;
+}
+
+/** One session on this device, read from `DeviceSession`. */
+const DeviceSessionRow: React.FC<DeviceSessionRowProps> = ({ id, removing, onRemove }) => {
+  const bloomTheme = useTheme();
+  const { t } = useI18n();
+  const device = useEntity(DeviceSession, id);
+  if (!device) return null;
+  return (
+    <GroupedSectionItem
+      icon={
+        <SettingsIcon
+          name={device.isCurrent ? 'cellphone' : 'cellphone-basic'}
+          color={device.isCurrent ? bloomTheme.colors.success : bloomTheme.colors.primary}
+        />
+      }
+      title={deviceSessionTitle(device, t)}
+      description={
+        t('manageAccount.sessions.lastActive', {
+          relative: formatRelative(device.lastActive),
+        }) || `Last active ${formatRelative(device.lastActive)}`
+      }
+      onPress={device.isCurrent ? undefined : () => onRemove(device)}
+      disabled={device.isCurrent || removing}
+      rightElement={
+        !device.isCurrent ? (
+          removing ? (
+            <SpinnerIcon color={bloomTheme.colors.error} size={16} />
+          ) : (
+            <Ionicons name="log-out-outline" size={18} color={bloomTheme.colors.error} />
+          )
+        ) : undefined
+      }
+      showChevron={false}
+    />
   );
 };

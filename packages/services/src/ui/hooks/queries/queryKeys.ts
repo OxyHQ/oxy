@@ -35,60 +35,6 @@ export const queryKeys = {
     device: (deviceId: string) => [...queryKeys.sessions.all, 'device', deviceId] as const,
   },
 
-  // Device queries
-  devices: {
-    all: ['devices'] as const,
-    lists: () => [...queryKeys.devices.all, 'list'] as const,
-    list: (accountScope?: string) => [...queryKeys.devices.lists(), accountScope] as const,
-    details: () => [...queryKeys.devices.all, 'detail'] as const,
-    detail: (deviceId: string) => [...queryKeys.devices.details(), deviceId] as const,
-  },
-
-  // Security activity queries
-  security: {
-    all: ['security'] as const,
-    activity: (limit?: number, offset?: number, eventType?: string) =>
-      [...queryKeys.security.all, 'activity', limit, offset, eventType] as const,
-    recent: (limit: number) => [...queryKeys.security.all, 'recent', limit] as const,
-    infinite: (limit: number, eventType?: string) =>
-      [...queryKeys.security.all, 'infinite', limit, eventType] as const,
-  },
-
-  // Linked authentication methods (the identity key)
-  /** How the signed-in account signs in: email, password, authenticator (`GET /users/me/sign-in-methods`). */
-  signInMethods: {
-    all: ['signInMethods'] as const,
-    current: (userId?: string) => [...queryKeys.signInMethods.all, userId || 'current'] as const,
-  },
-
-  authMethods: {
-    all: ['authMethods'] as const,
-    list: (userId?: string) => [...queryKeys.authMethods.all, 'list', userId || 'current'] as const,
-  },
-
-  // Storage usage queries
-  storage: {
-    all: ['storage'] as const,
-    usage: (accountScope?: string) => [...queryKeys.storage.all, 'usage', accountScope] as const,
-  },
-
-  // Oxy Trust reputation (the active account's standing)
-  reputation: {
-    all: ['reputation'] as const,
-    balance: (userId?: string) =>
-      [...queryKeys.reputation.all, 'balance', userId || 'current'] as const,
-    transactions: (userId: string | undefined, limit: number, offset = 0) =>
-      [...queryKeys.reputation.all, 'transactions', userId || 'current', limit, offset] as const,
-    rules: () => [...queryKeys.reputation.all, 'rules'] as const,
-    leaderboard: () => [...queryKeys.reputation.all, 'leaderboard'] as const,
-  },
-
-  // Verified domains on the signed-in identity
-  domains: {
-    all: ['domains'] as const,
-    list: (userId?: string) => [...queryKeys.domains.all, 'list', userId || 'current'] as const,
-  },
-
   // Payment / wallet / subscription queries
   payments: {
     all: ['payments'] as const,
@@ -122,35 +68,6 @@ export const invalidateAccountQueries = (queryClient: QueryClient): void => {
  */
 export const invalidateSessionQueries = (queryClient: QueryClient): void => {
   queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
-};
-
-/**
- * Helper to invalidate all device-related queries
- */
-export const invalidateDeviceQueries = (queryClient: QueryClient): void => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
-};
-
-/**
- * Helper to invalidate all security-activity queries
- */
-export const invalidateSecurityQueries = (queryClient: QueryClient): void => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.security.all });
-};
-
-/**
- * Helper to invalidate all storage-usage queries
- */
-export const invalidateStorageQueries = (queryClient: QueryClient): void => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.storage.all });
-};
-
-/**
- * Helper to invalidate the user's linked auth-methods list (call after linking
- * or rotating the identity key).
- */
-export const invalidateAuthMethodsQueries = (queryClient: QueryClient): void => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.authMethods.all });
 };
 
 /**

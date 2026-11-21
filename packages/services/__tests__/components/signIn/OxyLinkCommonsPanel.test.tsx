@@ -67,7 +67,7 @@ let totpEnabled = false;
 jest.mock('../../../src/ui/hooks/queries/useAuthMethods', () => ({
   __esModule: true,
   useSignInMethods: () => ({
-    data: { hasEmail: true, hasPassword: false, totpEnabled, backupCodesRemaining: 0 },
+    value: { hasEmail: true, hasPassword: false, totpEnabled, backupCodesRemaining: 0 },
   }),
 }));
 

@@ -8,8 +8,6 @@ export interface StorageInterface {
 }
 
 export interface SessionStorageKeys {
-  activeSessionId: string;
-  sessionIds: string;
   language: string;
 }
 
@@ -56,7 +54,5 @@ export const STORAGE_KEY_PREFIX = 'oxy_session';
  * @param prefix - Storage key prefix
  */
 export const getStorageKeys = (prefix: string = STORAGE_KEY_PREFIX): SessionStorageKeys => ({
-  activeSessionId: `${prefix}_active_session_id`,
-  sessionIds: `${prefix}_session_ids`,
   language: `${prefix}_language`,
 });

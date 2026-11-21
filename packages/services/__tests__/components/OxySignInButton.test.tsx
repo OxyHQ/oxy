@@ -70,11 +70,6 @@ jest.mock('../../src/ui/stores/authStore', () => ({
     selector({ isAuthenticated: false, isLoading: false }),
 }));
 
-jest.mock('zustand/react/shallow', () => ({
-  __esModule: true,
-  useShallow: (fn: unknown) => fn,
-}));
-
 jest.mock('../../src/ui/navigation/accountDialogManager', () => ({
   __esModule: true,
   subscribeToAccountDialog: () => () => undefined,

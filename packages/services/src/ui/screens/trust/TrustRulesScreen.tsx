@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useRecord } from '@oxy.so/bloom-data';
 import { View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -12,7 +12,7 @@ import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useI18n } from '../../hooks/useI18n';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { queryKeys } from '../../hooks/queries/queryKeys';
+import { reputationRules } from '../../data/trust';
 
 /** Stable display order for rule category sections. */
 const CATEGORY_ORDER: ReputationCategory[] = [
@@ -35,13 +35,10 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
   });
   const bloomTheme = useTheme();
 
-  const rulesQuery = useQuery({
-    queryKey: queryKeys.reputation.rules(),
-    queryFn: () => oxyServices.reputation.rules(),
-    staleTime: 10 * 60 * 1000,
-  });
-  const rules: ReputationRule[] = Array.isArray(rulesQuery.data) ? rulesQuery.data : [];
-  const isLoading = rulesQuery.isPending;
+  const rulesQuery = useRecord(reputationRules, oxyServices);
+  const held = rulesQuery.value?.rules;
+  const rules: readonly ReputationRule[] = Array.isArray(held) ? held : [];
+  const isLoading = rulesQuery.isLoading;
   const error = rulesQuery.error
     ? (rulesQuery.error instanceof Error ? rulesQuery.error.message : null) ||
       'Failed to load rules'

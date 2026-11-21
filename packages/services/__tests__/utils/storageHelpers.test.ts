@@ -1,10 +1,10 @@
 /**
  * Tests for the storage helpers.
  *
- * The OxyContext uses the same `getStorageKeys` helper that consuming
- * apps may also use to read raw session ids from storage. The exact
- * key names below are part of the public contract — changing them
- * without a migration would orphan every signed-in session on upgrade.
+ * The OxyContext keys the chosen language with `getStorageKeys`. The key name
+ * below is part of the public contract — changing it without a migration
+ * would forget every device's language on upgrade. The session ids the SDK
+ * once stored under this prefix had no reader and are no longer written.
  */
 
 import {
@@ -21,28 +21,16 @@ describe('STORAGE_KEY_PREFIX', () => {
 });
 
 describe('getStorageKeys', () => {
-  it('produces every key the OxyProvider depends on', () => {
-    const keys = getStorageKeys('oxy_session');
-    expect(keys).toEqual({
-      activeSessionId: 'oxy_session_active_session_id',
-      sessionIds: 'oxy_session_session_ids',
-      language: 'oxy_session_language',
-    });
+  it('produces the one key the OxyProvider depends on', () => {
+    expect(getStorageKeys('oxy_session')).toEqual({ language: 'oxy_session_language' });
   });
 
   it('honors a custom prefix when consumers want to isolate environments', () => {
-    const keys = getStorageKeys('staging_oxy');
-    expect(keys.activeSessionId).toBe('staging_oxy_active_session_id');
-    expect(keys.sessionIds).toBe('staging_oxy_session_ids');
-    expect(keys.language).toBe('staging_oxy_language');
+    expect(getStorageKeys('staging_oxy').language).toBe('staging_oxy_language');
   });
 
   it('uses the default prefix when called with no argument', () => {
-    expect(getStorageKeys()).toEqual({
-      activeSessionId: 'oxy_session_active_session_id',
-      sessionIds: 'oxy_session_session_ids',
-      language: 'oxy_session_language',
-    });
+    expect(getStorageKeys()).toEqual({ language: 'oxy_session_language' });
   });
 });
 

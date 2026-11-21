@@ -174,7 +174,6 @@ export {
 } from './ui/hooks/mutations/useServicesMutations';
 
 // Stable mutation keys for the offline queue
-export { mutationKeys } from './ui/hooks/mutations/mutationKeys';
 
 // ---------------------------------------------------------------------------
 // Query keys + cache invalidation helpers
@@ -186,11 +185,7 @@ export {
   queryKeys,
   invalidateAccountQueries,
   invalidateSessionQueries,
-  invalidateDeviceQueries,
-  invalidateSecurityQueries,
-  invalidateStorageQueries,
   invalidatePaymentsQueries,
-  invalidateAuthMethodsQueries,
 } from './ui/hooks/queries/queryKeys';
 
 // The user merge rules' public half. Every person an app reads goes through
@@ -214,6 +209,14 @@ export type {
 export { User, storeUsers } from './ui/data/user';
 export type { UserRecord } from './ui/data/userRecord';
 export { SIGNED_OUT_DATA_ACCOUNT } from './ui/data/accountData';
+// The rows the session, device, security-activity and domain list hooks name by
+// id: read one with `useEntity(Session, id)`.
+export { Session, DeviceSession, Device } from './ui/data/sessions';
+export type { DeviceSessionsExtra } from './ui/data/sessions';
+export { SecurityEvent } from './ui/data/security';
+export type { SecurityActivityPageExtra } from './ui/data/security';
+export { Domain } from './ui/data/domains';
+export type { AuthMethodsView } from './ui/hooks/queries/useAuthMethods';
 
 // Mutation status aggregator (for "Syncing..." indicators)
 export { useMutationStatus } from './ui/hooks/useMutationStatus';

@@ -252,13 +252,13 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   }),
 }));
 
-// The account menu wires `useAccountStorageUsage()` (a `useQuery` wrapper) for
-// its storage block — stub the query so the hook is inert in these RN-binding
-// tests (the storage block then renders its "unavailable" placeholder).
+// The account menu wires `useAccountStorageUsage()` (a record read) for its
+// storage block — stub the read so the hook is inert in these RN-binding tests
+// (the storage block then renders its "unavailable" placeholder).
 let mockStorageUsage: AccountStorageUsageResponse | undefined;
 jest.mock('../../src/ui/hooks/queries/useServicesQueries', () => ({
   __esModule: true,
-  useAccountStorageUsage: () => ({ data: mockStorageUsage, isLoading: false, isFetching: false }),
+  useAccountStorageUsage: () => ({ value: mockStorageUsage, isLoading: false, isFetching: false }),
 }));
 
 // Resolve REAL copy from the shipped dictionaries rather than stubbing `t` to a
@@ -856,7 +856,7 @@ describe('OxyAuthChooser', () => {
       ),
     });
 
-    render(<OxyAuthChooser />);
+    render(<OxyAuthChooser onComplete={closeAccountDialog} />);
     // Expand the switcher first — the account rows are collapsed by default.
     fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
     fireEvent.click(screen.getByRole('button', { name: 'Bob' }));
@@ -865,9 +865,11 @@ describe('OxyAuthChooser', () => {
     // and on a shared device an account id cannot say which person's route it is.
     await waitFor(() => expect(controller.activateContext).toHaveBeenCalledWith('ctx-bob'));
     expect(controller.activateContext).not.toHaveBeenCalledWith('b');
-    // `invalidateQueries` runs AFTER `await controller.activateContext(...)`
-    // resolves, so it needs its own wait rather than the next line.
-    await waitFor(() => expect(invalidateQueries).toHaveBeenCalled());
+    // The dialog closes AFTER `await controller.activateContext(...)` resolves,
+    // so it needs its own wait rather than the next line.
+    await waitFor(() => expect(closeAccountDialog).toHaveBeenCalled());
+    // The next account reads from its own store: no cache is cleared here.
+    expect(invalidateQueries).not.toHaveBeenCalled();
     // A successful switch fires no error toast.
     expect(toast.error).not.toHaveBeenCalled();
   });
@@ -892,7 +894,7 @@ describe('OxyAuthChooser', () => {
         'ctx-alice',
       );
 
-    it('treats a switch whose directory re-read failed as the switch it was: caches reset, dialog closes, no error', async () => {
+    it('treats a switch whose directory re-read failed as the switch it was: dialog closes, no error', async () => {
       snapshot = makeSnapshot({ directory: twoPeople() });
       // The switch went through; only the re-read after it failed — which also
       // lands on `snapshot.error`. That is the directory's problem, not the switch's.
@@ -905,9 +907,7 @@ describe('OxyAuthChooser', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
       fireEvent.click(screen.getByRole('button', { name: 'Bob' }));
 
-      // Without the reset, Bob's screens would render from Alice's cached queries.
-      await waitFor(() => expect(invalidateQueries).toHaveBeenCalled());
-      expect(closeAccountDialog).toHaveBeenCalled();
+      await waitFor(() => expect(closeAccountDialog).toHaveBeenCalled());
       expect(toast.error).not.toHaveBeenCalled();
     });
 

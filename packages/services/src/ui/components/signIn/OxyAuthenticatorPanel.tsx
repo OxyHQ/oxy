@@ -21,9 +21,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import type { TotpEnrollResponse } from '@oxy.so/contracts';
 import { TOTP_DIGITS } from '@oxy.so/contracts/client';
-import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { queryKeys } from '../../hooks/queries/queryKeys';
 import { useI18n } from '../../hooks/useI18n';
 import { copyText } from '../../utils/clipboard';
 import { SubtleLink } from '../authChooser/primitives';
@@ -61,15 +59,13 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
   const theme = useTheme();
   const { t } = useI18n();
   const { oxyServices } = useOxy();
-  const queryClient = useQueryClient();
   const security = useAccountSecurityState();
   const [step, setStep] = useState<Step>({ name: 'status' });
   const [code, setCode] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = () =>
-    void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
+  const refresh = () => void security.methods.refresh();
 
   if (security.keyed) {
     return (
@@ -82,8 +78,8 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
     );
   }
   const fallback = accountSecurityFallback(security, t('signInSecurity.totp.title'), t);
-  if (fallback || !security.methods.data) return fallback;
-  const { hasEmail, hasPassword, totpEnabled, backupCodesRemaining } = security.methods.data;
+  if (fallback || !security.methods.value) return fallback;
+  const { hasEmail, hasPassword, totpEnabled, backupCodesRemaining } = security.methods.value;
 
   const setUp = () => {
     if (pending) return;
