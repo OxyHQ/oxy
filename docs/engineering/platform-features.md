@@ -157,7 +157,7 @@ Self-hosted `expo-updates`-protocol OTA server, namespaced entirely under `/upda
 - **Typed routes**: `typedRoutes: true` in `app.json` — all `router.push()` calls must use typed path strings, no `as any` casts
 - **Error boundaries**: at root, `(tabs)`, and `(auth)` layout levels using an `ErrorFallback` component
 - **Activity History**: `/(tabs)/activity.tsx` using `GET /security/activity` with infinite scroll
-- **Font**: do NOT set `fontFamily: 'Inter-*'` — `BloomThemeProvider` sets Inter as `Text.defaultProps` globally
+- **Font**: do NOT set `fontFamily: 'Inter-*'` — Bloom's `Text` names Inter itself, and a raw `Text`/`TextInput` gets it from `@oxy.so/app-preset`'s Metro config (`metro/base-font/`; `Text.defaultProps` does nothing under React 19)
 - **expo-router v56**: no `@react-navigation/*` direct imports; synthesize `{ type: 'OPEN_DRAWER' }` payloads inline
 - **`(auth)` routing** (session-only gate): `(auth)`↔`(tabs)` now keys **purely on session** — `needsAuth = isAuthResolved ? !isAuthenticated : true`. No `hasIdentity`/`KeyManager` in routing. `(auth)/index.tsx`: session resolved + authenticated → `/(tabs)`; not authenticated → sign-in. Always clean up timers from entrance animations.
 - **Username step**: use `useUpdateProfile().mutateAsync()`, NOT `oxyServices.users.updateMe()` directly — gets optimistic update + cache invalidation. Stable initial value via lazy `useState` initializer (no `useEffect` reset on remount).

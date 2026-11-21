@@ -450,6 +450,27 @@ release bundle: Gradle can otherwise reuse its previous bundle despite a changed
 package install. Inspect the regenerated source map for a single CSS runtime
 before comparing device behavior.
 
+#### A text that names no family draws Bloom's face (6.8.0+)
+
+React Native draws a `Text` or `TextInput` that names no `fontFamily` in the
+system face and has no setting for another default; react-native-web gives one
+`font: 14px System`. Bloom's old default, `Text.defaultProps`, never reached a
+text: React 19 applies `defaultProps` to class components only. So a raw
+`<Text className="text-[15px]">` (Mention's feed rows, for one) drew Roboto, San
+Francisco or Segoe UI next to Bloom's Inter.
+
+`createOxyMetroConfig` bundles `metro/base-font/Text.js` and `TextInput.js`
+wherever NativeWind's `Text` or `TextInput` would be bundled: the same
+components (`styled(host, mapping)`, NativeWind's mappings) over a host that
+puts the base face FIRST in its style. On native that is `Inter`, on a text with
+no text ancestor (a nested text inherits its parent's family); on the web it is
+`font-family: inherit` as an atomic class, so the text takes the document's
+Inter (`--font-sans`). A `font-*` utility, an inline `fontFamily` and Bloom's
+`Text` (which names its own family) still win. The match is on the resolved
+file, so `import { Text } from 'react-native'`, deep `react-native/Libraries/…`
+imports and the react-native-web path Expo's Babel preset rewrites to all reach
+it; `withBaseFontText` is exported for an app that composes its own config.
+
 #### `react-native` on native: the complete NativeWind shim (4.1.0+)
 
 On native, NativeWind's resolver sends every `import … from 'react-native'`
