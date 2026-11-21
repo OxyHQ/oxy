@@ -5,8 +5,8 @@
     "ionicons": {
       "fontFamily": "OxyServicesIonicons",
       "file": "src/assets/fonts/icons/OxyServicesIonicons.ttf",
-      "bytes": 42812,
-      "sha256": "6b791c694fda8075304e9356266fc9d7a66bcd29a0ded51d418212dac6cdb9d4",
+      "bytes": 41864,
+      "sha256": "ac06aec2125a5f8ed386dabd3dbc7aae3c2687594671786303c1173d24444c2f",
       "names": [
         "add",
         "add-circle-outline",
@@ -96,7 +96,6 @@
         "library",
         "link",
         "link-outline",
-        "list",
         "location",
         "location-outline",
         "lock-closed",
@@ -126,7 +125,6 @@
         "search",
         "search-outline",
         "server",
-        "settings",
         "share-outline",
         "shield",
         "shield-checkmark",
@@ -143,7 +141,6 @@
         "trophy-outline",
         "videocam",
         "volume-off",
-        "wallet",
         "wallet-outline",
         "warning",
         "watch",
@@ -153,8 +150,8 @@
     "materialCommunityIcons": {
       "fontFamily": "OxyServicesMaterialCommunityIcons",
       "file": "src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf",
-      "bytes": 29284,
-      "sha256": "ca8fb1b2696e36f690b4333ce894ea964c477d11ad486b1b844cd2ac652032ea",
+      "bytes": 28516,
+      "sha256": "c5e7314182886fe878bce3d789010c102104bf5c92d2ecadad95d63cb3b78393",
       "names": [
         "account",
         "account-circle",
@@ -215,7 +212,6 @@
         "code-tags",
         "cog",
         "cog-outline",
-        "contacts",
         "contain",
         "content-copy",
         "controller",
@@ -226,7 +222,6 @@
         "decimal",
         "delete",
         "delete-outline",
-        "devices",
         "dots-horizontal",
         "download",
         "download-outline",
@@ -313,7 +308,6 @@
         "rocket",
         "scale",
         "school-outline",
-        "security",
         "server",
         "share-outline",
         "shield",
@@ -326,7 +320,6 @@
         "sort-numeric-variant",
         "star",
         "store",
-        "switch",
         "sync",
         "tag",
         "tag-outline",
@@ -342,7 +335,6 @@
         "upload",
         "video-outline",
         "volume-off",
-        "wallet",
         "wallet-outline",
         "watch",
         "web",
@@ -355,5 +347,5 @@
     }
   },
   "glyphMapsFile": "src/ui/icons/subsetGlyphMaps.ts",
-  "glyphMapsSha256": "22a2a16a6c9ab7d3fa6828a6edb38917884233d73964f951b534f9acec5c1a0d"
+  "glyphMapsSha256": "75fe9abf0e02566d876c15fd5612284e7ab604c95f9b670df849f680f1129296"
 }
