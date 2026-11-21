@@ -92,7 +92,7 @@ describe('queryKeys.users', () => {
   });
 });
 
-describe('queryKeys.sessions / devices / privacy / security', () => {
+describe('queryKeys.sessions / privacy', () => {
   it('sessions.device() is unique per deviceId', () => {
     expect(queryKeys.sessions.device('d1')).toEqual(['sessions', 'device', 'd1']);
     expect(queryKeys.sessions.device('d2')).toEqual(['sessions', 'device', 'd2']);
@@ -101,26 +101,6 @@ describe('queryKeys.sessions / devices / privacy / security', () => {
   it("privacy.settings() resolves to 'current' when no userId is provided", () => {
     expect(queryKeys.privacy.settings()).toEqual(['privacy', 'settings', 'current']);
     expect(queryKeys.privacy.settings('u1')).toEqual(['privacy', 'settings', 'u1']);
-  });
-
-  it('security.activity() includes every filter argument in the key', () => {
-    expect(queryKeys.security.activity(25, 50, 'login')).toEqual([
-      'security',
-      'activity',
-      25,
-      50,
-      'login',
-    ]);
-  });
-
-  it('security.infinite() includes the eventType only when supplied', () => {
-    expect(queryKeys.security.infinite(25)).toEqual(['security', 'infinite', 25, undefined]);
-    expect(queryKeys.security.infinite(25, 'logout')).toEqual([
-      'security',
-      'infinite',
-      25,
-      'logout',
-    ]);
   });
 });
 
@@ -159,16 +139,6 @@ describe('queryKeys.payments', () => {
       5,
       5,
     ]);
-  });
-});
-
-describe('queryKeys.storage', () => {
-  it("uses ['storage'] as root", () => {
-    expect(queryKeys.storage.all).toEqual(['storage']);
-  });
-
-  it('usage() builds [storage, usage]', () => {
-    expect(queryKeys.storage.usage()).toEqual(['storage', 'usage']);
   });
 });
 

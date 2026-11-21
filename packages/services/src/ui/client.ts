@@ -122,13 +122,9 @@ export {
   invalidateAccountQueries,
   invalidateUserQueries,
   invalidateSessionQueries,
-  invalidateDeviceQueries,
   invalidatePrivacyQueries,
-  invalidateSecurityQueries,
-  invalidateStorageQueries,
   invalidatePaymentsQueries,
   invalidateConnectedAppsQueries,
-  invalidateAuthMethodsQueries,
 } from './hooks/queries/queryKeys';
 export {
   upsertCachedUser,

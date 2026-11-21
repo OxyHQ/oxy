@@ -23,15 +23,6 @@ export const mutationKeys = {
     uploadFile: ['mutation', 'account', 'uploadFile'] as const,
   },
 
-  // Session / device writes
-  session: {
-    switch: ['mutation', 'session', 'switch'] as const,
-    logout: ['mutation', 'session', 'logout'] as const,
-    logoutAll: ['mutation', 'session', 'logoutAll'] as const,
-    updateDeviceName: ['mutation', 'session', 'updateDeviceName'] as const,
-    removeDevice: ['mutation', 'session', 'removeDevice'] as const,
-  },
-
   // Connected apps (OAuth grants)
   connectedApps: {
     revoke: ['mutation', 'connectedApps', 'revoke'] as const,

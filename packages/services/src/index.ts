@@ -208,13 +208,9 @@ export {
   invalidateAccountQueries,
   invalidateUserQueries,
   invalidateSessionQueries,
-  invalidateDeviceQueries,
   invalidatePrivacyQueries,
-  invalidateSecurityQueries,
-  invalidateStorageQueries,
   invalidatePaymentsQueries,
   invalidateConnectedAppsQueries,
-  invalidateAuthMethodsQueries,
 } from './ui/hooks/queries/queryKeys';
 
 // Canonical user-cache upsert. MERGE-upserts a (possibly partial) user into the
@@ -242,6 +238,14 @@ export type {
 export { User, storeUsers } from './ui/data/user';
 export type { UserRecord } from './ui/data/userRecord';
 export { SIGNED_OUT_DATA_ACCOUNT } from './ui/data/accountData';
+// The rows the session, device, security-activity and domain list hooks name by
+// id: read one with `useEntity(Session, id)`.
+export { Session, DeviceSession, Device } from './ui/data/sessions';
+export type { DeviceSessionsExtra } from './ui/data/sessions';
+export { SecurityEvent } from './ui/data/security';
+export type { SecurityActivityPageExtra } from './ui/data/security';
+export { Domain } from './ui/data/domains';
+export type { AuthMethodsView } from './ui/hooks/queries/useAuthMethods';
 
 // Mutation status aggregator (for "Syncing..." indicators)
 export { useMutationStatus } from './ui/hooks/useMutationStatus';

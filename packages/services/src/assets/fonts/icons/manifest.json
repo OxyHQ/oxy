@@ -153,8 +153,8 @@
     "materialCommunityIcons": {
       "fontFamily": "OxyServicesMaterialCommunityIcons",
       "file": "src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf",
-      "bytes": 29428,
-      "sha256": "753326d0f2e150fb56967854632ebdb60b3ed65cb5d6ea9cd01118d8eaea1c8d",
+      "bytes": 29160,
+      "sha256": "7b7c24e807d7738710907a19ff183b290bd9d471199f506121ad58fd731505ef",
       "names": [
         "account",
         "account-circle",
@@ -313,7 +313,6 @@
         "rocket",
         "scale",
         "school-outline",
-        "security",
         "server",
         "share-outline",
         "shield",
@@ -326,7 +325,6 @@
         "sort-numeric-variant",
         "star",
         "store",
-        "switch",
         "sync",
         "tag",
         "tag-outline",
@@ -356,5 +354,5 @@
     }
   },
   "glyphMapsFile": "src/ui/icons/subsetGlyphMaps.ts",
-  "glyphMapsSha256": "aa9b65907b9ab6ed7f0238ac22e3b9d006da8eb5131bef0af3b5fa89cc192ad1"
+  "glyphMapsSha256": "337279553416869e12f3ea35ca00ed84fc7d08d488e38c02b1180e55143a6805"
 }
