@@ -7,7 +7,7 @@
 
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { useEntity } from '@oxy.so/bloom-data';
+import { useAction, useEntity } from '@oxy.so/bloom-data';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { surfaces } from '@oxy.so/bloom/surfaces';
@@ -15,7 +15,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { logger as loggerUtil, type DeviceLinkedSession } from '@oxy.so/core';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { DeviceSession } from '../../data/sessions';
+import { DeviceSession, logoutSessionAction } from '../../data/sessions';
 import { useDeviceSessions } from '../../hooks/queries/useServicesQueries';
 import { useI18n } from '../../hooks/useI18n';
 import Ionicons from '../../icons/Ionicons';
@@ -62,6 +62,7 @@ export const SessionsSection: React.FC = () => {
     refresh: refetchDeviceSessions,
   } = useDeviceSessions({ enabled: isAuthenticated && !!activeSessionId });
 
+  const endSession = useAction(logoutSessionAction).run;
   const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
   const [signingOutAllDevices, setSigningOutAllDevices] = useState(false);
 
@@ -85,13 +86,14 @@ export const SessionsSection: React.FC = () => {
       if (!confirmed) {
         return;
       }
+      // Named now: the row (and, once the server agrees, its record) goes at once.
+      const name = deviceSessionTitle(device, t);
       setRemovingDeviceId(device.sessionId);
       try {
-        await oxyServices.session.logout(activeSessionId, device.sessionId);
-        await refetchDeviceSessions();
-        toast.success(
-          t('manageAccount.toasts.deviceRemoved', { name: deviceSessionTitle(device, t) }),
-        );
+        // The row hides at once, returns if the server refuses, and the
+        // account's session lists are read again once it agrees.
+        await endSession(oxyServices, activeSessionId, device.sessionId);
+        toast.success(t('manageAccount.toasts.deviceRemoved', { name }));
       } catch (error) {
         loggerUtil.warn('Remove device failed', { component: 'SessionsSection' }, error as unknown);
         toast.error(t('manageAccount.toasts.deviceRemoveFailed') || 'Failed to remove device');
@@ -99,7 +101,7 @@ export const SessionsSection: React.FC = () => {
         setRemovingDeviceId(null);
       }
     },
-    [activeSessionId, oxyServices, refetchDeviceSessions, t],
+    [activeSessionId, endSession, oxyServices, t],
   );
 
   const handleSignOutAllDevices = useCallback(async () => {

@@ -195,8 +195,21 @@ export const switchSessionAction = action({
     switchSession(sessionId),
 });
 
-/** Ends one session (the active one when no target is named); resolves with the session ended. */
+/** Hides a session's row in every session list the account holds, as the call's layer. */
+function hideSession(sessionId: string): void {
+  for (const key of Sessions.keys()) Sessions.remove(key, [sessionId]);
+  for (const key of DeviceSessions.keys()) DeviceSessions.remove(key, [sessionId]);
+}
+
+/**
+ * Ends one session (the active one when no target is named); resolves with the
+ * session ended. Its row hides at once and returns if the server refuses.
+ */
 export const logoutSessionAction = action({
+  optimistic: (_oxy, activeSessionId, targetSessionId) => {
+    const ended = targetSessionId || activeSessionId;
+    if (ended) hideSession(ended);
+  },
   run: async (
     oxy: OxyServices,
     activeSessionId: string | null,
@@ -232,8 +245,11 @@ export const renameDeviceAction = action({
   settle: (_result, oxy, activeSessionId) => refreshSessionData(oxy, activeSessionId),
 });
 
-/** Removes a device; resolves with its id. */
+/** Removes a device; resolves with its id. Its row hides at once and returns if the server refuses. */
 export const removeDeviceAction = action({
+  optimistic: (_oxy, _activeSessionId, deviceId) => {
+    for (const key of Devices.keys()) Devices.remove(key, [deviceId]);
+  },
   run: async (oxy: OxyServices, _activeSessionId: string | null, deviceId: string) => {
     await oxy.devices.remove(deviceId);
     return deviceId;

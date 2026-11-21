@@ -49,7 +49,11 @@ import {
   useSessions,
   useUserDevices,
 } from '../../hooks/queries/useServicesQueries';
-import { useLogoutSession, useUpdateDeviceName } from '../../hooks/mutations/useServicesMutations';
+import {
+  useLogoutSession,
+  useRemoveDevice,
+  useUpdateDeviceName,
+} from '../../hooks/mutations/useServicesMutations';
 
 const row = (sessionId: string, isCurrent = false) => ({
   sessionId,
@@ -223,21 +227,65 @@ describe('writes', () => {
     expect(mockOxy.oxyServices.devices.securityInfo).not.toHaveBeenCalled();
   });
 
-  it('keeps the sessions as they were when a logout fails, and says why', async () => {
+  it('hides an ended session at once, keeps it hidden through a refresh, and brings it back when refused', async () => {
     const list = renderHook(() => useSessions(), { wrapper });
+    const here = renderHook(() => useDeviceSessions(), { wrapper });
     await waitFor(() => expect(list.result.current.ids).toEqual(['s1', 's2']));
-    const refused = { status: 403 };
-    mockOxy.oxyServices.session.logout.mockRejectedValueOnce(refused);
+    await waitFor(() => expect(here.result.current.ids).toEqual(['s1', 's2']));
+    const answer = deferred<undefined>();
+    mockOxy.oxyServices.session.logout.mockReturnValueOnce(answer.promise);
 
     const logout = renderHook(() => useLogoutSession(), { wrapper });
-    await act(async () => {
-      await expect(logout.result.current.run('s2')).rejects.toBe(refused);
+    let call!: Promise<unknown>;
+    act(() => {
+      call = logout.result.current.run('s2');
     });
+    expect(list.result.current.ids).toEqual(['s1']);
+    expect(here.result.current.ids).toEqual(['s1']);
+    expect(here.result.current.extra?.current).toEqual(['s1']);
 
+    // A refresh that lands meanwhile still carries the row: it stays hidden.
+    await act(() => here.result.current.refresh());
+    await act(() => list.result.current.refresh());
+    expect(mockOxy.oxyServices.devices.sessions).toHaveBeenCalledTimes(4);
+    expect(list.result.current.ids).toEqual(['s1']);
+    expect(here.result.current.ids).toEqual(['s1']);
+
+    const refused = { status: 403 };
+    await act(async () => {
+      answer.reject(refused);
+      await expect(call).rejects.toBe(refused);
+    });
     expect(list.result.current.ids).toEqual(['s1', 's2']);
+    expect(here.result.current.ids).toEqual(['s1', 's2']);
     expect(withStore(store, () => Session.get('s2'))).toBeDefined();
     expect(mockShowApiError).toHaveBeenCalledWith(refused, 'actionErrors.logout');
     expect(logout.result.current.error).toBe(refused);
+  });
+
+  it('hides a removed device at once and brings it back when refused', async () => {
+    mockOxy.oxyServices.devices.list.mockResolvedValue([device('d1'), device('d2')]);
+    const devices = renderHook(() => useUserDevices(), { wrapper });
+    await waitFor(() => expect(devices.result.current.ids).toEqual(['d1', 'd2']));
+    const answer = deferred<undefined>();
+    mockOxy.oxyServices.devices.remove.mockReturnValueOnce(answer.promise);
+
+    const remove = renderHook(() => useRemoveDevice(), { wrapper });
+    let call!: Promise<unknown>;
+    act(() => {
+      call = remove.result.current.run('d2');
+    });
+    expect(devices.result.current.ids).toEqual(['d1']);
+    await act(() => devices.result.current.refresh());
+    expect(devices.result.current.ids).toEqual(['d1']);
+
+    const refused = { status: 500 };
+    await act(async () => {
+      answer.reject(refused);
+      await expect(call).rejects.toBe(refused);
+    });
+    expect(devices.result.current.ids).toEqual(['d1', 'd2']);
+    expect(mockShowApiError).toHaveBeenCalledWith(refused, 'actionErrors.removeDevice');
   });
 
   it('drops an ended session from every list, then reads the lists again', async () => {
