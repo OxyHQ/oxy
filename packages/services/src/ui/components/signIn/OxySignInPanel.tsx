@@ -54,7 +54,6 @@ import {
   isEmailSignInChooseAccount,
   isSecondFactorRequired,
 } from '@oxy.so/contracts/client';
-import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useDeviceSwitcher } from '../../hooks/useDeviceSwitcher';
@@ -143,7 +142,6 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
 }) => {
   const theme = useTheme();
   const { t } = useI18n();
-  const queryClient = useQueryClient();
   const {
     accountDialogController: controller,
     openAccountDialog,
@@ -489,8 +487,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       .catch(() => 'failed' as const);
     switch (outcome) {
       case 'switched':
-        // Every account-scoped query now describes somebody else.
-        void queryClient.invalidateQueries();
+        // The switch opened the new account's store; nothing here to clear.
         onSignedIn();
         return;
       case 'current':
