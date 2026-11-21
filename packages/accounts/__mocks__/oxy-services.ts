@@ -53,28 +53,26 @@ const setLanguage = jest.fn(async (locale: string): Promise<void> => {
 
 // Account writer: `{ languages }` sets the ordered account locales; the derived
 // `currentLanguage` then follows `languages[0]`.
-const updateProfileMutateAsync = jest.fn(
-  async (updates: { languages?: string[] }): Promise<void> => {
-    const languages = updates.languages;
-    if (languages && languages.length > 0) {
-      __setOxyState({ currentLanguage: languages[0], currentLanguages: languages });
-    }
-  },
-);
+const updateProfileRun = jest.fn(async (updates: { languages?: string[] }): Promise<void> => {
+  const languages = updates.languages;
+  if (languages && languages.length > 0) {
+    __setOxyState({ currentLanguage: languages[0], currentLanguages: languages });
+  }
+});
 
 export function __resetOxyState(): void {
   state = makeDefaultState();
   setLanguage.mockClear();
-  updateProfileMutateAsync.mockClear();
+  updateProfileRun.mockClear();
   emit();
 }
 
 /** Exposes the locale writer spies for call assertions. */
 export function __getLanguageMocks(): {
   setLanguage: jest.Mock;
-  updateProfileMutateAsync: jest.Mock;
+  updateProfileRun: jest.Mock;
 } {
-  return { setLanguage, updateProfileMutateAsync };
+  return { setLanguage, updateProfileRun };
 }
 
 function subscribe(listener: () => void): () => void {
@@ -93,6 +91,6 @@ export function useOxy(): MockOxyState & { setLanguage: jest.Mock } {
   return { ...snapshot, setLanguage };
 }
 
-export function useUpdateProfile(): { mutateAsync: jest.Mock; isPending: boolean } {
-  return { mutateAsync: updateProfileMutateAsync, isPending: false };
+export function useUpdateProfile(): { run: jest.Mock; isPending: boolean } {
+  return { run: updateProfileRun, isPending: false };
 }

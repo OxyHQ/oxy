@@ -24,6 +24,7 @@
     "expo-asset": "~58.0.20",
     "@oxy.so/app-preset": "workspace:*",
     "@oxy.so/bloom": "catalog:",
+    "@oxy.so/bloom-data": "0.1.0",
     "@oxy.so/contracts": "workspace:*",
     "@oxy.so/core": "*",
     "@oxy.so/expo-splash": "workspace:*",

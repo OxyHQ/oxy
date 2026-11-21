@@ -11,11 +11,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 
 import type { ReactNode } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { OxyOneVideo } from '@oxy.so/services/ui/one-video';
 import type { GemieAsk } from '@gemies/sdk/ask';
 import { GemieAvatarIcon } from '@gemies/sdk/avatar';
 import { productAnalytics } from '@/lib/product-analytics';
+import { queryClient } from '@/lib/queryClient';
 import { useNavigationTheme } from '@oxy.so/bloom/theme';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
@@ -164,41 +166,61 @@ function RootLayoutInner() {
         authRedirectUri={OXY_AUTH_REDIRECT_URI}
         productAnalytics={productAnalytics}
       >
-        <AppImageResolver>
-          <LocaleProvider>
-            {/* Native Bloom surfaces (Alia's sheet) render only through this
-                  provider/outlet pair; the outlet sits AFTER the content it paints
-                  over and the boundary wraps everything else. Alia's one sheet sits
-                  beside the inert boundary, not in it, and portals into the outlet. */}
-            <PortalProvider>
-              <AccountsAskProvider askRef={aliaRef}>
-                <OverlayInertBoundary>
-                  <AppHead />
-                  {!appIsReady ? (
-                    // WEB: the custom splash covers init and fades out; its
-                    // `onFadeComplete` gates `appIsReady`. NATIVE renders null
-                    // here — the held OS splash is on top, so nothing underneath
-                    // needs to paint.
-                    Platform.OS === 'web' ? (
-                      <AppSplashScreen
-                        startFade={startFade}
-                        onFadeComplete={handleSplashFadeComplete}
-                      />
-                    ) : null
-                  ) : (
-                    <AppLockGate>
-                      <AppStackContent />
-                    </AppLockGate>
-                  )}
-                </OverlayInertBoundary>
-              </AccountsAskProvider>
-              <PortalOutlet />
-            </PortalProvider>
-          </LocaleProvider>
-        </AppImageResolver>
+        <QueryClientProvider client={queryClient}>
+          <ReadAgainOnAccountSwitch />
+          <AppImageResolver>
+            <LocaleProvider>
+              {/* Native Bloom surfaces (Alia's sheet) render only through this
+                    provider/outlet pair; the outlet sits AFTER the content it paints
+                    over and the boundary wraps everything else. Alia's one sheet sits
+                    beside the inert boundary, not in it, and portals into the outlet. */}
+              <PortalProvider>
+                <AccountsAskProvider askRef={aliaRef}>
+                  <OverlayInertBoundary>
+                    <AppHead />
+                    {!appIsReady ? (
+                      // WEB: the custom splash covers init and fades out; its
+                      // `onFadeComplete` gates `appIsReady`. NATIVE renders null
+                      // here — the held OS splash is on top, so nothing underneath
+                      // needs to paint.
+                      Platform.OS === 'web' ? (
+                        <AppSplashScreen
+                          startFade={startFade}
+                          onFadeComplete={handleSplashFadeComplete}
+                        />
+                      ) : null
+                    ) : (
+                      <AppLockGate>
+                        <AppStackContent />
+                      </AppLockGate>
+                    )}
+                  </OverlayInertBoundary>
+                </AccountsAskProvider>
+                <PortalOutlet />
+              </PortalProvider>
+            </LocaleProvider>
+          </AppImageResolver>
+        </QueryClientProvider>
       </OxyProvider>
     </BloomProvider>
   );
+}
+
+/**
+ * The app's queries are read again when the signed-in account switches to
+ * another, so none shows the previous account's answer (the SDK's client did
+ * this before it left React Query). The first sign-in reads nothing again.
+ */
+function ReadAgainOnAccountSwitch() {
+  const accountId = useOxy().user?.id ?? null;
+  const previous = useRef(accountId);
+  useEffect(() => {
+    if (previous.current !== null && accountId !== null && previous.current !== accountId) {
+      void queryClient.invalidateQueries();
+    }
+    previous.current = accountId;
+  }, [accountId]);
+  return null;
 }
 
 /**

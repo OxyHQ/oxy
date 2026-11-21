@@ -83,9 +83,9 @@ jest.mock('@oxy.so/services', () => ({
     },
   }),
   usePersonalPlans: () => ({
-    data: { state: 'unconfigured', plans: mockPlans, purchase: mockPurchase },
+    value: { state: 'unconfigured', plans: mockPlans, purchase: mockPurchase },
   }),
-  usePersonalPlanSubscriptions: () => ({ data: [mockSource], refetch: mockRefetch }),
+  usePersonalPlanSubscriptions: () => ({ value: [mockSource], refresh: mockRefetch }),
 }));
 import { PersonalPlansCard } from '@/components/payments/PersonalPlansCard';
 beforeEach(() => {

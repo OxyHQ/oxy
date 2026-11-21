@@ -57,17 +57,16 @@ export default function PaymentsScreen() {
   // same defaults the previous imperative implementation used so the screen
   // degrades gracefully instead of disappearing.
   const subscription = useMemo<Subscription | null>(() => {
-    if (subscriptionQuery.data) return subscriptionQuery.data;
-    if (subscriptionQuery.isError) return FALLBACK_SUBSCRIPTION;
+    if (subscriptionQuery.value) return subscriptionQuery.value;
+    if (subscriptionQuery.status === 'error') return FALLBACK_SUBSCRIPTION;
     return null;
-  }, [subscriptionQuery.data, subscriptionQuery.isError]);
+  }, [subscriptionQuery.value, subscriptionQuery.status]);
 
-  // TanStack Query data is referentially stable across renders, so these need
-  // no memoization — the `?? []` / `?? null` fallbacks are cheap and only
-  // change identity when the underlying query data changes.
-  const payments: Payment[] = paymentsQuery.data ?? [];
-  const wallet: Wallet | null = walletQuery.data ?? null;
-  const transactions: WalletTransaction[] = transactionsQuery.data?.data ?? [];
+  // The answers are held in the account's store and stay the same object until
+  // they change, so these need no memoization.
+  const payments: Payment[] = paymentsQuery.value ?? [];
+  const wallet: Wallet | null = walletQuery.value ?? null;
+  const transactions: WalletTransaction[] = transactionsQuery.value?.data ?? [];
 
   // Initial full-screen loader: only while a query has no data yet and is still
   // loading. Once any data has resolved we render the screen and let
@@ -78,18 +77,19 @@ export default function PaymentsScreen() {
     walletQuery.isLoading ||
     transactionsQuery.isLoading;
 
+  // Read again with something already on screen.
   const refreshing =
-    subscriptionQuery.isRefetching ||
-    paymentsQuery.isRefetching ||
-    walletQuery.isRefetching ||
-    transactionsQuery.isRefetching;
+    (subscriptionQuery.isFetching && !subscriptionQuery.isLoading) ||
+    (paymentsQuery.isFetching && !paymentsQuery.isLoading) ||
+    (walletQuery.isFetching && !walletQuery.isLoading) ||
+    (transactionsQuery.isFetching && !transactionsQuery.isLoading);
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([
-      subscriptionQuery.refetch(),
-      paymentsQuery.refetch(),
-      walletQuery.refetch(),
-      transactionsQuery.refetch(),
+      subscriptionQuery.refresh(),
+      paymentsQuery.refresh(),
+      walletQuery.refresh(),
+      transactionsQuery.refresh(),
     ]);
   }, [subscriptionQuery, paymentsQuery, walletQuery, transactionsQuery]);
 

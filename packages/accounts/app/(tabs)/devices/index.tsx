@@ -14,7 +14,8 @@ import { ThemedText } from '@/components/themed-text';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard, ScreenHeader, EmptyStateCard } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
-import { useOxy, useUserDevices } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services';
+import { useDeviceRecords } from '@/hooks/useAccountRows';
 import { alert, toast } from '@oxy.so/bloom';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useHapticFeedback } from '@oxy.so/bloom/hooks';
@@ -33,19 +34,18 @@ export default function DevicesScreen() {
   // OxyServices integration — auth is enforced by the `(tabs)` layout.
   const { oxyServices, isLoading: oxyLoading } = useOxy();
   const {
-    data: devicesData,
+    devices,
     isLoading: loading,
     isFetching,
     error: queryError,
-    refetch,
-  } = useUserDevices();
-  const devices = (devicesData ?? []) as DeviceRecord[];
+    refresh,
+  } = useDeviceRecords();
   const error = queryError instanceof Error ? queryError.message : null;
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const handleRefresh = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    await refresh();
+  }, [refresh]);
 
   const { tap: handlePressIn } = useHapticFeedback();
   const formatRelativeTime = useRelativeTime();
@@ -71,7 +71,7 @@ export default function DevicesScreen() {
                 setActionLoading(deviceId);
                 await oxyServices?.devices.remove(deviceId);
                 // Refresh devices list
-                await refetch();
+                await refresh();
                 // On native, surface a success toast (web's list refresh is its own confirmation).
                 if (Platform.OS !== 'web') {
                   toast.success(t('devices.remove.success'));
@@ -87,7 +87,7 @@ export default function DevicesScreen() {
         ],
       );
     },
-    [oxyServices, refetch, t],
+    [oxyServices, refresh, t],
   );
 
   // Transform devices for UI
@@ -193,7 +193,7 @@ export default function DevicesScreen() {
                 style={[styles.retryButton, { backgroundColor: colors.tint }]}
                 onPressIn={handlePressIn}
                 onPress={() => {
-                  void refetch();
+                  void refresh();
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={t('a11y.retry')}

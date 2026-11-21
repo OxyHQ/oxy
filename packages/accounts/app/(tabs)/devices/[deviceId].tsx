@@ -15,7 +15,8 @@ import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard, ScreenHeader } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
-import { useOxy, useUserDevices, useRemoveDevice } from '@oxy.so/services';
+import { useOxy, useRemoveDevice } from '@oxy.so/services';
+import { useDeviceRecords } from '@/hooks/useAccountRows';
 import { alert, toast } from '@oxy.so/bloom';
 import { formatDate } from '@/utils/date-utils';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
@@ -38,19 +39,18 @@ export default function DeviceDetailScreen() {
   const isDesktop = Platform.OS === 'web' && width >= 768;
   const deviceId = params.deviceId;
 
-  // Devices come from the shared TanStack query (cached across the security and
+  // Devices come from the account's store (held across the security and
   // devices-list screens). We select the requested device with a `useMemo`
   // `.find()` instead of an imperative `useEffect` that re-fetched the whole
   // list. Auth is enforced by the `(tabs)` layout.
   const { isLoading: oxyLoading } = useOxy();
-  const { data: devicesData, isLoading: loading, error: queryError } = useUserDevices();
+  const { devices, isLoading: loading, error: queryError } = useDeviceRecords();
   const removeDevice = useRemoveDevice();
 
   const device = useMemo<DeviceRecord | null>(() => {
-    if (!devicesData || !deviceId) return null;
-    const devices = devicesData as DeviceRecord[];
+    if (!deviceId) return null;
     return devices.find((d) => d.id === deviceId || d.deviceId === deviceId) ?? null;
-  }, [devicesData, deviceId]);
+  }, [devices, deviceId]);
 
   // Distinguish "the list failed to load" from "the list loaded but this id
   // isn't in it". Both render the same empty state, but the message differs.
@@ -90,7 +90,7 @@ export default function DeviceDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await removeDevice.mutateAsync(deviceId);
+              await removeDevice.run(deviceId);
               // Navigate back to the devices list after a successful removal.
               router.back();
             } catch {
