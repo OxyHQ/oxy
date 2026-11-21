@@ -226,20 +226,20 @@ export default function RootLayout() {
               `assets.publicUrl`; nothing in the app builds a media URL of
               its own. */}
           <QueryClientProvider client={queryClient}>
-          <BloomImageResolver>
-            <LocaleProvider>
-              {/* Mounted exactly once, and the only Bloom outlet this app
-                  mounts. `SurfaceHost` and `ToastOutlet` are deliberately
-                  absent: OxyProvider already renders `SurfaceProvider` and
-                  `ToastOutlet` itself, and a second mount of either silently
-                  draws every surface and every toast twice. */}
-              <PortalProvider>
-                <AppHead />
-                <AppStackContent />
-                <PortalOutlet />
-              </PortalProvider>
-            </LocaleProvider>
-          </BloomImageResolver>
+            <BloomImageResolver>
+              <LocaleProvider>
+                {/* Mounted exactly once, and the only Bloom outlet this app
+                    mounts. `SurfaceHost` and `ToastOutlet` are deliberately
+                    absent: OxyProvider already renders `SurfaceProvider` and
+                    `ToastOutlet` itself, and a second mount of either silently
+                    draws every surface and every toast twice. */}
+                <PortalProvider>
+                  <AppHead />
+                  <AppStackContent />
+                  <PortalOutlet />
+                </PortalProvider>
+              </LocaleProvider>
+            </BloomImageResolver>
           </QueryClientProvider>
         </OxyProvider>
       </BloomProvider>
