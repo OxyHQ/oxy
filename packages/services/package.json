@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "14.24.0",
+  "version": "15.0.0",
   "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -187,7 +187,6 @@
     "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native-community/netinfo": "^12.0.1",
     "@react-native/babel-preset": "^0.88.1",
-    "@tanstack/react-query": "catalog:",
     "@testing-library/react": "^16.3.3",
     "@types/color": "^4.2.1",
     "@types/jest": "^30.0.0",
@@ -225,11 +224,11 @@
     "socket.io-client": "catalog:",
     "ts-jest": "^29.4.15",
     "typescript": "catalog:",
-    "zustand": "catalog:",
     "expo-video": "catalog:"
   },
   "//@oxy.so/bloom": "Bloom 22.1.1 is required for ListItem person rows with supporting text, alongside the shared Button, HeaderActions and GroupedSection APIs. First-party Bloom peers remain open above this minimum.",
   "//@oxy.so/bloom-data": "Required: OxyProvider opens each account's @oxy.so/bloom-data store from the session (one store, and one file through the app's dataPersister, per account), and Services writes every person it reads into its User entity there, which apps' entities refer to. One instance per app, like Bloom; first-party, so the range is open.",
+  "//@react-native-async-storage/async-storage": "Optional: read only by the one-time move off it (data/deviceStorage.ts). The SDK's device key-value data (the language, the cached boot and the like) now lives in bloom-data; each key is copied over the first time it is read, and the SDK's dead keys, among them the React Query caches 14.x kept, are deleted once. Nothing else reads it. Without it nothing is moved; an app that has shipped a 15.x release can drop it.",
   "//@oxy.so/core": "Core 7.46.0 supplies `OxyHostAccount.languages` (ADR 0058 R10), the account's languages a session host gives; 7.34.0 supplies `@oxy.so/core/host` (the session host contract, ADR 0058), `createUserEventSocket` and `session.sessionId`, which the provider's host mode is built on; 7.13.0 supplies the `usernamePolicy.*`, `actionErrors.*` and `signin.errors.{network,invalidInput,server}` strings every username field and failure toast is worded with; 7.9.1 fences ordinary authenticated HTTP requests across session changes during auth preflight, which organization claim and creation require; 7.9.0 supplies `deviceComparisonCode`, the short code `OxyDeviceSignIn` prints; 7.8.0 supplies the device sign-in request's `approvalUrl` and the `signin.device.*` strings `OxyDeviceSignIn` shows; 7.7.0 supplies the bounded native asset file adapter and phase progress installed by OxyProvider; 7.6.0 forwards guest locale and first-touch campaign metadata through signup; 7.3.0 supplies `users.lookupMany`, with which the account members screen fails (and retries) a profile read whose chunk failed instead of caching those members as handle-less; 7.2.0 supplies `assets.cachedUrl`, with which `useFileDownloadUrl` answers an already-resolved URL in its first render; 6.16.0 supplies `requireServerVerdict` and `onHolderRejected`, with which the cold boot checks a session it painted from the cache; 6.13.0 supplies the `accounts.settings.*` strings (picture, categories) the account settings speak in every language; 6.12.0 supplies `fileManagement.contentLost` and the `lost` file status a lost file is listed with; 6.11.0 supplies the `follow.errors.*` strings the follow error codes are worded with; 6.4.0 the `follow.*` strings the follow buttons read for every verb and language; 6.1.0 the `oxy.auth.email.{startChange,change,remove}` and `oxy.auth.password.remove` the sign-in & security panels call. Keep one Core instance per app; raise this floor with the root catalogue when new runtime APIs are required.",
   "//react-native": "React Native 0.81 to 0.88, React 19.1+ and Expo SDK 54 to 58. The floors are the Expo SDK 54 stack (react-native 0.81.6, react 19.1.4, react-native-web 0.21.4, expo 54.0.38 and the module versions its bundledNativeModules.json pins), which compat/expo-54 installs as an external consumer and checks on every CI run (`bun check.mjs`): every peer here admits that stack, services' published src typechecks against its types, and <OxyProvider> mounts and settles its cold boot on iOS (React Native 0.81), web (react-native-web 0.21) and react-native-macos 0.81 with the native modules macOS lacks absent. Astro, Oxy's browser, runs react-native-macos 0.81 (0.83 is its latest release), which is why the floor is not 0.85. The SDK 56 floors these replaced were the versions current when the ranges were first written, not measurements.",
   "peerDependencies": {
@@ -240,7 +239,6 @@
     "@oxy.so/core": "catalog:",
     "@react-native-async-storage/async-storage": ">=2.0.0 <4.0.0",
     "@react-native-community/netinfo": ">=11.4.1 <13.0.0",
-    "@tanstack/react-query": "catalog:",
     "@types/react": "<20.0.0",
     "@types/react-native": "<1.0.0",
     "expo": ">=54.0.0 <59.0.0",
@@ -261,7 +259,7 @@
     "expo-web-browser": ">=15.0.0 <59.0.0",
     "nativewind": ">=5.0.0-preview.3 <6.0.0",
     "react-native-css": "^3.0.6 || 3.1.0-rc.0",
-    "react": ">=18.0.0 <20.0.0",
+    "react": ">=19.0.0 <20.0.0",
     "react-native": ">=0.81.0 <0.89.0",
     "react-native-gesture-handler": ">=2.28.0 <4.0.0",
     "react-native-keyboard-controller": ">=1.18.5 <2.0.0",
@@ -269,10 +267,12 @@
     "react-native-reanimated": ">=4.1.0 <5.0.0",
     "react-native-safe-area-context": ">=5.6.0 <6.0.0",
     "react-native-svg": ">=15.12.1 <16.0.0",
-    "zustand": "^5.0.0",
     "expo-video": ">=3.0.0 <59.0.0"
   },
   "peerDependenciesMeta": {
+    "@react-native-async-storage/async-storage": {
+      "optional": true
+    },
     "nativewind": {
       "optional": true
     },

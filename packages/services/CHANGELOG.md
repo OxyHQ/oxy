@@ -1,5 +1,99 @@
 # Changelog
 
+## 15.0.0
+
+Services keeps its data in `@oxy.so/bloom-data`: one store per account, opened by the session, with
+its own durable copy (one SQLite file per account on a device, one IndexedDB database on the web).
+React Query and zustand are gone from the package. Account switching needs no cache wipe: the
+runtime opens the next account's store before anybody is woken, and an answer for the account
+that was left is dropped.
+
+### Peers
+
+- **Added:** `@oxy.so/bloom-data` `>=0.1.0` (required; one instance per app, like Bloom) and
+  `expo-sqlite` `>=16.0.0 <59.0.0` (required: each account's durable copy on a device).
+- **Removed:** `@tanstack/react-query`, `@tanstack/react-query-persist-client`,
+  `@tanstack/query-async-storage-persister`, `@tanstack/query-sync-storage-persister` and `zustand`.
+  An app that uses React Query or zustand itself declares them itself.
+- **Changed:** `react` `>=18.0.0 <20.0.0` becomes `>=19.0.0 <20.0.0`.
+  `@react-native-async-storage/async-storage` becomes optional: it is read only to move the SDK's
+  device key-value data into bloom-data, each key the first time it is read, and to delete the
+  SDK's dead keys once (among them the 14.x query caches, `oxy_query_cache_v3` and every
+  `oxy_account_queries:<account>`).
+
+### Removed
+
+- `OxyProvider` no longer mounts a `QueryClientProvider` and takes no `queryClient` or
+  `accountQueries` (also gone from `OxyRuntimeProviderProps`). An app that uses React Query mounts
+  its own `QueryClientProvider` above `OxyProvider`, and invalidates its own queries on an account
+  switch if it needs to; its per-account offline data belongs in bloom-data entities, which live in
+  the account's store.
+- `AccountQueriesConfig`, `AccountQueryMeta` and `PersistedRootBound`.
+- `queryKeys`, `mutationKeys` and the invalidation helpers `invalidateAccountQueries`,
+  `invalidateUserQueries`, `invalidateSessionQueries`, `invalidateDeviceQueries`,
+  `invalidatePrivacyQueries`, `invalidateSecurityQueries`, `invalidateStorageQueries`,
+  `invalidatePaymentsQueries`, `invalidateConnectedAppsQueries` and `invalidateAuthMethodsQueries`.
+  A screen reads again with its view's `refresh()`.
+- `upsertCachedUser` and `upsertCachedUsers`: `storeUsers` (below) is the one way a person joins
+  the SDK's people, with `{ cleared }` as before.
+- `useAuthStore`: read the signed-in account with `useOxy()` (`user`, `isAuthenticated`,
+  `isLoading`) or the runtime hooks (`useActiveAccount`, `useOxySnapshot`).
+- `useAssetStore` and its selector hooks `useAssetsStore`, `useAsset`, `useUploadProgress`,
+  `useAssetLoading`, `useAssetErrors`, `useAssetsByApp`, `useAssetsByEntity`,
+  `useAssetUsageCount` and `useIsAssetLinked`; `useAssets` keeps its shape.
+- `useFollowTargetStore`; `useSeedFollowTargets` seeds follow targets instead.
+- `supervisionQueryKeys`; `supervisionState` is the supervision source.
+- `useUserProfiles`, `createProfileMutation`, `createGenericMutation`, `ProfileMutationConfig` and
+  `GenericMutationConfig`.
+- `useOxy().isAccountCacheReady`: `RequireOxyAuth` renders a signed-in subtree at once (each
+  screen reads its account's data from disk as it opens), and a cached cold boot paints without
+  waiting for a cache restore.
+
+### Changed
+
+- **Reads return bloom-data views.** Hooks keep their names and arguments.
+  - `RecordView` (`value`, `isLoading`, `isFetching`, `status`, `error`, `refresh`) from
+    `useCurrentUser`, `useUserById`, `useUserByUsername`, `useUserProfile`, `useUsersBySessions`,
+    `useConnectedApps`, `usePrivacySettings`, `useSession`, `useSecurityInfo`,
+    `useAccountStorageUsage`, `useSignInMethods`, `useAuthMethods` (`AuthMethodsView`, with
+    `methods` and `did`), `useUserSubscription`, `useUserPayments`, `useUserWallet`,
+    `useUserWalletTransactions`, `usePersonalPlans`, `usePersonalPlanSubscriptions` and
+    `useSupervision`. The answer is `value` (was `data`); `refetch()` is `refresh()`.
+  - `ListView` (`ids`, `hasMore`, `more`, `refresh`, `isLoading`, `isFetching`, `extra`) from
+    `useSessions`, `useDeviceSessions`, `useUserDevices`, `useSecurityActivity`,
+    `useRecentSecurityActivity` and `useInfiniteSecurityActivity`. A row is read with
+    `useEntity(Session | DeviceSession | Device | SecurityEvent | Domain, id)`; a page is
+    `more()` (was `fetchNextPage()`).
+- **Writes return `ActionView`** (`run`, `isPending`, `error`, `data`, `reset`; `run` was
+  `mutateAsync`, and there is no fire-and-forget `mutate`): `useUpdateProfile`, `useUploadAvatar`,
+  `useUpdateAccountSettings`, `useUpdatePrivacySettings`, `useUpdateNotificationPreferences`,
+  `useUpdateUserPreferences`, `useRevokeConnectedApp`, `useUploadFile`, `useSwitchSession`,
+  `useLogoutSession`, `useLogoutAll`, `useUpdateDeviceName` and `useRemoveDevice`. A write shows
+  at once (an optimistic layer) and settles with the server's answer, or drops exactly its layer
+  when it fails. Offline it waits for the network.
+- `useUpdateAccountSettings().run(updates)` takes the updates alone; the signed-in person is
+  snapshotted when it is called.
+- `useMutationStatus()` reports the signed-in account's writes (bloom-data's action status):
+  `MutationStatus` keeps `pending`, `paused`, `total`, `isOffline` and `isSyncing`; `erroring` goes
+  (a failed write rejects to its caller). An app's own React Query mutations are not counted.
+- `useOnlineStatus()` reads bloom-data's `environment`, which `OxyProvider` feeds from NetInfo on
+  native; the browser feeds it on web.
+- `useFollow` reads whether the viewer follows a person, and their counts, from `User`
+  (`relationship`, `_count`), so a profile read, a feed author and a follow agree; its return keeps
+  its shape.
+- `clearAllAccountData()` deletes the account's bloom-data store (memory and disk) instead of
+  clearing a query cache.
+- A device's session rows (`DeviceSession`) refer to their person in `User`, so a profile edit
+  shows on them, and in the account switcher, at once.
+
+### Added
+
+- `User` (the people the SDK reads, by id and by `username`), `storeUsers` and `UserRecord`.
+- `Session`, `DeviceSession`, `Device`, `SecurityEvent` and `Domain`, the rows of the list
+  hooks, with `DeviceSessionsExtra` and `SecurityActivityPageExtra`.
+- `SIGNED_OUT_DATA_ACCOUNT`, the store key of the signed-out viewer.
+- `supervisionState`, `useSeedFollowTargets` and the `AuthMethodsView` type.
+
 ## 14.24.0
 
 ### Added
