@@ -1,5 +1,10 @@
 # Account query migration: research and unresolved requirements
 
+> **Historical.** `@oxy.so/services` 15.0.0 removed `accountQueries`, its per-account
+> persistence and the audit test this page cites: account data now lives in each account's
+> `@oxy.so/bloom-data` store (`docs/engineering/sdk-patterns.md`, Data), and 15.x deletes the old
+> `oxy_account_queries:<subject>` blobs once. Kept for the record of what the 14.x cache did.
+
 This is an investigation, not a migration implementation or an authorization
 contract. Do not change `accountQueries` filters on a production app on the
 assumption that the old persisted entries have been preserved. The existing

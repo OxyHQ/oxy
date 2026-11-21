@@ -33,7 +33,7 @@ A comprehensive TypeScript UI library for the Oxy API providing authentication, 
 - **Cross-Platform**: Works in Expo and React Native (iOS, Android, Web)
 - **Multi-Session Support**: Manage multiple user sessions simultaneously
 - **TypeScript First**: Full type safety and IntelliSense support
-- **Performance Optimized**: Automatic caching with TanStack Query
+- **Offline First**: Each account's data is kept in its own `@oxy.so/bloom-data` store, on disk
 - **Production Ready**: Error handling, retry logic, and security best practices
 
 ## Architecture
@@ -706,7 +706,7 @@ try {
 
 ## Payment & Storage Query Hooks
 
-The following React Query hooks are exported from the package root:
+The following hooks are exported from the package root. Each returns a bloom-data `RecordView`: the answer is `value`, and `refresh()` reads it again.
 
 ```typescript
 import {
@@ -718,7 +718,7 @@ import {
 } from '@oxy.so/services';
 ```
 
-Typed returns are defined in `ui/hooks/queries/paymentTypes.ts` (`Subscription`, `Payment`, `Wallet`, `WalletTransaction`). The `payments` query namespace is whitelisted for offline persistence alongside `accounts`, `users`, `sessions`, `devices`, and `privacy`.
+Typed returns are defined in `ui/hooks/queries/paymentTypes.ts` (`Subscription`, `Payment`, `Wallet`, `WalletTransaction`). The answers are held in the signed-in account's store (`data/payments.ts`), so another account never sees them.
 
 ## Sign-In Token Planting
 

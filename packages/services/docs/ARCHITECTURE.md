@@ -33,7 +33,7 @@ consumers; `OxyProvider` is the only public provider). Implementation split acro
 | [oxyContextHelpers.ts](../src/ui/context/oxyContextHelpers.ts) | Shared helpers (`loadUseFollowHook`, HTTP status) |
 | [useOxyAccountGraph.ts](../src/ui/context/useOxyAccountGraph.ts) | Account graph (`accounts`, `switchToAccount`, `createAccount`) |
 | [accountDialogManager.ts](../src/ui/navigation/accountDialogManager.ts) | Imperative `openAccountDialog` / `closeAccountDialog` |
-- TanStack `QueryClientProvider` with offline persistence (first paint serves cached data)
+- The signed-in account's `@oxy.so/bloom-data` store (`DataProvider`), opened by the session on every account change, with its durable copy (SQLite per account on a device, IndexedDB on the web); NetInfo and AppState reported to bloom-data's `environment` on native
 - Bloom dialog + toast outlets, `SafeAreaProvider`, `GestureHandlerRootView`
 - Lazy overlays: `BottomSheetRouter` and the unified `OxyAccountDialog`
 
@@ -68,7 +68,7 @@ Key props (`OxyProviderProps`):
 | `webAuthMode` | `'popup'` | How a web sign-in reaches the IdP. `'popup'` keeps the tab on its route; `'redirect'` navigates it. The popup transport falls back to a redirect on its own when the browser blocks the window, so the callback route must keep working in either mode. |
 | `baseURL` | — | Oxy API origin (`https://api.oxy.so`). |
 | `requireAuth` | `'off'` | Convenience wrapper: `'soft'` / `'hard'` wraps children in `<RequireOxyAuth prompt=…>`. |
-| `storageKeyPrefix`, `queryClient`, `oxyServices`, `onAuthStateChange` | — | Advanced overrides. |
+| `storageKeyPrefix`, `oxyServices`, `onAuthStateChange` | — | Advanced overrides. |
 
 ### Device-first cold boot
 
