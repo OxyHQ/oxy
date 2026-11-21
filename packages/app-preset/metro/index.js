@@ -385,6 +385,78 @@ function withCompleteReactNative(config, projectRoot = config.projectRoot) {
   return config;
 }
 
+const BASE_FONT_DIR = path.join(__dirname, 'base-font');
+/** The base-font modules, by both spellings (as for the completed module). */
+const BASE_FONT_MODULES = new Set(
+  fs
+    .readdirSync(BASE_FONT_DIR)
+    .flatMap((file) => [
+      path.join(BASE_FONT_DIR, file),
+      fs.realpathSync(path.join(BASE_FONT_DIR, file)),
+    ]),
+);
+/** NativeWind's `Text` and `TextInput` components, by any of the conditions Metro may pick. */
+const CSS_TEXT_COMPONENT =
+  /[/\\]react-native-css[/\\](?:dist[/\\](?:commonjs|module)[/\\]components[/\\](Text|TextInput)\.js|src[/\\]components[/\\](Text|TextInput)\.tsx)$/;
+
+/**
+ * Wraps a Metro config so that wherever NativeWind's `Text` or `TextInput`
+ * would be bundled, `./base-font/Text.js` or `./base-font/TextInput.js` is:
+ * the same component, drawing Bloom's base face when the text names no family
+ * (Inter on Android and iOS, the document's family on the web; see
+ * `./base-font/base-font.native.js` and `.web.js` for why each platform needs it).
+ *
+ * NativeWind is where every text of the app already passes: on native it sends
+ * `import { Text } from 'react-native'` (and deep `react-native/Libraries/…`
+ * imports) to its components, on the web the deep `react-native-web` import Expo's
+ * Babel preset rewrites it to. So the match is on the RESOLVED file, by every
+ * route that reaches it; nothing else changes.
+ *
+ * Apply it OUTERMOST. The base-font modules' own imports (React Native's hosts,
+ * NativeWind's runtime) go straight to Metro's resolver from the project, past
+ * every redirect: NativeWind's would send the hosts back to the components
+ * these modules replace.
+ *
+ * @param {import('metro-config').MetroConfig} config The finished config, NativeWind applied.
+ * @param {string} [projectRoot=config.projectRoot] The app package.
+ * @returns {import('metro-config').MetroConfig} `config`, its resolver wrapped.
+ */
+function withBaseFontText(config, projectRoot = config.projectRoot) {
+  const parentResolveRequest = config.resolver.resolveRequest;
+  const projectOrigin = path.join(projectRoot, 'package.json');
+
+  config.resolver.resolveRequest = (context, moduleName, platform) => {
+    if (BASE_FONT_MODULES.has(context.originModulePath)) {
+      const own = moduleName.startsWith('.')
+        ? context
+        : cssRuntimeContext(
+            { ...context, originModulePath: projectOrigin },
+            moduleName,
+            platform,
+            projectRoot,
+          );
+      return context.resolveRequest(own, moduleName, platform);
+    }
+
+    const resolution = (parentResolveRequest ?? context.resolveRequest)(
+      context,
+      moduleName,
+      platform,
+    );
+    const component =
+      resolution?.type === 'sourceFile' && CSS_TEXT_COMPONENT.exec(resolution.filePath);
+    if (component) {
+      return {
+        type: 'sourceFile',
+        filePath: path.join(BASE_FONT_DIR, `${component[1] ?? component[2]}.js`),
+      };
+    }
+    return resolution;
+  };
+
+  return config;
+}
+
 /**
  * Wraps a NativeWind Metro config with the Bloom single-instance rewrite and the
  * web `ws` shim. In hoisted monorepos the same Bloom version is duplicated under
@@ -447,9 +519,10 @@ function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
     config,
     options.workspaceRoot ? path.resolve(options.workspaceRoot) : findWorkspaceRoot(projectRoot),
   );
-  // Outermost, so it sees the final resolution and its own module's imports
-  // reach no redirect beneath it.
-  return withCompleteReactNative(config, projectRoot);
+  // Outermost, so they see the final resolution and their own modules'
+  // imports reach no redirect beneath them.
+  config = withCompleteReactNative(config, projectRoot);
+  return withBaseFontText(config, projectRoot);
 }
 
 module.exports = {
@@ -458,6 +531,7 @@ module.exports = {
   withBloomSingleInstance,
   withReactNativeCssSingleInstance,
   withCompleteReactNative,
+  withBaseFontText,
   withLinkedNativePackagesOnly,
   withFreshWorkspaceBuilds,
 };

@@ -1,5 +1,20 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.8.0
+
+### Fixed
+
+- A `Text` or `TextInput` that names no family draws Bloom's face again, on
+  every platform. React 19 ignores `Text.defaultProps` (it applies
+  `defaultProps` to class components only), so Bloom's default never reached a
+  text and every raw `<Text className="…">` drew the system face (Roboto on
+  Android, San Francisco on iOS, the system stack on the web). The Metro config
+  now bundles `metro/base-font/` wherever NativeWind's `Text` or `TextInput`
+  would be: the same components over a host that puts `Inter` (native) or
+  `font-family: inherit` (web, the document's Inter) first in the style. A
+  `font-*` utility, an inline `fontFamily`, Bloom's `Text` and a parent text's
+  family still win. `withBaseFontText` is exported.
+
 ## 6.7.3
 
 ### Fixed
