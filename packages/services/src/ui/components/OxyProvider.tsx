@@ -155,7 +155,8 @@ const OxyProvider: FC<OxyProviderProps> = ({
     if (isWeb) return undefined;
     let mounted = true;
     let unsubscribe: (() => void) | undefined;
-    // NetInfo is an optional peer: without it the device counts as online.
+    // The one feeder of the online signal on a device (`utils/netConnectivity`).
+    // A build without NetInfo's native module counts as online.
     import('@react-native-community/netinfo')
       .then(async (NetInfo) => {
         const state = await NetInfo.default.fetch();
