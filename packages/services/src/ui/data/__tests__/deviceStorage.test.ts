@@ -36,10 +36,16 @@ describe('device storage', () => {
       mention_session_ids: '[]',
       mention_active_session_id: 's',
       mention_boot_account: '{"v":1}',
+      oxy_query_cache_v3: '{"clientState":{}}',
+      'oxy_account_queries:u1': '{"clientState":{}}',
+      'oxy_account_queries:org%3A2': '{"clientState":{}}',
+      app_query_cache: 'kept',
     });
     const storage = createDeviceStorage(new Store(), legacy.storage);
     expect(await storage.getItem('mention_session_ids')).toBeNull();
-    expect([...legacy.values.keys()]).toEqual(['mention_boot_account']);
+    expect(await storage.getItem('oxy_query_cache_v3')).toBeNull();
+    expect(await storage.getItem('oxy_account_queries:u1')).toBeNull();
+    expect([...legacy.values.keys()]).toEqual(['mention_boot_account', 'app_query_cache']);
   });
 
   it('never lets an old value override one written since', async () => {

@@ -39,9 +39,16 @@ interface LegacyStorage {
   getAllKeys(): Promise<readonly string[]>;
 }
 
-/** Old SDK keys nothing reads any more: deleted, never copied. */
+/**
+ * Old SDK keys nothing reads any more, deleted and never copied: the session
+ * ids it wrote, and the React Query caches it kept before 15.0.0 (the shared
+ * one and each account's).
+ */
 const isDeadKey = (key: string) =>
-  key.endsWith('_session_ids') || key.endsWith('_active_session_id');
+  key.endsWith('_session_ids') ||
+  key.endsWith('_active_session_id') ||
+  key === 'oxy_query_cache_v3' ||
+  key.startsWith('oxy_account_queries:');
 
 async function loadLegacyStorage(): Promise<LegacyStorage | null> {
   if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') {
