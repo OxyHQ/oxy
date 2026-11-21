@@ -1,232 +1,122 @@
 /**
- * User file-library queries + cache helpers.
- *
- * The file list is owned by React Query (`useInfiniteQuery`), NOT a zustand
- * store: server pages live in the query cache, and every optimistic mutation
- * (upload / delete / visibility) edits that cache via the pure `*InCache`
- * helpers below. The `queryFn` is side-effect-free — it only fetches and maps a
- * page. This is what lets the file manager stay effect-free while preserving
- * infinite scroll, pull-to-refresh, and optimistic upload reconciliation.
+ * The person's file library and file access, read through `data/files.ts`
+ * (`@oxy.so/bloom-data`). The screens edit the held listings with that
+ * module's helpers (`prependUserFile`, `removeUserFile`, …) inside the tree's
+ * store, so an answer for an account since left never reaches the next one.
  */
 
+import { useCallback, useMemo, useState } from 'react';
 import {
-  useInfiniteQuery,
-  useQuery,
-  type InfiniteData,
-  type QueryClient,
-} from '@tanstack/react-query';
-import type { FileApplicationAccess, FileMetadata } from '@oxy.so/core';
+  type RecordView,
+  skip,
+  useAction,
+  useList,
+  useRecord,
+  useStore,
+  withStore,
+} from '@oxy.so/bloom-data';
+import type { FileMetadata } from '@oxy.so/core';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { queryKeys } from './queryKeys';
+import {
+  type FileAppAccessRecord,
+  fileAppAccess,
+  revokeFileAppAccess,
+  UserFile,
+  type UserFilesListing,
+  userFiles,
+} from '../../data/files';
+import { useEntities } from '../../data/useEntities';
 
-/** Files fetched per page. */
-export const FILES_PAGE_SIZE = 40;
-
-/** Raw file record as returned by `oxyServices.assets.list` / `assetUpload`. */
-export interface RawUserFile {
-  id: string;
-  originalName?: string;
-  sha256?: string;
-  mime?: string;
-  size?: number;
-  createdAt?: string;
-  metadata?: Record<string, unknown>;
-  variants?: unknown[];
-  /** Whether any application uses the file (ADR 0043 D5). */
-  inUse?: boolean;
-  /** `blocked`: taken down after a content claim (ADR 0043 D10). */
-  status?: string;
-  /** When the owner moved it to trash (ADR 0043 D5). */
-  trashedAt?: string | null;
-}
-
-/** One page of the infinite file list. */
-export interface UserFilesPage {
+/** An owner's library or trash as a screen reads it. */
+export interface UserFilesView {
   files: FileMetadata[];
-  total: number;
+  /** No page yet and the first is being read. */
+  isLoading: boolean;
+  /** The listing is being read again (pull to refresh, a reconcile) with files on screen. */
+  isRefreshing: boolean;
+  isFetchingMore: boolean;
   hasMore: boolean;
-  nextOffset: number;
-}
-
-export type UserFilesInfinite = InfiniteData<UserFilesPage>;
-
-/** Normalize a raw API file record into the client `FileMetadata` shape. */
-export function mapRawFileToMetadata(raw: RawUserFile): FileMetadata {
-  return {
-    id: raw.id,
-    filename: raw.originalName ?? raw.sha256 ?? '',
-    contentType: raw.mime ?? '',
-    length: raw.size ?? 0,
-    chunkSize: 0,
-    uploadDate: raw.createdAt ?? '',
-    ...(typeof raw.inUse === 'boolean' ? { inUse: raw.inUse } : {}),
-    ...(raw.status === 'active' ||
-    raw.status === 'trash' ||
-    raw.status === 'blocked' ||
-    raw.status === 'lost'
-      ? { status: raw.status }
-      : {}),
-    ...(typeof raw.trashedAt === 'string' ? { trashedAt: raw.trashedAt } : {}),
-    metadata: raw.metadata ?? {},
-    variants: (raw.variants ?? []) as FileMetadata['variants'],
-  };
-}
-
-/** Which of the owner's files a page lists: the library, or the trash (ADR 0043 D5). */
-export type UserFilesListing = 'library' | 'trash';
-
-/** Map one `oxyServices.assets.list` response onto a page. */
-export function toUserFilesPage(
-  response: { files?: unknown[]; total?: number; hasMore?: boolean },
-  offset: number,
-): UserFilesPage {
-  const files = ((response.files ?? []) as RawUserFile[]).map(mapRawFileToMetadata);
-  return {
-    files,
-    total: response.total ?? offset + files.length,
-    hasMore: Boolean(response.hasMore),
-    nextOffset: offset + FILES_PAGE_SIZE,
-  };
+  /** The last read failed after its retries. */
+  isError: boolean;
+  more: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 /**
- * Infinite-paginated list of the owner's files: the LIBRARY (active files, and
- * blocked ones shown as removed after a claim) or, with `listing: 'trash'`,
- * what the owner moved to trash, most recently trashed first. Fires on mount
- * and whenever `ownerId` changes (a new key); `staleTime: 0` reloads on every
- * open. The rendered list is `data.pages.flatMap(p => p.files)`.
+ * The owner's files, a page at a time: the LIBRARY (active files, and blocked
+ * ones shown as removed after a claim) or, with `listing: 'trash'`, what the
+ * owner moved to trash, most recently trashed first. Read when a screen opens
+ * it and whenever `ownerId` changes; nothing is read until there is an owner.
  */
-export const useUserFilesInfinite = (ownerId?: string, listing: UserFilesListing = 'library') => {
-  const { oxyServices } = useOxy();
-  return useInfiniteQuery<UserFilesPage, Error>({
-    queryKey: listing === 'trash' ? queryKeys.files.trash(ownerId) : queryKeys.files.list(ownerId),
-    queryFn: async ({ pageParam }) => {
-      const offset = typeof pageParam === 'number' ? pageParam : 0;
-      const response = await oxyServices.assets.list({
-        limit: FILES_PAGE_SIZE,
-        offset,
-        ...(listing === 'trash' ? { status: 'trash' as const } : {}),
-      });
-      return toUserFilesPage(response, offset);
-    },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextOffset : undefined),
-    enabled: Boolean(ownerId),
-    staleTime: 0,
-    refetchOnWindowFocus: false,
-  });
-};
-
-// --- Pure cache transforms (optimistic updates) -----------------------------
-// Each edits the cached `InfiniteData` for one owner. All no-op when nothing is
-// cached yet (e.g. an upload before the first page loads) — the subsequent
-// `invalidateQueries` reconcile then brings the authoritative record.
-
-const fileListKey = (ownerId?: string) => queryKeys.files.list(ownerId);
-
-const mapPages = (
-  data: UserFilesInfinite,
-  fn: (files: FileMetadata[]) => FileMetadata[],
-): UserFilesInfinite => ({
-  ...data,
-  pages: data.pages.map((page) => ({ ...page, files: fn(page.files) })),
-});
-
-/** Prepend an (optimistic) file to the first page. */
-export function prependFileToCache(
-  queryClient: QueryClient,
-  ownerId: string | undefined,
-  file: FileMetadata,
-): void {
-  queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) => {
-    if (!data || data.pages.length === 0) return data;
-    return {
-      ...data,
-      pages: data.pages.map((page, index) =>
-        index === 0 ? { ...page, files: [file, ...page.files] } : page,
-      ),
-    };
-  });
-}
-
-/** Remove a file (by id) from every page of the library, or of the trash. */
-export function removeFileFromCache(
-  queryClient: QueryClient,
-  ownerId: string | undefined,
-  fileId: string,
+export function useUserFilesInfinite(
+  ownerId?: string,
   listing: UserFilesListing = 'library',
-): void {
-  const key = listing === 'trash' ? queryKeys.files.trash(ownerId) : fileListKey(ownerId);
-  queryClient.setQueryData<UserFilesInfinite>(key, (data) =>
-    data ? mapPages(data, (files) => files.filter((f) => f.id !== fileId)) : data,
+): UserFilesView {
+  const { oxyServices } = useOxy();
+  const view = useList(
+    userFiles,
+    ...(ownerId ? ([oxyServices, ownerId, listing] as const) : ([skip] as const)),
   );
-}
-
-/** Swap an optimistic file (by id) for its persisted counterpart. */
-export function replaceFileInCache(
-  queryClient: QueryClient,
-  ownerId: string | undefined,
-  oldId: string,
-  newFile: FileMetadata,
-): void {
-  queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) =>
-    data ? mapPages(data, (files) => files.map((f) => (f.id === oldId ? newFile : f))) : data,
+  const records = useEntities(UserFile, view.ids);
+  const files = useMemo(
+    () => records.filter((file): file is FileMetadata => file !== undefined),
+    [records],
   );
+  const [isFetchingMore, setFetchingMore] = useState(false);
+  const { more: readMore, hasMore } = view;
+  const more = useCallback(async () => {
+    if (!hasMore) return;
+    setFetchingMore(true);
+    try {
+      await readMore();
+    } finally {
+      setFetchingMore(false);
+    }
+  }, [hasMore, readMore]);
+  return {
+    files,
+    isLoading: view.isLoading,
+    isRefreshing: view.isFetching && !isFetchingMore && view.list !== undefined,
+    isFetchingMore,
+    hasMore,
+    isError: view.status === 'error',
+    more,
+    refresh: view.refresh,
+  };
 }
-
-/** Shallow-merge a metadata patch into a cached file (e.g. visibility change). */
-export function patchFileMetadataInCache(
-  queryClient: QueryClient,
-  ownerId: string | undefined,
-  fileId: string,
-  metadataPatch: Record<string, unknown>,
-): void {
-  queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) =>
-    data
-      ? mapPages(data, (files) =>
-          files.map((f) =>
-            f.id === fileId
-              ? { ...f, metadata: { ...f.metadata, ...metadataPatch } as FileMetadata['metadata'] }
-              : f,
-          ),
-        )
-      : data,
-  );
-}
-
-// --- Applications with access (ADR 0043 stage 4c) ---------------------------
 
 /**
  * The applications that can open one of the owner's files with their own
- * token: one that stored it for the person, or one the person attached it to.
- * Fetched when `enabled` (the owner's own file); `staleTime: 0` re-reads it
- * every time the details open, since an application can gain access at any
- * time (a new upload on the person's behalf).
+ * token (ADR 0043 stage 4c). Read when `enabled` (the owner's own file), every
+ * time the details open, since an application can gain access at any time.
  */
-export const useFileAppAccess = (fileId: string, enabled = true) => {
+export function useFileAppAccess(fileId: string, enabled = true): RecordView<FileAppAccessRecord> {
   const { oxyServices } = useOxy();
-  return useQuery<FileApplicationAccess[], Error>({
-    queryKey: queryKeys.files.appAccess(fileId),
-    queryFn: () => oxyServices.assets.listAppAccess(fileId),
-    enabled: enabled && fileId.length > 0,
-    staleTime: 0,
-    refetchOnWindowFocus: false,
-  });
-};
+  return useRecord(
+    fileAppAccess,
+    ...(enabled && fileId.length > 0 ? ([oxyServices, fileId] as const) : ([skip] as const)),
+  );
+}
 
-/** Drop one application from a file's cached access list (the optimistic half of a revoke). */
-export function removeAppAccessFromCache(
-  queryClient: QueryClient,
-  fileId: string,
-  applicationId: string,
-): FileApplicationAccess[] | undefined {
-  const key = queryKeys.files.appAccess(fileId);
-  const previous = queryClient.getQueryData<FileApplicationAccess[]>(key);
-  if (previous) {
-    queryClient.setQueryData<FileApplicationAccess[]>(
-      key,
-      previous.filter((app) => app.applicationId !== applicationId),
-    );
-  }
-  return previous;
+/**
+ * Take an application's access to one of the person's files away: the
+ * application leaves the list at once and comes back if the revoke fails, then
+ * the list is read again either way. The caller shows its own toasts (it
+ * knows the application's name).
+ */
+export function useRevokeFileAppAccess() {
+  const { oxyServices, activeSessionId } = useOxy();
+  const store = useStore();
+  const { run: revoke, isPending, error, reset } = useAction(revokeFileAppAccess);
+  const run = useCallback(
+    async ({ fileId, applicationId }: { fileId: string; applicationId: string }) => {
+      try {
+        return await revoke(oxyServices, activeSessionId, fileId, applicationId);
+      } finally {
+        void withStore(store, () => fileAppAccess.refresh(oxyServices, fileId));
+      }
+    },
+    [revoke, oxyServices, activeSessionId, store],
+  );
+  return { run, isPending, error, reset };
 }

@@ -6,14 +6,14 @@ import { Text } from '@oxy.so/bloom/typography';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useQueryClient } from '@tanstack/react-query';
+import { useStore, withStore } from '@oxy.so/bloom-data';
 import type { BaseScreenProps } from '../types/navigation';
 import Ionicons from '../icons/Ionicons';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { queryKeys } from '../hooks/queries/queryKeys';
-import { removeFileFromCache, useUserFilesInfinite } from '../hooks/queries/useFileQueries';
+import { useUserFilesInfinite } from '../hooks/queries/useFileQueries';
+import { refreshUserFiles, removeUserFile } from '../data/files';
 import { formatFileSize, getFileIcon } from '../utils/fileManagement';
 import FileListSection, { type FileListItem } from './fileManagement/FileListSection';
 import FileLibraryError from './fileManagement/FileLibraryError';
@@ -31,23 +31,27 @@ const FileTrashScreen: React.FC<BaseScreenProps & { userId?: string }> = ({ user
   const { user, oxyServices } = useOxy();
   const { t } = useI18n();
   const { colors } = useTheme();
-  const queryClient = useQueryClient();
+  const store = useStore();
   const ownerId = userId || user?.id;
 
   const trashQuery = useUserFilesInfinite(ownerId, 'trash');
-  const files = useMemo(
-    () => trashQuery.data?.pages.flatMap((page) => page.files) ?? [],
-    [trashQuery.data],
-  );
+  const files = trashQuery.files;
   const scrollViewRef = useRef<ComponentRef<typeof ScrollView>>(null);
   // The file an action is in flight for: its buttons show progress.
   const [busy, setBusy] = useState<{ id: string; restoring: boolean } | null>(null);
 
   // Both lists change: a restored file returns to the library, a deleted one
-  // leaves the trash. `files.all` covers both keys.
-  const refreshFiles = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.files.all });
-  }, [queryClient]);
+  // leaves the trash. The file leaves the held trash at once.
+  const settleFile = useCallback(
+    (fileId: string) => {
+      if (!ownerId) return;
+      withStore(store, () => {
+        removeUserFile(ownerId, fileId, 'trash');
+        refreshUserFiles(oxyServices, ownerId);
+      });
+    },
+    [store, oxyServices, ownerId],
+  );
 
   const handleRestore = useCallback(
     async (fileId: string) => {
@@ -59,15 +63,14 @@ const FileTrashScreen: React.FC<BaseScreenProps & { userId?: string }> = ({ user
         } else {
           toast.error(t('fileManagement.toasts.notInTrash'));
         }
-        removeFileFromCache(queryClient, ownerId, fileId, 'trash');
-        refreshFiles();
+        settleFile(fileId);
       } catch (error: unknown) {
         toast.error(getErrorMessage(error) || t('fileManagement.toasts.restoreFailed'));
       } finally {
         setBusy(null);
       }
     },
-    [oxyServices, queryClient, ownerId, refreshFiles, t],
+    [oxyServices, settleFile, t],
   );
 
   const handleDeleteForever = useCallback(
@@ -97,15 +100,14 @@ const FileTrashScreen: React.FC<BaseScreenProps & { userId?: string }> = ({ user
         );
         if (outcome === 'cancelled') return;
         if (outcome === 'deleted') toast.success(t('fileManagement.toasts.deletedForever'));
-        removeFileFromCache(queryClient, ownerId, fileId, 'trash');
-        refreshFiles();
+        settleFile(fileId);
       } catch (error: unknown) {
         toast.error(getErrorMessage(error) || t('fileManagement.toasts.deleteFailed'));
       } finally {
         setBusy(null);
       }
     },
-    [oxyServices, queryClient, ownerId, refreshFiles, t],
+    [oxyServices, settleFile, t],
   );
 
   const items = useMemo<FileListItem[]>(
@@ -171,7 +173,7 @@ const FileTrashScreen: React.FC<BaseScreenProps & { userId?: string }> = ({ user
         title={t('fileManagement.trashView.loadError')}
         description={t('fileManagement.loadError.description')}
         retryLabel={t('fileManagement.retry')}
-        onRetry={() => trashQuery.refetch()}
+        onRetry={() => trashQuery.refresh()}
         iconColor={colors.error}
         titleColor={colors.text}
         descriptionColor={colors.textSecondary}
@@ -210,14 +212,14 @@ const FileTrashScreen: React.FC<BaseScreenProps & { userId?: string }> = ({ user
         searchQuery=""
         items={items}
         paging={{
-          loadingMore: trashQuery.isFetchingNextPage,
-          hasMore: trashQuery.hasNextPage ?? false,
+          loadingMore: trashQuery.isFetchingMore,
+          hasMore: trashQuery.hasMore,
         }}
-        refreshing={trashQuery.isRefetching}
+        refreshing={trashQuery.isRefreshing}
         colors={colors}
         t={t}
-        onRefresh={() => trashQuery.refetch()}
-        onLoadMore={() => trashQuery.fetchNextPage()}
+        onRefresh={() => trashQuery.refresh()}
+        onLoadMore={() => trashQuery.more()}
         onClearSearch={() => {}}
         renderEmptyState={renderEmptyState}
       />

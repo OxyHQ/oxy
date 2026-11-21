@@ -1,40 +1,42 @@
 /**
- * Covers the file library's React Query data layer (the zustand `fileStore` was
- * retired — server pages live in the query cache):
+ * Covers the file library's bloom-data layer (`data/files.ts`):
  *
- *  - Infinite paging: `useUserFilesInfinite` walks the offset cursor via
- *    `getNextPageParam` and appends pages on `fetchNextPage`.
- *  - The pure cache helpers (prepend / remove / replace / patch) that back
+ *  - Paging: `useUserFilesInfinite` walks the offset cursor and appends pages
+ *    on `more`.
+ *  - The listing helpers (prepend / remove / replace / patch) that back
  *    optimistic upload, delete, and visibility changes.
  *  - The optimistic-upload lifecycle in `useFileUploadState`, pinning the
- *    `temp-` id contract against the QUERY CACHE:
+ *    `temp-` id contract against the HELD LIBRARY:
  *      · in flight, the optimistic entry carries the picked uri + `uploading`
  *        flag so the grid never builds an asset URL from a `temp-…` id;
  *      · on success WITH a payload, the temp entry is replaced by the real file;
  *      · on success WITHOUT a payload, the temp entry is removed (not stranded);
- *      · on failure, the temp entry is removed.
+ *      · on failure, the temp entry is removed;
+ *      · a successful upload reads the library again (the reconcile).
  *
  * The document picker is stubbed; every other helper is the real module.
  */
 
 import { renderHook, render, screen, fireEvent, act, waitFor } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
+import { createElement } from 'react';
 import { Platform } from 'react-native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type Store, withStore } from '@oxy.so/bloom-data';
 import type { FileMetadata } from '@oxy.so/core';
 import { fileThumbSource } from '../../src/ui/hooks/useResolvedFileUrls';
 import FileLibraryError from '../../src/ui/screens/fileManagement/FileLibraryError';
-import { queryKeys } from '../../src/ui/hooks/queries/queryKeys';
+import { useUserFilesInfinite } from '../../src/ui/hooks/queries/useFileQueries';
 import {
-  useUserFilesInfinite,
-  prependFileToCache,
-  removeFileFromCache,
-  replaceFileInCache,
-  patchFileMetadataInCache,
-  type UserFilesInfinite,
+  patchUserFileMetadata,
+  prependUserFile,
   type RawUserFile,
-} from '../../src/ui/hooks/queries/useFileQueries';
+  removeUserFile,
+  replaceUserFile,
+  UserFile,
+  UserFiles,
+  userFilesKey,
+} from '../../src/ui/data/files';
 import type { useUploadFile } from '../../src/ui/hooks/mutations/useAccountMutations';
+import { dataWrapper, openTestStore } from '../helpers/dataStore';
 
 // Stub only the lazy document-picker loader; keep every other helper real.
 const getDocumentAsync = jest.fn();
@@ -58,24 +60,13 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
 import { useFileUploadState } from '../../src/ui/screens/fileManagement/hooks/useFileUploadState';
 
 const OWNER = 'u1';
-const KEY = queryKeys.files.list(OWNER);
+const KEY = userFilesKey(OWNER, 'library');
 const PICKED_URI = 'file:///picked-photo.png';
 
 type UploadMutation = ReturnType<typeof useUploadFile>;
 
-const makeClient = () =>
-  new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
-      mutations: { retry: false },
-    },
-  });
-
-const wrapper = (client: QueryClient) => {
-  const Wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client }, children);
-  return Wrapper;
-};
+const makeClient = (): Store => openTestStore();
+const wrapper = dataWrapper;
 
 const raw = (id: string): RawUserFile => ({
   id,
@@ -96,21 +87,31 @@ const file = (id: string): FileMetadata => ({
   variants: [],
 });
 
-// Seed the cache with a single (optionally populated) first page so optimistic
-// prepends have somewhere to land.
-const seedCache = (client: QueryClient, files: FileMetadata[] = []) => {
-  const data: UserFilesInfinite = {
-    pageParams: [0],
-    pages: [{ files, total: files.length, hasMore: false, nextOffset: 40 }],
-  };
-  client.setQueryData(KEY, data);
-};
+// Hold a library (optionally populated) as if its first page had been read,
+// so optimistic prepends have somewhere to land.
+const seedCache = (store: Store, files: FileMetadata[] = []) =>
+  withStore(store, () => {
+    UserFile.put(files);
+    UserFiles.set(KEY, () => ({
+      ids: files.map((f) => f.id),
+      extra: undefined,
+      next: undefined,
+      hasMore: false,
+      visited: [],
+      updatedAt: Date.now(),
+      origin: 'network',
+    }));
+  });
 
-const cachedFiles = (client: QueryClient): FileMetadata[] =>
-  (client.getQueryData(KEY) as UserFilesInfinite | undefined)?.pages.flatMap((p) => p.files) ?? [];
+const cachedFiles = (store: Store): FileMetadata[] =>
+  withStore(store, () =>
+    (UserFiles.get(KEY)?.ids ?? []).flatMap((id) => {
+      const held = UserFile.get(id);
+      return held ? [held] : [];
+    }),
+  );
 
-const tempEntries = (client: QueryClient) =>
-  cachedFiles(client).filter((f) => f.id.startsWith('temp-'));
+const tempEntries = (store: Store) => cachedFiles(store).filter((f) => f.id.startsWith('temp-'));
 
 const makeParams = (mutateAsync: jest.Mock) => ({
   targetUserId: OWNER,
@@ -134,39 +135,48 @@ const primePicker = () => {
   });
 };
 
-describe('file query cache helpers', () => {
-  const base = (): UserFilesInfinite => ({
-    pageParams: [0],
-    pages: [{ files: [file('a'), file('b')], total: 2, hasMore: false, nextOffset: 40 }],
-  });
-
-  it('prepend adds to the first page; remove drops by id', () => {
-    const client = makeClient();
-    client.setQueryData(KEY, base());
-    prependFileToCache(client, OWNER, file('new'));
-    expect(cachedFiles(client).map((f) => f.id)).toEqual(['new', 'a', 'b']);
-    removeFileFromCache(client, OWNER, 'a');
-    expect(cachedFiles(client).map((f) => f.id)).toEqual(['new', 'b']);
+describe('file listing helpers', () => {
+  it('prepend adds to the top; remove drops by id', () => {
+    const store = makeClient();
+    seedCache(store, [file('a'), file('b')]);
+    withStore(store, () => prependUserFile(OWNER, file('new')));
+    expect(cachedFiles(store).map((f) => f.id)).toEqual(['new', 'a', 'b']);
+    withStore(store, () => removeUserFile(OWNER, 'a'));
+    expect(cachedFiles(store).map((f) => f.id)).toEqual(['new', 'b']);
   });
 
   it('replace swaps one file for another; patch merges metadata', () => {
-    const client = makeClient();
-    client.setQueryData(KEY, base());
-    replaceFileInCache(client, OWNER, 'a', { ...file('real'), filename: 'real.jpg' });
-    expect(cachedFiles(client).map((f) => f.id)).toEqual(['real', 'b']);
-    patchFileMetadataInCache(client, OWNER, 'b', { visibility: 'public' });
-    const b = cachedFiles(client).find((f) => f.id === 'b');
+    const store = makeClient();
+    seedCache(store, [file('a'), file('b')]);
+    withStore(store, () => replaceUserFile(OWNER, 'a', { ...file('real'), filename: 'real.jpg' }));
+    expect(cachedFiles(store).map((f) => f.id)).toEqual(['real', 'b']);
+    withStore(store, () => patchUserFileMetadata('b', { visibility: 'public' }));
+    const b = cachedFiles(store).find((f) => f.id === 'b');
     expect((b?.metadata as { visibility?: string } | undefined)?.visibility).toBe('public');
   });
 
-  it('helpers no-op when nothing is cached (upload before first page load)', () => {
-    const client = makeClient();
-    prependFileToCache(client, OWNER, file('x'));
-    expect(client.getQueryData(KEY)).toBeUndefined();
+  it('helpers leave no listing behind when none was read (upload before the first page)', () => {
+    const store = makeClient();
+    withStore(store, () => prependUserFile(OWNER, file('x')));
+    expect(withStore(store, () => UserFiles.get(KEY))).toBeUndefined();
   });
 });
 
 describe('useUserFilesInfinite paging', () => {
+  it('reads nothing until there is an owner (a gated read)', async () => {
+    listUserFiles.mockReset();
+    const client = makeClient();
+    const { result } = renderHook(() => useUserFilesInfinite(undefined), {
+      wrapper: wrapper(client),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(listUserFiles).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.files).toEqual([]);
+  });
+
   beforeEach(() => {
     listUserFiles.mockReset();
   });
@@ -180,18 +190,17 @@ describe('useUserFilesInfinite paging', () => {
     const client = makeClient();
     const { result } = renderHook(() => useUserFilesInfinite(OWNER), { wrapper: wrapper(client) });
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.pages[0].files.map((f) => f.id)).toEqual(['a', 'b']);
-    expect(result.current.hasNextPage).toBe(true);
+    await waitFor(() => expect(result.current.files.map((f) => f.id)).toEqual(['a', 'b']));
+    expect(result.current.hasMore).toBe(true);
 
     await act(async () => {
-      await result.current.fetchNextPage();
+      await result.current.more();
     });
 
-    await waitFor(() => expect(result.current.hasNextPage).toBe(false));
-    const all = result.current.data?.pages.flatMap((p) => p.files).map((f) => f.id);
-    expect(all).toEqual(['a', 'b', 'c']);
+    await waitFor(() => expect(result.current.hasMore).toBe(false));
+    expect(result.current.files.map((f) => f.id)).toEqual(['a', 'b', 'c']);
     expect(listUserFiles).toHaveBeenCalledTimes(2);
+    expect(listUserFiles).toHaveBeenLastCalledWith({ limit: 40, offset: 40 });
   });
 });
 
@@ -202,13 +211,14 @@ describe('load error state (distinct from empty)', () => {
 
   it('a rejected fetch yields isError with no data — a resolved-empty fetch does not', async () => {
     // Rejecting fetch → terminal error, no data (the render branches on this).
-    listUserFiles.mockRejectedValue(new Error('offline'));
+    // A refusal another attempt cannot change is not retried (`sdkRead`).
+    listUserFiles.mockRejectedValue(Object.assign(new Error('refused'), { status: 403 }));
     const failClient = makeClient();
     const { result: failed } = renderHook(() => useUserFilesInfinite(OWNER), {
       wrapper: wrapper(failClient),
     });
     await waitFor(() => expect(failed.current.isError).toBe(true));
-    expect(failed.current.data).toBeUndefined();
+    expect(failed.current.files).toEqual([]);
 
     // Resolving empty → NOT an error; an empty (but present) first page.
     listUserFiles.mockResolvedValue({ files: [], total: 0, hasMore: false });
@@ -216,9 +226,9 @@ describe('load error state (distinct from empty)', () => {
     const { result: empty } = renderHook(() => useUserFilesInfinite(OWNER), {
       wrapper: wrapper(emptyClient),
     });
-    await waitFor(() => expect(empty.current.isSuccess).toBe(true));
+    await waitFor(() => expect(empty.current.isLoading).toBe(false));
     expect(empty.current.isError).toBe(false);
-    expect(empty.current.data?.pages[0].files).toEqual([]);
+    expect(empty.current.files).toEqual([]);
   });
 
   it('FileLibraryError renders the error copy and retries on press', () => {
@@ -244,7 +254,7 @@ describe('load error state (distinct from empty)', () => {
   });
 });
 
-describe('useFileUploadState optimistic lifecycle (query cache)', () => {
+describe('useFileUploadState optimistic lifecycle (held library)', () => {
   const originalOS = Platform.OS;
 
   beforeEach(() => {
@@ -310,7 +320,7 @@ describe('useFileUploadState optimistic lifecycle (query cache)', () => {
       await Promise.resolve();
     });
 
-    // In flight: exactly one optimistic entry in the cache, flagged + carrying the picked uri.
+    // In flight: exactly one optimistic entry in the library, flagged + carrying the picked uri.
     const inFlight = tempEntries(client);
     expect(inFlight).toHaveLength(1);
     const optimistic = inFlight[0];
@@ -326,7 +336,7 @@ describe('useFileUploadState optimistic lifecycle (query cache)', () => {
       await confirmPromise;
     });
 
-    // Reconciled: no stranded temp- entry remains in the cache.
+    // Reconciled: no stranded temp- entry remains in the library.
     expect(tempEntries(client)).toHaveLength(0);
     expect(mutateAsync).toHaveBeenCalledTimes(1);
   });
@@ -361,6 +371,27 @@ describe('useFileUploadState optimistic lifecycle (query cache)', () => {
     const ids = cachedFiles(client).map((f) => f.id);
     expect(ids.some((id) => id.startsWith('temp-'))).toBe(false);
     expect(ids).toContain('real-42');
+  });
+
+  it('reads the held library again after a successful upload (the reconcile)', async () => {
+    listUserFiles.mockReset();
+    listUserFiles.mockResolvedValue({ files: [raw('real-7')], total: 1, hasMore: false });
+    const client = makeClient();
+    seedCache(client);
+    const mutateAsync = jest.fn(async () => ({ file: { id: 'real-7', originalName: 'a.png' } }));
+
+    const { result } = renderHook(() => useFileUploadState(makeParams(mutateAsync)), {
+      wrapper: wrapper(client),
+    });
+    await act(async () => {
+      await result.current.handleFileUpload();
+    });
+    await act(async () => {
+      await result.current.handleConfirmUpload();
+    });
+
+    await waitFor(() => expect(listUserFiles).toHaveBeenCalledWith({ limit: 40, offset: 0 }));
+    await waitFor(() => expect(cachedFiles(client).map((f) => f.id)).toEqual(['real-7']));
   });
 
   it('removes the optimistic entry when the upload throws', async () => {

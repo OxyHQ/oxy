@@ -4,7 +4,7 @@
  * one only after the person confirms, naming the app.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { dataWrapper, openTestStore } from '../helpers/dataStore';
 
 const listAppAccess = jest.fn();
 const revokeAppAccess = jest.fn();
@@ -56,17 +56,7 @@ const apps = [
 ];
 
 const renderSection = () =>
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({
-          defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-        })
-      }
-    >
-      <FileAppAccessSection fileId="file-1" />
-    </QueryClientProvider>,
-  );
+  render(<FileAppAccessSection fileId="file-1" />, { wrapper: dataWrapper(openTestStore()) });
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -94,7 +84,8 @@ describe('FileAppAccessSection', () => {
     const { unmount } = renderSection();
     expect(await screen.findByText('fileManagement.appAccess.empty')).toBeTruthy();
     unmount();
-    listAppAccess.mockRejectedValueOnce(new Error('offline'));
+    // A refusal another attempt cannot change fails at once (no retry).
+    listAppAccess.mockRejectedValueOnce(Object.assign(new Error('refused'), { status: 403 }));
     renderSection();
     expect(await screen.findByText('fileManagement.appAccess.loadError')).toBeTruthy();
   });
