@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
-import { skip, useList } from '@oxy.so/bloom-data';
+import { skip, useEntities, useList } from '@oxy.so/bloom-data';
 import type { FileMetadata } from '@oxy.so/core';
 import { type AssetUrlBatchResolver, FileUrl, fileUrlId, fileUrls } from '../data/files';
-import { useEntities } from '../data/useEntities';
 
 /**
  * Private-safe grid/thumbnail URL resolution.

@@ -1,10 +1,9 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
-import { skip, useList } from '@oxy.so/bloom-data';
+import { skip, useEntities, useList } from '@oxy.so/bloom-data';
 import type { FileMetadata } from '@oxy.so/core';
 import { PhotoSize, type PhotoToMeasure, photoSizes } from '../../data/files';
-import { useEntities } from '../../data/useEntities';
 
 type PhotoDimensions = { width: number; height: number };
 

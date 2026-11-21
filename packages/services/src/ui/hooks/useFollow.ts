@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { skip, useEntity, useRecord, useStore, withStore } from '@oxy.so/bloom-data';
+import { skip, useEntities, useEntity, useRecord, useStore, withStore } from '@oxy.so/bloom-data';
 import {
   OxyAuthenticationError,
   type OxyServices,
@@ -25,7 +25,6 @@ import {
   unfollowMany,
 } from '../data/follow';
 import { User } from '../data/user';
-import { useEntities } from '../data/useEntities';
 import type { FollowErrorCode } from '../utils/followErrors';
 import type { MultiFollowResult, SingleFollowResult } from './useFollow.types';
 

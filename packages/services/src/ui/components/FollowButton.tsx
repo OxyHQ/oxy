@@ -1,3 +1,4 @@
+import { useEntities } from '@oxy.so/bloom-data';
 import type React from 'react';
 import { useEffect, useCallback, useMemo, useState, memo } from 'react';
 import type { ViewStyle, TextStyle, StyleProp } from 'react-native';
@@ -6,7 +7,6 @@ import { toast } from '@oxy.so/bloom/toast';
 import { FollowButton as BloomFollowButton } from '@oxy.so/bloom/media-header';
 import { useFollow, useFollowForButton } from '../hooks/useFollow';
 import { User } from '../data/user';
-import { useEntities } from '../data/useEntities';
 import { isFollowingOf } from '../data/follow';
 import type { OxyServices, BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
 import { useI18n } from '../hooks/useI18n';

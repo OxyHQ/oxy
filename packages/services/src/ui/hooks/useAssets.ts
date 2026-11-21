@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useListState, useModel, useStore, withStore } from '@oxy.so/bloom-data';
+import { useEntities, useListState, useModel, useStore, withStore } from '@oxy.so/bloom-data';
 import type { OxyServices } from '@oxy.so/core';
 import type { Asset, AssetMetadata, AssetRecord, AssetVariant, UploadedAsset } from '@oxy.so/core';
 import {
@@ -22,7 +22,6 @@ import {
   setAssetLoading,
   setUploadProgress,
 } from '../data/assets';
-import { useEntities } from '../data/useEntities';
 
 const NO_IDS: readonly string[] = [];
 

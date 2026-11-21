@@ -10,6 +10,7 @@ import {
   type RecordView,
   skip,
   useAction,
+  useEntities,
   useList,
   useRecord,
   useStore,
@@ -25,7 +26,6 @@ import {
   type UserFilesListing,
   userFiles,
 } from '../../data/files';
-import { useEntities } from '../../data/useEntities';
 
 /** An owner's library or trash as a screen reads it. */
 export interface UserFilesView {
