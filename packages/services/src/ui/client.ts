@@ -73,7 +73,7 @@ export type { AuthState, AuthActions, SignInOutcome, UseAuthReturn } from './hoo
 export { createDeferredProductAnalytics } from './analytics/productAnalytics';
 export type { OxyProductEvent, ProductAnalytics } from './analytics/productAnalytics';
 export { useFollow, useFollowerCounts, useSeedFollowStatuses } from './hooks/useFollow';
-export { useFollowTarget } from './hooks/useFollowTarget';
+export { useFollowTarget, useSeedFollowTargets } from './hooks/useFollowTarget';
 export { useSupervision, supervisionQueryKeys } from './hooks/queries/useSupervision';
 export type { UseFollowTargetResult } from './hooks/useFollowTarget';
 export {

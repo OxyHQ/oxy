@@ -5,9 +5,10 @@ import { useOxy } from '../context/oxyRuntimeContext';
 import { toast } from '@oxy.so/bloom/toast';
 import { FollowButton as BloomFollowButton } from '@oxy.so/bloom/media-header';
 import { useFollow, useFollowForButton } from '../hooks/useFollow';
-import { useFollowStore } from '../stores/followStore';
+import { User } from '../data/user';
+import { useEntities } from '../data/useEntities';
+import { isFollowingOf } from '../data/follow';
 import type { OxyServices, BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
-import { useShallow } from 'zustand/react/shallow';
 import { useI18n } from '../hooks/useI18n';
 import { toFollowErrorCode } from '../utils/followErrors';
 import { describeFollowAllButton, describeFollowButton } from './followButtonAccessibility';
@@ -92,11 +93,8 @@ const FollowButtonInner = memo(function FollowButtonInner({
 }: SingleFollowButtonProps & { oxyServices: OxyServices }) {
   const { t } = useI18n();
   const text = useFollowLabels(verb, labels);
-  const { isFollowing, isKnown, isLoading, toggleFollow, resolveStatus } = useFollowForButton(
-    userId,
-    oxyServices,
-    initiallyFollowing,
-  );
+  const { isFollowing, isKnown, isLoading, toggleFollow, resolveStatus, lastError } =
+    useFollowForButton(userId, oxyServices, initiallyFollowing);
 
   const handlePress = useCallback(
     async (event?: { preventDefault?: () => void; stopPropagation?: () => void }) => {
@@ -108,9 +106,9 @@ const FollowButtonInner = memo(function FollowButtonInner({
       if (disabled || isLoading || !isKnown) return;
 
       // `toggleFollow` never rejects: a refusal is rolled back and its code
-      // recorded in the store, which is what the toast words.
+      // recorded, which is what the toast words.
       if (await toggleFollow()) onFollowChange?.(!isFollowing);
-      else toast.error(describeFollowError(useFollowStore.getState().errors[userId], t));
+      else toast.error(describeFollowError(lastError(), t));
     },
     [
       disabled,
@@ -120,7 +118,7 @@ const FollowButtonInner = memo(function FollowButtonInner({
       onFollowChange,
       isFollowing,
       preventParentActions,
-      userId,
+      lastError,
       t,
     ],
   );
@@ -185,19 +183,9 @@ const FollowButtonMultiInner = memo(function FollowButtonMultiInner({
   const unfollowAllUsers = 'unfollowAllUsers' in follow ? follow.unfollowAllUsers : undefined;
   const isAnyLoading = 'isAnyLoading' in follow ? follow.isAnyLoading : false;
 
-  const initialFollowStatuses = useFollowStore(
-    useShallow((state) => {
-      const statuses: Record<string, boolean | null> = {};
-      for (const uid of userIds) {
-        statuses[uid] = Object.prototype.hasOwnProperty.call(state.followingUsers, uid)
-          ? state.followingUsers[uid]
-          : null;
-      }
-      return statuses;
-    }),
-  );
+  const members = useEntities(User, userIds);
 
-  const hasKnownNotFollowing = userIds.some((uid) => initialFollowStatuses[uid] === false);
+  const hasKnownNotFollowing = members.some((member) => isFollowingOf(member) === false);
 
   // `allFollowing` is store-derived (LIVE aggregate of each target's follow
   // status) — it reacts in real time as individual members are followed or

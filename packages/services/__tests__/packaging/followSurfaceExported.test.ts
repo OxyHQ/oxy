@@ -45,10 +45,10 @@ const PUBLIC_SURFACE = [
   'FOLLOW_ACTION_LEAVES_ACTIVE',
   // The hook that owns the optimism, the rollback and the outcome boolean.
   'useFollowTarget',
-  // The store, and the two derivations a caller must not re-implement:
+  // The seeder, and the two derivations a caller must not re-implement:
   // `effectiveState` is not "does the user follow this", and the mode change
   // has to be computed the same way the server computes it.
-  'useFollowTargetStore',
+  'useSeedFollowTargets',
   'UNKNOWN_FOLLOW_STATUS',
   'isFollowedGlobally',
   'withApplicationMode',

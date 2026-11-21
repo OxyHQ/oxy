@@ -1,15 +1,8 @@
-import { useFollowStore } from './followStore';
-import { useFollowTargetStore } from './followTargetStore';
-
 /**
- * Drop session-scoped Zustand slices so the next user/account never inherits
- * stale UI state.
- *
- * The file library is NOT reset here: it lives in React Query keyed by owner id
- * (`queryKeys.files.list(ownerId)`), so switching accounts naturally shows the
- * new owner's files and the old owner's cache is garbage-collected on its own.
+ * Nothing is left to reset: follow state lives in each account's bloom-data
+ * store (`data/follow.ts`), and a switch opens the next account's store rather
+ * than clearing one. This empty function stays only until the infra step of
+ * the bloom-data move removes its two callers (`OxyContext` and
+ * `OxyHostedContext`, `handleSubjectChange`), then goes with them.
  */
-export function resetSessionScopedStores(): void {
-  useFollowStore.getState().resetFollowState();
-  useFollowTargetStore.getState().reset();
-}
+export function resetSessionScopedStores(): void {}

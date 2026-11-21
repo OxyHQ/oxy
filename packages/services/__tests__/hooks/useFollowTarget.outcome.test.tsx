@@ -11,10 +11,24 @@
  * Found by wiring Syra, where exactly that mirror exists.
  */
 
-import { renderHook, act } from '@testing-library/react';
+import { renderHook as rtlRenderHook, act } from '@testing-library/react';
+import { type Store, withStore } from '@oxy.so/bloom-data';
 import { OxyApiError } from '@oxy.so/core';
+import { FollowTarget, type FollowTargetRecord } from '../../src/ui/data/follow';
 import { useFollowTarget } from '../../src/ui/hooks/useFollowTarget';
-import { useFollowTargetStore } from '../../src/ui/stores/followTargetStore';
+import { dataWrapper, openTestStore } from '../helpers/dataStore';
+
+let store: Store;
+const renderHook: typeof rtlRenderHook = ((render, options) =>
+  rtlRenderHook(render, { wrapper: dataWrapper(store), ...options })) as typeof rtlRenderHook;
+
+/** Leaves the test's account for another: its store closes, the next one opens. */
+function switchAccount(next: Omit<FollowTargetRecord, 'id'>): Store {
+  void store.close();
+  const other = openTestStore();
+  withStore(other, () => FollowTarget.put({ id: 'target-1', ...next }));
+  return other;
+}
 
 const oxyServices = {
   follows: {
@@ -37,7 +51,7 @@ const NOT_FOLLOWING = {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  useFollowTargetStore.getState().reset();
+  store = openTestStore();
   oxyServices.follows.targetStatus.mockResolvedValue(NOT_FOLLOWING);
 });
 
@@ -175,18 +189,18 @@ describe('follow target operations across account resets', () => {
         effectiveState: 'following' as const,
         relationshipId: 'b',
       };
+      let other!: Store;
       act(() => {
-        useFollowTargetStore.getState().reset();
-        useFollowTargetStore.getState().setStatus('target-1', next);
-        useFollowTargetStore.getState().setError('target-1', 'update_failed');
+        other = switchAccount({ status: next, pending: false, error: 'update_failed' });
       });
       await act(async () => {
         if (outcome === 'resolve') resolve(NOT_FOLLOWING);
         else reject(new Error('old request failed'));
         await Promise.resolve();
       });
-      expect(useFollowTargetStore.getState().statuses['target-1']).toEqual(next);
-      expect(useFollowTargetStore.getState().errors['target-1']).toBe('update_failed');
+      const held = withStore(other, () => FollowTarget.get('target-1'));
+      expect(held?.status).toEqual(next);
+      expect(held?.error).toBe('update_failed');
     },
   );
 
@@ -215,21 +229,19 @@ describe('follow target operations across account resets', () => {
         effectiveState: 'following' as const,
         relationshipId: 'b',
       };
+      let other!: Store;
       act(() => {
-        useFollowTargetStore.getState().reset();
-        useFollowTargetStore.getState().setStatus('target-1', next);
-        useFollowTargetStore.getState().setPending('target-1', true);
-        useFollowTargetStore.getState().setError('target-1', 'read_failed');
+        other = switchAccount({ status: next, pending: true, error: 'read_failed' });
       });
       await act(async () => {
         if (outcome === 'resolve') resolve({ status: NOT_FOLLOWING });
         else reject(new Error('old request failed'));
         expect(await pending).toBe(false);
       });
-      const state = useFollowTargetStore.getState();
-      expect(state.statuses['target-1']).toEqual(next);
-      expect(state.pending['target-1']).toBe(true);
-      expect(state.errors['target-1']).toBe('read_failed');
+      const held = withStore(other, () => FollowTarget.get('target-1'));
+      expect(held?.status).toEqual(next);
+      expect(held?.pending).toBe(true);
+      expect(held?.error).toBe('read_failed');
     },
   );
 });

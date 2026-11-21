@@ -14,7 +14,6 @@
 
 import { QueryClient } from '@tanstack/react-query';
 import { upsertCachedUser, upsertCachedUsers } from '../userCache';
-import { patchCachedUserRelationship } from '../userCacheRelationship';
 import type { CacheableUser } from '../userCache';
 import { queryKeys } from '../queryKeys';
 import { bindAuthStoreToRuntime, useAuthStore } from '../../../stores/authStore';
@@ -423,60 +422,5 @@ describe('upsertCachedUsers — batch', () => {
     upsertCachedUsers(qc, null, 'v1');
     upsertCachedUsers(qc, [], 'v1');
     expect(qc.getQueryCache().getAll()).toHaveLength(0);
-  });
-});
-
-describe('patchCachedUserRelationship', () => {
-  it('updates relationship.isFollowing on the viewer-scoped by-username entry', () => {
-    const qc = makeClient();
-    upsertCachedUser(
-      qc,
-      {
-        id: 'u1',
-        username: 'alice',
-        relationship: { isFollowing: false, followsYou: true },
-      },
-      'viewer-1',
-    );
-
-    patchCachedUserRelationship(qc, 'u1', true);
-
-    expect(readByUsername(qc, 'alice', 'viewer-1')?.relationship).toEqual({
-      isFollowing: true,
-      followsYou: true,
-    });
-  });
-
-  it('never writes relationship onto the viewer-independent by-id key', () => {
-    const qc = makeClient();
-    upsertCachedUser(
-      qc,
-      {
-        id: 'u1',
-        username: 'alice',
-        relationship: { isFollowing: false, followsYou: true },
-      },
-      'viewer-1',
-    );
-
-    patchCachedUserRelationship(qc, 'u1', true);
-
-    expect(readById(qc, 'u1')?.relationship).toBeUndefined();
-  });
-
-  it('updates viewer-scoped detailForViewer keys', () => {
-    const qc = makeClient();
-    qc.setQueryData(queryKeys.users.detailForViewer('u1', 'viewer-1'), {
-      id: 'u1',
-      username: 'alice',
-      relationship: { isFollowing: false, followsYou: false },
-    });
-
-    patchCachedUserRelationship(qc, 'u1', true);
-
-    expect(
-      qc.getQueryData<CacheableUser>(queryKeys.users.detailForViewer('u1', 'viewer-1'))
-        ?.relationship,
-    ).toEqual({ isFollowing: true, followsYou: false });
   });
 });

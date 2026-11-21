@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import type { FollowStatus } from '@oxy.so/contracts';
+import { seedFollowTargets } from '../../src/ui/data/follow';
 import { useFollowTarget } from '../../src/ui/hooks/useFollowTarget';
-import { useFollowTargetStore } from '../../src/ui/stores/followTargetStore';
+import { openTestStore } from '../helpers/dataStore';
 
 const restoreFollowInheritance = jest.fn().mockResolvedValue({ ok: true });
 const setFollowApplicationMode = jest.fn().mockResolvedValue({ ok: true, mode: 'disabled' });
@@ -29,8 +30,8 @@ const activeDisabledHere: FollowStatus = {
 describe('useFollowTarget', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useFollowTargetStore.getState().reset();
-    useFollowTargetStore.getState().setStatus('target-1', activeDisabledHere);
+    openTestStore();
+    seedFollowTargets({ 'target-1': activeDisabledHere });
   });
 
   it('enableHere restores inheritance instead of pinning enabled', async () => {
@@ -47,10 +48,12 @@ describe('useFollowTarget', () => {
   });
 
   it('disableHere still writes a disabled override', async () => {
-    useFollowTargetStore.getState().setStatus('target-1', {
-      ...activeDisabledHere,
-      applicationMode: 'inherit',
-      effectiveState: 'following',
+    seedFollowTargets({
+      'target-1': {
+        ...activeDisabledHere,
+        applicationMode: 'inherit',
+        effectiveState: 'following',
+      },
     });
 
     const { result } = renderHook(() => useFollowTarget('target-1'));
