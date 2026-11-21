@@ -16,9 +16,4 @@ export const mutationKeys = {
     updateDeviceName: ['mutation', 'session', 'updateDeviceName'] as const,
     removeDevice: ['mutation', 'session', 'removeDevice'] as const,
   },
-
-  // A file's applications with access (ADR 0043 stage 4c)
-  fileAppAccess: {
-    revoke: ['mutation', 'fileAppAccess', 'revoke'] as const,
-  },
 } as const;

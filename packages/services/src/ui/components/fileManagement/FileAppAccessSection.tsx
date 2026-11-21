@@ -10,8 +10,7 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import type { FileApplicationAccess } from '@oxy.so/core';
 import { useI18n } from '../../hooks/useI18n';
-import { useFileAppAccess } from '../../hooks/queries/useFileQueries';
-import { useRevokeFileAppAccess } from '../../hooks/mutations/useFileAppAccessMutations';
+import { useFileAppAccess, useRevokeFileAppAccess } from '../../hooks/queries/useFileQueries';
 
 const APP_ICON_SIZE = 32;
 
@@ -30,7 +29,10 @@ interface FileAppAccessSectionProps {
 export const FileAppAccessSection: React.FC<FileAppAccessSectionProps> = ({ fileId }) => {
   const { t } = useI18n();
   const { colors } = useTheme();
-  const { data: apps, isLoading, isError } = useFileAppAccess(fileId);
+  const access = useFileAppAccess(fileId);
+  const apps = access.value?.apps;
+  const isLoading = access.isLoading;
+  const isError = access.status === 'error';
   const revoke = useRevokeFileAppAccess();
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
@@ -46,7 +48,7 @@ export const FileAppAccessSection: React.FC<FileAppAccessSectionProps> = ({ file
       if (!confirmed) return;
       setRevokingId(app.applicationId);
       try {
-        await revoke.mutateAsync({ fileId, applicationId: app.applicationId });
+        await revoke.run({ fileId, applicationId: app.applicationId });
         toast.success(t('fileManagement.appAccess.toasts.revoked', { name: app.name }));
       } catch {
         toast.error(t('fileManagement.appAccess.toasts.revokeFailed', { name: app.name }));

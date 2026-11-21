@@ -1,15 +1,16 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useStore, withStore } from '@oxy.so/bloom-data';
 import { toast } from '@oxy.so/bloom/toast';
 import type { AssetUploadInput, FileMetadata } from '@oxy.so/core';
 import type { useUploadFile } from '../../../hooks/mutations/useAccountMutations';
-import { queryKeys } from '../../../hooks/queries/queryKeys';
+import { useOxy } from '../../../context/oxyRuntimeContext';
 import {
-  prependFileToCache,
-  removeFileFromCache,
-  replaceFileInCache,
-} from '../../../hooks/queries/useFileQueries';
+  prependUserFile,
+  refreshUserFiles,
+  removeUserFile,
+  replaceUserFile,
+} from '../../../data/files';
 import { convertDocumentPickerAssetToFile, formatFileSize } from '../../../utils/fileManagement';
 import {
   createPendingUploadFile,
@@ -112,7 +113,8 @@ export const useFileUploadState = ({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<FileUploadAggregateProgress | null>(null);
 
-  const queryClient = useQueryClient();
+  const { oxyServices } = useOxy();
+  const store = useStore();
   const uploadStartRef = useRef<number | null>(null);
   const postSelectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endUploadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -205,7 +207,7 @@ export const useFileUploadState = ({
             metadata: optimisticMetadata,
             variants: [],
           };
-          prependFileToCache(queryClient, targetUserId, optimisticFile);
+          withStore(store, () => prependUserFile(targetUserId, optimisticFile));
 
           // Use the mutation hook with authentication handling
           const result = await uploadFileMutation.run({
@@ -227,7 +229,7 @@ export const useFileUploadState = ({
               variants: f.variants || [],
             };
             // Swap the optimistic temp entry for the persisted record.
-            replaceFileInCache(queryClient, targetUserId, optimisticId, merged);
+            withStore(store, () => replaceUserFile(targetUserId, optimisticId, merged));
             uploadedFiles.push(merged);
             successCount++;
           } else {
@@ -236,7 +238,7 @@ export const useFileUploadState = ({
             // placeholder instead of stranding a `temp-…` id (which
             // would leak into asset URLs); the reconcile invalidation
             // below re-fetches the persisted record.
-            removeFileFromCache(queryClient, targetUserId, optimisticId);
+            withStore(store, () => removeUserFile(targetUserId, optimisticId));
             // Still count as success if upload didn't throw
             successCount++;
           }
@@ -245,7 +247,7 @@ export const useFileUploadState = ({
           const errorMessage = getErrorMessage(error) || 'Upload failed';
           errors.push(`${fileName}: ${errorMessage}`);
           // Remove optimistic file on error (use the same optimisticId from above)
-          removeFileFromCache(queryClient, targetUserId, optimisticId);
+          withStore(store, () => removeUserFile(targetUserId, optimisticId));
         }
       }
 
@@ -266,7 +268,7 @@ export const useFileUploadState = ({
       // Reconcile against the server (picks up generated variants / metadata)
       // — replaces the old silent-reload timer.
       if (successCount > 0) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.files.list(targetUserId) });
+        withStore(store, () => refreshUserFiles(oxyServices, targetUserId, ['library']));
       }
     } catch (error: unknown) {
       toast.error(getErrorMessage(error) || t('fileManagement.toasts.uploadError'));
@@ -388,7 +390,7 @@ export const useFileUploadState = ({
 
       // If in selectMode, automatically select the uploaded file(s)
       if (selectMode && uploadedFiles.length > 0) {
-        // Defer one tick so the query cache has settled before selecting.
+        // Defer one tick so the held library has settled before selecting.
         clearPostSelectTimer();
         postSelectTimerRef.current = setTimeout(() => {
           postSelectTimerRef.current = null;

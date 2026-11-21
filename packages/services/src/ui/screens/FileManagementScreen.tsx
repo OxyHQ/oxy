@@ -7,7 +7,7 @@ import type React from 'react';
 import { type ComponentRef, useState, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, useWindowDimensions } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
-import { useQueryClient } from '@tanstack/react-query';
+import { useStore, withStore } from '@oxy.so/bloom-data';
 import { ExpoImage } from '../components/ExpoImage';
 import type { FileManagementScreenProps } from '../types/fileManagement';
 import { toast } from '@oxy.so/bloom/toast';
@@ -15,12 +15,8 @@ import { surfaces } from '@oxy.so/bloom/surfaces';
 import Ionicons from '../icons/Ionicons';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import type { FileMetadata } from '@oxy.so/core';
-import { queryKeys } from '../hooks/queries/queryKeys';
-import {
-  useUserFilesInfinite,
-  removeFileFromCache,
-  patchFileMetadataInCache,
-} from '../hooks/queries/useFileQueries';
+import { useUserFilesInfinite } from '../hooks/queries/useFileQueries';
+import { patchUserFileMetadata, refreshUserFiles, removeUserFile } from '../data/files';
 import { useSurfaceHeader, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
 import JustifiedPhotoGrid from '../components/photogrid/JustifiedPhotoGrid';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -80,37 +76,43 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
   // against `user`, so switching shows/manages that account's files.
   const { user, oxyServices } = useOxy();
   const { t } = useI18n();
-  const queryClient = useQueryClient();
+  const store = useStore();
   const uploadFileMutation = useUploadFile();
 
-  // Files are owned by the ACTIVE account. `targetUserId` scopes the query key,
+  // Files are owned by the ACTIVE account. `targetUserId` keys the listing,
   // so switching accounts (or an explicit `userId` prop) shows that account's
   // library with no manual reset.
   const targetUserId = userId || user?.id;
 
-  // The file list is React Query's, NOT a store: infinite-paginated, fetched on
-  // mount + on owner change, edited optimistically via cache helpers. The
-  // rendered list is the flattened pages.
+  // The library is a bloom-data listing (`data/files.ts`), NOT local state:
+  // read a page at a time, on mount and on owner change, and edited at once by
+  // the helpers below before the server is read again.
   const filesQuery = useUserFilesInfinite(targetUserId);
-  const files = useMemo(
-    () => filesQuery.data?.pages.flatMap((page) => page.files) ?? [],
-    [filesQuery.data],
-  );
+  const files = filesQuery.files;
   // No owner resolved yet counts as pending to avoid an incorrect empty state.
   const isLoadingFiles = !targetUserId || filesQuery.isLoading;
-  const isRefreshingFiles = filesQuery.isRefetching;
-  const isFetchingMore = filesQuery.isFetchingNextPage;
-  const hasMoreFiles = filesQuery.hasNextPage ?? false;
-  // Terminal load failure with nothing cached — render a DISTINCT error state
+  const isRefreshingFiles = filesQuery.isRefreshing;
+  const isFetchingMore = filesQuery.isFetchingMore;
+  const hasMoreFiles = filesQuery.hasMore;
+  // Terminal load failure with nothing held — render a DISTINCT error state
   // (not the empty state) so a failed load never looks like an empty library.
   const hasLoadError = filesQuery.isError && files.length === 0;
   const invalidateFiles = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.files.list(targetUserId) });
-  }, [queryClient, targetUserId]);
-  // A removal changes the library AND the trash (`files.all` holds both).
+    if (targetUserId) {
+      withStore(store, () => refreshUserFiles(oxyServices, targetUserId, ['library']));
+    }
+  }, [store, oxyServices, targetUserId]);
+  // A removal changes the library AND the trash.
   const invalidateAllFiles = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.files.all });
-  }, [queryClient]);
+    if (targetUserId) withStore(store, () => refreshUserFiles(oxyServices, targetUserId));
+  }, [store, oxyServices, targetUserId]);
+  // Takes a file out of the held library at once.
+  const dropFromLibrary = useCallback(
+    (fileId: string) => {
+      if (targetUserId) withStore(store, () => removeUserFile(targetUserId, fileId));
+    },
+    [store, targetUserId],
+  );
 
   const { width: windowWidth } = useWindowDimensions();
   // Prefer an explicit sheet width from the router; fall back to the window
@@ -531,9 +533,9 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           if (outcome === 'deleted') toast.success(t('fileManagement.toasts.deleteSuccess'));
         }
 
-        // Remove from the library cache, then reconcile both lists (the file
+        // Remove from the held library, then reconcile both lists (the file
         // is now in the trash) against the server.
-        removeFileFromCache(queryClient, targetUserId, fileId);
+        dropFromLibrary(fileId);
         invalidateAllFiles();
       } catch (error: unknown) {
         const status = errorStatus(error);
@@ -557,7 +559,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         setDeletingId(null);
       }
     },
-    [files, oxyServices, queryClient, targetUserId, invalidateAllFiles, confirmStillUsed, t],
+    [files, oxyServices, dropFromLibrary, invalidateAllFiles, confirmStillUsed, t],
   );
 
   const confirmBulkDelete = useCallback(async () => {
@@ -579,7 +581,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         confirmStillUsed(filename)(uses),
       );
       for (const fileId of [...result.trashed, ...result.deleted]) {
-        removeFileFromCache(queryClient, targetUserId, fileId);
+        dropFromLibrary(fileId);
       }
 
       if (result.trashed.length > 0) {
@@ -601,16 +603,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     } catch (error: unknown) {
       toast.error(getErrorMessage(error) || t('fileManagement.toasts.bulkDeleteError'));
     }
-  }, [
-    selectedIds,
-    files,
-    oxyServices,
-    queryClient,
-    targetUserId,
-    invalidateAllFiles,
-    confirmStillUsed,
-    t,
-  ]);
+  }, [selectedIds, files, oxyServices, dropFromLibrary, invalidateAllFiles, confirmStillUsed, t]);
 
   const handleBulkVisibilityChange = useCallback(
     async (visibility: 'private' | 'public' | 'unlisted') => {
@@ -636,10 +629,10 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           toast.success(
             t('fileManagement.toasts.visibilitySuccess', { count: successful, visibility }),
           );
-          // Reflect the new visibility in the cached files.
-          for (const fileId of selectedIds) {
-            patchFileMetadataInCache(queryClient, targetUserId, fileId, { visibility });
-          }
+          // Reflect the new visibility in the held files.
+          withStore(store, () => {
+            for (const fileId of selectedIds) patchUserFileMetadata(fileId, { visibility });
+          });
         }
         if (failed > 0) {
           toast.error(t('fileManagement.toasts.visibilityFailed', { count: failed }));
@@ -650,7 +643,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         toast.error(getErrorMessage(error) || t('fileManagement.toasts.visibilityError'));
       }
     },
-    [selectedIds, oxyServices, queryClient, targetUserId, invalidateFiles, t],
+    [selectedIds, oxyServices, store, invalidateFiles, t],
   );
 
   const handleVisibilityChange = useCallback(async () => {
@@ -1049,7 +1042,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
       title={t('fileManagement.loadError.title')}
       description={t('fileManagement.loadError.description')}
       retryLabel={t('fileManagement.retry')}
-      onRetry={() => filesQuery.refetch()}
+      onRetry={() => filesQuery.refresh()}
       iconColor={colors.error}
       titleColor={colors.text}
       descriptionColor={colors.textSecondary}
@@ -1097,7 +1090,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           <RefreshControl
             refreshing={isRefreshingFiles}
             onRefresh={() => {
-              void filesQuery.refetch();
+              void filesQuery.refresh();
             }}
             tintColor={colors.primary}
           />
@@ -1108,7 +1101,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           const distanceFromBottom =
             contentSize.height - (contentOffset.y + layoutMeasurement.height);
           if (distanceFromBottom < 200 && !isFetchingMore && hasMoreFiles) {
-            filesQuery.fetchNextPage();
+            void filesQuery.more();
           }
         }}
         scrollEventThrottle={250}
@@ -1291,7 +1284,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         loadingMore={isFetchingMore}
         loading={isLoadingFiles}
         loadError={hasLoadError}
-        onRetry={() => filesQuery.refetch()}
+        onRetry={() => filesQuery.refresh()}
         reduceMotion={reduceMotion}
         getThumbUrl={thumbSourceFor}
         primaryColor={colors.primary}
@@ -1300,8 +1293,8 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         // Long-press preview surfaces the file-detail panel on the stack.
         onPreviewPhoto={(file) => showFileDetailsModal(file)}
         onUpload={handleFileUpload}
-        onRefresh={() => filesQuery.refetch()}
-        onLoadMore={() => filesQuery.fetchNextPage()}
+        onRefresh={() => filesQuery.refresh()}
+        onLoadMore={() => filesQuery.more()}
         t={t}
       />
     );
@@ -1544,8 +1537,8 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           refreshing={isRefreshingFiles}
           colors={colors}
           t={t}
-          onRefresh={() => filesQuery.refetch()}
-          onLoadMore={() => filesQuery.fetchNextPage()}
+          onRefresh={() => filesQuery.refresh()}
+          onLoadMore={() => filesQuery.more()}
           onClearSearch={() => setSearchQuery('')}
           renderEmptyState={renderEmptyState}
         />

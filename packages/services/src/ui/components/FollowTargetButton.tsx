@@ -52,7 +52,6 @@ import {
 } from '@oxy.so/bloom/dropdown-menu';
 import { toast } from '@oxy.so/bloom/toast';
 import { useFollowTarget } from '../hooks/useFollowTarget';
-import { useFollowTargetStore } from '../stores/followTargetStore';
 import {
   buildFollowMenuItems,
   FOLLOW_ACTION_LEAVES_ACTIVE,
@@ -142,8 +141,17 @@ export const FollowTargetButton = memo(function FollowTargetButton({
   initialStatus,
   onChange,
 }: FollowTargetButtonProps) {
-  const { status, isFollowing, isUnknown, isPending, follow, unfollow, disableHere, enableHere } =
-    useFollowTarget(targetId, { initialStatus });
+  const {
+    status,
+    isFollowing,
+    isUnknown,
+    isPending,
+    follow,
+    unfollow,
+    disableHere,
+    enableHere,
+    lastError,
+  } = useFollowTarget(targetId, { initialStatus });
 
   const { t } = useI18n();
   const text = useFollowLabels(verb, labels);
@@ -154,8 +162,8 @@ export const FollowTargetButton = memo(function FollowTargetButton({
   );
 
   const reportMutationFailure = useCallback(() => {
-    toast.error(describeFollowError(useFollowTargetStore.getState().errors[targetId], t));
-  }, [targetId, t]);
+    toast.error(describeFollowError(lastError(), t));
+  }, [lastError, t]);
 
   const label = useMemo(() => {
     if (status.globalState === 'requested') return text.pending;

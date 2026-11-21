@@ -72,26 +72,6 @@ export const queryKeys = {
     usage: (accountScope?: string) => [...queryKeys.storage.all, 'usage', accountScope] as const,
   },
 
-  // User file library (infinite-paginated; owner-scoped so switching the active
-  // account shows that account's files without a manual reset)
-  files: {
-    all: ['files'] as const,
-    list: (ownerId?: string) => [...queryKeys.files.all, 'list', ownerId || 'anonymous'] as const,
-    /** The owner's trash (ADR 0043 D5) — under `files.all`, so one invalidation covers both. */
-    trash: (ownerId?: string) => [...queryKeys.files.all, 'trash', ownerId || 'anonymous'] as const,
-    /**
-     * The applications that can read one file with their own token (ADR 0043
-     * stage 4c) — under `files.all`, so a library invalidation refreshes it too.
-     */
-    appAccess: (fileId: string) => [...queryKeys.files.all, 'appAccess', fileId] as const,
-  },
-
-  // Follow / social graph queries
-  follow: {
-    all: ['follow'] as const,
-    counts: (userId: string) => [...queryKeys.follow.all, 'counts', userId] as const,
-  },
-
   // Oxy Trust reputation (the active account's standing)
   reputation: {
     all: ['reputation'] as const,
@@ -178,12 +158,4 @@ export const invalidateAuthMethodsQueries = (queryClient: QueryClient): void => 
  */
 export const invalidatePaymentsQueries = (queryClient: QueryClient): void => {
   queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
-};
-
-/**
- * Helper to invalidate the user's file library (all owners). Pass an ownerId via
- * `queryKeys.files.list(ownerId)` for a scoped invalidation instead.
- */
-export const invalidateFileQueries = (queryClient: QueryClient): void => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.files.all });
 };

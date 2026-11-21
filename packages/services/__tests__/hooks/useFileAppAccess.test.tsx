@@ -1,13 +1,13 @@
 /**
- * "Apps with access" (ADR 0043 stage 4c): the query reads a file's
+ * "Apps with access" (ADR 0043 stage 4c): the read returns a file's
  * applications with access, and a revoke removes the application from the
- * cached list at once, restores it when the revoke fails, and re-reads the
- * list either way.
+ * held list at once (an optimistic layer), restores it when the revoke fails,
+ * and reads the list again either way.
  */
-import type { ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type Store, withStore } from '@oxy.so/bloom-data';
 import type { FileApplicationAccess } from '@oxy.so/core';
+import { dataWrapper, openTestStore } from '../helpers/dataStore';
 
 const listAppAccess = jest.fn();
 const revokeAppAccess = jest.fn();
@@ -24,12 +24,11 @@ jest.mock('@oxy.so/core', () => ({
   authenticatedApiCall: (_oxy: unknown, _session: unknown, call: () => Promise<unknown>) => call(),
 }));
 
-import { queryKeys } from '../../src/ui/hooks/queries/queryKeys';
+import { FileAppAccess } from '../../src/ui/data/files';
 import {
-  removeAppAccessFromCache,
   useFileAppAccess,
+  useRevokeFileAppAccess,
 } from '../../src/ui/hooks/queries/useFileQueries';
-import { useRevokeFileAppAccess } from '../../src/ui/hooks/mutations/useFileAppAccessMutations';
 
 const syra: FileApplicationAccess = {
   applicationId: 'app-syra',
@@ -47,14 +46,12 @@ const alia: FileApplicationAccess = {
 };
 
 function setup() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-  return { queryClient, wrapper };
+  const store: Store = openTestStore();
+  return { store, wrapper: dataWrapper(store) };
 }
+
+/** What the store holds for file `f`. */
+const held = (store: Store) => withStore(store, () => FileAppAccess.get('f')?.apps);
 
 beforeEach(() => {
   listAppAccess.mockReset();
@@ -66,7 +63,7 @@ describe('useFileAppAccess', () => {
     listAppAccess.mockResolvedValueOnce([syra, alia]);
     const { wrapper } = setup();
     const { result } = renderHook(() => useFileAppAccess('file-1'), { wrapper });
-    await waitFor(() => expect(result.current.data).toEqual([syra, alia]));
+    await waitFor(() => expect(result.current.value?.apps).toEqual([syra, alia]));
     expect(listAppAccess).toHaveBeenCalledWith('file-1');
   });
 
@@ -77,65 +74,61 @@ describe('useFileAppAccess', () => {
   });
 });
 
-describe('removeAppAccessFromCache', () => {
-  it('drops one application and returns the list before', () => {
-    const { queryClient } = setup();
-    queryClient.setQueryData(queryKeys.files.appAccess('f'), [syra, alia]);
-    expect(removeAppAccessFromCache(queryClient, 'f', 'app-syra')).toEqual([syra, alia]);
-    expect(queryClient.getQueryData(queryKeys.files.appAccess('f'))).toEqual([alia]);
-  });
-
-  it('is a no-op when nothing is cached', () => {
-    const { queryClient } = setup();
-    expect(removeAppAccessFromCache(queryClient, 'f', 'app-syra')).toBeUndefined();
-    expect(queryClient.getQueryData(queryKeys.files.appAccess('f'))).toBeUndefined();
-  });
-
-  it('lives under the files root, so a library invalidation refreshes it', () => {
-    expect(queryKeys.files.appAccess('f').slice(0, 1)).toEqual([...queryKeys.files.all]);
-  });
-});
-
 describe('useRevokeFileAppAccess', () => {
   it('removes the application at once, then re-reads the list', async () => {
-    const { queryClient, wrapper } = setup();
-    queryClient.setQueryData(queryKeys.files.appAccess('f'), [syra, alia]);
+    const { store, wrapper } = setup();
+    withStore(store, () => FileAppAccess.put({ id: 'f', apps: [syra, alia] }));
+    listAppAccess.mockResolvedValue([alia]);
     let finish: (value: unknown) => void = () => undefined;
     revokeAppAccess.mockReturnValueOnce(
       new Promise((resolve) => {
         finish = resolve;
       }),
     );
-    const invalidate = jest.spyOn(queryClient, 'invalidateQueries');
     const { result } = renderHook(() => useRevokeFileAppAccess(), { wrapper });
 
     let pending: Promise<unknown> = Promise.resolve();
     act(() => {
-      pending = result.current.mutateAsync({ fileId: 'f', applicationId: 'app-syra' });
+      pending = result.current.run({ fileId: 'f', applicationId: 'app-syra' });
     });
-    await waitFor(() =>
-      expect(queryClient.getQueryData(queryKeys.files.appAccess('f'))).toEqual([alia]),
-    );
+    expect(held(store)).toEqual([alia]);
     expect(revokeAppAccess).toHaveBeenCalledWith('f', 'app-syra');
+    expect(listAppAccess).not.toHaveBeenCalled();
 
     await act(async () => {
       finish({ fileId: 'f', applicationId: 'app-syra', revoked: true, streamsRevoked: 1 });
       await pending;
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.files.appAccess('f') });
+    // A refresh after the write: the list is read again.
+    await waitFor(() => expect(listAppAccess).toHaveBeenCalledWith('f'));
+    expect(held(store)).toEqual([alia]);
   });
 
   it('puts the application back when the revoke fails', async () => {
-    const { queryClient, wrapper } = setup();
-    queryClient.setQueryData(queryKeys.files.appAccess('f'), [syra, alia]);
-    revokeAppAccess.mockRejectedValueOnce(new Error('offline'));
+    const { store, wrapper } = setup();
+    withStore(store, () => FileAppAccess.put({ id: 'f', apps: [syra, alia] }));
+    let refuse: (error: Error) => void = () => undefined;
+    revokeAppAccess.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        refuse = reject;
+      }),
+    );
+    listAppAccess.mockReturnValue(new Promise(() => undefined));
     const { result } = renderHook(() => useRevokeFileAppAccess(), { wrapper });
 
-    await act(async () => {
-      await expect(
-        result.current.mutateAsync({ fileId: 'f', applicationId: 'app-syra' }),
-      ).rejects.toThrow('offline');
+    let pending: Promise<unknown> = Promise.resolve();
+    act(() => {
+      pending = result.current.run({ fileId: 'f', applicationId: 'app-syra' });
     });
-    expect(queryClient.getQueryData(queryKeys.files.appAccess('f'))).toEqual([syra, alia]);
+    expect(held(store)).toEqual([alia]);
+
+    await act(async () => {
+      refuse(new Error('offline'));
+      await expect(pending).rejects.toThrow('offline');
+    });
+    // The optimistic layer is dropped: the list is what it was.
+    expect(held(store)).toEqual([syra, alia]);
+    expect(result.current.error).toEqual(new Error('offline'));
+    expect(listAppAccess).toHaveBeenCalledWith('f');
   });
 });

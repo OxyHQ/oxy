@@ -87,18 +87,19 @@ describe("react-native's Image boundary", () => {
     expect(offenders).toEqual([]);
   });
 
-  it.each([
-    'ui/components/fileManagement/FileViewer.tsx',
-    'ui/components/photogrid/JustifiedPhotoGrid.tsx',
-    'ui/screens/AvatarCropScreen.tsx',
-  ])('%s measures through getImageSize', (rel) => {
-    const source = code(path.join(srcRoot, rel));
-    expect(namesReactNativeImage(source)).toBe(false);
-    expect(source).toMatch(
-      /import\s*\{\s*getImageSize\s*\}\s*from\s*['"][./]+\/utils\/imageSize['"]/,
-    );
-    expect(source).not.toMatch(/\bgetSize\(/);
-  });
+  // The photo grid and the avatar crop stage measure through `data/files.ts`
+  // (`photoSizes`, `imageSize`), so that is where the import must be.
+  it.each(['ui/components/fileManagement/FileViewer.tsx', 'ui/data/files.ts'])(
+    '%s measures through getImageSize',
+    (rel) => {
+      const source = code(path.join(srcRoot, rel));
+      expect(namesReactNativeImage(source)).toBe(false);
+      expect(source).toMatch(
+        /import\s*\{\s*getImageSize\s*\}\s*from\s*['"][./]+\/utils\/imageSize['"]/,
+      );
+      expect(source).not.toMatch(/\bgetSize\(/);
+    },
+  );
 
   it('the native measurement fork goes through expo-image', () => {
     const native = code(path.join(srcRoot, 'ui/utils/imageSize.native.ts'));

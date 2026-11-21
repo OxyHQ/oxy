@@ -1,13 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { createElement } from 'react';
+import type { Store } from '@oxy.so/bloom-data';
+import { dataWrapper, openTestStore } from '../helpers/dataStore';
 
 const oxyServicesStub = {
   // Multi-user status resolution now goes through the batched bulk endpoint
   // (one call for all members) rather than N single `getFollowStatus` calls.
   follows: {
     statuses: jest.fn(async (ids: string[]) => Object.fromEntries(ids.map((id) => [id, false]))),
+    follow: jest.fn(),
     followMany: jest.fn(),
     unfollowMany: jest.fn(),
   },
@@ -39,32 +40,30 @@ jest.mock('@oxy.so/core', () => ({
 }));
 
 import FollowButton from '../../src/ui/components/FollowButton';
-import { useFollowStore } from '../../src/ui/stores/followStore';
+import { setFollowStatus } from '../../src/ui/data/follow';
 
-const renderWithQueryClient = (children: ReactNode) => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(createElement(QueryClientProvider, { client }, children));
-};
+let store: Store;
+const renderWithStore = (children: ReactNode) => render(children, { wrapper: dataWrapper(store) });
 
 describe('FollowButton multi-user initial state', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useFollowStore.getState().resetFollowState();
+    store = openTestStore();
     ctx = { oxyServices: oxyServicesStub, canUsePrivateApi: true, user: { id: 'me' } };
   });
 
   it('does not render for an unauthenticated viewer or their own account', () => {
     ctx.canUsePrivateApi = false;
-    const view = renderWithQueryClient(<FollowButton userId="u1" initiallyFollowing={false} />);
+    const view = renderWithStore(<FollowButton userId="u1" initiallyFollowing={false} />);
     expect(screen.queryByRole('button')).toBeNull();
     view.unmount();
     ctx.canUsePrivateApi = true;
-    renderWithQueryClient(<FollowButton userId="me" />);
+    renderWithStore(<FollowButton userId="me" />);
     expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('keeps unknown status neutral and non-interactive until resolved', () => {
-    renderWithQueryClient(<FollowButton userId="unresolved" />);
+    renderWithStore(<FollowButton userId="unresolved" />);
     const button = screen.getByRole('button', { name: 'Follow' });
     expect(button.getAttribute('aria-busy')).toBe('true');
     expect(button.hasAttribute('disabled')).toBe(true);
@@ -72,21 +71,19 @@ describe('FollowButton multi-user initial state', () => {
   });
 
   it('does not announce an unaccepted single-user mutation as a follow', async () => {
-    const toggle = jest
-      .spyOn(useFollowStore.getState(), 'toggleFollowUser')
-      .mockResolvedValue(false);
+    const toggle = oxyServicesStub.follows.follow.mockRejectedValue(new Error('refused'));
     const onFollowChange = jest.fn();
-    renderWithQueryClient(
+    renderWithStore(
       <FollowButton userId="u1" initiallyFollowing={false} onFollowChange={onFollowChange} />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Follow' }));
     await waitFor(() => expect(toggle).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Follow' })).toBeTruthy());
     expect(onFollowChange).not.toHaveBeenCalled();
-    toggle.mockRestore();
   });
 
   it('honors initiallyAllFollowing before async status fetch populates the store', () => {
-    renderWithQueryClient(
+    renderWithStore(
       <FollowButton userIds={['u1', 'u2']} initiallyAllFollowing followedAllLabel="Following" />,
     );
 
@@ -95,10 +92,10 @@ describe('FollowButton multi-user initial state', () => {
   });
 
   it('lets a known not-following store status override initiallyAllFollowing', () => {
-    useFollowStore.getState().setFollowingStatus('u1', false);
-    useFollowStore.getState().setFollowingStatus('u2', true);
+    setFollowStatus('u1', false);
+    setFollowStatus('u2', true);
 
-    renderWithQueryClient(
+    renderWithStore(
       <FollowButton userIds={['u1', 'u2']} initiallyAllFollowing followedAllLabel="Following" />,
     );
 

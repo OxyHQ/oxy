@@ -1,447 +1,327 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useFollowStore } from '../stores/followStore';
-import { useOxy } from '../context/oxyRuntimeContext';
+import { skip, useEntity, useRecord, useStore, withStore } from '@oxy.so/bloom-data';
 import {
   OxyAuthenticationError,
   type OxyServices,
   type BulkFollowResult,
   type BulkUnfollowResult,
 } from '@oxy.so/core';
-import type { FollowErrorCode } from '../utils/followErrors';
-import { useShallow } from 'zustand/react/shallow';
-import { queryKeys } from './queries/queryKeys';
+import { useOxy } from '../context/oxyRuntimeContext';
+import {
+  FollowActivity,
+  clearFollowError,
+  followCounts,
+  followErrorOf,
+  followerCountOf,
+  followingCountOf,
+  followMany,
+  followPendingOf,
+  isFollowingOf,
+  resolveFollowStatuses,
+  seedFollowStatuses,
+  setFollowCounts,
+  setFollowStatus,
+  toggleFollow as toggleFollowWrite,
+  unfollowMany,
+} from '../data/follow';
 import { User } from '../data/user';
+import { useEntities } from '../data/useEntities';
+import type { FollowErrorCode } from '../utils/followErrors';
+import type { MultiFollowResult, SingleFollowResult } from './useFollow.types';
+
+const NO_IDS: readonly string[] = [];
 
 /**
- * useFollow — Hook for follow state management.
- *
- * Performance fixes:
- * 1. Uses granular Zustand selectors instead of subscribing to the entire store.
- *    The old `useFollowStore()` caused every component using this hook to re-render
- *    on ANY store change (any user's follow status, loading state, error, or count).
- * 2. Callbacks depend on primitive values (userId, isFollowing) not object references,
- *    so they remain stable across renders.
- * 3. Store action methods are accessed via getState() in callbacks to avoid
- *    subscribing to the action functions themselves (they never change but including
- *    them in selectors would cause unnecessary selector recalculations).
+ * A person's follower and following counts, read (`users.get`) only while
+ * they are unknown. `fetchUserCounts` reads them again on demand.
  */
-export const useFollow = (userId?: string | string[]) => {
+function useUserCounts(userId: string | undefined, oxyServices: OxyServices) {
+  const store = useStore();
+  const followerCount = useEntity(User, userId, followerCountOf);
+  const followingCount = useEntity(User, userId, followingCountOf);
+  const countsMissing = followerCount === null || followingCount === null;
+  const view = useRecord(
+    followCounts,
+    ...(userId && countsMissing ? ([oxyServices, userId] as const) : ([skip] as const)),
+  );
+  const fetchUserCounts = useCallback(async () => {
+    if (!userId) return;
+    await withStore(store, () => followCounts.refresh(oxyServices, userId));
+  }, [store, oxyServices, userId]);
+  const setFollowerCount = useCallback(
+    (count: number) => {
+      if (userId) withStore(store, () => setFollowCounts(userId, { followers: count }));
+    },
+    [store, userId],
+  );
+  const setFollowingCount = useCallback(
+    (count: number) => {
+      if (userId) withStore(store, () => setFollowCounts(userId, { following: count }));
+    },
+    [store, userId],
+  );
+  return {
+    followerCount,
+    followingCount,
+    isLoadingCounts: view.isFetching,
+    fetchUserCounts,
+    setFollowerCount,
+    setFollowingCount,
+  };
+}
+
+/**
+ * useFollow — follow state for one person (`userId`) or for a set of people
+ * (`userId` as an array).
+ *
+ * Whether the viewer follows a person and that person's counts are read from
+ * `User`, so a profile read, a feed author and a follow all show the same
+ * answer. Each read subscribes to the fields it uses, so a change to another
+ * person (or another field) does not re-render.
+ */
+export function useFollow(userId: string): SingleFollowResult;
+export function useFollow(userId?: string[]): MultiFollowResult;
+export function useFollow(userId?: string | string[]): SingleFollowResult | MultiFollowResult;
+export function useFollow(userId?: string | string[]): SingleFollowResult | MultiFollowResult {
+  const store = useStore();
   const { oxyServices, canUsePrivateApi } = useOxy();
+  const singleUserId = typeof userId === 'string' ? userId : undefined;
   const userIds = useMemo(
-    () => (Array.isArray(userId) ? userId : userId ? [userId] : []),
+    () => (Array.isArray(userId) ? userId : NO_IDS),
     [userId],
-  );
-  const isSingleUser = typeof userId === 'string';
-  // Narrowed single-user id for use in closures (callbacks/queryFn) where TS
-  // can't carry the `isSingleUser` boolean back to a `string` narrowing.
-  const singleUserId: string | undefined = typeof userId === 'string' ? userId : undefined;
+  ) as readonly string[];
 
-  // Granular Zustand selectors — only re-render when THIS user's data changes
-  const isFollowing = useFollowStore(
-    useCallback(
-      (s) => (isSingleUser && userId ? (s.followingUsers[userId] ?? false) : false),
-      [isSingleUser, userId],
-    ),
-  );
-  const isLoading = useFollowStore(
-    useCallback(
-      (s) => (isSingleUser && userId ? (s.loadingUsers[userId] ?? false) : false),
-      [isSingleUser, userId],
-    ),
-  );
-  const error = useFollowStore(
-    useCallback(
-      (s) => (isSingleUser && userId ? (s.errors[userId] ?? null) : null),
-      [isSingleUser, userId],
-    ),
-  );
-  const followerCount = useFollowStore(
-    useCallback(
-      (s) => (isSingleUser && userId ? (s.followerCounts[userId] ?? null) : null),
-      [isSingleUser, userId],
-    ),
-  );
-  const followingCount = useFollowStore(
-    useCallback(
-      (s) => (isSingleUser && userId ? (s.followingCounts[userId] ?? null) : null),
-      [isSingleUser, userId],
-    ),
-  );
-  const isLoadingCounts = useFollowStore(
-    useCallback(
-      (s) => (isSingleUser && userId ? (s.loadingCounts[userId] ?? false) : false),
-      [isSingleUser, userId],
-    ),
-  );
+  const isFollowing = useEntity(User, singleUserId, isFollowingOf) ?? false;
+  const isLoading = useEntity(FollowActivity, singleUserId, followPendingOf);
+  const error = useEntity(FollowActivity, singleUserId, followErrorOf);
+  const counts = useUserCounts(singleUserId, oxyServices);
 
-  // For multi-user mode, subscribe to a FLAT snapshot of the per-user fields.
-  // `useShallow` only compares one level deep, so the selector must NOT return a
-  // nested object — a freshly allocated `{ isFollowing, isLoading, error }` per
-  // user would never shallow-compare equal, making `useSyncExternalStore`
-  // resubscribe every render and loop until React throws "Maximum update depth
-  // exceeded". Keeping the snapshot flat lets the shallow compare cache it; the
-  // nested `followData` shape is then assembled in a `useMemo` below.
-  const followFlat = useFollowStore(
-    useShallow((s) => {
-      if (isSingleUser) return {} as Record<string, boolean | FollowErrorCode | null>;
-      const flat: Record<string, boolean | FollowErrorCode | null> = {};
-      for (const uid of userIds) {
-        flat[`${uid}:isFollowing`] = s.followingUsers[uid] ?? false;
-        flat[`${uid}:isLoading`] = s.loadingUsers[uid] ?? false;
-        flat[`${uid}:error`] = s.errors[uid] ?? null;
-      }
-      return flat;
-    }),
-  );
-
+  const users = useEntities(User, userIds);
+  const activities = useEntities(FollowActivity, userIds);
   const followData = useMemo(() => {
     const data: Record<
       string,
       { isFollowing: boolean; isLoading: boolean; error: FollowErrorCode | null }
     > = {};
-    if (isSingleUser) return data;
-    for (const uid of userIds) {
+    userIds.forEach((uid, index) => {
       data[uid] = {
-        isFollowing: Boolean(followFlat[`${uid}:isFollowing`]),
-        isLoading: Boolean(followFlat[`${uid}:isLoading`]),
-        error: (followFlat[`${uid}:error`] as FollowErrorCode | null) ?? null,
+        isFollowing: isFollowingOf(users[index]) ?? false,
+        isLoading: followPendingOf(activities[index]),
+        error: followErrorOf(activities[index]),
       };
-    }
+    });
     return data;
-  }, [isSingleUser, userIds, followFlat]);
+  }, [userIds, users, activities]);
 
-  // Multi-user aggregate selectors
-  const multiUserLoadingState = useFollowStore(
-    useShallow((s) => {
-      if (isSingleUser)
-        return {
-          isAnyLoading: false,
-          hasAnyError: false,
-          allFollowing: true,
-          allNotFollowing: true,
-        };
-      return {
-        isAnyLoading: userIds.some((uid) => s.loadingUsers[uid]),
-        hasAnyError: userIds.some((uid) => !!s.errors[uid]),
-        allFollowing: userIds.every((uid) => s.followingUsers[uid]),
-        allNotFollowing: userIds.every((uid) => !s.followingUsers[uid]),
-      };
-    }),
-  );
-
-  // Stable callbacks that depend on primitives, not object references.
-  // Store actions are accessed via getState() to avoid subscribing to them.
-  const toggleFollow = useCallback(async () => {
-    if (!isSingleUser || !userId)
-      throw new Error('toggleFollow is only available for single user mode');
-    if (!canUsePrivateApi)
-      throw new OxyAuthenticationError('Authentication is required to follow users');
-    const currentlyFollowing = useFollowStore.getState().followingUsers[userId] ?? false;
-    const accepted = await useFollowStore
-      .getState()
-      .toggleFollowUser(userId, oxyServices, currentlyFollowing);
-    if (accepted) User.merge(userId, { relationship: { isFollowing: !currentlyFollowing } });
-  }, [isSingleUser, userId, canUsePrivateApi, oxyServices]);
-
-  const setFollowStatus = useCallback(
-    (following: boolean) => {
-      if (!isSingleUser || !userId)
-        throw new Error('setFollowStatus is only available for single user mode');
-      useFollowStore.getState().setFollowingStatus(userId, following);
-    },
-    [isSingleUser, userId],
-  );
-
-  const fetchStatus = useCallback(async () => {
-    if (!isSingleUser || !userId)
-      throw new Error('fetchStatus is only available for single user mode');
-    if (!canUsePrivateApi) return;
-    useFollowStore.getState().resolveFollowStatuses([userId], oxyServices);
-  }, [isSingleUser, userId, canUsePrivateApi, oxyServices]);
-
-  const clearError = useCallback(() => {
-    if (!isSingleUser || !userId)
-      throw new Error('clearError is only available for single user mode');
-    useFollowStore.getState().clearFollowError(userId);
-  }, [isSingleUser, userId]);
-
-  const fetchUserCounts = useCallback(async () => {
-    if (!isSingleUser || !userId)
-      throw new Error('fetchUserCounts is only available for single user mode');
-    await useFollowStore.getState().fetchUserCounts(userId, oxyServices);
-  }, [isSingleUser, userId, oxyServices]);
-
-  const setFollowerCount = useCallback(
-    (count: number) => {
-      if (!isSingleUser || !userId)
-        throw new Error('setFollowerCount is only available for single user mode');
-      useFollowStore.getState().setFollowerCount(userId, count);
-    },
-    [isSingleUser, userId],
-  );
-
-  const setFollowingCount = useCallback(
-    (count: number) => {
-      if (!isSingleUser || !userId)
-        throw new Error('setFollowingCount is only available for single user mode');
-      useFollowStore.getState().setFollowingCount(userId, count);
-    },
-    [isSingleUser, userId],
-  );
-
-  // Auto-fetch counts for single-user mode via React Query instead of a manual
-  // useEffect. The Zustand store remains the canonical home for count values
-  // (it is also written by toggleFollowUser / updateCountsFromFollowAction), so
-  // components keep reading `followerCount` / `followingCount` through the
-  // granular selectors above — this query only owns the FETCH lifecycle
-  // (dedup, caching, retry/backoff). It stays disabled until the counts are
-  // actually missing, reproducing the old effect's `(followerCount === null ||
-  // followingCount === null)` gate without a render-phase side effect. The
-  // store action does the network call and writes the counts; the query simply
-  // surfaces the resolved pair as its cached data.
-  useQuery({
-    queryKey: singleUserId ? queryKeys.follow.counts(singleUserId) : queryKeys.follow.all,
-    queryFn: async () => {
-      if (!singleUserId) return null;
-      await useFollowStore.getState().fetchUserCounts(singleUserId, oxyServices);
-      const state = useFollowStore.getState();
-      return {
-        followers: state.followerCounts[singleUserId] ?? null,
-        following: state.followingCounts[singleUserId] ?? null,
-      };
-    },
-    enabled: !!singleUserId && (followerCount === null || followingCount === null),
-  });
-
-  // Multi-user callbacks
-  const toggleFollowForUser = useCallback(
+  const toggleFollowFor = useCallback(
     async (targetUserId: string) => {
       if (!canUsePrivateApi)
         throw new OxyAuthenticationError('Authentication is required to follow users');
-      const currentState = useFollowStore.getState().followingUsers[targetUserId] ?? false;
-      const accepted = await useFollowStore
-        .getState()
-        .toggleFollowUser(targetUserId, oxyServices, currentState);
-      if (accepted) User.merge(targetUserId, { relationship: { isFollowing: !currentState } });
+      await withStore(store, () =>
+        toggleFollowWrite(
+          oxyServices,
+          targetUserId,
+          isFollowingOf(User.get(targetUserId)) ?? false,
+        ),
+      );
     },
-    [canUsePrivateApi, oxyServices],
+    [store, canUsePrivateApi, oxyServices],
   );
 
-  const setFollowStatusForUser = useCallback((targetUserId: string, following: boolean) => {
-    useFollowStore.getState().setFollowingStatus(targetUserId, following);
-  }, []);
+  const toggleFollow = useCallback(async () => {
+    if (!singleUserId) throw new Error('toggleFollow is only available for single user mode');
+    await toggleFollowFor(singleUserId);
+  }, [singleUserId, toggleFollowFor]);
+
+  const setFollowStatusForUser = useCallback(
+    (targetUserId: string, following: boolean) => {
+      withStore(store, () => setFollowStatus(targetUserId, following));
+    },
+    [store],
+  );
+
+  const setSingleFollowStatus = useCallback(
+    (following: boolean) => {
+      if (!singleUserId) throw new Error('setFollowStatus is only available for single user mode');
+      setFollowStatusForUser(singleUserId, following);
+    },
+    [singleUserId, setFollowStatusForUser],
+  );
 
   const fetchStatusForUser = useCallback(
     async (targetUserId: string) => {
       if (!canUsePrivateApi) return;
-      useFollowStore.getState().resolveFollowStatuses([targetUserId], oxyServices);
+      withStore(store, () => resolveFollowStatuses(oxyServices, [targetUserId]));
     },
-    [canUsePrivateApi, oxyServices],
+    [store, canUsePrivateApi, oxyServices],
   );
 
+  const fetchStatus = useCallback(async () => {
+    if (!singleUserId) throw new Error('fetchStatus is only available for single user mode');
+    await fetchStatusForUser(singleUserId);
+  }, [singleUserId, fetchStatusForUser]);
+
+  const clearErrorForUser = useCallback(
+    (targetUserId: string) => {
+      withStore(store, () => clearFollowError(targetUserId));
+    },
+    [store],
+  );
+
+  const clearError = useCallback(() => {
+    if (!singleUserId) throw new Error('clearError is only available for single user mode');
+    clearErrorForUser(singleUserId);
+  }, [singleUserId, clearErrorForUser]);
+
   // Resolve EVERY member's status in ONE micro-batched bulk call (never N
-  // single requests). Ids already known/seeded are skipped by the resolver.
+  // single requests). Ids already known are skipped by the resolver.
   const fetchAllStatuses = useCallback(async () => {
     if (!canUsePrivateApi) return;
-    useFollowStore.getState().resolveFollowStatuses(userIds, oxyServices);
-  }, [canUsePrivateApi, userIds, oxyServices]);
+    withStore(store, () => resolveFollowStatuses(oxyServices, userIds));
+  }, [store, canUsePrivateApi, userIds, oxyServices]);
 
   // Bulk follow — follows ALL users in ONE network call (never unfollows).
   const followAllUsers = useCallback(async (): Promise<BulkFollowResult> => {
     if (!canUsePrivateApi)
       throw new OxyAuthenticationError('Authentication is required to follow users');
-    return useFollowStore.getState().followManyUsers(userIds, oxyServices);
-  }, [canUsePrivateApi, userIds, oxyServices]);
+    return withStore(store, () => followMany(oxyServices, userIds));
+  }, [store, canUsePrivateApi, userIds, oxyServices]);
 
   // Bulk unfollow — unfollows ALL users in ONE network call (idempotent; never follows).
   const unfollowAllUsers = useCallback(async (): Promise<BulkUnfollowResult> => {
     if (!canUsePrivateApi)
       throw new OxyAuthenticationError('Authentication is required to unfollow users');
-    return useFollowStore.getState().unfollowManyUsers(userIds, oxyServices);
-  }, [canUsePrivateApi, userIds, oxyServices]);
+    return withStore(store, () => unfollowMany(oxyServices, userIds));
+  }, [store, canUsePrivateApi, userIds, oxyServices]);
 
-  const clearErrorForUser = useCallback((targetUserId: string) => {
-    useFollowStore.getState().clearFollowError(targetUserId);
-  }, []);
-
-  const updateCountsFromFollowAction = useCallback(
-    (
-      targetUserId: string,
-      action: 'follow' | 'unfollow',
-      counts: { followers: number; following: number },
-    ) => {
-      const currentUserId = oxyServices.session.userId || undefined;
-      useFollowStore
-        .getState()
-        .updateCountsFromFollowAction(targetUserId, action, counts, currentUserId);
-    },
-    [oxyServices],
+  const aggregate = useMemo(
+    () => ({
+      isAnyLoading: activities.some((activity) => followPendingOf(activity)),
+      hasAnyError: activities.some((activity) => followErrorOf(activity) !== null),
+      allFollowing: users.every((user) => isFollowingOf(user) === true),
+      allNotFollowing: users.every((user) => !isFollowingOf(user)),
+    }),
+    [users, activities],
   );
 
-  if (isSingleUser && userId) {
+  if (singleUserId) {
     return {
       isFollowing,
       isLoading,
       error,
       toggleFollow,
-      setFollowStatus,
+      setFollowStatus: setSingleFollowStatus,
       fetchStatus,
       clearError,
-      followerCount,
-      followingCount,
-      isLoadingCounts,
-      fetchUserCounts,
-      setFollowerCount,
-      setFollowingCount,
+      ...counts,
     };
   }
 
   return {
     followData,
-    toggleFollowForUser,
+    toggleFollowForUser: toggleFollowFor,
     setFollowStatusForUser,
     fetchStatusForUser,
     fetchAllStatuses,
     followAllUsers,
     unfollowAllUsers,
     clearErrorForUser,
-    isAnyLoading: multiUserLoadingState.isAnyLoading,
-    hasAnyError: multiUserLoadingState.hasAnyError,
-    allFollowing: multiUserLoadingState.allFollowing,
-    allNotFollowing: multiUserLoadingState.allNotFollowing,
+    ...aggregate,
   };
-};
+}
 
 /**
- * useFollowForButton — Lightweight follow hook for FollowButton in list contexts.
- *
- * Unlike useFollow, this hook:
- * - Accepts oxyServices directly (no useOxy() context subscription)
- * - Only subscribes to the specific user's follow and loading state
- * - Returns only what FollowButton needs (no counts, no multi-user)
+ * useFollowForButton — the follow state one FollowButton needs, and nothing
+ * else (no counts, no multi-user).
  */
 export const useFollowForButton = (
   userId: string,
   oxyServices: OxyServices,
   initiallyFollowing?: boolean,
 ) => {
-  // Seed the store synchronously on the FIRST render (before paint) when the
-  // caller provided a definite `initiallyFollowing` and the store has no entry
-  // yet. This makes the first paint show the correct label (no post-mount
-  // "Follow → Following" correction) and marks the id KNOWN so the batched
-  // resolver skips it. An OMITTED `initiallyFollowing` leaves the id UNKNOWN,
-  // so the batched resolver fetches its real status. The useState lazy
-  // initializer runs exactly once per mount; `setFollowStatuses` is
-  // seed-only-if-absent, so it never clobbers a live value.
+  const store = useStore();
+  // Seed on the FIRST render (before paint) when the caller knows the status
+  // and the store does not: the first paint shows the right label, and the id
+  // is KNOWN so the batched resolver skips it. An omitted `initiallyFollowing`
+  // leaves the id UNKNOWN, so the resolver reads it. Seeding never replaces a
+  // definite value.
   useState(() => {
-    if (initiallyFollowing === undefined) return null;
-    const store = useFollowStore.getState();
-    if (!Object.prototype.hasOwnProperty.call(store.followingUsers, userId)) {
-      store.setFollowStatuses({ [userId]: initiallyFollowing });
+    if (initiallyFollowing !== undefined) {
+      withStore(store, () => seedFollowStatuses({ [userId]: initiallyFollowing }));
     }
     return null;
   });
 
-  const isFollowing = useFollowStore(
-    useCallback((s) => s.followingUsers[userId] ?? false, [userId]),
-  );
-  // Tri-state: a present key (seeded or fetched) is a DEFINITE status; a missing
-  // key is UNKNOWN. The button renders a neutral/disabled state while unknown.
-  const isKnown = useFollowStore(
-    useCallback((s) => Object.prototype.hasOwnProperty.call(s.followingUsers, userId), [userId]),
-  );
-  const isLoading = useFollowStore(useCallback((s) => s.loadingUsers[userId] ?? false, [userId]));
-  const error = useFollowStore(useCallback((s) => s.errors[userId] ?? null, [userId]));
+  const following = useEntity(User, userId, isFollowingOf);
+  const isLoading = useEntity(FollowActivity, userId, followPendingOf);
+  const error = useEntity(FollowActivity, userId, followErrorOf);
 
-  const toggleFollow = useCallback(async (): Promise<boolean> => {
-    const currentlyFollowing = useFollowStore.getState().followingUsers[userId] ?? false;
-    return useFollowStore.getState().toggleFollowUser(userId, oxyServices, currentlyFollowing);
-  }, [userId, oxyServices]);
+  const toggleFollow = useCallback(
+    (): Promise<boolean> =>
+      withStore(store, () =>
+        toggleFollowWrite(oxyServices, userId, isFollowingOf(User.get(userId)) ?? false),
+      ),
+    [store, userId, oxyServices],
+  );
 
-  // Enqueue this id into the micro-batched resolver — every button that enqueues
-  // in the same tick coalesces into ONE bulk `getFollowStatuses` call. Known /
-  // seeded / in-flight ids are skipped by the resolver, so this is a no-op for
-  // them.
+  // Every button that asks in the same tick shares ONE bulk status read;
+  // known, queued and in-flight ids are skipped.
   const resolveStatus = useCallback(() => {
-    useFollowStore.getState().resolveFollowStatuses([userId], oxyServices);
-  }, [userId, oxyServices]);
+    withStore(store, () => resolveFollowStatuses(oxyServices, [userId]));
+  }, [store, userId, oxyServices]);
 
-  const setFollowStatus = useCallback(
-    (following: boolean) => {
-      useFollowStore.getState().setFollowingStatus(userId, following);
+  const setStatus = useCallback(
+    (isFollowing: boolean) => {
+      withStore(store, () => setFollowStatus(userId, isFollowing));
     },
-    [userId],
+    [store, userId],
   );
 
   const clearError = useCallback(() => {
-    useFollowStore.getState().clearFollowError(userId);
-  }, [userId]);
+    withStore(store, () => clearFollowError(userId));
+  }, [store, userId]);
+
+  /** Why the last follow of this person failed, read now (after `toggleFollow` resolves `false`). */
+  const lastError = useCallback(
+    (): FollowErrorCode | null => withStore(store, () => followErrorOf(FollowActivity.get(userId))),
+    [store, userId],
+  );
 
   return {
-    isFollowing,
-    isKnown,
+    isFollowing: following ?? false,
+    // Tri-state: a definite status (seeded or read) is KNOWN; none is UNKNOWN,
+    // and the button shows a neutral state until it is read.
+    isKnown: following !== undefined,
     isLoading,
     error,
     toggleFollow,
     resolveStatus,
-    setFollowStatus,
+    setFollowStatus: setStatus,
     clearError,
+    lastError,
   };
 };
 
 /**
- * useSeedFollowStatuses — returns a stable callback that bulk-seeds follow
- * statuses into the store (seed-only-if-absent; never clobbers a live value).
+ * useSeedFollowStatuses — a stable callback that seeds follow statuses into
+ * the signed-in account's store, only where they are unknown.
  *
- * Wire this at the app root to seed from `oxyServices.follows.viewerGraph()
- * .followingIds` (map each followed id → `true`) so a page of `FollowButton`s
- * paints the correct label on first render with ZERO follow-status network
- * calls — the batched resolver then skips every seeded id.
+ * Wire it at the app root to seed from `oxyServices.follows.viewerGraph()
+ * .followingIds` (each followed id → `true`), so a page of `FollowButton`s
+ * paints the right label on first render with no status reads.
  */
-export const useSeedFollowStatuses = () =>
-  useCallback((statuses: Record<string, boolean>) => {
-    useFollowStore.getState().setFollowStatuses(statuses);
-  }, []);
+export const useSeedFollowStatuses = () => {
+  const store = useStore();
+  return useCallback(
+    (statuses: Record<string, boolean>) => {
+      withStore(store, () => seedFollowStatuses(statuses));
+    },
+    [store],
+  );
+};
 
-// Convenience hook for just follower counts
+/** A person's follower and following counts, read while unknown. */
 export const useFollowerCounts = (userId: string) => {
   const { oxyServices } = useOxy();
-
-  const followerCount = useFollowStore(
-    useCallback((s) => s.followerCounts[userId] ?? null, [userId]),
-  );
-  const followingCount = useFollowStore(
-    useCallback((s) => s.followingCounts[userId] ?? null, [userId]),
-  );
-  const isLoadingCounts = useFollowStore(
-    useCallback((s) => s.loadingCounts[userId] ?? false, [userId]),
-  );
-
-  const fetchUserCounts = useCallback(async () => {
-    await useFollowStore.getState().fetchUserCounts(userId, oxyServices);
-  }, [userId, oxyServices]);
-
-  const setFollowerCount = useCallback(
-    (count: number) => {
-      useFollowStore.getState().setFollowerCount(userId, count);
-    },
-    [userId],
-  );
-
-  const setFollowingCount = useCallback(
-    (count: number) => {
-      useFollowStore.getState().setFollowingCount(userId, count);
-    },
-    [userId],
-  );
-
-  return {
-    followerCount,
-    followingCount,
-    isLoadingCounts,
-    fetchUserCounts,
-    setFollowerCount,
-    setFollowingCount,
-  };
+  return useUserCounts(userId, oxyServices);
 };

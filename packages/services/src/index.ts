@@ -94,18 +94,6 @@ export type {
 // Zustand stores
 // ---------------------------------------------------------------------------
 export { useAuthStore } from './ui/stores/authStore';
-export {
-  useAssetStore,
-  useAssets as useAssetsStore,
-  useAsset,
-  useUploadProgress,
-  useAssetLoading,
-  useAssetErrors,
-  useAssetsByApp,
-  useAssetsByEntity,
-  useAssetUsageCount,
-  useIsAssetLinked,
-} from './ui/stores/assetStore';
 
 // ---------------------------------------------------------------------------
 // Session / asset hooks
@@ -351,22 +339,21 @@ export type { FollowTargetButtonProps } from './ui/components/FollowTargetButton
 export type { FollowVerb, FollowLabels } from './ui/components/followLabels';
 export { useFollowErrorMessage } from './ui/components/followLabels';
 export type { FollowErrorCode } from './ui/utils/followErrors';
-export { useFollowTarget } from './ui/hooks/useFollowTarget';
+export { useFollowTarget, useSeedFollowTargets } from './ui/hooks/useFollowTarget';
 export type { UseFollowTargetResult } from './ui/hooks/useFollowTarget';
 export {
-  useFollowTargetStore,
   UNKNOWN_FOLLOW_STATUS,
   // The answer to "does the user follow this at all". Documented in
   // docs/FOLLOWS.md and, until now, not exported — so the one line of that
   // guide most likely to be reached for did not resolve.
   isFollowedGlobally,
   withApplicationMode,
-  // Whether a cached status is safe to act on without a round trip — list rows
+  // Whether a held status is safe to act on without a round trip — list rows
   // often carry globalState without relationshipId.
   isCompleteFollowStatus,
   followRecordToStatus,
   followRecordsToStatusMap,
-} from './ui/stores/followTargetStore';
+} from './ui/data/follow';
 export { default as PeableButton } from './ui/components/PeableButton';
 export type { PeableButtonProps } from './ui/components/PeableButton';
 /** @deprecated Use `PeableButton` instead. */

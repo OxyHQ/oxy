@@ -9,7 +9,6 @@ import type { QueryClient } from '@tanstack/react-query';
 import { isSessionChangedError } from '../utils/sessionChangedError';
 import { clearQueryCache } from './queryClient';
 import { isWebBrowser } from '../utils/isWebBrowser';
-import { resetSessionScopedStores } from '../stores/resetSessionScopedStores';
 import type { OxyRuntime } from '../runtime';
 
 export interface UseSessionManagementOptions {
@@ -122,7 +121,6 @@ export const useSessionManagement = ({
 
   const clearSessionState = useCallback(async (): Promise<void> => {
     runtimeRef.current.clearSession();
-    resetSessionScopedStores();
 
     // Clear the access token on the client instance. Without this the token
     // store retained the stale bearer until the next 401, leaving the instance

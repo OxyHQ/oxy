@@ -1,39 +1,12 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { skip, useList } from '@oxy.so/bloom-data';
 import type { FileMetadata } from '@oxy.so/core';
-import { getImageSize } from '../../utils/imageSize';
+import { PhotoSize, type PhotoToMeasure, photoSizes } from '../../data/files';
+import { useEntities } from '../../data/useEntities';
 
-type PhotoSize = { width: number; height: number };
-
-/** Stable empty map so an unresolved query yields a referentially-stable value. */
-const EMPTY_DIMENSIONS: Record<string, PhotoSize> = {};
-
-/**
- * Measure the intrinsic size of every photo whose thumbnail URL has resolved,
- * via `getImageSize` (expo-image on a device). Pure/async (no React state) so it can be a React Query
- * `queryFn`. Photos without a resolved URL are skipped and re-measured on the
- * next signature change; a load error falls back to 1×1 (→ the 4/3 default).
- */
-async function measurePhotoDimensions(
-  photos: FileMetadata[],
-  getThumbUrl: (photo: FileMetadata) => string | undefined,
-): Promise<Record<string, PhotoSize>> {
-  const measured: Record<string, PhotoSize> = {};
-  await Promise.all(
-    photos.map(async (photo) => {
-      const url = getThumbUrl(photo);
-      if (!url) return;
-      try {
-        measured[photo.id] = await getImageSize(url);
-      } catch {
-        measured[photo.id] = { width: 1, height: 1 };
-      }
-    }),
-  );
-  return measured;
-}
+type PhotoDimensions = { width: number; height: number };
 
 /** Fixed photos-per-row for the justified grid (Apple Photos-style trio). */
 export const PHOTOS_PER_ROW = 3;
@@ -110,26 +83,32 @@ const JustifiedPhotoGrid: React.FC<JustifiedPhotoGridProps> = ({
     [resolvedExplicitWidth],
   );
 
-  // Signature of every photo id + its currently-resolved URL — the measurement
-  // query key. A private tile's URL resolves asynchronously after it enters the
-  // list, so keying on THIS (not just the photo set) re-measures the moment a
-  // URL lands, not just when photos are added.
-  const urlSignature = useMemo(
-    () => photos.map((p) => `${p.id}:${getThumbUrl(p) ?? ''}`).join('|'),
-    [photos, getThumbUrl],
-  );
+  // Every photo whose (asynchronously resolved, private-safe) URL is known:
+  // the measurement read is keyed by these, so a URL that lands later is
+  // measured then, not only when photos are added.
+  const toMeasure = useMemo(() => {
+    const list: PhotoToMeasure[] = [];
+    for (const photo of photos) {
+      const url = getThumbUrl(photo);
+      if (url) list.push({ id: photo.id, url });
+    }
+    return list;
+  }, [photos, getThumbUrl]);
 
-  // Intrinsic dimensions via React Query (no effect): re-runs when the signature
-  // changes and reflows the justified rows. `keepPreviousData` holds the last
-  // measured map during a re-measure so tiles never flash back to the 4/3 default.
-  const dimensionsQuery = useQuery({
-    queryKey: ['justifiedPhotoDimensions', urlSignature],
-    queryFn: () => measurePhotoDimensions(photos, getThumbUrl),
-    placeholderData: keepPreviousData,
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: 5 * 60 * 1000,
-  });
-  const photoDimensions = dimensionsQuery.data ?? EMPTY_DIMENSIONS;
+  // Intrinsic sizes (no effect): measured by `photoSizes` and held by photo
+  // id, so a size already measured stays on screen while a new set is
+  // measured, and tiles never flash back to the 4/3 default.
+  useList(photoSizes, ...(toMeasure.length > 0 ? ([toMeasure] as const) : ([skip] as const)));
+  const photoIds = useMemo(() => photos.map((photo) => photo.id), [photos]);
+  const sizes = useEntities(PhotoSize, photoIds);
+  const photoDimensions = useMemo(() => {
+    const dimensions: Record<string, PhotoDimensions> = {};
+    photoIds.forEach((id, index) => {
+      const size = sizes[index];
+      if (size) dimensions[id] = { width: size.width, height: size.height };
+    });
+    return dimensions;
+  }, [photoIds, sizes]);
 
   // Group photos by date first
   const photosByDate = useMemo(() => {
