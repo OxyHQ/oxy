@@ -23,16 +23,20 @@ import { User } from '../../src/ui/data/user';
 
 /** A durable copy per account that keeps nothing; it tells a store's account. */
 type TaggedPersister = Persister & { account: string };
-function persisterFor(account: string): TaggedPersister {
-  return {
+const mockDestroyed: string[] = [];
+jest.mock('../../src/ui/data/persister', () => ({
+  dataPersister: (account: string) => ({
     account,
     open: async () => undefined,
     readRecords: async () => [],
     readList: async () => null,
     write: async () => undefined,
     close: async () => undefined,
-  };
-}
+    destroy: async () => {
+      mockDestroyed.push(account);
+    },
+  }),
+}));
 const accountOf = (store: Store | undefined) =>
   (store?.persister as TaggedPersister | undefined)?.account;
 
@@ -48,9 +52,7 @@ function renderProvider(children: React.ReactNode) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider baseURL="https://api.oxy.so" dataPersister={persisterFor}>
-        {children}
-      </OxyRuntimeProvider>
+      <OxyRuntimeProvider baseURL="https://api.oxy.so">{children}</OxyRuntimeProvider>
     </QueryClientProvider>,
   );
 }
@@ -95,6 +97,28 @@ describe("the session opens each account's data store", () => {
       runtime.setAccount({ id: 'bo', username: 'bo' } as never);
     });
     expect(User.has('friend')).toBe(false);
+    view.unmount();
+  });
+
+  it("deletes an account's data from the device when it signs out", async () => {
+    const sink: { runtime?: OxyRuntime; stores: Store[] } = { stores: [] };
+    const view = renderProvider(<Capture sink={sink} />);
+    const runtime = sink.runtime as OxyRuntime;
+    act(() => {
+      runtime.setAccount({ id: 'cy', username: 'cy' } as never);
+    });
+    const cyStore = sink.stores.at(-1) as Store;
+    act(() => {
+      runtime.setAccount({ id: 'dee', username: 'dee' } as never);
+    });
+    expect(mockDestroyed).not.toContain('cy');
+    await act(async () => {
+      runtime.clearSession();
+    });
+    expect(mockDestroyed).toContain('dee');
+    expect(mockDestroyed).not.toContain('cy');
+    expect(cyStore.closed).toBe(true);
+    expect(accountOf(sink.stores.at(-1))).toBe('anon');
     view.unmount();
   });
 });

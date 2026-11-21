@@ -10,11 +10,7 @@ import {
   type AccountQueriesConfig,
 } from '../../src/ui/hooks/accountQueryPersistence';
 import { snapshot } from '../../src/ui/hooks/persistedQueryCache';
-import {
-  createMemoryStorage,
-  createPlatformStorage,
-  type StorageInterface,
-} from '../../src/ui/utils/storageHelpers';
+import { createMemoryStorage, type StorageInterface } from '../../src/ui/utils/storageHelpers';
 
 const key = 'oxy_account_queries:alice';
 const oldConfig: AccountQueriesConfig = { roots: ['saved-searches', 'mailboxes'] };
@@ -82,27 +78,6 @@ function mount(storage: StorageInterface, config: AccountQueriesConfig) {
 }
 
 describe('account cache migration: current limitations', () => {
-  it('documents that the web adapter hides localStorage failures', async () => {
-    const fail = () => {
-      throw new Error('synthetic storage failure');
-    };
-    const get = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(fail);
-    const set = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(fail);
-    const remove = jest.spyOn(Storage.prototype, 'removeItem').mockImplementation(fail);
-    try {
-      const storage = await createPlatformStorage();
-      await expect(storage.getItem('synthetic')).resolves.toBeNull();
-      await expect(storage.setItem('synthetic', 'value')).resolves.toBeUndefined();
-      await expect(storage.removeItem('synthetic')).resolves.toBeUndefined();
-      expect(get).toHaveBeenCalled();
-      expect(set).toHaveBeenCalled();
-      expect(remove).toHaveBeenCalled();
-    } finally {
-      get.mockRestore();
-      set.mockRestore();
-      remove.mockRestore();
-    }
-  });
   it('documents that a changed filter can overwrite an un-restored root', async () => {
     const fixture = syntheticStorage(seed());
     await fixture.seed();

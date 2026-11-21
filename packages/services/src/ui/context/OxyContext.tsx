@@ -172,7 +172,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   captureCampaignAttribution = false,
   platformStorage,
   accountQueries,
-  dataPersister,
   authStateStore: providedAuthStateStore,
   onAuthStateChange,
   onError,
@@ -345,7 +344,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
 
   // The account's `@oxy.so/bloom-data` store; the subject change below opens it.
   const currentSubject = useCallback(() => runtime.getSnapshot().account?.id ?? null, [runtime]);
-  const accountData = useAccountData(dataPersister, currentSubject);
+  const accountData = useAccountData(currentSubject);
 
   const snapshot = useRuntimeSnapshot(runtime);
   const {
@@ -1788,6 +1787,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       // Every transition, the first sign-in included: the account cache is
       // keyed by the subject, and a sign-out deletes the signed-out one's.
       accountData.open(next);
+      if (next === null && previous !== null) void accountData.forget(previous);
       accountQueryPersistence.activate(next);
       if (previous === null) {
         return;

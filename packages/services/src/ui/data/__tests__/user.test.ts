@@ -66,13 +66,21 @@ describe('User', () => {
 describe('storeUsers', () => {
   it('normalises loose actor objects (a raw _id, a string name)', () => {
     storeUsers([{ _id: 'u3', username: 'linus', name: 'Linus' }, null, { username: 'no-id' }]);
-    expect(User.get('u3')).toEqual({ _id: 'u3', id: 'u3', username: 'linus', name: { displayName: 'Linus' } });
+    expect(User.get('u3')).toEqual({
+      _id: 'u3',
+      id: 'u3',
+      username: 'linus',
+      name: { displayName: 'Linus' },
+    });
     expect(User.ids()).toEqual(['u3']);
   });
 
   it('drops a field the write declared cleared, and only that one', () => {
     User.put(profile);
-    storeUsers({ id: 'u1', username: 'ada', name: {} }, { cleared: ['avatar', 'name.displayName'] });
+    storeUsers(
+      { id: 'u1', username: 'ada', name: {} },
+      { cleared: ['avatar', 'name.displayName'] },
+    );
     const held = User.get('u1');
     expect(held?.avatar).toBeUndefined();
     expect(held?.name).toEqual({});

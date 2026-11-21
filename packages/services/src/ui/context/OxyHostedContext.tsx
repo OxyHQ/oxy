@@ -162,7 +162,6 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
   captureCampaignAttribution = false,
   platformStorage,
   accountQueries,
-  dataPersister,
   onAuthStateChange,
   onError,
 }) => {
@@ -207,7 +206,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
 
   // The account's `@oxy.so/bloom-data` store; the subject change below opens it.
   const currentSubject = useCallback(() => runtime.getSnapshot().account?.id ?? null, [runtime]);
-  const accountData = useAccountData(dataPersister, currentSubject);
+  const accountData = useAccountData(currentSubject);
 
   const host = 'host' in session ? session.host : null;
 
@@ -544,6 +543,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
   const handleSubjectChange = useCallback(
     ({ previous, next }: SubjectTransition): void => {
       accountData.open(next);
+      if (next === null && previous !== null) void accountData.forget(previous);
       accountQueryPersistence.activate(next);
       if (previous === null) return;
       resetSessionScopedStores();

@@ -1,4 +1,3 @@
-import type { AccountDataPersister } from '../data/accountData';
 import type { ReactNode, RefObject } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
 import type { AccountQueriesConfig } from '../hooks/accountQueryPersistence';
@@ -163,17 +162,6 @@ export interface OxyProviderProps {
    * declaration here (`AccountQueryMeta`).
    */
   accountQueries?: AccountQueriesConfig;
-  /**
-   * The durable copy of each account's `@oxy.so/bloom-data` store: the people
-   * in `User` and the app's own entities. One file per account, so a restore
-   * can only ever read the signed-in account's records; the session opens the
-   * account's store on every switch, before anything is woken.
-   *
-   * On native, `sqlitePersister(() => SQLite.openDatabaseSync(fileFor(account)))`
-   * from `@oxy.so/bloom-data/sqlite`; omitted on web and in tests (memory
-   * only). Read once, at mount.
-   */
-  dataPersister?: AccountDataPersister;
   /**
    * Convenience: wrap the whole app subtree in `<RequireOxyAuth prompt=...>`.
    * `off` (default) renders children unconditionally; `soft` adds a dismissible

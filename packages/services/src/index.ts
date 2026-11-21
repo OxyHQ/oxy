@@ -242,7 +242,6 @@ export type {
 export { User, storeUsers } from './ui/data/user';
 export type { UserRecord } from './ui/data/userRecord';
 export { SIGNED_OUT_DATA_ACCOUNT } from './ui/data/accountData';
-export type { AccountDataPersister } from './ui/data/accountData';
 
 // Mutation status aggregator (for "Syncing..." indicators)
 export { useMutationStatus } from './ui/hooks/useMutationStatus';

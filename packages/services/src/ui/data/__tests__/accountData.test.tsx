@@ -6,19 +6,13 @@ const accountA = () => 'a';
 
 describe('useAccountData', () => {
   it('opens the subject at mount, signed out as its own account', () => {
-    const opened: string[] = [];
-    const persister = (account: string) => {
-      opened.push(account);
-      return undefined;
-    };
     const signedOut = () => null;
-    const { result } = renderHook(() => useAccountData(persister, signedOut));
-    expect(opened).toEqual([SIGNED_OUT_DATA_ACCOUNT]);
+    const { result } = renderHook(() => useAccountData(signedOut));
     expect(activeStore()).toBe(result.current.store);
   });
 
   it('opens the next account on a subject change and closes the previous store', () => {
-    const { result } = renderHook(() => useAccountData(undefined, accountA));
+    const { result } = renderHook(() => useAccountData(accountA));
     const first = result.current.store;
     act(() => result.current.open('b'));
     expect(result.current.store).not.toBe(first);
@@ -32,7 +26,7 @@ describe('useAccountData', () => {
   });
 
   it('closes the store on unmount', () => {
-    const { result, unmount } = renderHook(() => useAccountData(undefined, accountA));
+    const { result, unmount } = renderHook(() => useAccountData(accountA));
     const store = result.current.store;
     unmount();
     expect(store.closed).toBe(true);
