@@ -23,8 +23,11 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
 jest.mock('../../src/ui/hooks/queries/useAccountQueries', () => ({
   useCurrentUser: () => ({ value: mockUser }),
 }));
-jest.mock('../../src/ui/stores/authStore', () => ({
-  useAuthStore: { getState: () => ({ user: mockUser, setUser: mockSetUser }) },
+jest.mock('../../src/ui/runtime/activeRuntime', () => ({
+  activeRuntime: () => ({
+    getSnapshot: () => ({ account: mockUser }),
+    setAccount: mockSetUser,
+  }),
 }));
 
 /** Each account's store, as the session opens one per account. */

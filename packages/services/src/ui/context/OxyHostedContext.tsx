@@ -40,7 +40,6 @@ import type { AccountNode, CreateAccountInput, User } from '@oxy.so/core';
 import type { OxyHostAccount, OxyHostRequest, OxySessionHost } from '@oxy.so/core/host';
 import type { AccountDialogView } from '@oxy.so/core/session';
 import { createUserEventSocket, type UserEventSocket } from '@oxy.so/core/session';
-import { useQueryClient } from '@tanstack/react-query';
 import { installNativeAssetFiles } from '../utils/nativeAssetFiles';
 import { hasKnownSubjectMismatch, useKnownBearerSubject } from '../hooks/useKnownBearerSubject';
 import {
@@ -51,14 +50,7 @@ import {
   type RuntimeSessionClient,
   type SubjectTransition,
 } from '../runtime';
-import { bindAuthStoreToRuntime } from '../stores/authStore';
-import { resetSessionScopedStores } from '../stores/resetSessionScopedStores';
-import { ASSET_DOWNLOAD_URLS_QUERY_KEY } from '../hooks/useResolvedFileUrls';
-import { clearQueryCache } from '../hooks/queryClient';
-import {
-  createAccountQueryPersistence,
-  type AccountQueryPersistence,
-} from '../hooks/accountQueryPersistence';
+import { bindActiveRuntime } from '../runtime/activeRuntime';
 import { useEntryLink } from '../hooks/useEntryLink';
 import { useLanguageManagement } from '../hooks/useLanguageManagement';
 import { useAvatarPicker } from '../hooks/useAvatarPicker';
@@ -161,7 +153,6 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
   legacyLanguageKeys,
   captureCampaignAttribution = false,
   platformStorage,
-  accountQueries,
   onAuthStateChange,
   onError,
 }) => {
@@ -250,7 +241,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
   const subjectMismatch = hasKnownSubjectMismatch(user?.id, bearerSubject);
   const error = snapshot.error?.message ?? null;
 
-  useEffect(() => bindAuthStoreToRuntime(runtime), [runtime]);
+  useEffect(() => bindActiveRuntime(runtime), [runtime]);
 
   const storageKeys = useMemo(() => getStorageKeys(storageKeyPrefix), [storageKeyPrefix]);
   const clientId = useMemo(() => {
@@ -258,23 +249,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
     return trimmed ? trimmed : null;
   }, [clientIdProp]);
 
-  const queryClient = useQueryClient();
-  const accountQueryPersistenceRef = useRef<AccountQueryPersistence | null>(null);
-  if (accountQueryPersistenceRef.current === null) {
-    accountQueryPersistenceRef.current = createAccountQueryPersistence(queryClient, accountQueries);
-  }
-  const accountQueryPersistence = accountQueryPersistenceRef.current;
-  useEffect(() => {
-    accountQueryPersistence.attach();
-    return () => accountQueryPersistence.detach();
-  }, [accountQueryPersistence]);
-  const isAccountCacheReady = useSyncExternalStore(
-    accountQueryPersistence.subscribe,
-    accountQueryPersistence.isReady,
-    accountQueryPersistence.isReady,
-  );
-
-  // Display and cache storage (the query cache, the language, the campaign).
+  // Display storage (the language, the campaign).
   // Never a credential: a hosted provider persists no auth state at all.
   const [storage, setStorage] = useState<StorageInterface | null>(null);
   useEffect(() => {
@@ -285,7 +260,6 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
       : createPlatformStorage();
     storagePromise
       .then((storageInstance) => {
-        accountQueryPersistence.setStorage(storageInstance);
         if (mounted) {
           setStorage(storageInstance);
           runtime.setStorageReady(true);
@@ -293,7 +267,6 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
       })
       .catch((err) => {
         const memoryStorage = createMemoryStorage();
-        accountQueryPersistence.setStorage(memoryStorage);
         if (mounted) {
           setStorage(memoryStorage);
           runtime.setStorageReady(true);
@@ -308,9 +281,9 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
     return () => {
       mounted = false;
     };
-  }, [accountQueryPersistence, logger, onError, platformStorage, runtime]);
+  }, [logger, onError, platformStorage, runtime]);
 
-  // Follow the host once the account cache can be activated. With a host this
+  // Follow the host once the device storage is ready. With a host this
   // SDK cannot speak to, resolve signed out and stay there.
   const storageAvailable = storage !== null;
   useEffect(() => {
@@ -502,17 +475,14 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
 
   // Nothing of the session is local, so there is nothing local to clear.
   const clearSessionState = useCallback(async (): Promise<void> => undefined, []);
+  // The account's records go from memory and this device; the account, which
+  // the host still holds, carries on with an empty store.
   const clearAllAccountData = useCallback(async (): Promise<void> => {
-    queryClient.clear();
-    if (storage) {
-      try {
-        await clearQueryCache(storage);
-      } catch (clearError) {
-        logger('Failed to clear persisted query cache', clearError);
-      }
-    }
+    const subject = currentSubject();
+    await accountData.forget(subject);
+    accountData.open(subject);
     oxyServices.cache.clear();
-  }, [queryClient, storage, logger, oxyServices]);
+  }, [accountData, currentSubject, oxyServices]);
 
   // ── The account graph: read through the API, switched by the platform ────
   const [accounts, setAccounts] = useState<AccountNode[]>([]);
@@ -542,16 +512,12 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
 
   const handleSubjectChange = useCallback(
     ({ previous, next }: SubjectTransition): void => {
+      // Every account has its own store, so nothing of the previous one is
+      // read after a switch; a sign-out deletes its data from the device.
       accountData.open(next);
       if (next === null && previous !== null) void accountData.forget(previous);
-      accountQueryPersistence.activate(next);
-      if (previous === null) return;
-      resetSessionScopedStores();
-      if (next === null) return;
-      queryClient.removeQueries({ queryKey: [ASSET_DOWNLOAD_URLS_QUERY_KEY] });
-      queryClient.invalidateQueries();
     },
-    [accountData, accountQueryPersistence, queryClient],
+    [accountData],
   );
   useEffect(() => {
     subjectChangeRef.current = handleSubjectChange;
@@ -568,7 +534,6 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
     oxyServices,
     currentLanguage,
     activeSessionId,
-    queryClient,
   });
 
   const onServerEvent = useCallback(
@@ -590,7 +555,6 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
       isPrivateApiPending,
       isAuthResolved: authResolved,
       isStorageReady: snapshot.storageReady,
-      isAccountCacheReady,
       sessionMode: 'account',
       webAuthMode,
       error,
@@ -651,7 +615,6 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
       isPrivateApiPending,
       authResolved,
       snapshot.storageReady,
-      isAccountCacheReady,
       webAuthMode,
       error,
       currentLanguage,

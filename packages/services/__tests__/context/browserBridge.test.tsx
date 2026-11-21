@@ -11,7 +11,6 @@
 
 import React from 'react';
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
 import { type User } from '@oxy.so/core';
 import {
@@ -63,7 +62,7 @@ jest.mock('../../src/ui/session', () => {
 import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
 import { useAuth } from '../../src/ui/hooks/useAuth';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
-import { useAuthStore } from '../../src/ui/stores/authStore';
+import { activeRuntime } from '../../src/ui/runtime/activeRuntime';
 
 const API_BASE_URL = 'https://api.oxy.so';
 const USER_ID = 'user_cb_1';
@@ -155,18 +154,15 @@ function Capture() {
 }
 
 function renderProvider(oxyServices: unknown, props: Record<string, unknown> = {}): RenderResult {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider
-        oxyServices={oxyServices as never}
-        baseURL={API_BASE_URL}
-        clientId="oxy_test_client"
-        {...props}
-      >
-        <Capture />
-      </OxyRuntimeProvider>
-    </QueryClientProvider>,
+    <OxyRuntimeProvider
+      oxyServices={oxyServices as never}
+      baseURL={API_BASE_URL}
+      clientId="oxy_test_client"
+      {...props}
+    >
+      <Capture />
+    </OxyRuntimeProvider>,
   );
 }
 
@@ -193,7 +189,7 @@ describe('OxyContext — the browser bridge', () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     capturedContext = null;
-    useAuthStore.getState().logout();
+    activeRuntime()?.clearSession();
     Object.values(fakeSessionClient).forEach((fn) => (fn as jest.Mock).mockClear());
     fakeSessionClientHost.setDeviceCredential.mockClear();
     jest.restoreAllMocks();

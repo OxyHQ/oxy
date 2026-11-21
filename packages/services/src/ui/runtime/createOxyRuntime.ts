@@ -79,9 +79,6 @@ export interface OxyRuntimeConfig {
    */
   onDeviceEmpty: () => Promise<void>;
 
-  /** Persist the projected session-id list (display/bookkeeping storage). */
-  onSessionsProjected?: (sessionIds: string[]) => void;
-
   /**
    * Identity mode only: the pinned account is unknown or has left this device's
    * session set, so the session must be re-derived from the local identity key.
@@ -188,10 +185,7 @@ export interface OxyRuntime {
    * round-trip. The authoritative projection overwrites it a moment later; both
    * write the SAME field, so there is still exactly one owner.
    */
-  mergeSessions(
-    incoming: ClientSession[],
-    options?: { merge?: boolean; preserveSessionIds?: string[] },
-  ): void;
+  mergeSessions(incoming: ClientSession[], options?: { merge?: boolean }): void;
   setActiveSessionId(sessionId: string | null): void;
 
   /**
@@ -266,7 +260,6 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     identity,
     onSubjectChange,
     onDeviceEmpty,
-    onSessionsProjected,
     onIdentityUnbound,
     logger,
   } = config;
@@ -504,7 +497,6 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
         false,
       );
       setSessions(projected);
-      onSessionsProjected?.(projected.map((session) => session.sessionId));
       setActiveSessionIdFact(activeSessionIdOf(latest, pinnedAccountId));
       const activeUser = activeUserOf(latest, facts.profiles, pinnedAccountId);
       if (activeUser) {
@@ -659,10 +651,6 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
         const processed = options.merge
           ? mergeSessionLists(facts.sessions, incoming, facts.activeSessionId, false)
           : normalizeAndSortSessions(incoming, facts.activeSessionId, false);
-        onSessionsProjected?.([
-          ...processed.map((session) => session.sessionId),
-          ...(options.preserveSessionIds ?? []),
-        ]);
         setSessions(processed);
       });
     },

@@ -10,7 +10,7 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
-import { useQueryClient } from '../../hooks/useQueryClient';
+import { refreshAccount } from '../../data/account';
 import { useAnswer } from '../../data/answer';
 import {
   Organization,
@@ -111,7 +111,6 @@ function ReviewRow({
 function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => void }) {
   const { t } = useI18n();
   const { oxyServices, user, canUsePrivateApi } = useOxy();
-  const queryClient = useQueryClient();
   const [evidence, setEvidence] = useState('');
   const [authorizationRevoked, setAuthorizationRevoked] = useState(false);
   const detail = useAnswer(
@@ -147,7 +146,8 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
     }
     await refreshClaims();
     // The claimed account's own data (its kind, its owners) changed too.
-    await queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    const claimed = detail.value?.accountId;
+    if (claimed) await withStore(store, () => refreshAccount(oxyServices, claimed));
     onClose();
   };
   const conflict = isHttpRequestError(review.error) && review.error.status === 409;

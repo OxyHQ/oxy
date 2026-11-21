@@ -266,7 +266,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
               <FollowButton
                 userId={userId}
                 onFollowChange={(isFollowing) => {
-                  // The follow button will automatically update counts via Zustand
+                  // The follow writes the counts onto `User`, which this screen reads
                   if (__DEV__) {
                     logger.debug(`Follow status changed: ${isFollowing}`, {
                       component: 'ProfileScreen',

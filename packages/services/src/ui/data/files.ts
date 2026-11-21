@@ -6,6 +6,7 @@
  *   owner, filled page by page by `userFiles`.
  * - `FileAppAccess`: the applications that can open one file (ADR 0043 stage
  *   4c), read by `fileAppAccess` and changed by `revokeFileAppAccess`.
+ * - `uploadFile`: puts a file in the person's library.
  * - `FileUrl`: signed thumbnail URLs, read a page at a time by `fileUrls`.
  * - `PhotoSize`, `ImageSize` and `AvatarCropSource`: image measurements and the
  *   URL the avatar cropper loads.
@@ -14,7 +15,13 @@
  * written to disk: a restored one would serve an expired URL.
  */
 import { action, entity, list, source } from '@oxy.so/bloom-data';
-import type { FileApplicationAccess, FileMetadata, OxyServices } from '@oxy.so/core';
+import type {
+  AssetMetadata,
+  AssetUploadInput,
+  FileApplicationAccess,
+  FileMetadata,
+  OxyServices,
+} from '@oxy.so/core';
 import { authenticatedApiCall, type FileApplicationAccessRevocation } from '@oxy.so/core';
 import { getImageSize } from '../utils/imageSize';
 import { sdkRead } from './readOptions';
@@ -227,6 +234,52 @@ export const revokeFileAppAccess = action({
 });
 
 // ── Signed thumbnail URLs ─────────────────────────────────────────────────
+
+// ── Uploads ────────────────────────────────────────────────────────────
+
+/** What an upload answers: one file, or a batch. */
+export interface UploadResult {
+  file?: UploadedFile;
+  files?: UploadedFile[];
+  id?: string;
+}
+
+export interface UploadedFile {
+  id: string;
+  originalName?: string;
+  sha256?: string;
+  mime?: string;
+  size?: number;
+  createdAt?: string;
+  metadata?: Record<string, unknown>;
+  variants?: Array<{
+    type: string;
+    key: string;
+    width?: number;
+    height?: number;
+    readyAt?: string;
+    metadata?: Record<string, unknown>;
+  }>;
+}
+
+export interface UploadFileInput {
+  file: AssetUploadInput;
+  visibility?: 'private' | 'public' | 'unlisted';
+  metadata?: AssetMetadata;
+  onProgress?: (progress: number) => void;
+}
+
+/** Uploads a file to the person's library. */
+export const uploadFile = action({
+  run: (oxy: OxyServices, sessionId: string | null, input: UploadFileInput) =>
+    authenticatedApiCall<UploadResult>(oxy, sessionId, () =>
+      oxy.assets.upload(input.file, {
+        visibility: input.visibility,
+        metadata: input.metadata,
+        onProgress: input.onProgress,
+      }),
+    ),
+});
 
 /**
  * The variant-aware batch resolver contract (`@oxy.so/core`).

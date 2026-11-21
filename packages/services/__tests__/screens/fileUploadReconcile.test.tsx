@@ -35,7 +35,7 @@ import {
   UserFiles,
   userFilesKey,
 } from '../../src/ui/data/files';
-import type { useUploadFile } from '../../src/ui/hooks/mutations/useAccountMutations';
+import type { useUploadFile } from '../../src/ui/hooks/queries/useFileQueries';
 import { dataWrapper, openTestStore } from '../helpers/dataStore';
 
 // Stub only the lazy document-picker loader; keep every other helper real.

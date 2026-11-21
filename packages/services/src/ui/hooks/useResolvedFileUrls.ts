@@ -24,14 +24,6 @@ import { type AssetUrlBatchResolver, FileUrl, fileUrlId, fileUrls } from '../dat
  */
 
 /**
- * The React Query root the URLs were once cached under. Nothing is cached
- * there any more (each account's store holds its own URLs); the constant stays
- * only until the infra step of the bloom-data move removes the two
- * `removeQueries` calls that name it (`OxyContext`, `OxyHostedContext`).
- */
-export const ASSET_DOWNLOAD_URLS_QUERY_KEY = 'assetDownloadUrls' as const;
-
-/**
  * True when a file is an optimistic placeholder that has not been persisted by
  * the server yet — either its id is still the client-minted `temp-…` id, or it
  * carries the `uploading` flag. Mirrors the `temp-` id guard precedent in

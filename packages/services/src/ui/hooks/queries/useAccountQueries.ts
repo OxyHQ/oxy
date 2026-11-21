@@ -10,7 +10,7 @@ import {
 } from '@oxy.so/bloom-data';
 import type { User } from '@oxy.so/core';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { useAuthStore } from '../../stores/authStore';
+import { activeRuntime } from '../../runtime/activeRuntime';
 import {
   type ConnectedAppsRecord,
   connectedApps,
@@ -106,9 +106,10 @@ export const useCurrentUser = (options?: { enabled?: boolean }): UserView => {
     // Missing or unreadable `updatedAt` on either side falls through to the
     // mirror: the in-flight guard above is the primary defence.
     const incoming = parseUpdatedAt(record.updatedAt);
-    const held = parseUpdatedAt(useAuthStore.getState().user?.updatedAt);
+    const runtime = activeRuntime();
+    const held = parseUpdatedAt(runtime?.getSnapshot().account?.updatedAt);
     if (incoming !== null && held !== null && incoming < held) return;
-    useAuthStore.getState().setUser(record as User);
+    runtime?.setAccount(record as User);
   }, [record, writing]);
 
   const seed = isAuthenticated && user ? user : undefined;

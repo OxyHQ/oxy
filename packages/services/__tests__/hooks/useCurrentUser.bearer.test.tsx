@@ -21,7 +21,7 @@ import type { User } from '@oxy.so/core';
 import { updateProfile } from '../../src/ui/data/account';
 import { User as UserEntity } from '../../src/ui/data/user';
 import { useCurrentUser } from '../../src/ui/hooks/queries/useAccountQueries';
-import { bindAuthStoreToRuntime, useAuthStore } from '../../src/ui/stores/authStore';
+import { activeRuntime, bindActiveRuntime } from '../../src/ui/runtime/activeRuntime';
 import { createTestRuntime } from '../helpers/runtimeHarness';
 
 const ACCOUNT_A = 'user-a';
@@ -87,8 +87,8 @@ beforeEach(() => {
     user: { id: ACCOUNT_A } as User,
   };
   store = new Store();
-  unbind = bindAuthStoreToRuntime(createTestRuntime());
-  useAuthStore.setState({ user: { id: ACCOUNT_A } as User });
+  unbind = bindActiveRuntime(createTestRuntime());
+  activeRuntime()?.setAccount({ id: ACCOUNT_A } as User);
 });
 
 afterEach(() => {
@@ -161,17 +161,19 @@ describe('the mirror into the signed-in profile', () => {
   it('copies the read profile into the session', async () => {
     renderHook(() => useCurrentUser(), { wrapper });
     await waitFor(() =>
-      expect(useAuthStore.getState().user?.languages).toEqual(['es-ES', 'en-US']),
+      expect(activeRuntime()?.getSnapshot().account?.languages).toEqual(['es-ES', 'en-US']),
     );
   });
 
   it('never copies a read older than the profile held', async () => {
-    useAuthStore.setState({
-      user: { id: ACCOUNT_A, username: 'newer', updatedAt: '2026-11-10T00:00:00.000Z' } as User,
-    });
+    activeRuntime()?.setAccount({
+      id: ACCOUNT_A,
+      username: 'newer',
+      updatedAt: '2026-11-10T00:00:00.000Z',
+    } as User);
     const { result } = renderHook(() => useCurrentUser(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('success'));
-    expect(useAuthStore.getState().user?.username).toBe('newer');
+    expect(activeRuntime()?.getSnapshot().account?.username).toBe('newer');
   });
 
   it('waits while a write is in flight, then copies what it settled', async () => {
@@ -192,7 +194,7 @@ describe('the mirror into the signed-in profile', () => {
     });
     // The optimistic layer shows on the record, but the session is not told yet.
     expect(withStore(store, () => UserEntity.get(ACCOUNT_A))?.bio).toBe('optimistic');
-    expect(useAuthStore.getState().user?.bio).toBeUndefined();
+    expect(activeRuntime()?.getSnapshot().account?.bio).toBeUndefined();
 
     bearerUpdatedAt = '2026-11-02T00:00:00.000Z';
     await act(async () => {
@@ -204,6 +206,6 @@ describe('the mirror into the signed-in profile', () => {
       } as User);
       await write;
     });
-    await waitFor(() => expect(useAuthStore.getState().user?.bio).toBe('saved'));
+    await waitFor(() => expect(activeRuntime()?.getSnapshot().account?.bio).toBe('saved'));
   });
 });

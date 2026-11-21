@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DataProvider, Store, withStore } from '@oxy.so/bloom-data';
 import type { ReactNode } from 'react';
 import { accountNode } from '../../src/ui/data/account';
@@ -93,7 +92,6 @@ const organization = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
-const clients: QueryClient[] = [];
 /** Each viewer's data store, as the session opens one per account. */
 let stores = new Map<string, Store>();
 function storeOf(viewerId: string): Store {
@@ -104,19 +102,11 @@ function storeOf(viewerId: string): Store {
   }
   return store;
 }
-function withData(client: QueryClient, child: ReactNode) {
-  return (
-    <QueryClientProvider client={client}>
-      <DataProvider store={storeOf(user.id)}>{child}</DataProvider>
-    </QueryClientProvider>
-  );
+function withData(child: ReactNode) {
+  return <DataProvider store={storeOf(user.id)}>{child}</DataProvider>;
 }
 function mount(child: ReactNode) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  clients.push(client);
-  return render(withData(client, child));
+  return render(withData(child));
 }
 async function findCompany() {
   fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
@@ -145,7 +135,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  for (const client of clients.splice(0)) client.clear();
 });
 
 it('requests review on the existing identity without creating or switching accounts', async () => {
@@ -303,7 +292,7 @@ it('batch-hydrates claim status and drops private requests when the viewer switc
   // An account switch opens the next account's store and closes this one.
   user = { id: 'someone-else', kind: 'personal' };
   void storeOf('person').close();
-  view.rerender(withData(clients[0], <OrganizationClaims />));
+  view.rerender(withData(<OrganizationClaims />));
   await waitFor(() => expect(screen.queryByText('organizationDirectory.pending')).toBeNull());
 });
 
@@ -417,7 +406,9 @@ it('hides private review evidence and actions when a fresh authorization check i
   expect(screen.getByText('private-applicant-case')).toBeTruthy();
   reviewClaimDetail.mockRejectedValue(Object.assign(new Error('revoked'), { status: 403 }));
   await act(() =>
-    withStore(storeOf('person'), () => reviewClaimDetailSource.refresh(oxyServices as never, 'claim1')),
+    withStore(storeOf('person'), () =>
+      reviewClaimDetailSource.refresh(oxyServices as never, 'claim1'),
+    ),
   );
   await waitFor(() => expect(screen.queryByText('private-applicant-case')).toBeNull());
   expect(
@@ -445,7 +436,7 @@ it('does not reuse an owner membership when a different viewer opens the same or
     callerMembership: { permissions: [] },
   });
   user = { id: 'read-only-member', kind: 'personal' };
-  view.rerender(withData(clients[0], <AccountSettingsScreen accountId="existing-org" />));
+  view.rerender(withData(<AccountSettingsScreen accountId="existing-org" />));
   expect(screen.queryByRole('button', { name: 'organizationDirectory.save' })).toBeNull();
   await screen.findByText('organizationDirectory.readonly');
   expect(accountGet).toHaveBeenCalledTimes(2);

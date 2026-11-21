@@ -18,7 +18,6 @@
 
 import React from 'react';
 import { render, act, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
 import { type SessionLoginResponse, type User } from '@oxy.so/core';
 import type { DeviceSessionState } from '@oxy.so/contracts';
@@ -33,7 +32,7 @@ jest.mock('../../src/ui/session', () => {
 
 import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
-import { useAuthStore } from '../../src/ui/stores/authStore';
+import { activeRuntime } from '../../src/ui/runtime/activeRuntime';
 import { createSessionClient } from '../../src/ui/session';
 
 const mockedCreateSessionClient = createSessionClient as jest.MockedFunction<
@@ -332,17 +331,14 @@ function Capture() {
 }
 
 function renderProvider(oxyServices: unknown, baseURL: string) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider
-        oxyServices={oxyServices as never}
-        baseURL={baseURL}
-        clientId="oxy_test_registered"
-      >
-        <Capture />
-      </OxyRuntimeProvider>
-    </QueryClientProvider>,
+    <OxyRuntimeProvider
+      oxyServices={oxyServices as never}
+      baseURL={baseURL}
+      clientId="oxy_test_registered"
+    >
+      <Capture />
+    </OxyRuntimeProvider>,
   );
 }
 
@@ -417,7 +413,7 @@ describe('Mutations routed through SessionClient (Task 3)', () => {
       userId: undefined,
     };
     oxyApi = null;
-    useAuthStore.getState().logout();
+    activeRuntime()?.clearSession();
     mockedCreateSessionClient.mockReset();
   });
 
@@ -502,7 +498,7 @@ describe('Mutations routed through SessionClient (Task 3)', () => {
     await waitFor(() => expect(captured.isAuthenticated).toBe(false));
     expect(captured.sessionsLength).toBe(0);
     expect(captured.activeSessionId).toBeNull();
-    expect(useAuthStore.getState().user).toBeNull();
+    expect(activeRuntime()?.getSnapshot().account).toBeNull();
   });
 
   it('logoutAll() revokes other devices, then signs this one out, and clears local session state', async () => {
@@ -524,7 +520,7 @@ describe('Mutations routed through SessionClient (Task 3)', () => {
     expect(fake.signOut).toHaveBeenCalledWith({ all: true });
     await waitFor(() => expect(captured.isAuthenticated).toBe(false));
     expect(captured.sessionsLength).toBe(0);
-    expect(useAuthStore.getState().user).toBeNull();
+    expect(activeRuntime()?.getSnapshot().account).toBeNull();
   });
 
   it('does not clear the current session when logoutAll is superseded', async () => {
@@ -550,7 +546,7 @@ describe('switchToAccount unifies org/managed-account switching through the devi
       userId: undefined,
     };
     oxyApi = null;
-    useAuthStore.getState().logout();
+    activeRuntime()?.clearSession();
     mockedCreateSessionClient.mockReset();
   });
 

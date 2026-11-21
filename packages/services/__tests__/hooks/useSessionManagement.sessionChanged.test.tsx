@@ -32,7 +32,6 @@ it('rejects a session switch superseded during device-session synchronization', 
     useSessionManagement({
       oxyServices: oxyServices as never,
       runtime: runtime as never,
-      storage: null,
       onError,
       setAuthError,
     }),
@@ -53,36 +52,21 @@ it('rejects a session switch superseded during device-session synchronization', 
   expect(setAuthError).not.toHaveBeenCalled();
 });
 
-it('stores no session ids: the projection and a sign-out write nothing of their own', async () => {
-  const storage = {
-    getItem: jest.fn(async () => null),
-    setItem: jest.fn(async () => undefined),
-    removeItem: jest.fn(async () => undefined),
-    clear: jest.fn(async () => undefined),
-  };
+it('tears down the runtime projection and the tokens on sign-out, and stores nothing', async () => {
   const runtime = { clearSession: jest.fn() };
-  const queryClient = { clear: jest.fn() };
   const oxyServices = { session: { clear: jest.fn() } };
   const onAuthStateChange = jest.fn();
   const { result } = renderHook(() =>
     useSessionManagement({
       oxyServices: oxyServices as never,
       runtime: runtime as never,
-      storage,
-      queryClient,
       onAuthStateChange,
     }),
   );
 
-  result.current.saveSessionIds(['a', 'b']);
-  await result.current.saveActiveSessionId('a');
   await act(() => result.current.clearSessionState());
 
-  expect(storage.setItem).not.toHaveBeenCalled();
-  // Only the persisted query cache goes.
-  expect(storage.removeItem.mock.calls).toEqual([[expect.stringMatching(/^oxy_query_cache/)]]);
   expect(runtime.clearSession).toHaveBeenCalledTimes(1);
-  expect(queryClient.clear).toHaveBeenCalledTimes(1);
   expect(oxyServices.session.clear).toHaveBeenCalledTimes(1);
   expect(onAuthStateChange).toHaveBeenCalledWith(null);
 });

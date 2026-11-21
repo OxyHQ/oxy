@@ -223,8 +223,6 @@ const logout = jest.fn(
     status: 'signed-out',
   }),
 );
-const invalidateQueries = jest.fn();
-
 /** `null` reproduces `sessionMode: 'identity'`, where no controller is built. */
 let mockController: typeof controller | null = controller;
 
@@ -275,11 +273,6 @@ jest.mock('../../src/ui/hooks/useI18n', () => {
     }),
   };
 });
-
-jest.mock('@tanstack/react-query', () => ({
-  __esModule: true,
-  useQueryClient: () => ({ invalidateQueries }),
-}));
 
 jest.mock('react-native-qrcode-svg', () => ({
   __esModule: true,
@@ -586,7 +579,6 @@ describe('OxyAuthChooser', () => {
       screen.queryByText('There was a problem switching accounts. Please try again.'),
     ).toBeNull();
     expect(screen.queryByText('Context not on this device')).toBeNull();
-    expect(invalidateQueries).not.toHaveBeenCalled();
   });
 
   it('does not render an inline error banner in the accounts or sign-in views (errors go to toasts)', () => {
@@ -869,7 +861,6 @@ describe('OxyAuthChooser', () => {
     // so it needs its own wait rather than the next line.
     await waitFor(() => expect(closeAccountDialog).toHaveBeenCalled());
     // The next account reads from its own store: no cache is cleared here.
-    expect(invalidateQueries).not.toHaveBeenCalled();
     // A successful switch fires no error toast.
     expect(toast.error).not.toHaveBeenCalled();
   });

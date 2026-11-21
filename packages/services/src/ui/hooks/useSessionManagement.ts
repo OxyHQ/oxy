@@ -2,11 +2,9 @@ import { useCallback, useRef } from 'react';
 import { isDev, type ApiError, type User } from '@oxy.so/core';
 import type { ClientSession } from '@oxy.so/core';
 import { fetchSessionsWithFallback } from '../utils/sessionHelpers';
-import type { StorageInterface } from '../utils/storageHelpers';
 import { handleAuthError, isInvalidSessionError } from '../utils/errorHandlers';
 import type { OxyServices } from '@oxy.so/core';
 import { isSessionChangedError } from '../utils/sessionChangedError';
-import { clearQueryCache } from './queryClient';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import type { OxyRuntime } from '../runtime';
 
@@ -14,41 +12,22 @@ export interface UseSessionManagementOptions {
   oxyServices: OxyServices;
   /** The one owner of `sessions` / `activeSessionId` / the signed-in account. */
   runtime: OxyRuntime;
-  storage: StorageInterface | null;
-  /** Unused: nothing here is stored under a key any more. */
-  storageKeyPrefix?: string;
   onAuthStateChange?: (user: User | null) => void;
   onError?: (error: ApiError) => void;
   setAuthError?: (message: string | null) => void;
   logger?: (message: string, error?: unknown) => void;
-  /** The provider's query cache, emptied when the local session is torn down. */
-  queryClient?: { clear(): void } | null;
 }
 
 export interface UseSessionManagementResult {
-  /**
-   * The runtime's session-id projection sink. It stores nothing: the ids it
-   * wrote (`<prefix>_session_ids`) had no reader, and the device storage
-   * deletes the old values. `OxyContext` still wires it.
-   */
-  saveSessionIds: (sessionIds: string[]) => void;
-  /**
-   * Stores nothing, for the same reason (`<prefix>_active_session_id` had no
-   * reader). `useAuthOperations` still calls it.
-   */
-  saveActiveSessionId: (sessionId: string) => Promise<void>;
   /**
    * The legacy `validateSession`-keyed switch. Reachable from exactly ONE
    * caller: `performSignIn`'s same-user duplicate-session dedup. The switch a
    * consumer sees on the context is the `SessionClient` one in `OxyContext`.
    */
   switchSession: (sessionId: string) => Promise<User>;
-  /** Tear down the local session: runtime projection, caches, tokens. */
+  /** Tear down the local session: the runtime projection and the tokens. */
   clearSessionState: () => Promise<void>;
 }
-
-const saveSessionIds = (_sessionIds: string[]): void => undefined;
-const saveActiveSessionId = async (_sessionId: string): Promise<void> => undefined;
 
 /**
  * Session teardown and the one legacy switch left, over the runtime.
@@ -68,12 +47,10 @@ const saveActiveSessionId = async (_sessionId: string): Promise<void> => undefin
 export const useSessionManagement = ({
   oxyServices,
   runtime,
-  storage,
   onAuthStateChange,
   onError,
   setAuthError,
   logger,
-  queryClient,
 }: UseSessionManagementOptions): UseSessionManagementResult => {
   const runtimeRef = useRef(runtime);
   runtimeRef.current = runtime;
@@ -89,22 +66,8 @@ export const useSessionManagement = ({
     // logged-out state everywhere.
     oxyServices.session.clear();
 
-    if (queryClient) {
-      queryClient.clear();
-    }
-
-    if (storage) {
-      try {
-        await clearQueryCache(storage);
-      } catch (error) {
-        if (logger) {
-          logger('Failed to clear persisted query cache', error);
-        }
-      }
-    }
-
     onAuthStateChange?.(null);
-  }, [onAuthStateChange, oxyServices, queryClient, storage, logger]);
+  }, [onAuthStateChange, oxyServices]);
 
   const switchSession = useCallback(
     async (sessionId: string): Promise<User> => {
@@ -179,8 +142,6 @@ export const useSessionManagement = ({
   );
 
   return {
-    saveSessionIds,
-    saveActiveSessionId,
     switchSession,
     clearSessionState,
   };

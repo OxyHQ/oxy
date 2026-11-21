@@ -13,9 +13,6 @@ import {
   updateProfile,
   updateUserPreferences,
   uploadAvatar,
-  uploadFile,
-  type UploadFileInput,
-  type UploadResult,
 } from '../../data/account';
 import { describeApiError } from '../../utils/apiErrorMessage';
 import { describeUsernameRefusal } from '../../utils/usernamePolicy';
@@ -185,18 +182,6 @@ export const useRevokeConnectedApp = (): ActionView<[string], void> => {
         throw error;
       }),
     [call, oxyServices, activeSessionId, showApiError],
-  );
-  return { ...view, run };
-};
-
-/** Uploads a file to the person's library, reporting progress through `onProgress`. */
-export const useUploadFile = (): ActionView<[UploadFileInput], UploadResult> => {
-  const { oxyServices, activeSessionId } = useOxy();
-  const view = useAction(uploadFile);
-  const { run: call } = view;
-  const run = useCallback(
-    (input: UploadFileInput) => call(oxyServices, activeSessionId, input),
-    [call, oxyServices, activeSessionId],
   );
   return { ...view, run };
 };

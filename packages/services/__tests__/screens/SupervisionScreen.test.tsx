@@ -77,8 +77,8 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
     oxyServices: { safety },
   }),
 }));
-jest.mock('../../src/ui/stores/authStore', () => ({
-  useAuthStore: { getState: () => ({ user: { id: account } }) },
+jest.mock('../../src/ui/runtime/activeRuntime', () => ({
+  activeRuntime: () => ({ getSnapshot: () => ({ account: { id: account } }) }),
 }));
 jest.mock('../../src/ui/hooks/useSurfaceHeader', () => ({ useSurfaceHeader: jest.fn() }));
 jest.mock('../../src/ui/hooks/useI18n', () => ({

@@ -11,7 +11,6 @@
 
 import type React from 'react';
 import { render, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 jest.mock('../../src/ui/utils/isWebBrowser', () => ({
   __esModule: true,
@@ -46,14 +45,7 @@ const RuntimeCapture: React.FC<{ sink: { seen: unknown[] } }> = ({ sink }) => {
 };
 
 function renderProvider(children: React.ReactNode) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider baseURL="https://api.oxy.so">{children}</OxyRuntimeProvider>
-    </QueryClientProvider>,
-  );
+  return render(<OxyRuntimeProvider baseURL="https://api.oxy.so">{children}</OxyRuntimeProvider>);
 }
 
 describe('the provider hands out one stable runtime', () => {
@@ -63,13 +55,9 @@ describe('the provider hands out one stable runtime', () => {
 
     await act(async () => {
       view.rerender(
-        <QueryClientProvider
-          client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-        >
-          <OxyRuntimeProvider baseURL="https://api.oxy.so">
-            <RuntimeCapture sink={sink} />
-          </OxyRuntimeProvider>
-        </QueryClientProvider>,
+        <OxyRuntimeProvider baseURL="https://api.oxy.so">
+          <RuntimeCapture sink={sink} />
+        </OxyRuntimeProvider>,
       );
     });
 

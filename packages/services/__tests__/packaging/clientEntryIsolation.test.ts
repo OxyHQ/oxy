@@ -129,10 +129,9 @@ describe('ui/client entry isolation', () => {
     expect(root.packages.has('react-native-qrcode-svg')).toBe(true);
   });
 
-  it('exports the cache, query, follow and data hooks an app needs without the root barrel', () => {
+  it('exports the user, follow and data hooks an app needs without the root barrel', () => {
     const client = readFileSync(ENTRY, 'utf8');
     for (const symbol of [
-      'queryKeys',
       'storeUsers',
       'User',
       'clearedFieldsFromAccountUpdate',

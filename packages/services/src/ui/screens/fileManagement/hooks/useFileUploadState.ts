@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore, withStore } from '@oxy.so/bloom-data';
 import { toast } from '@oxy.so/bloom/toast';
 import type { AssetUploadInput, FileMetadata } from '@oxy.so/core';
-import type { useUploadFile } from '../../../hooks/mutations/useAccountMutations';
+import type { useUploadFile } from '../../../hooks/queries/useFileQueries';
 import { useOxy } from '../../../context/oxyRuntimeContext';
 import {
   prependUserFile,

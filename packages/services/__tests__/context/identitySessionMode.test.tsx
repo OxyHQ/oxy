@@ -28,7 +28,6 @@
 
 import React from 'react';
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AUTH_STATE_STORAGE_KEY, IDENTITY_PIN_STORAGE_KEY } from '@oxy.so/core/session';
 import { KeyManager, SignatureService } from '@oxy.so/core/crypto';
 import { type User } from '@oxy.so/core';
@@ -95,7 +94,7 @@ jest.mock('../../src/ui/session', () => {
 import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
 import { IdentityBoundSessionError } from '../../src/ui/session';
-import { useAuthStore } from '../../src/ui/stores/authStore';
+import { activeRuntime } from '../../src/ui/runtime/activeRuntime';
 
 const API_BASE_URL = 'https://api.oxy.so';
 const PINNED_ACCOUNT = 'acct_pinned';
@@ -242,20 +241,15 @@ function requireContext(): OxyContextState {
 }
 
 function renderProvider(oxyServices: unknown, sessionMode?: 'account' | 'identity'): RenderResult {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider
-        oxyServices={oxyServices as never}
-        baseURL={API_BASE_URL}
-        clientId="oxy_test_client"
-        sessionMode={sessionMode}
-      >
-        <Capture />
-      </OxyRuntimeProvider>
-    </QueryClientProvider>,
+    <OxyRuntimeProvider
+      oxyServices={oxyServices as never}
+      baseURL={API_BASE_URL}
+      clientId="oxy_test_client"
+      sessionMode={sessionMode}
+    >
+      <Capture />
+    </OxyRuntimeProvider>,
   );
 }
 
@@ -283,7 +277,7 @@ describe('OxyProvider sessionMode: "identity" (identity-bound sessions)', () => 
     deviceState = null;
     stateListeners.clear();
     redirectToAuthorize.mockClear();
-    useAuthStore.getState().logout();
+    activeRuntime()?.clearSession();
     for (const value of Object.values(fakeSessionClient)) {
       if (jest.isMockFunction(value)) {
         value.mockClear();

@@ -1,25 +1,22 @@
 /**
  * `OxyProvider` — the ONE public composition root (ADR 0004).
  *
- * These cases pin the two composition invariants a future edit is most likely
- * to break silently, because neither produces an error when it regresses:
+ * These cases pin the composition invariants a future edit is most likely to
+ * break silently, because none produces an error when it regresses:
  *
- *  - **One QueryClient.** A consumer-supplied client must become *the* client
- *    for the whole subtree. If the provider ever created its own alongside it,
- *    the SDK's account hooks and the app's own hooks would read two different
- *    caches — an invalidation on one would simply not reach the other, and the
- *    UI would just show stale data.
  *  - **Outlets mount exactly once.** Bloom's `ToastOutlet` and `SurfaceHost`
  *    both render from a MODULE-LEVEL store, so a second mount of either renders
  *    every toast and every surface twice, in two stacked copies.
+ *  - **Nothing gates the first render.** The device storage initialises in the
+ *    background; the application tree exists before it is ready.
+ *  - **Account screens load lazily**, when a surface first opens.
  *
  * The session runtime is stubbed out: this is a test of the composition root's
  * wiring, and booting the real state machine would only add network seams that
  * say nothing about it. `__tests__/context/*` cover the runtime itself.
  */
-import { render, waitFor } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { QueryClient, useQueryClient } from '@tanstack/react-query';
 
 jest.mock('react-native-gesture-handler', () => ({
   __esModule: true,
@@ -50,40 +47,31 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOptionalOxy: () => ({ currentLanguage: 'en-US' }),
 }));
 
-const createQueryClientMock = jest.fn(() => new QueryClient());
-const attachQueryPersistenceMock = jest.fn(() => ({
-  restored: Promise.resolve(),
-  unsubscribe: () => {},
-}));
-
-jest.mock('../../src/ui/hooks/queryClient', () => ({
-  __esModule: true,
-  createQueryClient: () => createQueryClientMock(),
-  attachQueryPersistence: () => attachQueryPersistenceMock(),
-}));
+let releaseStorage: () => void = () => {};
+jest.mock('../../src/ui/utils/storageHelpers', () => {
+  const actual = jest.requireActual('../../src/ui/utils/storageHelpers');
+  return {
+    ...actual,
+    createPlatformStorage: () =>
+      new Promise((resolve) => {
+        releaseStorage = () => resolve(actual.createMemoryStorage());
+      }),
+  };
+});
 
 import OxyProvider from '../../src/ui/components/OxyProvider';
 import * as screenRoutes from '../../src/ui/navigation/routes';
 
-let observedClient: QueryClient | null = null;
-
-function ClientProbe() {
-  observedClient = useQueryClient();
+function Probe() {
   return <div data-testid="probe" />;
 }
 
-beforeEach(() => {
-  observedClient = null;
-  createQueryClientMock.mockClear();
-  attachQueryPersistenceMock.mockClear();
-});
-
-describe('OxyProvider — one QueryClient', () => {
+describe('OxyProvider — composition', () => {
   it('does not load account screens before a surface is opened', async () => {
     const loadScreens = jest.spyOn(screenRoutes, 'loadScreens').mockResolvedValue();
     const { findByTestId } = render(
-      <OxyProvider baseURL="https://api.oxy.so" queryClient={new QueryClient()}>
-        <ClientProbe />
+      <OxyProvider baseURL="https://api.oxy.so">
+        <Probe />
       </OxyProvider>,
     );
     await findByTestId('probe');
@@ -91,42 +79,10 @@ describe('OxyProvider — one QueryClient', () => {
     loadScreens.mockRestore();
   });
 
-  it('uses a supplied QueryClient as THE client and creates none of its own', async () => {
-    const supplied = new QueryClient();
-
-    const { findByTestId } = render(
-      <OxyProvider baseURL="https://api.oxy.so" queryClient={supplied}>
-        <ClientProbe />
-      </OxyProvider>,
-    );
-
-    await findByTestId('probe');
-
-    expect(observedClient).toBe(supplied);
-    expect(createQueryClientMock).not.toHaveBeenCalled();
-    // Persistence is the host app's lifecycle when it owns the client.
-    expect(attachQueryPersistenceMock).not.toHaveBeenCalled();
-  });
-
-  it('creates exactly one client when the consumer supplies none', async () => {
-    const { findByTestId } = render(
-      <OxyProvider baseURL="https://api.oxy.so">
-        <ClientProbe />
-      </OxyProvider>,
-    );
-
-    await findByTestId('probe');
-
-    expect(createQueryClientMock).toHaveBeenCalledTimes(1);
-    expect(observedClient).not.toBeNull();
-  });
-});
-
-describe('OxyProvider — outlets mount exactly once', () => {
   it('renders one toast outlet and one surface host', async () => {
     const { findByTestId, queryAllByTestId } = render(
-      <OxyProvider baseURL="https://api.oxy.so" queryClient={new QueryClient()}>
-        <ClientProbe />
+      <OxyProvider baseURL="https://api.oxy.so">
+        <Probe />
       </OxyProvider>,
     );
 
@@ -136,39 +92,18 @@ describe('OxyProvider — outlets mount exactly once', () => {
     expect(queryAllByTestId('bloom-surface-host')).toHaveLength(1);
   });
 
-  it('does not block the application tree on persisted-query hydration', async () => {
-    let releaseRestore: () => void = () => {};
-    attachQueryPersistenceMock.mockImplementationOnce(() => ({
-      restored: new Promise<void>((resolve) => {
-        releaseRestore = () => resolve();
-      }),
-      unsubscribe: () => {},
-    }));
-
-    const { queryAllByTestId, findByTestId } = render(
+  it('renders the application tree before the device storage is ready', async () => {
+    const { findByTestId, queryAllByTestId } = render(
       <OxyProvider baseURL="https://api.oxy.so">
-        <ClientProbe />
+        <Probe />
       </OxyProvider>,
     );
 
-    // The client and application tree exist synchronously. Persisted query I/O
-    // is an enhancement, not a startup gate.
     await findByTestId('probe');
     expect(queryAllByTestId('bloom-toast-outlet')).toHaveLength(1);
-    expect(queryAllByTestId('bloom-surface-host')).toHaveLength(1);
 
-    // Storage init is async, so the persistence attach (and with it the
-    // `releaseRestore` handle) only exists once the bootstrap effect gets there.
-    await waitFor(() => {
-      expect(attachQueryPersistenceMock).toHaveBeenCalledTimes(1);
-    });
-    expect(queryAllByTestId('bloom-toast-outlet')).toHaveLength(1);
-
-    releaseRestore();
-
-    await waitFor(() => {
-      expect(queryAllByTestId('bloom-toast-outlet')).toHaveLength(1);
-    });
+    releaseStorage();
+    await findByTestId('probe');
     expect(queryAllByTestId('bloom-surface-host')).toHaveLength(1);
   });
 });

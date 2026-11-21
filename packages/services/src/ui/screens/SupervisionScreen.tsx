@@ -9,7 +9,7 @@ import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useSupervision } from '../hooks/queries/useSupervision';
 import { useSignInMethods } from '../hooks/queries/useAuthMethods';
-import { useAuthStore } from '../stores/authStore';
+import { activeRuntime } from '../runtime/activeRuntime';
 import { useAnswer } from '../data/answer';
 import {
   purchaseApproval,
@@ -141,7 +141,7 @@ function SupervisionBody({
       person?.displayName ?? (person?.username ? `@${person.username}` : t('supervision.account'))
     );
   };
-  const active = () => mounted.current && useAuthStore.getState().user?.id === accountId;
+  const active = () => mounted.current && activeRuntime()?.getSnapshot().account?.id === accountId;
   // A change reads again what it can have changed and this screen shows.
   const refreshed = () =>
     Promise.all([state.refresh(), contacts.refresh(), purchases.refresh(), detail.refresh()]);

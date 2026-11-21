@@ -23,9 +23,6 @@ export { default as OxyProvider } from './components/OxyProvider';
 export { default as OxySignInButton } from './components/OxySignInButton';
 export { default as OxyAuthPrompt } from './components/OxyAuthPrompt';
 export type { OxyAuthPromptProps } from './components/OxyAuthPrompt';
-// The account cache's declaration, for an app's `accountQueries` (types only).
-export type { AccountQueriesConfig, AccountQueryMeta } from './hooks/accountQueryPersistence';
-export type { PersistedRootBound } from './hooks/persistedQueryCache';
 export { LogoIcon } from './components/logo/LogoIcon';
 export { LogoText } from './components/logo/LogoText';
 export { default as FollowButton } from './components/FollowButton';
@@ -91,11 +88,8 @@ export { useOxyEvent } from './hooks/useOxyEvent';
 // viewer's currency, a "Syncing..." badge) without the root barrel's screens:
 // mercaria.co shipped ~225 KB gzip of account screens on first paint because
 // its review upload could only get `useUploadFile` from the root.
-export {
-  useUpdateProfile,
-  useUploadAvatar,
-  useUploadFile,
-} from './hooks/mutations/useAccountMutations';
+export { useUpdateProfile, useUploadAvatar } from './hooks/mutations/useAccountMutations';
+export { useUploadFile } from './hooks/queries/useFileQueries';
 export { useFileDownloadUrl } from './hooks/useFileDownloadUrl';
 export { useMutationStatus } from './hooks/useMutationStatus';
 export type { MutationStatus } from './hooks/useMutationStatus';
@@ -116,12 +110,7 @@ export {
 } from './components/followRules';
 export type { FollowDuration, FollowMenuItem } from './components/followRules';
 
-// Query keys, cache invalidation and the user merge rules
-export {
-  queryKeys,
-  invalidateAccountQueries,
-  invalidateSessionQueries,
-} from './hooks/queries/queryKeys';
+// The user merge rules
 export {
   CLEARABLE_USER_FIELDS,
   clearedFieldsFromProfileUpdate,
@@ -138,9 +127,6 @@ export type {
 export { User, storeUsers } from './data/user';
 export type { UserRecord } from './data/userRecord';
 export { SIGNED_OUT_DATA_ACCOUNT } from './data/accountData';
-
-// Stores
-export { useAuthStore } from './stores/authStore';
 
 // Error handler utilities
 export {

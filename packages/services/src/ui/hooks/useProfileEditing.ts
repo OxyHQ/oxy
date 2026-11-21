@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useUpdateProfile } from './mutations/useAccountMutations';
-import { useAuthStore } from '../stores/authStore';
+import { activeRuntime } from '../runtime/activeRuntime';
 import type { Pronouns, UserProfileUpdate } from '@oxy.so/contracts';
 import { PRONOUNS } from '@oxy.so/contracts/client';
 
@@ -114,7 +114,7 @@ export const useProfileEditing = () => {
 
       // Handle name field
       if (updates.firstName !== undefined || updates.lastName !== undefined) {
-        const currentUser = useAuthStore.getState().user;
+        const currentUser = activeRuntime()?.getSnapshot().account;
         const currentName = currentUser?.name;
         updateData.name = {
           first:

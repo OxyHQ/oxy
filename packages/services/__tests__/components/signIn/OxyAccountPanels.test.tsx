@@ -108,12 +108,6 @@ jest.mock('../../../src/ui/hooks/queries/useAuthMethods', () => ({
   useSignInMethods: () => ({ value: methods, refresh: refreshMethods }),
 }));
 
-const invalidateQueries = jest.fn();
-jest.mock('@tanstack/react-query', () => ({
-  __esModule: true,
-  useQueryClient: () => ({ invalidateQueries }),
-}));
-
 const copyText = jest.fn(async (_text: string) => undefined);
 jest.mock('../../../src/ui/utils/clipboard', () => ({
   __esModule: true,

@@ -20,7 +20,7 @@ import {
   useUpdatePrivacySettings,
   useUpdateProfile,
 } from '../../src/ui/hooks/mutations/useAccountMutations';
-import { bindAuthStoreToRuntime, useAuthStore } from '../../src/ui/stores/authStore';
+import { activeRuntime, bindActiveRuntime } from '../../src/ui/runtime/activeRuntime';
 import { createTestRuntime } from '../helpers/runtimeHarness';
 
 const ME = {
@@ -81,8 +81,8 @@ beforeEach(() => {
   mockState = { oxyServices: makeServices(), activeSessionId: 'sess', user: ME };
   store = new Store();
   withStore(store, () => storeUsers(ME));
-  unbind = bindAuthStoreToRuntime(createTestRuntime());
-  useAuthStore.setState({ user: ME });
+  unbind = bindActiveRuntime(createTestRuntime());
+  activeRuntime()?.setAccount(ME);
 });
 
 afterEach(() => unbind());
@@ -132,7 +132,7 @@ describe('useUpdateProfile', () => {
     });
     // The wire omits a cleared field; the write declared it, so it is dropped.
     expect(held()?.avatar).toBeUndefined();
-    expect(useAuthStore.getState().user).toMatchObject({ updatedAt: saved.updatedAt });
+    expect(activeRuntime()?.getSnapshot().account).toMatchObject({ updatedAt: saved.updatedAt });
     expect(mockState.oxyServices.users.me).toHaveBeenCalledTimes(1);
   });
 
@@ -150,13 +150,13 @@ describe('useUpdateProfile', () => {
     await act(async () => {
       await left.close();
     });
-    useAuthStore.setState({ user: { id: 'other' } as User });
+    activeRuntime()?.setAccount({ id: 'other' } as User);
 
     await act(async () => {
       answer.resolve({ ...ME, bio: 'late bio', updatedAt: '2026-11-02T00:00:00.000Z' });
       await write;
     });
-    expect(useAuthStore.getState().user?.id).toBe('other');
+    expect(activeRuntime()?.getSnapshot().account?.id).toBe('other');
     expect(mockState.oxyServices.users.me).not.toHaveBeenCalled();
   });
 });
@@ -200,7 +200,7 @@ describe('useUpdatePrivacySettings', () => {
       await first;
     });
     expect(settings()).toMatchObject({ isPrivateAccount: true, allowTagging: true });
-    expect(useAuthStore.getState().user?.privacySettings).toMatchObject({
+    expect(activeRuntime()?.getSnapshot().account?.privacySettings).toMatchObject({
       isPrivateAccount: true,
     });
     await waitFor(() => expect(mockState.oxyServices.privacy.settings).toHaveBeenCalledTimes(1));

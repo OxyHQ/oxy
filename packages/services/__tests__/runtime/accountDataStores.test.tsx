@@ -8,7 +8,6 @@
 
 import type React from 'react';
 import { render, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { activeStore, type Persister, type Store, useStore } from '@oxy.so/bloom-data';
 
 jest.mock('../../src/ui/utils/isWebBrowser', () => ({
@@ -47,14 +46,7 @@ const Capture: React.FC<{ sink: { runtime?: OxyRuntime; stores: Store[] } }> = (
 };
 
 function renderProvider(children: React.ReactNode) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider baseURL="https://api.oxy.so">{children}</OxyRuntimeProvider>
-    </QueryClientProvider>,
-  );
+  return render(<OxyRuntimeProvider baseURL="https://api.oxy.so">{children}</OxyRuntimeProvider>);
 }
 
 describe("the session opens each account's data store", () => {

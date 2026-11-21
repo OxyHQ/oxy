@@ -35,11 +35,6 @@ interface UseAvatarPickerOptions {
   oxyServices: OxyServices;
   currentLanguage: string | null | undefined;
   activeSessionId: string | null;
-  /**
-   * Not read: the write is a bloom-data action now. The provider still passes
-   * it (`OxyContext.tsx`, `OxyHostedContext.tsx`); remove it there, then here.
-   */
-  queryClient?: unknown;
 }
 
 /** Upload result shape returned by oxyServices.assets.upload (single-file path). */

@@ -24,8 +24,6 @@ import {
   type AccountMember,
   type AccountNode,
   type AccountRole,
-  type AssetMetadata,
-  type AssetUploadInput,
   type BlockedUser,
   type ConnectedApp,
   type NotificationPreferences,
@@ -37,7 +35,7 @@ import {
   type UserPreferences,
 } from '@oxy.so/core';
 import type { UserProfileUpdate } from '@oxy.so/contracts';
-import { useAuthStore } from '../stores/authStore';
+import { activeRuntime } from '../runtime/activeRuntime';
 import { sdkRead } from './readOptions';
 import { normalizeUsername, storeUsers, User } from './user';
 import {
@@ -272,6 +270,17 @@ export const accountNode = source(AccountNodeOf, {
   load: (_request, oxy, accountId) => oxy.accounts.get(accountId),
 });
 
+/**
+ * Reads again what the store holds of an account, its node and its profile,
+ * after a write elsewhere changed them (an organization renamed or claimed).
+ */
+export async function refreshAccount(oxy: OxyServices, accountId: string): Promise<void> {
+  await Promise.all([
+    AccountNodeOf.has(accountId) ? accountNode.refresh(oxy, accountId) : undefined,
+    User.has(accountId) ? userById.refresh(oxy, accountId) : undefined,
+  ]);
+}
+
 /** An account's members and pending invitations, as one record per account. */
 export interface AccountRosterRecord {
   readonly id: string;
@@ -355,7 +364,12 @@ async function orRecover<T>(call: () => Promise<T>, recover: () => void): Promis
 
 /** The signed-in person's id now: the record an optimistic change to "me" is a layer on. */
 function signedInId(): string | undefined {
-  return useAuthStore.getState().user?.id;
+  return activeRuntime()?.getSnapshot().account?.id;
+}
+
+/** Replaces the signed-in profile with `user`, when `user` is the signed-in person. */
+function replaceSignedIn(user: OxyUser): void {
+  if (signedInId() === user.id) activeRuntime()?.setAccount(user);
 }
 
 /**
@@ -368,7 +382,7 @@ function settleSignedIn(
   user: OxyUser,
   cleared?: readonly ClearableUserField[],
 ): void {
-  useAuthStore.getState().setUser(user);
+  replaceSignedIn(user);
   storeUsers(user as CacheableUser, { cleared });
   void currentUser.refresh(oxy, user.id);
 }
@@ -460,7 +474,7 @@ export const saveDisplayCurrency = action({
   },
   settle: (updated, _oxy, _sessionId, userId) => {
     storeUsers(updated as CacheableUser);
-    if (useAuthStore.getState().user?.id === userId) useAuthStore.getState().setUser(updated);
+    if (updated.id === userId) replaceSignedIn(updated);
   },
 });
 
@@ -487,7 +501,7 @@ export const updateAccountSettings = action({
   },
   settle: (user, oxy) => {
     User.merge(user.id, { privacySettings: user.privacySettings });
-    useAuthStore.getState().setUser(user);
+    replaceSignedIn(user);
     void currentUser.refresh(oxy, user.id);
   },
 });
@@ -527,10 +541,8 @@ export const updatePrivacySettings = action({
     const incoming = answer ?? {};
     PrivacySettingsOf.merge(userId, incoming);
     User.merge(userId, { privacySettings: incoming });
-    if (useAuthStore.getState().user?.id === userId) {
-      const user = User.get(userId);
-      if (user) useAuthStore.getState().setUser(user as OxyUser);
-    }
+    const user = User.get(userId);
+    if (user) replaceSignedIn(user as OxyUser);
   },
 });
 
@@ -561,50 +573,6 @@ export const unrestrictUser = action({
       restricted: lists.restricted.filter((entry) => listedUserId(entry.restrictedId) !== userId),
     }));
   },
-});
-
-/** What an upload answers: one file, or a batch. */
-export interface UploadResult {
-  file?: UploadedFile;
-  files?: UploadedFile[];
-  id?: string;
-}
-
-export interface UploadedFile {
-  id: string;
-  originalName?: string;
-  sha256?: string;
-  mime?: string;
-  size?: number;
-  createdAt?: string;
-  metadata?: Record<string, unknown>;
-  variants?: Array<{
-    type: string;
-    key: string;
-    width?: number;
-    height?: number;
-    readyAt?: string;
-    metadata?: Record<string, unknown>;
-  }>;
-}
-
-export interface UploadFileInput {
-  file: AssetUploadInput;
-  visibility?: 'private' | 'public' | 'unlisted';
-  metadata?: AssetMetadata;
-  onProgress?: (progress: number) => void;
-}
-
-/** Uploads a file to the person's library. */
-export const uploadFile = action({
-  run: (oxy: OxyServices, sessionId: string | null, input: UploadFileInput) =>
-    authenticatedApiCall<UploadResult>(oxy, sessionId, () =>
-      oxy.assets.upload(input.file, {
-        visibility: input.visibility,
-        metadata: input.metadata,
-        onProgress: input.onProgress,
-      }),
-    ),
 });
 
 // ── Writes to an account the person operates ───────────────────────────────

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { useAction, useRecord } from '@oxy.so/bloom-data';
+import { useAction, useRecord, useStore, withStore } from '@oxy.so/bloom-data';
 import type { Organization, OrganizationType, UpdateOrganization } from '@oxy.so/contracts';
 import { updateOrganizationCheck, checkContract } from '@oxy.so/contracts/client';
 import { Button } from '@oxy.so/bloom/button';
@@ -10,7 +10,7 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
-import { useQueryClient } from '../../hooks/useQueryClient';
+import { refreshAccount } from '../../data/account';
 import { organization as organizationSource, updateOrganization } from '../../data/organizations';
 import { OrganizationTypePicker } from './OrganizationTypePicker';
 
@@ -50,7 +50,7 @@ export function OrganizationSettings({
 function OrganizationForm({ organization }: { organization: Organization }) {
   const { oxyServices, canUsePrivateApi } = useOxy();
   const { t } = useI18n();
-  const queryClient = useQueryClient();
+  const store = useStore();
   const [legalName, setLegalName] = useState(organization.legalName ?? '');
   const [website, setWebsite] = useState(organization.websiteUrl ?? '');
   const [country, setCountry] = useState(organization.countryCode ?? '');
@@ -68,8 +68,7 @@ function OrganizationForm({ organization }: { organization: Organization }) {
     }
     toast.success(t('organizationDirectory.saved'));
     // The organization's account and person records carry its name and kind.
-    void queryClient.invalidateQueries({ queryKey: ['accounts'] });
-    void queryClient.invalidateQueries({ queryKey: ['users'] });
+    void withStore(store, () => refreshAccount(oxyServices, organization.accountId));
   };
   return (
     <GroupedSection title={t('organizationDirectory.title')}>

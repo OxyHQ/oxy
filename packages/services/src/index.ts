@@ -91,11 +91,6 @@ export type {
 } from './ui/session/setupSignIn';
 
 // ---------------------------------------------------------------------------
-// Zustand stores
-// ---------------------------------------------------------------------------
-export { useAuthStore } from './ui/stores/authStore';
-
-// ---------------------------------------------------------------------------
 // Session / asset hooks
 // ---------------------------------------------------------------------------
 export { useAssets, setOxyAssetInstance } from './ui/hooks/useAssets';
@@ -153,7 +148,7 @@ export type {
 } from './ui/hooks/queries/paymentTypes';
 
 // ---------------------------------------------------------------------------
-// Mutation hooks (TanStack Query — updates)
+// Mutation hooks (bloom-data actions)
 // ---------------------------------------------------------------------------
 export {
   useUpdateProfile,
@@ -163,8 +158,8 @@ export {
   useUpdateNotificationPreferences,
   useUpdateUserPreferences,
   useRevokeConnectedApp,
-  useUploadFile,
 } from './ui/hooks/mutations/useAccountMutations';
+export { useUploadFile } from './ui/hooks/queries/useFileQueries';
 export {
   useSwitchSession,
   useLogoutSession,
@@ -172,20 +167,6 @@ export {
   useUpdateDeviceName,
   useRemoveDevice,
 } from './ui/hooks/mutations/useServicesMutations';
-
-// Stable mutation keys for the offline queue
-
-// ---------------------------------------------------------------------------
-// Query keys + cache invalidation helpers
-// ---------------------------------------------------------------------------
-// Consumers (Mention, Homiio, Alia, accounts) use these to invalidate cached
-// data after writes that touch shared backend state. Keep nominal — no
-// `export *` — and never drop a public symbol without a major version bump.
-export {
-  queryKeys,
-  invalidateAccountQueries,
-  invalidateSessionQueries,
-} from './ui/hooks/queries/queryKeys';
 
 // The user merge rules' public half. Every person an app reads goes through
 // `storeUsers` (below), which MERGES into the one held, so a sparse source can
@@ -314,9 +295,6 @@ export type {
 // wall before the device-first cold boot resolves. Opens the ONE account dialog.
 export { RequireOxyAuth } from './ui/components/RequireOxyAuth';
 export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './ui/components/RequireOxyAuth';
-// `OxyProvider`'s `accountQueries`: the app's per-account offline cache.
-export type { AccountQueriesConfig, AccountQueryMeta } from './ui/hooks/accountQueryPersistence';
-export type { PersistedRootBound } from './ui/hooks/persistedQueryCache';
 
 export { default as FollowButton } from './ui/components/FollowButton';
 export type {

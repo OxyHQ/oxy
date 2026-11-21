@@ -7,6 +7,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import {
+  type ActionView,
   type RecordView,
   skip,
   useAction,
@@ -22,6 +23,9 @@ import {
   type FileAppAccessRecord,
   fileAppAccess,
   revokeFileAppAccess,
+  uploadFile,
+  type UploadFileInput,
+  type UploadResult,
   UserFile,
   type UserFilesListing,
   userFiles,
@@ -119,4 +123,16 @@ export function useRevokeFileAppAccess() {
     [revoke, oxyServices, activeSessionId, store],
   );
   return { run, isPending, error, reset };
+}
+
+/** Uploads a file to the person's library, reporting progress through `onProgress`. */
+export function useUploadFile(): ActionView<[UploadFileInput], UploadResult> {
+  const { oxyServices, activeSessionId } = useOxy();
+  const view = useAction(uploadFile);
+  const { run: call } = view;
+  const run = useCallback(
+    (input: UploadFileInput) => call(oxyServices, activeSessionId, input),
+    [call, oxyServices, activeSessionId],
+  );
+  return { ...view, run };
 }

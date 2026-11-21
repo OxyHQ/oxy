@@ -2,7 +2,7 @@ import type React from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
-import { useAuthStore } from '../stores/authStore';
+import { useOxy } from '../context/oxyRuntimeContext';
 import LogoIcon from './logo/LogoIcon';
 import OxySignInButton from './OxySignInButton';
 
@@ -71,7 +71,7 @@ export const OxyAuthPrompt: React.FC<OxyAuthPromptProps> = ({
   style,
 }) => {
   const theme = useTheme();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { isAuthenticated } = useOxy();
 
   if (isAuthenticated) return null;
 
