@@ -74,7 +74,8 @@ export { createDeferredProductAnalytics } from './analytics/productAnalytics';
 export type { OxyProductEvent, ProductAnalytics } from './analytics/productAnalytics';
 export { useFollow, useFollowerCounts, useSeedFollowStatuses } from './hooks/useFollow';
 export { useFollowTarget } from './hooks/useFollowTarget';
-export { useSupervision, supervisionQueryKeys } from './hooks/queries/useSupervision';
+export { useSupervision } from './hooks/queries/useSupervision';
+export { supervisionState } from './data/supervision';
 export type { UseFollowTargetResult } from './hooks/useFollowTarget';
 export {
   useUserProfile,
