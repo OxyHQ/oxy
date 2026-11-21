@@ -10,9 +10,7 @@ import type { ClientSession } from '../models/session';
 /**
  * Normalize a session to ensure all required fields are present
  */
-export function normalizeSession(
-  session: Partial<ClientSession> & { sessionId: string },
-): ClientSession {
+function normalizeSession(session: Partial<ClientSession> & { sessionId: string }): ClientSession {
   const now = new Date().toISOString();
   return {
     sessionId: session.sessionId,
@@ -26,14 +24,14 @@ export function normalizeSession(
 /**
  * Compare two sessions for equality
  */
-export function sessionsEqual(a: ClientSession, b: ClientSession): boolean {
+function sessionsEqual(a: ClientSession, b: ClientSession): boolean {
   return a.sessionId === b.sessionId;
 }
 
 /**
  * Sort sessions by lastActive (most recent first), then by sessionId for stability
  */
-export function sortSessions(sessions: ClientSession[]): ClientSession[] {
+function sortSessions(sessions: ClientSession[]): ClientSession[] {
   return [...sessions].sort((a, b) => {
     // Sort by lastActive descending (most recent first)
     const timeA = new Date(a.lastActive).getTime();
@@ -49,7 +47,7 @@ export function sortSessions(sessions: ClientSession[]): ClientSession[] {
 /**
  * Deduplicate sessions by sessionId, keeping the most recent version
  */
-export function deduplicateSessions(sessions: ClientSession[]): ClientSession[] {
+function deduplicateSessions(sessions: ClientSession[]): ClientSession[] {
   const sessionMap = new Map<string, ClientSession>();
 
   for (const session of sessions) {
@@ -74,7 +72,7 @@ export function deduplicateSessions(sessions: ClientSession[]): ClientSession[] 
  * Priority: 1) Active session (if provided), 2) Most recent session
  * This prevents showing duplicate accounts for the same user
  */
-export function deduplicateSessionsByUserId(
+function deduplicateSessionsByUserId(
   sessions: ClientSession[],
   activeSessionId?: string | null,
 ): ClientSession[] {

@@ -281,6 +281,25 @@ function resolvedActorId(
 }
 
 /**
+ * Best-effort WebFinger discovery for a read: a failure answers "not resolved"
+ * (`null`, so the caller serves its usual not-found/empty result) but is logged,
+ * so a federation outage is distinguishable from a handle that does not exist.
+ */
+async function tryResolveFederatedHandle(
+  handle: string,
+): Promise<Awaited<ReturnType<typeof federationService.resolveAndUpsert>>> {
+  try {
+    return await federationService.resolveAndUpsert(handle);
+  } catch (error) {
+    logger.warn('federation: could not resolve handle', {
+      handle,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+/**
  * Validates pagination query parameters
  */
 const validatePagination = (req: Request, res: Response, next: () => void): void => {
@@ -436,7 +455,7 @@ router.get(
 
     // If not found and it's a fediverse handle, resolve via WebFinger
     if (!profile && isFedHandle) {
-      const resolved = await federationService.resolveAndUpsert(username).catch(() => null);
+      const resolved = await tryResolveFederatedHandle(username);
       const resolvedId = resolvedActorId(resolved);
       if (resolvedId) {
         profile = await loadProfileByPredicate(eq(users.id, resolvedId));
@@ -575,9 +594,7 @@ router.get(
         .orderBy(...peopleSearchOrder(sanitizedQuery))
         .offset(parsedOffset)
         .limit(parsedLimit),
-      isFediverse
-        ? federationService.resolveAndUpsert(sanitizedQuery).catch(() => null)
-        : Promise.resolve(null),
+      isFediverse ? tryResolveFederatedHandle(sanitizedQuery) : Promise.resolve(null),
     ]);
 
     const profiles = await Promise.all(
