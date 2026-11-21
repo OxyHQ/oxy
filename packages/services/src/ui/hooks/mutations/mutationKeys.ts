@@ -8,21 +8,6 @@
  */
 
 export const mutationKeys = {
-  // Account-related writes
-  account: {
-    updateProfile: ['mutation', 'account', 'updateProfile'] as const,
-    uploadAvatar: ['mutation', 'account', 'uploadAvatar'] as const,
-    updateSettings: ['mutation', 'account', 'updateSettings'] as const,
-    updatePrivacySettings: ['mutation', 'account', 'updatePrivacySettings'] as const,
-    updateNotificationPreferences: [
-      'mutation',
-      'account',
-      'updateNotificationPreferences',
-    ] as const,
-    updateUserPreferences: ['mutation', 'account', 'updateUserPreferences'] as const,
-    uploadFile: ['mutation', 'account', 'uploadFile'] as const,
-  },
-
   // Session / device writes
   session: {
     switch: ['mutation', 'session', 'switch'] as const,
@@ -30,11 +15,6 @@ export const mutationKeys = {
     logoutAll: ['mutation', 'session', 'logoutAll'] as const,
     updateDeviceName: ['mutation', 'session', 'updateDeviceName'] as const,
     removeDevice: ['mutation', 'session', 'removeDevice'] as const,
-  },
-
-  // Connected apps (OAuth grants)
-  connectedApps: {
-    revoke: ['mutation', 'connectedApps', 'revoke'] as const,
   },
 
   // A file's applications with access (ADR 0043 stage 4c)

@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { skip, useRecord } from '@oxy.so/bloom-data';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
@@ -21,7 +21,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { getNormalizedUserHandle, logger } from '@oxy.so/core';
 import { extractErrorMessage } from '../utils/errorHandlers';
-import { userWriter } from '../data/user';
+import { profileCard } from '../data/account';
 
 interface ProfileScreenProps extends BaseScreenProps {
   userId: string;
@@ -56,51 +56,25 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
   const targetUserId = normalizeId(userId);
   const isOwnProfile = !!(currentUserId && targetUserId && currentUserId === targetUserId);
 
-  // Profile + reputation + stats in ONE React Query (no data-fetch effect). The
-  // reputation/stats reads swallow their own failures; only `getUserById` can
-  // reject the query, and for MY OWN profile a failed fetch falls back to the
-  // active-account snapshot instead of erroring. The key includes both ids so a
-  // switch/own-profile change refetches.
-  const profileQuery = useQuery({
-    queryKey: ['profileScreen', targetUserId, currentUserId],
-    enabled: !!userId,
-    retry: false,
-    queryFn: async () => {
-      // Follower/following counts come from the `useFollow` hook.
-      const store = userWriter();
-      const [profileRes, reputationRes] = await Promise.all([
-        oxyServices.users.get(userId).catch((err: unknown) => {
-          if (isOwnProfile) return currentUser;
-          logger.error(
-            'Profile loading error',
-            err instanceof Error ? err : new Error(String(err)),
-            { component: 'ProfileScreen' },
-          );
-          throw err;
-        }),
-        (isOwnProfile ? oxyServices.reputation.balance() : oxyServices.reputation.balance(userId))
-          .then((balance): { total: number | undefined } => ({ total: balance.total }))
-          .catch((): { total: number | undefined } => ({ total: undefined })),
-      ]);
-      store(profileRes);
-      if (!profileRes) {
-        throw new Error('Profile data is not available');
-      }
-      return {
-        profile: profileRes,
-        reputationTotal: typeof reputationRes.total === 'number' ? reputationRes.total : null,
-      };
-    },
-  });
+  // Profile + reputation in ONE read (no data-fetch effect). The reputation
+  // read swallows its own failure; only the profile read can fail it, and for
+  // MY OWN profile a failed read falls back to the active-account snapshot
+  // instead of erroring. Each account has its own store, so a switch reads again.
+  const profileView = useRecord(
+    profileCard,
+    ...(userId ? ([oxyServices, userId, isOwnProfile ? currentUser : null] as const) : [skip]),
+  );
 
-  const profile = profileQuery.data?.profile ?? (isOwnProfile ? currentUser : null);
-  const reputationTotal = profileQuery.data?.reputationTotal ?? null;
+  const profile = profileView.value?.profile ?? (isOwnProfile ? currentUser : null);
+  const reputationTotal = profileView.value?.reputationTotal ?? null;
+  const profileFailed = profileView.status === 'error';
+  const profileError = profileView.error;
 
   // Friendly, status-aware error copy derived from the query error (no effect).
   const error = useMemo<string | null>(() => {
     if (!userId) return 'No user ID provided';
-    if (!profileQuery.isError) return null;
-    const err = profileQuery.error;
+    if (!profileFailed) return null;
+    const err = profileError;
     const errorWithStatus =
       err && typeof err === 'object' && 'status' in err
         ? (err as { status?: number; message?: string })
@@ -122,7 +96,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
       return 'Server error occurred while loading the profile. Please try again later.';
     }
     return errorMessageText || 'Failed to load profile';
-  }, [userId, profileQuery.isError, profileQuery.error, isOwnProfile]);
+  }, [userId, profileFailed, profileError, isOwnProfile]);
 
   // The dialog owns navigation chrome; CoverHeader owns the profile artwork
   // and avatar overlap. A neutral cover is not an on-image navigation surface.
@@ -153,7 +127,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
     );
   }
 
-  if (!profile && profileQuery.isPending) {
+  if (!profile && profileView.isLoading) {
     return (
       <View
         testID="profile-skeleton"

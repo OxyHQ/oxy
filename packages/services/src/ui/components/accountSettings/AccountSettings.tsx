@@ -2,7 +2,7 @@ import type React from 'react';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skip, useAction, useRecord } from '@oxy.so/bloom-data';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -26,11 +26,8 @@ import {
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
 import { pickAvatarFile } from '../../hooks/useAvatarPicker';
-import {
-  clearedFieldsFromAccountUpdate,
-  upsertCachedUser,
-  type ClearableUserField,
-} from '../../hooks/queries/userCache';
+import { accountNode, archiveAccount, updateAccount } from '../../data/account';
+import { clearedFieldsFromAccountUpdate, type ClearableUserField } from '../../data/userRecord';
 import type { BaseScreenProps } from '../../types/navigation';
 import { OrganizationSettings } from '../organizations/OrganizationSettings';
 import { SettingsIcon } from '../SettingsIcon';
@@ -101,17 +98,17 @@ export interface AccountSettingsProps {
  * session's account list, then read fresh. `node` is `null` until it resolves.
  */
 export function useAccountSettingsNode(accountId: string) {
-  const { oxyServices, canUsePrivateApi, user, accounts } = useOxy();
-  const query = useQuery({
-    queryKey: ['accounts', 'detail', accountId, user?.id, canUsePrivateApi],
-    initialData: canUsePrivateApi
-      ? accounts?.find((account) => account.accountId === accountId)
-      : undefined,
-    initialDataUpdatedAt: 0,
-    queryFn: () => oxyServices.accounts.get(accountId),
-    enabled: canUsePrivateApi && accountId.length > 0,
-  });
-  return { query, node: canUsePrivateApi && query.isSuccess ? query.data : null };
+  const { oxyServices, canUsePrivateApi, accounts } = useOxy();
+  const view = useRecord(
+    accountNode,
+    ...(canUsePrivateApi && accountId.length > 0 ? ([oxyServices, accountId] as const) : [skip]),
+  );
+  // Until it is read, the node the session's account list holds.
+  const seed = canUsePrivateApi
+    ? accounts?.find((account) => account.accountId === accountId)
+    : undefined;
+  const node = canUsePrivateApi && view.status !== 'error' ? (view.value ?? seed ?? null) : null;
+  return { view, node };
 }
 
 /**
@@ -134,9 +131,8 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
   const { t } = useI18n();
   const showApiError = useApiErrorToast();
   const { oxyServices, user, accounts, switchToAccount, showBottomSheet } = useOxy();
-  const queryClient = useQueryClient();
   const id = accountId;
-  const { query: accountQuery, node } = useAccountSettingsNode(id);
+  const { view: accountView, node } = useAccountSettingsNode(id);
   const account = node?.account;
   const permissions = node?.callerMembership?.permissions ?? [];
   const isImplicitOwner = node ? node.relationship !== 'member' : false;
@@ -170,49 +166,57 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
     setSeeded(true);
   }
 
-  const updateMutation = useMutation({
-    mutationKey: ['accounts', 'update', id],
-    mutationFn: (input: UpdateAccountInput) => oxyServices.accounts.update(id, input),
-    onSuccess: (updatedNode, input) => {
-      const cleared = clearedFieldsFromAccountUpdate(input);
-      upsertCachedUser(queryClient, updatedNode.account, user?.id, {
-        cleared: cleared.length > 0 ? cleared : undefined,
-      });
-      onUpdated?.(updatedNode.account, { cleared });
-      queryClient.invalidateQueries({ queryKey: ['accounts', 'detail', id] });
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      toast.success(t('accounts.settings.toasts.saved'));
-    },
-    onError: (error) => {
-      showApiError(error, 'accounts.settings.toasts.saveFailed');
-    },
-  });
-
-  const archiveMutation = useMutation({
-    mutationKey: ['accounts', 'archive', id],
-    mutationFn: async (target: AccountNode) => {
-      await archive?.beforeArchive?.(target);
-      await oxyServices.accounts.archive(id);
-      return target;
-    },
-    onSuccess: async (target) => {
-      // If we archived the account we're currently signed in AS, switch back to
-      // the personal account so the app isn't left as an archived identity.
-      if (user?.id === id) {
-        const personal = accounts.find((entry) => entry.relationship === 'self');
-        if (personal) {
-          await switchToAccount(personal.accountId).catch(() => undefined);
-        }
+  const update = useAction(updateAccount);
+  const { run: runUpdate } = update;
+  const save = useCallback(
+    async (input: UpdateAccountInput) => {
+      try {
+        const updatedNode = await runUpdate(oxyServices, id, input);
+        if (!updatedNode) return;
+        onUpdated?.(updatedNode.account, { cleared: clearedFieldsFromAccountUpdate(input) });
+        toast.success(t('accounts.settings.toasts.saved'));
+      } catch (error) {
+        showApiError(error, 'accounts.settings.toasts.saveFailed');
       }
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      toast.success(archive?.successMessage ?? t('accounts.settings.toasts.archived'));
-      if (archive?.onArchived) archive.onArchived(target);
-      else onClose?.();
     },
-    onError: (error) => {
-      showApiError(error, 'accounts.settings.toasts.archiveFailed');
+    [runUpdate, oxyServices, id, onUpdated, t, showApiError],
+  );
+
+  const archiving = useAction(archiveAccount);
+  const { run: runArchive } = archiving;
+  const archiveNode = useCallback(
+    async (target: AccountNode) => {
+      try {
+        const beforeArchive = archive?.beforeArchive;
+        await runArchive(oxyServices, id, beforeArchive ? () => beforeArchive(target) : undefined);
+        // If we archived the account we're currently signed in AS, switch back to
+        // the personal account so the app isn't left as an archived identity.
+        if (user?.id === id) {
+          const personal = accounts.find((entry) => entry.relationship === 'self');
+          if (personal) {
+            await switchToAccount(personal.accountId).catch(() => undefined);
+          }
+        }
+        toast.success(archive?.successMessage ?? t('accounts.settings.toasts.archived'));
+        if (archive?.onArchived) archive.onArchived(target);
+        else onClose?.();
+      } catch (error) {
+        showApiError(error, 'accounts.settings.toasts.archiveFailed');
+      }
     },
-  });
+    [
+      runArchive,
+      oxyServices,
+      id,
+      archive,
+      user?.id,
+      accounts,
+      switchToAccount,
+      t,
+      onClose,
+      showApiError,
+    ],
+  );
 
   const handleArchive = useCallback(async () => {
     if (!node) return;
@@ -231,8 +235,8 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
       showApiError(error, 'accounts.settings.toasts.archiveFailed');
       return;
     }
-    if (confirmed) archiveMutation.mutate(node);
-  }, [archive, archiveMutation, node, showApiError, t]);
+    if (confirmed) void archiveNode(node);
+  }, [archive, archiveNode, node, showApiError, t]);
 
   const handleDisplayNameChange = useCallback(
     (value: string) => {
@@ -267,14 +271,14 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 
   const handleSave = useCallback(() => {
     if (!canSave) return;
-    updateMutation.mutate({
+    void save({
       name: { displayName: trimmedName },
       // `null` is Oxy's clear; an empty string would store one.
       bio: trimmedBio ? trimmedBio : null,
       // Whole and IN ORDER — element 0 is the primary, and `[]` is the clear.
       ...(categoriesChanged ? { accountCategories: categories } : null),
     });
-  }, [canSave, categories, categoriesChanged, trimmedBio, trimmedName, updateMutation]);
+  }, [canSave, categories, categoriesChanged, trimmedBio, trimmedName, save]);
 
   // The picture is written on its own, as the personal profile's is: the shared
   // picker uploads the crop, and the account takes it (or `null`, its clear).
@@ -284,11 +288,11 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
         avatar: account?.avatar,
         displayName: storedName,
       });
-      if (avatar !== undefined) updateMutation.mutate({ avatar });
+      if (avatar !== undefined) await save({ avatar });
     } catch (error) {
       showApiError(error, 'accounts.settings.toasts.saveFailed');
     }
-  }, [account?.avatar, oxyServices, showApiError, storedName, updateMutation]);
+  }, [account?.avatar, oxyServices, showApiError, storedName, save]);
 
   const avatarUri = useMemo(
     () => (account?.avatar ? oxyServices.assets.publicUrl(account.avatar, 'thumb') : undefined),
@@ -310,11 +314,11 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
     );
   }
 
-  if (accountQuery.isLoading || !node) {
+  if (accountView.isLoading || !node) {
     return <View className="items-center py-space-32" />;
   }
 
-  const busy = updateMutation.isPending;
+  const busy = update.isPending;
 
   return (
     <View className="px-screen-margin pt-space-24 pb-space-32 gap-space-24">
@@ -408,7 +412,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
               archive?.title ? archive.description : t('accounts.settings.archive.subtitle')
             }
             destructive
-            disabled={archiveMutation.isPending}
+            disabled={archiving.isPending}
             onPress={() => void handleArchive()}
           />
         </GroupedSection>

@@ -41,7 +41,7 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
 
   useSurfaceHeader({ title: t('notifications.title') || 'Notifications' });
   const { isAuthenticated } = useOxy();
-  const { data: user } = useCurrentUser({ enabled: isAuthenticated });
+  const { value: user } = useCurrentUser({ enabled: isAuthenticated });
   const updateMutation = useUpdateNotificationPreferences();
 
   const initialValues = useMemo<NotificationToggleValues>(() => {
@@ -57,7 +57,7 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
   const handleSave = useCallback(
     async (key: keyof NotificationToggleValues, value: boolean) => {
       const patch: Partial<NotificationPreferences> = { [key]: value };
-      await updateMutation.mutateAsync(patch);
+      await updateMutation.run(patch);
     },
     [updateMutation],
   );

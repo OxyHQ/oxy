@@ -20,6 +20,7 @@ import { EMAIL_CODE_LENGTH, checkContract, emailAddressCheck } from '@oxy.so/con
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { queryKeys } from '../../hooks/queries/queryKeys';
+import { currentUser } from '../../data/account';
 import { useI18n } from '../../hooks/useI18n';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
@@ -74,7 +75,8 @@ export const OxyEmailPanel: React.FC<OxyEmailPanelProps> = ({ onDone }) => {
 
   const finish = (message: string) => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
-    void queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
+    // The address is on the signed-in account: read it again.
+    if (user) void currentUser.refresh(oxyServices, user.id);
     toast.success(message);
     setStep({ name: 'status' });
     setAddress('');

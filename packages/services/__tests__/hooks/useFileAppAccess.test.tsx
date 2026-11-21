@@ -29,7 +29,7 @@ import {
   removeAppAccessFromCache,
   useFileAppAccess,
 } from '../../src/ui/hooks/queries/useFileQueries';
-import { useRevokeFileAppAccess } from '../../src/ui/hooks/mutations/useAccountMutations';
+import { useRevokeFileAppAccess } from '../../src/ui/hooks/mutations/useFileAppAccessMutations';
 
 const syra: FileApplicationAccess = {
   applicationId: 'app-syra',

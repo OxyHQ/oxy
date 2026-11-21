@@ -1,6 +1,13 @@
+import type { ReactNode } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, Store, withStore } from '@oxy.so/bloom-data';
+import { ProfileCard } from '../../src/ui/data/account';
 import ProfileScreen from '../../src/ui/screens/ProfileScreen';
+
+/** The screen in a fresh account store, as the session gives it. */
+function inStore(ui: ReactNode, store = new Store()) {
+  return render(<DataProvider store={store}>{ui}</DataProvider>);
+}
 
 const header = jest.fn();
 const profileGet = jest.fn(() => new Promise(() => {}));
@@ -27,12 +34,7 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
 
 test('shows the known owner immediately with standard dialog chrome and routes Edit Profile to the editor', () => {
   const navigate = jest.fn();
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
-    <QueryClientProvider client={client}>
-      <ProfileScreen userId="owner" navigate={navigate} />
-    </QueryClientProvider>,
-  );
+  inStore(<ProfileScreen userId="owner" navigate={navigate} />);
   expect(screen.getByText('Sample Person')).toBeTruthy();
   expect(screen.queryByTestId('profile-skeleton')).toBeNull();
   expect(screen.getByTestId('profile-cover-header')).toBeTruthy();
@@ -56,12 +58,7 @@ test('shows a Bloom skeleton only until an uncached profile arrives', async () =
         resolveProfile = resolve;
       }),
   );
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
-    <QueryClientProvider client={client}>
-      <ProfileScreen userId="other" />
-    </QueryClientProvider>,
-  );
+  inStore(<ProfileScreen userId="other" />);
   expect(screen.getByTestId('profile-skeleton')).toBeTruthy();
   expect(screen.queryByRole('button', { name: '3 profile.followers' })).toBeNull();
   await act(async () =>
@@ -72,16 +69,15 @@ test('shows a Bloom skeleton only until an uncached profile arrives', async () =
 });
 
 test('shows a cached profile immediately while refreshing it', () => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(['profileScreen', 'cached', 'owner'], {
-    profile: { id: 'cached', username: 'cached', name: { displayName: 'Cached Person' } },
-    reputationTotal: 2,
-  });
-  render(
-    <QueryClientProvider client={client}>
-      <ProfileScreen userId="cached" />
-    </QueryClientProvider>,
+  const store = new Store();
+  withStore(store, () =>
+    ProfileCard.put({
+      id: 'cached',
+      profile: { id: 'cached', username: 'cached', name: { displayName: 'Cached Person' } },
+      reputationTotal: 2,
+    } as never),
   );
+  inStore(<ProfileScreen userId="cached" />, store);
   expect(screen.getByText('Cached Person')).toBeTruthy();
   expect(screen.queryByTestId('profile-skeleton')).toBeNull();
 });

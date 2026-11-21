@@ -208,7 +208,7 @@ export const useFileUploadState = ({
           prependFileToCache(queryClient, targetUserId, optimisticFile);
 
           // Use the mutation hook with authentication handling
-          const result = await uploadFileMutation.mutateAsync({
+          const result = await uploadFileMutation.run({
             file: raw as AssetUploadInput,
             visibility: defaultVisibility,
           });

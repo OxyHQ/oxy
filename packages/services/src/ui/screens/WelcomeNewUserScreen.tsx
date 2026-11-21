@@ -208,7 +208,7 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
     }
     setSavingName(true);
     try {
-      await updateProfileMutation.mutateAsync({ name: { first: f, last: lastName.trim() } });
+      await updateProfileMutation.run({ name: { first: f, last: lastName.trim() } });
       animateToStepCallback(currentStep + 1);
     } catch {
       // `useUpdateProfile` already told the person why, in their language.

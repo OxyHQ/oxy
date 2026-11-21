@@ -96,10 +96,10 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
       setIsSubmitting(true);
       try {
         if (isAuthenticated && user?.id) {
-          const saved = await updateProfile.mutateAsync({ languages: next });
+          const saved = await updateProfile.run({ languages: next });
           if (
-            saved.languages?.length !== next.length ||
-            next.some((locale, index) => saved.languages?.[index] !== locale)
+            saved?.languages?.length !== next.length ||
+            next.some((locale, index) => saved?.languages?.[index] !== locale)
           ) {
             toast.error(t('language.saveFailed'));
             return;

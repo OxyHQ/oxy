@@ -133,8 +133,8 @@ describe('ui/client entry isolation', () => {
     const client = readFileSync(ENTRY, 'utf8');
     for (const symbol of [
       'queryKeys',
-      'upsertCachedUser',
-      'upsertCachedUsers',
+      'storeUsers',
+      'User',
       'clearedFieldsFromAccountUpdate',
       'useUserById',
       'useUserByUsername',

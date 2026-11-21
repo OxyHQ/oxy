@@ -121,7 +121,6 @@ export type { UseStorageOptions, UseStorageResult } from './ui/hooks/useStorage'
 // ---------------------------------------------------------------------------
 export {
   useUserProfile,
-  useUserProfiles,
   useCurrentUser,
   useUserById,
   useUserByUsername,
@@ -185,14 +184,6 @@ export {
   useUpdateDeviceName,
   useRemoveDevice,
 } from './ui/hooks/mutations/useServicesMutations';
-export {
-  createProfileMutation,
-  createGenericMutation,
-} from './ui/hooks/mutations/mutationFactory';
-export type {
-  ProfileMutationConfig,
-  GenericMutationConfig,
-} from './ui/hooks/mutations/mutationFactory';
 
 // Stable mutation keys for the offline queue
 export { mutationKeys } from './ui/hooks/mutations/mutationKeys';
@@ -206,36 +197,29 @@ export { mutationKeys } from './ui/hooks/mutations/mutationKeys';
 export {
   queryKeys,
   invalidateAccountQueries,
-  invalidateUserQueries,
   invalidateSessionQueries,
   invalidateDeviceQueries,
-  invalidatePrivacyQueries,
   invalidateSecurityQueries,
   invalidateStorageQueries,
   invalidatePaymentsQueries,
-  invalidateConnectedAppsQueries,
   invalidateAuthMethodsQueries,
 } from './ui/hooks/queries/queryKeys';
 
-// Canonical user-cache upsert. MERGE-upserts a (possibly partial) user into the
-// SDK's user query cache under both keys it owns (by-id + viewer-scoped
-// by-username). Consumers route ALL cache seeds (feed / list / search / profile
-// hydration) through this so a sparse source can never strip a field an
-// authoritative fetch already stored. A write that DELIBERATELY empties a field
-// ("remove my picture") says so with `{ cleared: [...] }` — the payload cannot
-// express it, see the module docs.
+// The user merge rules' public half. Every person an app reads goes through
+// `storeUsers` (below), which MERGES into the one held, so a sparse source can
+// never strip a field an authoritative read already stored. A write that
+// DELIBERATELY empties a field ("remove my picture") says so with
+// `storeUsers(user, { cleared: [...] })`: the payload cannot express it.
 export {
-  upsertCachedUser,
-  upsertCachedUsers,
   CLEARABLE_USER_FIELDS,
   clearedFieldsFromProfileUpdate,
   clearedFieldsFromAccountUpdate,
-} from './ui/hooks/queries/userCache';
+} from './ui/data/userRecord';
 export type {
   CacheableUser,
   ClearableUserField,
   UpsertCachedUserOptions,
-} from './ui/hooks/queries/userCache';
+} from './ui/data/userRecord';
 
 // The people every app entity refers to (`refs: { user: User }`), held once per
 // account in `@oxy.so/bloom-data`; the session opens the account's store.

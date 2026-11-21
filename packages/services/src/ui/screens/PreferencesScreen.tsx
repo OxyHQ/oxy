@@ -44,7 +44,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
 
   useSurfaceHeader({ title: t('preferences.title') || 'Preferences' });
   const { isAuthenticated } = useOxy();
-  const { data: user } = useCurrentUser({ enabled: isAuthenticated });
+  const { value: user } = useCurrentUser({ enabled: isAuthenticated });
   const updateMutation = useUpdateUserPreferences();
 
   const prefs = user?.userPreferences;
@@ -80,7 +80,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
   const handleThemeChange = useCallback(
     async (nextTheme: ThemePreference) => {
       const patch: Partial<UserPreferences> = { theme: nextTheme };
-      await updateMutation.mutateAsync(patch);
+      await updateMutation.run(patch);
     },
     [updateMutation],
   );
@@ -88,13 +88,13 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
   const handleReduceMotionToggle = useCallback(async () => {
     const next = !reduceMotionPref;
     const patch: Partial<UserPreferences> = { reduceMotion: next };
-    await updateMutation.mutateAsync(patch);
+    await updateMutation.run(patch);
   }, [reduceMotionPref, updateMutation]);
 
   const handleResetTimezone = useCallback(async () => {
     // Empty string means "follow device" — server-side default
     const patch: Partial<UserPreferences> = { timezone: '' };
-    await updateMutation.mutateAsync(patch);
+    await updateMutation.run(patch);
   }, [updateMutation]);
 
   const themeDisplay = useMemo(() => {
