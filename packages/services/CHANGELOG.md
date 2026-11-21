@@ -16,10 +16,12 @@ that was left is dropped.
   `@tanstack/query-async-storage-persister`, `@tanstack/query-sync-storage-persister` and `zustand`.
   An app that uses React Query or zustand itself declares them itself.
 - **Changed:** `react` `>=18.0.0 <20.0.0` becomes `>=19.0.0 <20.0.0`.
-  `@react-native-async-storage/async-storage` becomes optional: it is read only to move the SDK's
-  device key-value data into bloom-data, each key the first time it is read, and to delete the
-  SDK's dead keys once (among them the 14.x query caches, `oxy_query_cache_v3` and every
-  `oxy_account_queries:<account>`).
+- **Unchanged:** `@react-native-async-storage/async-storage` stays a required peer. Services reads
+  it only to move its device key-value data into bloom-data, each key the first time it is read,
+  and to delete its dead keys once (among them the 14.x query caches, `oxy_query_cache_v3` and
+  every `oxy_account_queries:<account>`); `@oxy.so/core` and `@oxy.so/protocol` still load it on a
+  device (the device id, the identity marker, the crypto storage), and Expo links only required
+  peers.
 
 ### Removed
 
