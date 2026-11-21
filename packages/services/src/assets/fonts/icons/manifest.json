@@ -5,8 +5,8 @@
     "ionicons": {
       "fontFamily": "OxyServicesIonicons",
       "file": "src/assets/fonts/icons/OxyServicesIonicons.ttf",
-      "bytes": 42812,
-      "sha256": "6b791c694fda8075304e9356266fc9d7a66bcd29a0ded51d418212dac6cdb9d4",
+      "bytes": 42620,
+      "sha256": "b08d08da682fa66fccf3aac16b7880af3e570b1038ce22266b169b4af54725e6",
       "names": [
         "add",
         "add-circle-outline",
@@ -143,7 +143,6 @@
         "trophy-outline",
         "videocam",
         "volume-off",
-        "wallet",
         "wallet-outline",
         "warning",
         "watch",
@@ -153,8 +152,8 @@
     "materialCommunityIcons": {
       "fontFamily": "OxyServicesMaterialCommunityIcons",
       "file": "src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf",
-      "bytes": 29428,
-      "sha256": "753326d0f2e150fb56967854632ebdb60b3ed65cb5d6ea9cd01118d8eaea1c8d",
+      "bytes": 29112,
+      "sha256": "8f582fdab4c7df4ea8e556ee32f78441712e4134d8e577c555878b414736dca3",
       "names": [
         "account",
         "account-circle",
@@ -215,7 +214,6 @@
         "code-tags",
         "cog",
         "cog-outline",
-        "contacts",
         "contain",
         "content-copy",
         "controller",
@@ -343,7 +341,6 @@
         "upload",
         "video-outline",
         "volume-off",
-        "wallet",
         "wallet-outline",
         "watch",
         "web",
@@ -356,5 +353,5 @@
     }
   },
   "glyphMapsFile": "src/ui/icons/subsetGlyphMaps.ts",
-  "glyphMapsSha256": "aa9b65907b9ab6ed7f0238ac22e3b9d006da8eb5131bef0af3b5fa89cc192ad1"
+  "glyphMapsSha256": "2bd91ff2317e63d6ea22c3a7f51c57ba16eb2d4297595c0eb049937a4b452237"
 }
