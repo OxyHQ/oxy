@@ -63,6 +63,38 @@ describe('User', () => {
   });
 });
 
+describe('User freshness', () => {
+  const edited = { ...profile, avatar: 'file-new', updatedAt: '2026-11-20T10:00:00.000Z' };
+
+  it('never lets a copy from before an edit put the old picture back', () => {
+    User.put(edited);
+    User.put({
+      id: 'u1',
+      username: 'ada',
+      avatar: 'file-1',
+      updatedAt: '2026-11-19T10:00:00.000Z',
+    });
+    expect(User.get('u1')?.avatar).toBe('file-new');
+  });
+
+  it('counts a copy without updatedAt as the oldest, yet keeps what only it carries', () => {
+    User.put({ ...edited, bio: undefined });
+    User.put({ id: 'u1', username: 'ada', avatar: 'file-1', bio: 'Mathematician' });
+    expect(User.get('u1')).toMatchObject({ avatar: 'file-new', bio: 'Mathematician' });
+  });
+
+  it('lets a later copy win', () => {
+    User.put(edited);
+    User.put({
+      id: 'u1',
+      username: 'ada',
+      avatar: 'file-3',
+      updatedAt: '2026-11-21T10:00:00.000Z',
+    });
+    expect(User.get('u1')?.avatar).toBe('file-3');
+  });
+});
+
 describe('storeUsers', () => {
   it('normalises loose actor objects (a raw _id, a string name)', () => {
     storeUsers([{ _id: 'u3', username: 'linus', name: 'Linus' }, null, { username: 'no-id' }]);
