@@ -4,7 +4,8 @@
  */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, Store } from '@oxy.so/bloom-data';
+import { surfaces } from '@oxy.so/bloom/surfaces';
 
 const INSTRUCTIONS = {
   domain: 'example.com',
@@ -53,16 +54,20 @@ jest.mock('../../src/ui/components/SettingsIcon', () => ({
 
 import DomainsScreen from '../../src/ui/screens/DomainsScreen';
 
+let store: Store;
 const renderScreen = () =>
   render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
+    <DataProvider store={store}>
       <DomainsScreen />
-    </QueryClientProvider>,
+    </DataProvider>,
   );
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  store = new Store();
+});
+
+afterEach(() => store.close());
 
 describe('DomainsScreen', () => {
   it('requests a verification, shows both proofs, verifies and refreshes the list', async () => {
@@ -86,6 +91,20 @@ describe('DomainsScreen', () => {
     await waitFor(() => expect(domains.verify).toHaveBeenCalledWith('example.com'));
     expect(await screen.findByText('example.com')).toBeTruthy();
     expect(screen.queryByTestId('domains-verify')).toBeNull();
+    expect(domains.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads the list again after a removal', async () => {
+    domains.list.mockResolvedValueOnce([
+      { domain: 'example.com', verifiedAt: '2026-09-26T00:00:00.000Z', method: 'dns-txt' },
+    ]);
+    (surfaces.confirm as jest.Mock).mockResolvedValueOnce(true);
+    renderScreen();
+    fireEvent.click(await screen.findByText('example.com'));
+
+    await waitFor(() => expect(domains.remove).toHaveBeenCalledWith('example.com'));
+    expect(await screen.findByText('domains.list.empty')).toBeTruthy();
+    expect(domains.list).toHaveBeenCalledTimes(2);
   });
 
   it.each(['https://example.com/', 'my site.com', 'localhost', '-x.com'])(

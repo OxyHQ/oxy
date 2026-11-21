@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { skip, useRecord } from '@oxy.so/bloom-data';
 import { View, StyleSheet } from 'react-native';
 import Ionicons from '../../icons/Ionicons';
 import { Chip } from '@oxy.so/bloom/chip';
@@ -13,7 +13,7 @@ import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { trustTierLabel } from '@oxy.so/core';
-import { queryKeys } from '../../hooks/queries/queryKeys';
+import { trustStanding } from '../../data/trust';
 
 const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
   // Reputation/trust is the ACTIVE account's standing (the org/project/bot
@@ -26,21 +26,11 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
   // Keyed on the account id, not the `user` object: a profile write that
   // replaces `user` must not refetch the ledger.
   const userId = user?.id;
-  const standing = useQuery({
-    queryKey: queryKeys.reputation.transactions(userId, 20),
-    enabled: Boolean(userId),
-    queryFn: async () => {
-      const [balance, transactions] = await Promise.all([
-        oxyServices.reputation.balance(),
-        oxyServices.reputation.transactions(userId, { limit: 20, offset: 0 }),
-      ]);
-      return { balance, transactions: Array.isArray(transactions) ? transactions : [] };
-    },
-  });
-  const reputationTotal = standing.data?.balance.total ?? null;
-  const trustTier = standing.data?.balance.trustTier ?? null;
-  const transactions = standing.data?.transactions ?? [];
-  const isLoading = standing.isPending && Boolean(userId);
+  const standing = useRecord(trustStanding, ...(userId ? [oxyServices, userId] : [skip]));
+  const reputationTotal = standing.value?.balance.total ?? null;
+  const trustTier = standing.value?.balance.trustTier ?? null;
+  const transactions = standing.value?.transactions ?? [];
+  const isLoading = standing.isLoading;
   const error = standing.error
     ? (standing.error instanceof Error ? standing.error.message : null) ||
       t('trust.center.loadError') ||
