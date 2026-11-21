@@ -13,9 +13,7 @@ import { Field } from '@oxy.so/bloom/field';
 import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@oxy.so/contracts/client';
-import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { queryKeys } from '../../hooks/queries/queryKeys';
 import { useI18n } from '../../hooks/useI18n';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
@@ -33,7 +31,6 @@ export interface OxyPasswordPanelProps {
 export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCancel }) => {
   const { t } = useI18n();
   const { oxyServices } = useOxy();
-  const queryClient = useQueryClient();
   const state = useAccountSecurityState();
   const [removing, setRemoving] = useState(false);
   const [password, setPassword] = useState('');
@@ -51,10 +48,9 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
     );
   }
   const fallback = accountSecurityFallback(state, t('signInSecurity.password.title'), t);
-  if (fallback || !state.methods.data) return fallback;
-  const { hasEmail, hasPassword, totpEnabled } = state.methods.data;
-  const refresh = () =>
-    void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
+  if (fallback || !state.methods.value) return fallback;
+  const { hasEmail, hasPassword, totpEnabled } = state.methods.value;
+  const refresh = () => void state.methods.refresh();
 
   if (removing) {
     return (

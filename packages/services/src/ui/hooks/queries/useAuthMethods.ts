@@ -1,48 +1,50 @@
-import { useQuery } from '@tanstack/react-query';
+import { type RecordView, skip, useRecord } from '@oxy.so/bloom-data';
 import type { AuthMethodEntry, AuthMethodsResponse, SignInMethods } from '@oxy.so/contracts';
-import { queryKeys } from './queryKeys';
 import { useOxy } from '../../context/oxyRuntimeContext';
+import { authMethods, signInMethods } from '../../data/security';
 
-/** Stable empty list so the derived selectors keep a stable reference while loading. */
+/** Stable empty list so the derived fields keep a stable reference while loading. */
 const EMPTY_METHODS: readonly AuthMethodEntry[] = Object.freeze([]);
+
+export interface AuthMethodsView extends RecordView<AuthMethodsResponse> {
+  /** Every linked auth method. Empty while loading. */
+  readonly methods: readonly AuthMethodEntry[];
+  /** The account's DID, or `null` while loading. */
+  readonly did: string | null;
+}
 
 /**
  * The current account's linked authentication methods (`GET /auth/methods`).
  * Backs the security / account surfaces that let a user see their identity key
- * and social logins.
+ * and social logins. Waits for an active session.
  */
-export const useAuthMethods = (options?: { enabled?: boolean }) => {
+export const useAuthMethods = (options?: { enabled?: boolean }): AuthMethodsView => {
   const { oxyServices, activeSessionId } = useOxy();
-
-  const query = useQuery<AuthMethodsResponse>({
-    queryKey: queryKeys.authMethods.list(),
-    queryFn: () => oxyServices.identity.authMethods(),
-    enabled: options?.enabled !== false && !!activeSessionId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-  });
-
+  const view = useRecord(
+    authMethods,
+    ...(options?.enabled !== false && activeSessionId
+      ? ([oxyServices] as const)
+      : ([skip] as const)),
+  );
   return {
-    ...query,
-    /** Every linked auth method. Empty while loading. */
-    methods: query.data?.methods ?? EMPTY_METHODS,
-    /** The account's DID, or `null` while loading. */
-    did: query.data?.did ?? null,
+    ...view,
+    methods: view.value?.methods ?? EMPTY_METHODS,
+    did: view.value?.did ?? null,
   };
 };
 
 /**
  * How the signed-in account signs in (`GET /users/me/sign-in-methods`): whether
  * it has an email, a password, an authenticator app, and how many backup codes
- * are left. Invalidate `queryKeys.signInMethods.all` after changing any of them
- * (the security panels do).
+ * are left. Call `refresh()` after changing any of them (the security panels
+ * do). Waits for an active session.
  */
-export const useSignInMethods = (options?: { enabled?: boolean }) => {
-  const { oxyServices, activeSessionId, user } = useOxy();
-  return useQuery<SignInMethods>({
-    queryKey: queryKeys.signInMethods.current(user?.id),
-    queryFn: () => oxyServices.auth.methods(),
-    enabled: options?.enabled !== false && !!activeSessionId,
-    staleTime: 60 * 1000,
-  });
+export const useSignInMethods = (options?: { enabled?: boolean }): RecordView<SignInMethods> => {
+  const { oxyServices, activeSessionId } = useOxy();
+  return useRecord(
+    signInMethods,
+    ...(options?.enabled !== false && activeSessionId
+      ? ([oxyServices] as const)
+      : ([skip] as const)),
+  );
 };

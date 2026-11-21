@@ -68,13 +68,13 @@ export const OxySignInSecurityPanel: React.FC<OxySignInSecurityPanelProps> = ({ 
         />
       );
     }
-    if (!methods.data) {
-      return methods.isError ? (
+    if (!methods.value) {
+      return methods.status === 'error' ? (
         <GroupedSectionItem
           icon={<SettingsIcon name="alert-circle" color={theme.colors.error} />}
           title={t('signInSecurity.loadFailed')}
           description={t('signInSecurity.retry')}
-          onPress={() => void methods.refetch()}
+          onPress={() => void methods.refresh()}
           testID="sign-in-security-retry"
         />
       ) : (
@@ -86,7 +86,7 @@ export const OxySignInSecurityPanel: React.FC<OxySignInSecurityPanelProps> = ({ 
         />
       );
     }
-    const { hasEmail, hasPassword, totpEnabled, backupCodesRemaining } = methods.data;
+    const { hasEmail, hasPassword, totpEnabled, backupCodesRemaining } = methods.value;
     return (
       <>
         <GroupedSectionItem
@@ -131,7 +131,7 @@ export const OxySignInSecurityPanel: React.FC<OxySignInSecurityPanelProps> = ({ 
     );
   };
 
-  const noEmail = personal && !keyed && methods.data?.hasEmail === false;
+  const noEmail = personal && !keyed && methods.value?.hasEmail === false;
 
   return (
     <View>

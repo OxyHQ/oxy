@@ -17,9 +17,9 @@ import type React from 'react';
 import { useState } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
 import { EMAIL_CODE_LENGTH, checkContract, emailAddressCheck } from '@oxy.so/contracts/client';
-import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { queryKeys } from '../../hooks/queries/queryKeys';
+import { useQueryClient } from '../../hooks/useQueryClient';
 import { useI18n } from '../../hooks/useI18n';
 import { SubtleLink } from '../authChooser/primitives';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
@@ -49,6 +49,7 @@ export interface OxyEmailPanelProps {
 export const OxyEmailPanel: React.FC<OxyEmailPanelProps> = ({ onDone }) => {
   const { t } = useI18n();
   const { oxyServices, user } = useOxy();
+  // The signed-in account's own reads (its email) are still React Query's.
   const queryClient = useQueryClient();
   const security = useAccountSecurityState();
   const [step, setStep] = useState<Step>({ name: 'status' });
@@ -68,12 +69,12 @@ export const OxyEmailPanel: React.FC<OxyEmailPanelProps> = ({ onDone }) => {
     );
   }
   const fallback = accountSecurityFallback(security, t('signInSecurity.email.title'), t);
-  if (fallback || !security.methods.data) return fallback;
-  const { hasEmail, hasPassword, totpEnabled } = security.methods.data;
+  if (fallback || !security.methods.value) return fallback;
+  const { hasEmail, hasPassword, totpEnabled } = security.methods.value;
   const current = hasEmail ? (user?.email ?? null) : null;
 
   const finish = (message: string) => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
+    void security.methods.refresh();
     void queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
     toast.success(message);
     setStep({ name: 'status' });

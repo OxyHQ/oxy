@@ -200,8 +200,8 @@ function SupervisionBody({
   if (!state.data) return <OxyAuthLoading />;
   if (confirmation) {
     if (
-      methods.isError ||
-      (!methods.isLoading && !methods.data?.hasEmail && !methods.data?.hasPassword)
+      methods.status === 'error' ||
+      (!methods.isLoading && !methods.value?.hasEmail && !methods.value?.hasPassword)
     )
       return (
         <View style={styles.section}>
@@ -212,15 +212,15 @@ function SupervisionBody({
           </Button>
         </View>
       );
-    if (!methods.data) return <OxyAuthLoading />;
+    if (!methods.value) return <OxyAuthLoading />;
     return (
       <View style={styles.screen}>
         <ReauthStep
           title={confirmation.title}
           description={confirmation.description}
           action={confirmation.purchase ? 'supervision_purchase' : 'supervision'}
-          allowPassword={methods.data.hasPassword}
-          totpEnabled={methods.data.totpEnabled}
+          allowPassword={methods.value.hasPassword}
+          totpEnabled={methods.value.totpEnabled}
           submitLabel={t('supervision.confirm')}
           secondary={{ label: t('common.cancel'), onPress: () => setConfirmation(null) }}
           onSubmit={async (reauth) => {
