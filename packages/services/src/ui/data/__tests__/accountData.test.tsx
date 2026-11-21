@@ -32,6 +32,17 @@ describe('useAccountData', () => {
     expect(store.closed).toBe(true);
   });
 
+  it('deletes an account once when it is forgotten twice, and again after it reopens', async () => {
+    const { result } = renderHook(() => useAccountData(accountA));
+    const store = result.current.store;
+    const first = result.current.forget('a');
+    expect(result.current.forget('a')).toBe(first);
+    await act(() => first);
+    expect(store.closed).toBe(true);
+    act(() => result.current.open('a'));
+    expect(result.current.forget('a')).not.toBe(first);
+  });
+
   it('keys a subject by its id, and signed out by the signed-out account', () => {
     expect(accountDataKey('user-1')).toBe('user-1');
     expect(accountDataKey(null)).toBe(SIGNED_OUT_DATA_ACCOUNT);

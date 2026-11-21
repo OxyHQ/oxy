@@ -31,8 +31,12 @@ export interface AccountData {
   store: Store;
   /** Opens the store of `subject` (closing the previous one). Called by the runtime's subject change. */
   open: (subject: string | null) => void;
-  /** Deletes an account's data from this device (sign-out), closing its store if open. */
-  forget: (subject: string) => Promise<void>;
+  /**
+   * Deletes an account's data from this device (sign-out), closing its store
+   * if open. Forgetting an account again before it is opened again joins the
+   * first deletion.
+   */
+  forget: (subject: string | null) => Promise<void>;
 }
 
 /**
@@ -42,14 +46,27 @@ export interface AccountData {
  */
 export function useAccountData(currentSubject: () => string | null): AccountData {
   const [accounts] = useState<Accounts>(() => createAccounts({ persister: dataPersister }));
+  const [forgetting] = useState(() => new Map<string, Promise<void>>());
   const [store, setStore] = useState<Store>(() => accounts.open(accountDataKey(currentSubject())));
   const open = useCallback(
-    (next: string | null) => setStore(accounts.open(accountDataKey(next))),
-    [accounts],
+    (next: string | null) => {
+      const key = accountDataKey(next);
+      forgetting.delete(key);
+      setStore(accounts.open(key));
+    },
+    [accounts, forgetting],
   );
   const forget = useCallback(
-    (subject: string) => accounts.forget(accountDataKey(subject)),
-    [accounts],
+    (subject: string | null) => {
+      const key = accountDataKey(subject);
+      let deletion = forgetting.get(key);
+      if (!deletion) {
+        deletion = accounts.forget(key);
+        forgetting.set(key, deletion);
+      }
+      return deletion;
+    },
+    [accounts, forgetting],
   );
   // Closing on unmount lets the last queued writes reach the file. A remount
   // (Strict Mode, a host remounting the provider) opens the account again.
