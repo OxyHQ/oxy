@@ -265,6 +265,17 @@ describe('writes', () => {
   });
 });
 
+describe('the people on this device', () => {
+  it("shows a profile edit on the session's row at once", async () => {
+    const { result } = renderHook(() => useDeviceSessions(), { wrapper });
+    await waitFor(() => expect(result.current.ids).toEqual(['s1', 's2']));
+    expect(withStore(store, () => DeviceSession.get('s2'))?.user?.username).toBe('user-s2');
+
+    act(() => withStore(store, () => User.merge('u-s2', { username: 'renamed' })));
+    expect(withStore(store, () => DeviceSession.get('s2'))?.user?.username).toBe('renamed');
+  });
+});
+
 describe('one session', () => {
   it('describes a valid session and keeps its person in User', async () => {
     mockOxy.oxyServices.session.validate.mockResolvedValue({

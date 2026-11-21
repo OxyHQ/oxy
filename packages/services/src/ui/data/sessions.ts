@@ -23,7 +23,8 @@ import {
 import { fetchSessionsWithFallback, mapSessionsToClient } from '../utils/sessionHelpers';
 import { ACCOUNT, answerSource } from './answer';
 import { sdkRead } from './readOptions';
-import { userWriter } from './user';
+import { User, userWriter } from './user';
+import { normalizeIncoming } from './userRecord';
 
 const SESSION_STALE_MS = 2 * 60_000;
 const SESSION_GC_MS = 10 * 60_000;
@@ -88,8 +89,10 @@ export const validatedSession = source(ValidatedSession, {
 
 // ── The sessions on this device ─────────────────────────────────────
 
+/** A session on this device; its account is held in `User`, so a profile edit shows on its row. */
 export const DeviceSession = entity<DeviceLinkedSession>('oxy.device-session', {
   id: (session) => session.sessionId,
+  refs: { user: User },
   persist: true,
 });
 
@@ -110,9 +113,10 @@ export const deviceSessions = source(DeviceSessions, {
   stale: SESSION_STALE_MS,
   gcTime: SESSION_GC_MS,
   load: async (_request, oxy, activeSessionId) => {
-    const writeUsers = userWriter();
-    const rows = await oxy.devices.sessions(activeSessionId);
-    writeUsers(rows.map((row) => row.user));
+    const rows = (await oxy.devices.sessions(activeSessionId)).map((row) => ({
+      ...row,
+      user: row.user ? (normalizeIncoming(row.user) ?? undefined) : undefined,
+    }));
     return {
       items: rows,
       extra: { current: rows.filter((row) => row.isCurrent).map((row) => row.sessionId) },
