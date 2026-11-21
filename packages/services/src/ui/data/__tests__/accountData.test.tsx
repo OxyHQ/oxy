@@ -1,0 +1,45 @@
+import { act, renderHook } from '@testing-library/react';
+import { activeStore } from '@oxy.so/bloom-data';
+import { accountDataKey, SIGNED_OUT_DATA_ACCOUNT, useAccountData } from '../accountData';
+
+const accountA = () => 'a';
+
+describe('useAccountData', () => {
+  it('opens the subject at mount, signed out as its own account', () => {
+    const opened: string[] = [];
+    const persister = (account: string) => {
+      opened.push(account);
+      return undefined;
+    };
+    const signedOut = () => null;
+    const { result } = renderHook(() => useAccountData(persister, signedOut));
+    expect(opened).toEqual([SIGNED_OUT_DATA_ACCOUNT]);
+    expect(activeStore()).toBe(result.current.store);
+  });
+
+  it('opens the next account on a subject change and closes the previous store', () => {
+    const { result } = renderHook(() => useAccountData(undefined, accountA));
+    const first = result.current.store;
+    act(() => result.current.open('b'));
+    expect(result.current.store).not.toBe(first);
+    expect(first.closed).toBe(true);
+    expect(activeStore()).toBe(result.current.store);
+    const second = result.current.store;
+    act(() => result.current.open('b'));
+    expect(result.current.store).toBe(second);
+    act(() => result.current.open(null));
+    expect(second.closed).toBe(true);
+  });
+
+  it('closes the store on unmount', () => {
+    const { result, unmount } = renderHook(() => useAccountData(undefined, accountA));
+    const store = result.current.store;
+    unmount();
+    expect(store.closed).toBe(true);
+  });
+
+  it('keys a subject by its id, and signed out by the signed-out account', () => {
+    expect(accountDataKey('user-1')).toBe('user-1');
+    expect(accountDataKey(null)).toBe(SIGNED_OUT_DATA_ACCOUNT);
+  });
+});

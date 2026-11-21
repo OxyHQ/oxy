@@ -7,6 +7,7 @@ import type {
 } from '@oxy.so/core';
 import { type FollowErrorCode, toFollowErrorCode } from '../utils/followErrors';
 import { createSessionChangedError } from '../utils/sessionChangedError';
+import { userWriter } from '../data/user';
 
 interface FollowState {
   // Tri-state follow map: a MISSING key means UNKNOWN (status not yet resolved),
@@ -470,7 +471,9 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       loadingCounts: { ...state.loadingCounts, [userId]: true },
     }));
     try {
+      const store = userWriter();
       const user = await oxyServices.users.get(userId);
+      store(user);
       if (generation !== batchGeneration) return;
       if (user?._count) {
         set((state) => ({

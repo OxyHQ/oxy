@@ -11,6 +11,8 @@ import {
   setIsolatedOAuthSession,
 } from './isolatedOAuthSession';
 import type React from 'react';
+import { DataProvider } from '@oxy.so/bloom-data';
+import { useAccountData } from '../data/accountData';
 import {
   useCallback,
   useEffect,
@@ -170,6 +172,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   captureCampaignAttribution = false,
   platformStorage,
   accountQueries,
+  dataPersister,
   authStateStore: providedAuthStateStore,
   onAuthStateChange,
   onError,
@@ -339,6 +342,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     });
   }
   const runtime = runtimeRef.current;
+
+  // The account's `@oxy.so/bloom-data` store; the subject change below opens it.
+  const currentSubject = useCallback(() => runtime.getSnapshot().account?.id ?? null, [runtime]);
+  const accountData = useAccountData(dataPersister, currentSubject);
 
   const snapshot = useRuntimeSnapshot(runtime);
   const {
@@ -1780,6 +1787,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     ({ previous, next }: SubjectTransition): void => {
       // Every transition, the first sign-in included: the account cache is
       // keyed by the subject, and a sign-out deletes the signed-out one's.
+      accountData.open(next);
       accountQueryPersistence.activate(next);
       if (previous === null) {
         return;
@@ -1798,7 +1806,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       queryClient.invalidateQueries();
       void refreshAccounts();
     },
-    [accountQueryPersistence, queryClient, refreshAccounts],
+    [accountData, accountQueryPersistence, queryClient, refreshAccounts],
   );
   subjectChangeRef.current = handleSubjectChange;
 
@@ -1981,21 +1989,23 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // identity — so `useActiveAccount()` and friends re-render on the fact they
   // selected and nothing else. Phase 8 retires the inner one.
   return (
-    <OxyRuntimeHandleProvider value={runtime}>
-      <OxyAuthActionsContext.Provider value={authActionsValue}>
-        <OxyRuntimeContext.Provider value={contextValue}>
-          <AppAssertionProvider
-            oxyServices={oxyServices}
-            clientId={clientId}
-            userId={canUsePrivateApi ? (user?.id ?? null) : null}
-            sessionId={canUsePrivateApi ? activeSessionId : null}
-            storage={storage}
-            storageKeyPrefix={storageKeyPrefix}
-          >
-            {children}
-          </AppAssertionProvider>
-        </OxyRuntimeContext.Provider>
-      </OxyAuthActionsContext.Provider>
-    </OxyRuntimeHandleProvider>
+    <DataProvider store={accountData.store}>
+      <OxyRuntimeHandleProvider value={runtime}>
+        <OxyAuthActionsContext.Provider value={authActionsValue}>
+          <OxyRuntimeContext.Provider value={contextValue}>
+            <AppAssertionProvider
+              oxyServices={oxyServices}
+              clientId={clientId}
+              userId={canUsePrivateApi ? (user?.id ?? null) : null}
+              sessionId={canUsePrivateApi ? activeSessionId : null}
+              storage={storage}
+              storageKeyPrefix={storageKeyPrefix}
+            >
+              {children}
+            </AppAssertionProvider>
+          </OxyRuntimeContext.Provider>
+        </OxyAuthActionsContext.Provider>
+      </OxyRuntimeHandleProvider>
+    </DataProvider>
   );
 };

@@ -21,6 +21,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { getNormalizedUserHandle, logger } from '@oxy.so/core';
 import { extractErrorMessage } from '../utils/errorHandlers';
+import { userWriter } from '../data/user';
 
 interface ProfileScreenProps extends BaseScreenProps {
   userId: string;
@@ -66,6 +67,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
     retry: false,
     queryFn: async () => {
       // Follower/following counts come from the `useFollow` hook.
+      const store = userWriter();
       const [profileRes, reputationRes] = await Promise.all([
         oxyServices.users.get(userId).catch((err: unknown) => {
           if (isOwnProfile) return currentUser;
@@ -80,6 +82,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
           .then((balance): { total: number | undefined } => ({ total: balance.total }))
           .catch((): { total: number | undefined } => ({ total: undefined })),
       ]);
+      store(profileRes);
       if (!profileRes) {
         throw new Error('Profile data is not available');
       }

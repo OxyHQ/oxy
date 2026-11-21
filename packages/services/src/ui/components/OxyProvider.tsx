@@ -103,6 +103,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
   webAuthMode = 'popup',
   queryClient: providedQueryClient,
   accountQueries,
+  dataPersister,
   requireAuth = 'off',
   backgroundSession = false,
   language,
@@ -306,6 +307,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
           captureCampaignAttribution={campaignAttribution}
           platformStorage={platformStorage}
           accountQueries={accountQueries}
+          dataPersister={dataPersister}
           onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
         >
           {providerChildren}
@@ -326,6 +328,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
           captureCampaignAttribution={campaignAttribution}
           platformStorage={platformStorage}
           accountQueries={accountQueries}
+          dataPersister={dataPersister}
           authStateStore={authStateStore}
           onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
         >

@@ -143,6 +143,13 @@ export type {
   UpsertCachedUserOptions,
 } from './hooks/queries/userCache';
 
+// The people every app entity refers to (`refs: { user: User }`), held once per
+// account in `@oxy.so/bloom-data`; the session opens the account's store.
+export { User, storeUsers } from './data/user';
+export type { UserRecord } from './data/userRecord';
+export { SIGNED_OUT_DATA_ACCOUNT } from './data/accountData';
+export type { AccountDataPersister } from './data/accountData';
+
 // Stores
 export { useAuthStore } from './stores/authStore';
 

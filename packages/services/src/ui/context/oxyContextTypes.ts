@@ -1,3 +1,4 @@
+import type { AccountDataPersister } from '../data/accountData';
 import type { CampaignAttribution } from '@oxy.so/contracts';
 import type {
   StartNativeOAuthSignInOptions,
@@ -283,6 +284,8 @@ export interface OxyRuntimeProviderProps {
   authStateStore?: PlatformSetupAuthStateStore;
   /** See `OxyProviderProps.accountQueries`. Read once, at mount. */
   accountQueries?: AccountQueriesConfig;
+  /** See `OxyProviderProps.dataPersister`. Read once, at mount. */
+  dataPersister?: AccountDataPersister;
 }
 
 /** Internal commit input — session plus zero-cookie device credential. */

@@ -24,6 +24,8 @@
  * the platform holds the session and forbids a second credential.
  */
 import type React from 'react';
+import { DataProvider } from '@oxy.so/bloom-data';
+import { useAccountData } from '../data/accountData';
 import {
   useCallback,
   useEffect,
@@ -160,6 +162,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
   captureCampaignAttribution = false,
   platformStorage,
   accountQueries,
+  dataPersister,
   onAuthStateChange,
   onError,
 }) => {
@@ -201,6 +204,10 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
     });
   }
   const runtime = runtimeRef.current;
+
+  // The account's `@oxy.so/bloom-data` store; the subject change below opens it.
+  const currentSubject = useCallback(() => runtime.getSnapshot().account?.id ?? null, [runtime]);
+  const accountData = useAccountData(dataPersister, currentSubject);
 
   const host = 'host' in session ? session.host : null;
 
@@ -536,6 +543,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
 
   const handleSubjectChange = useCallback(
     ({ previous, next }: SubjectTransition): void => {
+      accountData.open(next);
       accountQueryPersistence.activate(next);
       if (previous === null) return;
       resetSessionScopedStores();
@@ -543,7 +551,7 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
       queryClient.removeQueries({ queryKey: [ASSET_DOWNLOAD_URLS_QUERY_KEY] });
       queryClient.invalidateQueries();
     },
-    [accountQueryPersistence, queryClient],
+    [accountData, accountQueryPersistence, queryClient],
   );
   useEffect(() => {
     subjectChangeRef.current = handleSubjectChange;
@@ -724,21 +732,23 @@ export const OxyHostedRuntimeProvider: React.FC<OxyHostedRuntimeProviderProps> =
   // manager does not speak yet. Until it does, no assertion is attempted here
   // rather than one through the wrong platform's lane.
   return (
-    <OxyRuntimeHandleProvider value={runtime}>
-      <OxyAuthActionsContext.Provider value={authActionsValue}>
-        <OxyRuntimeContext.Provider value={contextValue}>
-          <AppAssertionProvider
-            oxyServices={oxyServices}
-            clientId={clientId}
-            userId={null}
-            sessionId={null}
-            storage={storage}
-            storageKeyPrefix={storageKeyPrefix}
-          >
-            {children}
-          </AppAssertionProvider>
-        </OxyRuntimeContext.Provider>
-      </OxyAuthActionsContext.Provider>
-    </OxyRuntimeHandleProvider>
+    <DataProvider store={accountData.store}>
+      <OxyRuntimeHandleProvider value={runtime}>
+        <OxyAuthActionsContext.Provider value={authActionsValue}>
+          <OxyRuntimeContext.Provider value={contextValue}>
+            <AppAssertionProvider
+              oxyServices={oxyServices}
+              clientId={clientId}
+              userId={null}
+              sessionId={null}
+              storage={storage}
+              storageKeyPrefix={storageKeyPrefix}
+            >
+              {children}
+            </AppAssertionProvider>
+          </OxyRuntimeContext.Provider>
+        </OxyAuthActionsContext.Provider>
+      </OxyRuntimeHandleProvider>
+    </DataProvider>
   );
 };

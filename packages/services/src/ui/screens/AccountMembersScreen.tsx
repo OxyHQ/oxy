@@ -24,6 +24,7 @@ import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useApiErrorToast } from '../hooks/useApiErrorToast';
 import { withoutWhitespace } from '../utils/withoutWhitespace';
+import { userWriter } from '../data/user';
 
 /** Roles assignable via invite / role change — everything except `owner`. */
 type AssignableRole = Exclude<AccountRole, 'owner'>;
@@ -116,7 +117,9 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
     // Failing the query lets React Query retry it, where a resolved empty
     // answer would be cached as "no handle" for the whole stale window.
     queryFn: async () => {
+      const store = userWriter();
       const lookup = await oxyServices.users.lookupMany(memberUserIds);
+      store(lookup.found);
       if (lookup.failed.length > 0) throw lookup.error ?? new Error('Member profiles unavailable');
       return lookup.found;
     },

@@ -6,6 +6,7 @@ import { queryKeys } from './queryKeys';
 import { mutationKeys } from '../mutations/mutationKeys';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useAuthStore } from '../../stores/authStore';
+import { userWriter } from '../../data/user';
 
 /**
  * Get user profile by session ID
@@ -19,7 +20,10 @@ export const useUserProfile = (sessionId: string | null, options?: { enabled?: b
       if (!sessionId) {
         throw new Error('Session ID is required');
       }
-      return await oxyServices.users.bySession(sessionId);
+      const store = userWriter();
+      const user = await oxyServices.users.bySession(sessionId);
+      store(user);
+      return user;
     },
     enabled: options?.enabled !== false && !!sessionId,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -37,8 +41,11 @@ export const useUserProfiles = (sessionIds: string[], options?: { enabled?: bool
     queries: sessionIds.map((sessionId) => ({
       queryKey: queryKeys.users.profile(sessionId),
       queryFn: async () => {
+        const store = userWriter();
         const results = await oxyServices.users.bySessions([sessionId]);
-        return results[0]?.user || null;
+        const user = results[0]?.user || null;
+        store(user);
+        return user;
       },
       enabled: options?.enabled !== false && !!sessionId,
       staleTime: 5 * 60 * 1000,
@@ -78,7 +85,10 @@ export const useCurrentUser = (options?: { enabled?: boolean }) => {
     initialData: isAuthenticated && user ? user : undefined,
     initialDataUpdatedAt: 0,
     queryFn: async () => {
-      return await oxyServices.users.me();
+      const store = userWriter();
+      const me = await oxyServices.users.me();
+      store(me);
+      return me;
     },
     enabled: options?.enabled !== false && isAuthenticated && !!activeSessionId,
     staleTime: 1 * 60 * 1000, // 1 minute for current user
@@ -184,7 +194,10 @@ export const useUserById = (userId: string | null, options?: { enabled?: boolean
       if (!userId) {
         throw new Error('User ID is required');
       }
-      return await oxyServices.users.get(userId);
+      const store = userWriter();
+      const user = await oxyServices.users.get(userId);
+      store(user);
+      return user;
     },
     enabled: options?.enabled !== false && !!userId,
     staleTime: 5 * 60 * 1000,
@@ -218,7 +231,10 @@ export const useUserByUsername = (username: string | null, options?: { enabled?:
       // Match queryKeys.users.byUsername normalization so the cache key and
       // the API request agree (case-insensitive local handles).
       const normalizedUsername = username.trim().toLowerCase();
-      return await oxyServices.users.byUsername(normalizedUsername);
+      const store = userWriter();
+      const user = await oxyServices.users.byUsername(normalizedUsername);
+      store(user);
+      return user;
     },
     enabled: options?.enabled !== false && !!username,
     staleTime: 5 * 60 * 1000,
@@ -254,7 +270,10 @@ export const useUsersBySessions = (sessionIds: string[], options?: { enabled?: b
       if (sessionIds.length === 0) {
         return [];
       }
-      return await oxyServices.users.bySessions(sessionIds);
+      const store = userWriter();
+      const results = await oxyServices.users.bySessions(sessionIds);
+      store(results.map((result) => result.user));
+      return results;
     },
     enabled: options?.enabled !== false && sessionIds.length > 0,
     staleTime: 5 * 60 * 1000,
