@@ -1,8 +1,5 @@
-import {
-  createQueryClient,
-  queryRetryDelay,
-  shouldRetryQuery,
-} from '../../src/ui/hooks/queryClient';
+import { queryRetryDelay, shouldRetryQuery } from '../../src/ui/data/readOptions';
+import { createQueryClient } from '../../src/ui/hooks/queryClient';
 
 describe('query retry policy', () => {
   it.each([400, 401, 403, 404, 409, 422])('does not retry permanent HTTP %s', (status) => {

@@ -22,7 +22,8 @@
  */
 
 import { QueryClient, onlineManager, type Query } from '@tanstack/react-query';
-import { isDev, retryAfterSecondsOf } from '@oxy.so/core';
+import { isDev } from '@oxy.so/core';
+import { queryRetryDelay, shouldRetryQuery } from '../data/readOptions';
 import type { StorageInterface } from '../utils/storageHelpers';
 import { accountQueryOwnership, type AccountQueriesConfig } from './accountQueryPersistence';
 import {
@@ -37,42 +38,6 @@ import {
 const QUERY_CACHE_KEY = 'oxy_query_cache_v3';
 const QUERY_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 const QUERY_PERSIST_THROTTLE_MS = 1_000;
-const MAX_QUERY_RETRIES = 2;
-/** The longest a query waits, silently, for a refusal's `Retry-After`; a longer wait is the person's to see. */
-const MAX_RETRY_AFTER_MS = 30_000;
-
-function statusOf(error: unknown): number | null {
-  if (!error || typeof error !== 'object') return null;
-  const value =
-    (error as { status?: unknown; response?: { status?: unknown } }).status ??
-    (error as { response?: { status?: unknown } }).response?.status;
-  return typeof value === 'number' ? value : null;
-}
-
-/** The wait a refusal asked for (`Retry-After`), in ms; 0 when it named none. */
-function retryAfterMs(error: unknown): number {
-  return (retryAfterSecondsOf(error) ?? 0) * 1000;
-}
-
-/**
- * How long to wait before the next attempt: what the refusal asked for
- * (`Retry-After` of a 429) when it named a wait, else exponential backoff.
- */
-export function queryRetryDelay(attemptIndex: number, error: unknown): number {
-  return retryAfterMs(error) || Math.min(1000 * 2 ** attemptIndex, 30_000);
-}
-
-/** Retry only failures that another attempt can plausibly change. */
-export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
-  if (failureCount >= MAX_QUERY_RETRIES) return false;
-  const status = statusOf(error);
-  // A refusal that asks for a longer wait than we hold a query for: retrying
-  // sooner is refused again and spends the budget, so it fails now instead.
-  if (retryAfterMs(error) > MAX_RETRY_AFTER_MS) return false;
-  if (status === null) return true; // transport error without an HTTP response
-  return status === 408 || status === 425 || status === 429 || status >= 500;
-}
-
 /** Whether a query is under one of the SDK's own account-agnostic prefixes. */
 function isSharedQuery(query: Query): boolean {
   const head = query.queryKey[0];
