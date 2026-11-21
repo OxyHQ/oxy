@@ -1,6 +1,7 @@
-import { type RecordView, skip, useRecord } from '@oxy.so/bloom-data';
+import { type RecordView, skip } from '@oxy.so/bloom-data';
 import type { AuthMethodEntry, AuthMethodsResponse, SignInMethods } from '@oxy.so/contracts';
 import { useOxy } from '../../context/oxyRuntimeContext';
+import { useAnswer } from '../../data/answer';
 import { authMethods, signInMethods } from '../../data/security';
 
 /** Stable empty list so the derived fields keep a stable reference while loading. */
@@ -20,7 +21,7 @@ export interface AuthMethodsView extends RecordView<AuthMethodsResponse> {
  */
 export const useAuthMethods = (options?: { enabled?: boolean }): AuthMethodsView => {
   const { oxyServices, activeSessionId } = useOxy();
-  const view = useRecord(
+  const view = useAnswer(
     authMethods,
     ...(options?.enabled !== false && activeSessionId
       ? ([oxyServices] as const)
@@ -41,7 +42,7 @@ export const useAuthMethods = (options?: { enabled?: boolean }): AuthMethodsView
  */
 export const useSignInMethods = (options?: { enabled?: boolean }): RecordView<SignInMethods> => {
   const { oxyServices, activeSessionId } = useOxy();
-  return useRecord(
+  return useAnswer(
     signInMethods,
     ...(options?.enabled !== false && activeSessionId
       ? ([oxyServices] as const)

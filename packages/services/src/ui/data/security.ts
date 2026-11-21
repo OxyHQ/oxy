@@ -11,7 +11,7 @@
 import { entity, list, source } from '@oxy.so/bloom-data';
 import type { AuthMethodsResponse, SignInMethods } from '@oxy.so/contracts';
 import type { OxyServices, SecurityActivity, SecurityEventType } from '@oxy.so/core';
-import { ACCOUNT_VALUE, accountValue } from './accountValue';
+import { ACCOUNT, answerSource } from './answer';
 import { sdkRead } from './readOptions';
 
 const SECURITY_STALE_MS = 5 * 60_000;
@@ -84,27 +84,23 @@ export const securityActivity = source(SecurityActivityFeed, {
 
 // ── Authentication and sign-in methods ──────────────────────────────
 
-export const AuthMethods = accountValue<AuthMethodsResponse>('oxy.auth-methods');
-
 /** The account's linked authentication methods (`GET /auth/methods`). */
-export const authMethods = source(AuthMethods, {
+export const authMethods = answerSource('oxy.auth-methods', {
   ...sdkRead,
-  key: (_oxy: OxyServices) => ACCOUNT_VALUE,
+  key: (_oxy: OxyServices) => ACCOUNT,
   stale: SECURITY_STALE_MS,
   gcTime: SECURITY_GC_MS,
-  load: (_request, oxy) => oxy.identity.authMethods(),
+  load: (_request, oxy): Promise<AuthMethodsResponse> => oxy.identity.authMethods(),
 });
-
-export const SignInMethodsValue = accountValue<SignInMethods>('oxy.sign-in-methods');
 
 /**
  * How the account signs in (`GET /users/me/sign-in-methods`). Refresh it
  * after changing an email, a password or the authenticator.
  */
-export const signInMethods = source(SignInMethodsValue, {
+export const signInMethods = answerSource('oxy.sign-in-methods', {
   ...sdkRead,
-  key: (_oxy: OxyServices) => ACCOUNT_VALUE,
+  key: (_oxy: OxyServices) => ACCOUNT,
   stale: 60_000,
   gcTime: 30 * 60_000,
-  load: (_request, oxy) => oxy.auth.methods(),
+  load: (_request, oxy): Promise<SignInMethods> => oxy.auth.methods(),
 });

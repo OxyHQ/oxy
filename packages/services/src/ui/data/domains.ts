@@ -6,7 +6,7 @@
 import { action, entity, list, source } from '@oxy.so/bloom-data';
 import type { VerifiedDomain } from '@oxy.so/contracts';
 import type { OxyServices } from '@oxy.so/core';
-import { ACCOUNT_VALUE } from './accountValue';
+import { ACCOUNT } from './answer';
 import { sdkRead } from './readOptions';
 
 export const Domain = entity<VerifiedDomain>('oxy.verified-domain', {
@@ -15,10 +15,10 @@ export const Domain = entity<VerifiedDomain>('oxy.verified-domain', {
 
 export const Domains = list('oxy.verified-domains', { of: Domain });
 
-/** The identity's verified domains: one list per account, under `ACCOUNT_VALUE`. */
+/** The identity's verified domains: one list per account, under `ACCOUNT`. */
 export const domains = source(Domains, {
   ...sdkRead,
-  key: (_oxy: OxyServices) => ACCOUNT_VALUE,
+  key: (_oxy: OxyServices) => ACCOUNT,
   stale: 5 * 60_000,
   gcTime: 30 * 60_000,
   load: async (_request, oxy) => ({ items: await oxy.identity.domains.list() }),

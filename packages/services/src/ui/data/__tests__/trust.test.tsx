@@ -6,6 +6,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { DataProvider, skip, Store, useRecord } from '@oxy.so/bloom-data';
 import type { OxyServices } from '@oxy.so/core';
+import { useAnswer } from '../answer';
 import { reputationRules, TRUST_LEDGER_LIMIT, trustStanding } from '../trust';
 
 const reputation = {
@@ -54,15 +55,15 @@ it('reads no standing until the account is known', () => {
 
 it('reads the rules again only after ten minutes', async () => {
   jest.useFakeTimers({ now: new Date('2026-11-21T10:00:00.000Z') });
-  const first = renderHook(() => useRecord(reputationRules, oxy), { wrapper });
-  await waitFor(() => expect(first.result.current.value?.rules).toHaveLength(1));
+  const first = renderHook(() => useAnswer(reputationRules, oxy), { wrapper });
+  await waitFor(() => expect(first.result.current.value).toHaveLength(1));
   first.unmount();
 
   jest.setSystemTime(new Date('2026-11-21T10:09:00.000Z'));
-  renderHook(() => useRecord(reputationRules, oxy), { wrapper }).unmount();
+  renderHook(() => useAnswer(reputationRules, oxy), { wrapper }).unmount();
   expect(reputation.rules).toHaveBeenCalledTimes(1);
 
   jest.setSystemTime(new Date('2026-11-21T10:10:01.000Z'));
-  renderHook(() => useRecord(reputationRules, oxy), { wrapper });
+  renderHook(() => useAnswer(reputationRules, oxy), { wrapper });
   await waitFor(() => expect(reputation.rules).toHaveBeenCalledTimes(2));
 });

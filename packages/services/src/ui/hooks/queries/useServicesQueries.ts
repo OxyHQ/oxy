@@ -1,6 +1,7 @@
 import { type ListView, type RecordView, skip, useList, useRecord } from '@oxy.so/bloom-data';
 import type { AccountStorageUsageResponse, ClientSession, SecurityInfo } from '@oxy.so/core';
 import { useOxy } from '../../context/oxyRuntimeContext';
+import { useAnswer } from '../../data/answer';
 import {
   type DeviceSessionsExtra,
   deviceSessions,
@@ -72,7 +73,7 @@ export const useUserDevices = (options?: { enabled?: boolean }): ListView<unknow
 /** The account's security information. Waits for a signed-in account. */
 export const useSecurityInfo = (options?: { enabled?: boolean }): RecordView<SecurityInfo> => {
   const { oxyServices, isAuthenticated } = useOxy();
-  return useRecord(
+  return useAnswer(
     securityInfo,
     ...(options?.enabled !== false && isAuthenticated
       ? ([oxyServices] as const)
@@ -88,7 +89,7 @@ export const useAccountStorageUsage = (options?: {
   enabled?: boolean;
 }): RecordView<AccountStorageUsageResponse> => {
   const { oxyServices, isAuthenticated, activeSessionId } = useOxy();
-  return useRecord(
+  return useAnswer(
     storageUsage,
     ...(options?.enabled !== false && isAuthenticated && activeSessionId
       ? ([oxyServices] as const)

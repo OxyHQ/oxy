@@ -12,6 +12,10 @@
  * An answer belongs to its read: once a key's read state is dropped
  * (`gcTime`), a copy still in memory is not shown again until the key has
  * been read again, as the read it came from no longer exists.
+ *
+ * A value the account holds once (its sign-in methods, its storage usage) is
+ * an answer under `ACCOUNT`: every account has its own store, so one key
+ * serves every account.
  */
 import {
   entity,
@@ -24,6 +28,9 @@ import {
   useRecord,
 } from '@oxy.so/bloom-data';
 
+/** The key of a read the account makes once, such as its devices or its sign-in methods. */
+export const ACCOUNT = 'account';
+
 export interface Answer<T> {
   /** The key of the read that returned it. */
   readonly id: string;
@@ -34,14 +41,16 @@ export interface AnswerSourceOptions<A extends unknown[], T>
   extends Omit<RecordSourceOptions<A, Answer<T>>, 'load' | 'index' | 'put'> {
   /** The answer; it is held under `key(...args)`. */
   load: (request: { readonly signal: AbortSignal }, ...args: NoInfer<A>) => Promise<T>;
+  /** Copy the answers to the account's durable store. */
+  persist?: boolean;
 }
 
 /** A record source whose records are the answers of `load`, one per key. `type` names its entity. */
 export function answerSource<A extends unknown[], T>(
   type: string,
-  { load, ...options }: AnswerSourceOptions<A, T>,
+  { load, persist, ...options }: AnswerSourceOptions<A, T>,
 ): RecordSource<A, Answer<T>> {
-  return source(entity<Answer<T>>(type, { id: (answer) => answer.id }), {
+  return source(entity<Answer<T>>(type, { id: (answer) => answer.id, persist }), {
     ...options,
     load: async (request, ...args) => ({
       id: options.key(...args),

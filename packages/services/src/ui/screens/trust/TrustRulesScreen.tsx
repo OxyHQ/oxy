@@ -1,6 +1,5 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { useRecord } from '@oxy.so/bloom-data';
 import { View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -12,6 +11,7 @@ import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useI18n } from '../../hooks/useI18n';
 import { useOxy } from '../../context/oxyRuntimeContext';
+import { useAnswer } from '../../data/answer';
 import { reputationRules } from '../../data/trust';
 
 /** Stable display order for rule category sections. */
@@ -35,8 +35,8 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
   });
   const bloomTheme = useTheme();
 
-  const rulesQuery = useRecord(reputationRules, oxyServices);
-  const held = rulesQuery.value?.rules;
+  const rulesQuery = useAnswer(reputationRules, oxyServices);
+  const held = rulesQuery.value;
   const rules: readonly ReputationRule[] = Array.isArray(held) ? held : [];
   const isLoading = rulesQuery.isLoading;
   const error = rulesQuery.error

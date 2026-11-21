@@ -13,7 +13,7 @@ import type {
   ReputationTransaction,
 } from '@oxy.so/contracts';
 import type { OxyServices } from '@oxy.so/core';
-import { ACCOUNT_VALUE, accountValue } from './accountValue';
+import { ACCOUNT, answerSource } from './answer';
 import { sdkRead } from './readOptions';
 
 /** The SDK's default for a read that named no staleness of its own. */
@@ -65,17 +65,11 @@ export const reputationBalance = source(ReputationBalance, {
   load: async (_request, oxy, userId) => ({ userId, balance: await oxy.reputation.balance() }),
 });
 
-export interface ReputationRulesRecord {
-  readonly rules: readonly ReputationRule[];
-}
-
-export const ReputationRules = accountValue<ReputationRulesRecord>('oxy.reputation-rules');
-
 /** The enabled rules: what earns and what costs reputation. */
-export const reputationRules = source(ReputationRules, {
+export const reputationRules = answerSource('oxy.reputation-rules', {
   ...sdkRead,
-  key: (_oxy: OxyServices) => ACCOUNT_VALUE,
+  key: (_oxy: OxyServices) => ACCOUNT,
   stale: 10 * 60_000,
   gcTime: TRUST_GC_MS,
-  load: async (_request, oxy) => ({ rules: await oxy.reputation.rules() }),
+  load: (_request, oxy): Promise<ReputationRule[]> => oxy.reputation.rules(),
 });

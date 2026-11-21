@@ -21,7 +21,7 @@ import {
   type UserDevice,
 } from '@oxy.so/core';
 import { fetchSessionsWithFallback, mapSessionsToClient } from '../utils/sessionHelpers';
-import { ACCOUNT_VALUE, accountValue } from './accountValue';
+import { ACCOUNT, answerSource } from './answer';
 import { sdkRead } from './readOptions';
 import { userWriter } from './user';
 
@@ -130,10 +130,10 @@ export const Device = entity<UserDevice>('oxy.device', {
 
 export const Devices = list('oxy.devices', { of: Device, persist: true });
 
-/** The account's devices: one list per account, under `ACCOUNT_VALUE`. */
+/** The account's devices: one list per account, under `ACCOUNT`. */
 export const devices = source(Devices, {
   ...sdkRead,
-  key: (_oxy: OxyServices) => ACCOUNT_VALUE,
+  key: (_oxy: OxyServices) => ACCOUNT,
   stale: DEVICE_STALE_MS,
   gcTime: DEVICE_GC_MS,
   load: async (_request, oxy) => ({
@@ -141,25 +141,23 @@ export const devices = source(Devices, {
   }),
 });
 
-export const SecurityInfoValue = accountValue<SecurityInfo>('oxy.security-info', { persist: true });
-
-export const securityInfo = source(SecurityInfoValue, {
+export const securityInfo = answerSource('oxy.security-info', {
   ...sdkRead,
-  key: (_oxy: OxyServices) => ACCOUNT_VALUE,
+  persist: true,
+  key: (_oxy: OxyServices) => ACCOUNT,
   stale: DEVICE_STALE_MS,
   gcTime: DEVICE_GC_MS,
-  load: (_request, oxy) => oxy.devices.securityInfo(),
+  load: (_request, oxy): Promise<SecurityInfo> => oxy.devices.securityInfo(),
 });
 
-export const StorageUsage = accountValue<AccountStorageUsageResponse>('oxy.storage-usage');
-
 /** Server-aggregated usage across assets, mail, recordings and the rest. */
-export const storageUsage = source(StorageUsage, {
+export const storageUsage = answerSource('oxy.storage-usage', {
   ...sdkRead,
-  key: (_oxy: OxyServices) => ACCOUNT_VALUE,
+  key: (_oxy: OxyServices) => ACCOUNT,
   stale: DEVICE_STALE_MS,
   gcTime: DEVICE_GC_MS,
-  load: (_request, oxy) => authenticatedApiCall(oxy, undefined, () => oxy.assets.usage()),
+  load: (_request, oxy) =>
+    authenticatedApiCall<AccountStorageUsageResponse>(oxy, undefined, () => oxy.assets.usage()),
 });
 
 /**
@@ -177,7 +175,7 @@ function refreshSessionData(oxy: OxyServices, activeSessionId: string | null): v
     }
   }
   if (Devices.get(devices.key(oxy))) void devices.refresh(oxy);
-  if (SecurityInfoValue.has(ACCOUNT_VALUE)) void securityInfo.refresh(oxy);
+  if (securityInfo.entity.has(securityInfo.key(oxy))) void securityInfo.refresh(oxy);
 }
 
 function requireSession(activeSessionId: string | null): string {
