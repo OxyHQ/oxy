@@ -578,6 +578,24 @@ describe('profile writes', () => {
     ).rejects.toThrow('Username already exists');
   });
 
+  it('bumps updatedAt on a profile edit and serves it on the public by-ids row', async () => {
+    // Apps that cache other people's profiles (Mention's embedded post authors)
+    // keep the copy with the later `updatedAt`, so every profile write has to
+    // move it and the public bulk read has to carry it.
+    const before = new Date('2026-01-01T00:00:00.000Z');
+    const id = await makeUser({ updatedAt: before });
+
+    const [unchanged] = await userService.getUsersByIds([id]);
+    expect(unchanged.updatedAt).toEqual(before);
+
+    await userService.updateUserProfile(id, { name: { displayName: 'Renamed' }, avatar: 'file-2' });
+
+    const [edited] = await userService.getUsersByIds([id]);
+    expect(edited.name.displayName).toBe('Renamed');
+    expect(edited.updatedAt).toBeInstanceOf(Date);
+    expect((edited.updatedAt as Date).getTime()).toBeGreaterThan(before.getTime());
+  });
+
   it('replaces the link-metadata child rows in submitted order', async () => {
     const id = await makeUser();
 
