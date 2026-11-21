@@ -126,7 +126,6 @@ export {
   invalidatePrivacyQueries,
   invalidateSecurityQueries,
   invalidateStorageQueries,
-  invalidatePaymentsQueries,
   invalidateConnectedAppsQueries,
   invalidateAuthMethodsQueries,
 } from './hooks/queries/queryKeys';

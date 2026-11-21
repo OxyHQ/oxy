@@ -150,26 +150,6 @@ export const queryKeys = {
     all: ['domains'] as const,
     list: (userId?: string) => [...queryKeys.domains.all, 'list', userId || 'current'] as const,
   },
-
-  // Payment / wallet / subscription queries
-  payments: {
-    all: ['payments'] as const,
-    subscription: (userId?: string) =>
-      [...queryKeys.payments.all, 'subscription', userId || 'current'] as const,
-    history: (userId?: string) =>
-      [...queryKeys.payments.all, 'history', userId || 'current'] as const,
-    wallet: (userId?: string) =>
-      [...queryKeys.payments.all, 'wallet', userId || 'current'] as const,
-    walletTransactions: (limit?: number, offset?: number, userId?: string) =>
-      [
-        ...queryKeys.payments.all,
-        'wallet',
-        userId || 'current',
-        'transactions',
-        limit,
-        offset,
-      ] as const,
-  },
 } as const;
 
 /**
@@ -227,13 +207,6 @@ export const invalidateStorageQueries = (queryClient: QueryClient): void => {
  */
 export const invalidateAuthMethodsQueries = (queryClient: QueryClient): void => {
   queryClient.invalidateQueries({ queryKey: queryKeys.authMethods.all });
-};
-
-/**
- * Helper to invalidate all payments / wallet / subscription queries
- */
-export const invalidatePaymentsQueries = (queryClient: QueryClient): void => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
 };
 
 /**
