@@ -78,7 +78,6 @@ export { useSupervision, supervisionQueryKeys } from './hooks/queries/useSupervi
 export type { UseFollowTargetResult } from './hooks/useFollowTarget';
 export {
   useUserProfile,
-  useUserProfiles,
   useCurrentUser,
   useUserById,
   useUserByUsername,
@@ -116,32 +115,27 @@ export {
 } from './components/followRules';
 export type { FollowDuration, FollowMenuItem } from './components/followRules';
 
-// Query keys, cache invalidation and the canonical user-cache upsert
+// Query keys, cache invalidation and the user merge rules
 export {
   queryKeys,
   invalidateAccountQueries,
-  invalidateUserQueries,
   invalidateSessionQueries,
   invalidateDeviceQueries,
-  invalidatePrivacyQueries,
   invalidateSecurityQueries,
   invalidateStorageQueries,
   invalidatePaymentsQueries,
-  invalidateConnectedAppsQueries,
   invalidateAuthMethodsQueries,
 } from './hooks/queries/queryKeys';
 export {
-  upsertCachedUser,
-  upsertCachedUsers,
   CLEARABLE_USER_FIELDS,
   clearedFieldsFromProfileUpdate,
   clearedFieldsFromAccountUpdate,
-} from './hooks/queries/userCache';
+} from './data/userRecord';
 export type {
   CacheableUser,
   ClearableUserField,
   UpsertCachedUserOptions,
-} from './hooks/queries/userCache';
+} from './data/userRecord';
 
 // The people every app entity refers to (`refs: { user: User }`), held once per
 // account in `@oxy.so/bloom-data`; the session opens the account's store.

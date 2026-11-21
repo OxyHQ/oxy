@@ -44,7 +44,7 @@ const formatRelative = (iso: string): string => {
  *
  * Fetches via `useConnectedApps` (drives `GET /auth/grants`) and exposes a
  * "Revoke" action that hits `DELETE /auth/grants/:applicationId`. Each revoke
- * invalidates the connected-apps query so the list refreshes immediately.
+ * reads the connected apps again so the list refreshes immediately.
  */
 const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
   const bloomTheme = useTheme();
@@ -52,12 +52,10 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
 
   useSurfaceHeader({ title: t('connectedApps.title') || 'Connected apps' });
   const { isAuthenticated } = useOxy();
-  const {
-    data: apps,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useConnectedApps({ enabled: isAuthenticated });
+  const connected = useConnectedApps({ enabled: isAuthenticated });
+  const { isLoading, refresh } = connected;
+  const apps = connected.value?.apps;
+  const isRefreshing = connected.isFetching && !isLoading;
   const revokeMutation = useRevokeConnectedApp();
   const [revokingAppId, setRevokingAppId] = useState<string | null>(null);
 
@@ -77,7 +75,7 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
       }
       setRevokingAppId(app.applicationId);
       try {
-        await revokeMutation.mutateAsync(app.applicationId);
+        await revokeMutation.run(app.applicationId);
         toast.success(
           t('connectedApps.toasts.revoked', { name: app.name }) || `Revoked access for ${app.name}`,
         );
@@ -140,9 +138,9 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
           ListEmptyComponent={isLoading ? undefined : renderEmpty}
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching}
+              refreshing={isRefreshing}
               onRefresh={() => {
-                void refetch();
+                void refresh();
               }}
               tintColor={bloomTheme.colors.primary}
             />

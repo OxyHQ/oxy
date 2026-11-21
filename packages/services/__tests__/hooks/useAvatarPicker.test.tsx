@@ -17,10 +17,10 @@ jest.mock('../../src/ui/navigation/surfaces', () => ({
   openWithinOrPresent: (route: string, ...rest: unknown[]) => openWithinOrPresent(route, ...rest),
 }));
 
-// Avatar-set path is asserted, not exercised for real.
-const updateProfileWithAvatar = jest.fn().mockResolvedValue(undefined);
-jest.mock('../../src/ui/utils/avatarUtils', () => ({
-  updateProfileWithAvatar: (...args: unknown[]) => updateProfileWithAvatar(...args),
+// Avatar-set path (the `updateProfile` action) is asserted, not exercised for real.
+const updateProfile = jest.fn().mockResolvedValue(undefined);
+jest.mock('../../src/ui/data/account', () => ({
+  updateProfile: (...args: unknown[]) => updateProfile(...args),
 }));
 
 // Minimal core surface used by the hook (types are erased at runtime).
@@ -54,7 +54,6 @@ const renderPicker = (oxyServices: ReturnType<typeof makeOxyServices>) =>
       oxyServices: oxyServices as never,
       currentLanguage: 'en-US',
       activeSessionId: 'session-1',
-      queryClient: {} as never,
     }),
   );
 
@@ -82,12 +81,9 @@ describe('useAvatarPicker', () => {
       expect.anything(),
       'pickAvatarFile',
     );
-    expect(updateProfileWithAvatar).toHaveBeenCalledWith(
-      { avatar: 'uploaded-1' },
-      expect.anything(),
-      'session-1',
-      expect.anything(),
-    );
+    expect(updateProfile).toHaveBeenCalledWith(expect.anything(), 'session-1', {
+      avatar: 'uploaded-1',
+    });
     expect(toast.success).toHaveBeenCalled();
   });
 
@@ -102,12 +98,7 @@ describe('useAvatarPicker', () => {
 
     // A removal writes an EMPTY avatar — it never uploads anything.
     expect(oxyServices.assets.upload).not.toHaveBeenCalled();
-    expect(updateProfileWithAvatar).toHaveBeenCalledWith(
-      { avatar: '' },
-      expect.anything(),
-      'session-1',
-      expect.anything(),
-    );
+    expect(updateProfile).toHaveBeenCalledWith(expect.anything(), 'session-1', { avatar: '' });
     expect(toast.success).toHaveBeenCalledWith('editProfile.toasts.avatarRemoved');
   });
 
@@ -122,7 +113,7 @@ describe('useAvatarPicker', () => {
 
     expect(openWithinOrPresent).toHaveBeenCalledTimes(1);
     expect(oxyServices.assets.upload).not.toHaveBeenCalled();
-    expect(updateProfileWithAvatar).not.toHaveBeenCalled();
+    expect(updateProfile).not.toHaveBeenCalled();
   });
 
   it('surfaces an error when the upload returns no file id', async () => {
@@ -135,13 +126,13 @@ describe('useAvatarPicker', () => {
       await result.current.openAvatarPicker();
     });
 
-    expect(updateProfileWithAvatar).not.toHaveBeenCalled();
+    expect(updateProfile).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalled();
   });
 
   it('surfaces an error when clearing the avatar fails', async () => {
     openWithinOrPresent.mockResolvedValue({ removed: true });
-    updateProfileWithAvatar.mockRejectedValueOnce(new Error('network down'));
+    updateProfile.mockRejectedValueOnce(new Error('network down'));
     const oxyServices = makeOxyServices();
     const { result } = renderPicker(oxyServices);
 

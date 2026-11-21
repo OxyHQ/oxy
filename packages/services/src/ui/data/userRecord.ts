@@ -1,40 +1,24 @@
 /**
  * The merge rules of a user record: how a (possibly sparse) user joins the copy
- * already held. One set of rules for both places a user is held: the `User`
- * entity (`data/user.ts`, its `combine`) and the React Query user cache
- * (`hooks/queries/userCache.ts`), until every reader is on the entity.
+ * already held in the `User` entity (`data/user.ts`, its `combine`, and
+ * `storeUsers`).
  *
- * The problem this solves: many places across an app write a user object into
- * the React Query cache and REPLACE the existing entry — profile fetch, feed /
- * post hydration, search, notifications, lists. Each of those sources carries a
- * DIFFERENT (often sparse) slice of the user: a feed author has no viewer
- * `relationship`, a search hit has no `createdAt`, a notification actor has no
- * `_count`. A plain `setQueryData(key, sparseUser)` therefore STRIPS whatever
- * fields the authoritative single-profile fetch had already stored — the
+ * The problem this solves: many places across an app hold a user object —
+ * profile reads, feed / post hydration, search, notifications, lists. Each of
+ * those sources carries a DIFFERENT (often sparse) slice of the user: a feed
+ * author has no viewer `relationship`, a search hit has no `createdAt`, a
+ * notification actor has no `_count`. Replacing the held copy with a sparse one
+ * STRIPS whatever fields the authoritative single-profile read had stored — the
  * "Follows you tag vanishes when the feed loads" / "counts flash to zero" class
  * of bug.
  *
- * The fix (owned here, in the SDK): ONE canonical upsert that MERGES. It writes
- * under BOTH keys the SDK's user hooks read from:
- *   - by-id:       `queryKeys.users.detail(id)`             (read by `useUserById`)
- *   - by-username: `queryKeys.users.byUsername(username, viewerId)` (viewer-scoped;
- *                  read by `useUserByUsername`, carries the viewer `relationship`)
- *
- * Merge semantics (per key):
- *   - No existing entry  -> seed the (normalized) incoming object and mark it
- *     STALE (`updatedAt: 0`) so react-query refetches the full authoritative
- *     profile (viewer-relative `relationship`, counts, `createdAt`, …). Instant
- *     first paint, then the real fetch.
- *   - Existing entry     -> `{ ...existing, ...pickMeaningful(incoming) }`: only
- *     the DEFINED, non-empty fields of `incoming` win; every other field is kept
- *     from `existing`. A sparse source can never NULL-out or STRIP a field the
- *     authoritative fetch set. The entry's freshness is left untouched (never
- *     marked stale — it is already managed).
+ * The fix (owned here, in the SDK): ONE canonical merge.
+ *   - Only the DEFINED, non-empty fields of `incoming` win; every other field is
+ *     kept from the held copy. A sparse source can never NULL-out or STRIP a
+ *     field the authoritative read set.
  *   - Nested objects (`name`, `_count`, `relationship`) merge field-by-field, so
  *     a partial `name`/`_count`/`relationship` never replaces a fuller one.
- *   - `relationship` is written ONLY under the viewer-scoped by-username key —
- *     the viewer-independent by-id key never stores it (prevents one viewer's
- *     follow state from leaking into every other viewer's identity cache).
+ *   - `relationship` is the viewer's: each account has its own store.
  *   - Anti-degradation: a good `username` / `name.displayName` / `avatar` is
  *     never overwritten by a degraded/empty one (empty username, the
  *     `'Unknown user'` ghost-author sentinel, `null` avatar).
@@ -52,7 +36,7 @@
  * `''` on the wire to key on. The information that a field was deliberately
  * emptied exists ONLY at the call site that performed the write.
  *
- * So the caller declares it: `upsertCachedUser(qc, user, viewerId, { cleared:
+ * So the caller declares it: `storeUsers(user, { cleared:
  * ['avatar'] })`. For a declared field an incoming EMPTY value means the field
  * IS empty and the stale value is dropped; a MEANINGFUL incoming value still
  * wins as usual (so `{ cleared: ['name.displayName'] }` on a personal account,
@@ -192,7 +176,7 @@ export function clearedFieldsFromAccountUpdate(input: UpdateAccountInput): Clear
   return cleared;
 }
 
-/** Options for {@link upsertCachedUser}. */
+/** Options for `storeUsers`. */
 export interface UpsertCachedUserOptions {
   /**
    * Fields the write that produced this user DELIBERATELY emptied. For each,
@@ -351,12 +335,8 @@ function mergeRelationship(
 }
 
 /**
- * Merge a (normalized) incoming user over an existing cache entry: keep every
- * existing field, override only with the meaningful fields of `incoming`.
- *
- * When `includeRelationship` is false (the viewer-independent by-id key), the
- * viewer-relative `relationship` field is never read, written, or preserved —
- * only the by-username key carries it (`useUserByUsername`).
+ * Merge a (normalized) incoming user over the held one: keep every held
+ * field, override only with the meaningful fields of `incoming`.
  *
  * `cleared` names the fields the write deliberately emptied. It is applied
  * AFTER the merge, because the merge loop can only ever COPY a meaningful value
@@ -366,12 +346,8 @@ function mergeRelationship(
 export function mergeUsers(
   existing: CachedUser,
   incoming: CachedUser,
-  options?: {
-    includeRelationship?: boolean;
-    cleared?: readonly ClearableUserField[];
-  },
+  options?: { cleared?: readonly ClearableUserField[] },
 ): CachedUser {
-  const includeRelationship = options?.includeRelationship ?? true;
   const cleared = options?.cleared;
   const merged: CachedUser = { ...existing };
   for (const [key, value] of Object.entries(incoming)) {
@@ -390,12 +366,8 @@ export function mergeUsers(
   if (name !== undefined) merged.name = name;
   const count = mergeCount(existing._count, incoming._count);
   if (count !== undefined) merged._count = count;
-  if (includeRelationship) {
-    const relationship = mergeRelationship(existing.relationship, incoming.relationship);
-    if (relationship !== undefined) merged.relationship = relationship;
-  } else {
-    merged.relationship = undefined;
-  }
+  const relationship = mergeRelationship(existing.relationship, incoming.relationship);
+  if (relationship !== undefined) merged.relationship = relationship;
   if (cleared) {
     for (const field of cleared) {
       if (field === 'name.displayName') continue; // handled by `mergeName`.

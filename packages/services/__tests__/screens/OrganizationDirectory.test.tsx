@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, Store, withStore } from '@oxy.so/bloom-data';
 import type { ReactNode } from 'react';
+import { accountNode } from '../../src/ui/data/account';
 
 const accountGet = jest.fn();
 const search = jest.fn();
@@ -91,12 +93,29 @@ const organization = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 const clients: QueryClient[] = [];
+/** Each viewer's data store, as the session opens one per account. */
+let stores = new Map<string, Store>();
+function storeOf(viewerId: string): Store {
+  let store = stores.get(viewerId);
+  if (!store) {
+    store = new Store();
+    stores.set(viewerId, store);
+  }
+  return store;
+}
+function withData(client: QueryClient, child: ReactNode) {
+  return (
+    <QueryClientProvider client={client}>
+      <DataProvider store={storeOf(user.id)}>{child}</DataProvider>
+    </QueryClientProvider>
+  );
+}
 function mount(child: ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   clients.push(client);
-  return render(<QueryClientProvider client={client}>{child}</QueryClientProvider>);
+  return render(withData(client, child));
 }
 async function findCompany() {
   fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
@@ -106,6 +125,7 @@ async function findCompany() {
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  stores = new Map();
   ready = true;
   user = { id: 'person', kind: 'personal' };
   search.mockResolvedValue({ items: [organization], nextCursor: null });
@@ -367,11 +387,7 @@ it('does not reuse an owner membership when a different viewer opens the same or
     callerMembership: { permissions: [] },
   });
   user = { id: 'read-only-member', kind: 'personal' };
-  view.rerender(
-    <QueryClientProvider client={clients[0]}>
-      <AccountSettingsScreen accountId="existing-org" />
-    </QueryClientProvider>,
-  );
+  view.rerender(withData(clients[0], <AccountSettingsScreen accountId="existing-org" />));
   expect(screen.queryByRole('button', { name: 'organizationDirectory.save' })).toBeNull();
   await screen.findByText('organizationDirectory.readonly');
   expect(accountGet).toHaveBeenCalledTimes(2);
@@ -403,7 +419,9 @@ it('removes organization edit forms when the same viewer loses account access', 
   mount(<AccountSettingsScreen accountId="existing-org" />);
   await screen.findByRole('button', { name: 'organizationDirectory.save' });
   accountGet.mockRejectedValue(Object.assign(new Error('revoked'), { status: 403 }));
-  await clients[0].invalidateQueries({ queryKey: ['accounts', 'detail', 'existing-org'] });
+  await act(() =>
+    withStore(storeOf('person'), () => accountNode.refresh(oxyServices as never, 'existing-org')),
+  );
   await waitFor(() =>
     expect(screen.queryByRole('button', { name: 'organizationDirectory.save' })).toBeNull(),
   );

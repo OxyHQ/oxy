@@ -40,6 +40,8 @@ const USER_RECORD_VERSION = 1;
 
 export const User = entity<CachedUser>('user', {
   id: (user) => user.id,
+  // A profile is also found by its handle (`useUserByUsername`), however it was typed.
+  index: { username: (user) => normalizeUsername(user.username) },
   viewerFields: ['relationship'],
   // The newer copy is merged over the older; an equal one replaces as before.
   combine: (incoming, held) =>
@@ -50,6 +52,11 @@ export const User = entity<CachedUser>('user', {
 });
 
 type UserInput = CacheableUser | null | undefined;
+
+/** A username as `User`'s `username` index holds it: trimmed and lower-case. */
+export function normalizeUsername(username: unknown): string | undefined {
+  return typeof username === 'string' ? username.trim().toLowerCase() : undefined;
+}
 
 /** When a copy was last changed at Oxy, in ms; a copy without `updatedAt` is the oldest. */
 function updatedAtOf(user: CachedUser): number {

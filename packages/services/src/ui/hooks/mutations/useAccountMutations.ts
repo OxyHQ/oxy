@@ -1,755 +1,202 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { authenticatedApiCall } from '@oxy.so/core';
-import type {
-  AssetMetadata,
-  AssetUploadInput,
-  FileApplicationAccessRevocation,
-  NotificationPreferences,
-  PrivacySettings,
-  User,
-  UserPreferences,
-} from '@oxy.so/core';
+import { useCallback } from 'react';
+import { type ActionView, useAction } from '@oxy.so/bloom-data';
+import type { NotificationPreferences, PrivacySettings, User, UserPreferences } from '@oxy.so/core';
 import type { UserProfileUpdate } from '@oxy.so/contracts';
-import {
-  queryKeys,
-  invalidateAccountQueries,
-  invalidateConnectedAppsQueries,
-  invalidateUserQueries,
-  invalidateSessionQueries,
-} from '../queries/queryKeys';
-import { mutationKeys } from './mutationKeys';
-import { useOxy } from '../../context/oxyRuntimeContext';
 import { toast } from '@oxy.so/bloom/toast';
-import { useAuthStore } from '../../stores/authStore';
-import { clearedFieldsFromProfileUpdate, upsertCachedUser } from '../queries/userCache';
-import { removeAppAccessFromCache } from '../queries/useFileQueries';
+import { useOxy } from '../../context/oxyRuntimeContext';
+import {
+  type AvatarFile,
+  revokeConnectedApp,
+  updateAccountSettings,
+  updateNotificationPreferences,
+  updatePrivacySettings,
+  updateProfile,
+  updateUserPreferences,
+  uploadAvatar,
+  uploadFile,
+  type UploadFileInput,
+  type UploadResult,
+} from '../../data/account';
 import { describeApiError } from '../../utils/apiErrorMessage';
 import { describeUsernameRefusal } from '../../utils/usernamePolicy';
 import { useApiErrorToast } from '../useApiErrorToast';
 import { useI18n } from '../useI18n';
 
 /**
- * Update user profile with optimistic updates and offline queue support
+ * The account family's writes, as a component calls them: each is a
+ * `@oxy.so/bloom-data` action (`data/account.ts`) with the client and session
+ * bound. Running one shows the change at once, rejects when it fails (the person is
+ * told why, here), and `isPending`/`error` describe the last call.
  */
-export const useUpdateProfile = () => {
+
+/** Changes the signed-in person's profile; shown at once, rolled back if refused. */
+export const useUpdateProfile = (): ActionView<[UserProfileUpdate], User> => {
   const { t } = useI18n();
-  const { oxyServices, activeSessionId, user } = useOxy();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationKey: [...mutationKeys.account.updateProfile],
-    mutationFn: async (updates: UserProfileUpdate) => {
-      return authenticatedApiCall<User>(oxyServices, activeSessionId, () =>
-        oxyServices.users.updateMe(updates),
-      );
-    },
-    // Optimistic update
-    onMutate: async (updates) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
-
-      // Snapshot previous value
-      const previousUser = queryClient.getQueryData<User>(
-        queryKeys.accounts.current(activeSessionId),
-      );
-
-      // Optimistically update
-      if (previousUser) {
-        const optimisticUser: User = {
-          ...previousUser,
-          ...updates,
-          name: updates.name ? { ...previousUser.name, ...updates.name } : previousUser.name,
-        };
-        queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), optimisticUser);
-
-        // Also update profile query if sessionId is available
-        if (activeSessionId) {
-          queryClient.setQueryData<User>(queryKeys.users.profile(activeSessionId), optimisticUser);
-        }
-      }
-
-      return { previousUser };
-    },
-    // On error, rollback ONLY the keys this mutation tried to change
-    onError: (error, updates, context) => {
-      if (context?.previousUser && updates) {
-        const previousUser = context.previousUser;
-        const changedKeys = Object.keys(updates) as Array<keyof User>;
-        const partialRollback = changedKeys.reduce<Partial<User>>((acc, key) => {
-          (acc as Record<string, unknown>)[key as string] = previousUser[key];
-          return acc;
-        }, {});
-
-        const current = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
-        if (current) {
-          queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-            ...current,
-            ...partialRollback,
-          });
-        }
-        if (activeSessionId) {
-          const currentProfile = queryClient.getQueryData<User>(
-            queryKeys.users.profile(activeSessionId),
-          );
-          if (currentProfile) {
-            queryClient.setQueryData<User>(queryKeys.users.profile(activeSessionId), {
-              ...currentProfile,
-              ...partialRollback,
-            });
-          }
-        }
-      }
-      toast.error(
-        describeUsernameRefusal(error, updates?.username ?? '', t) ??
-          describeApiError(error, t, t('actionErrors.updateProfile')),
-      );
-    },
-    // On success, invalidate and refetch
-    onSuccess: (data, updates) => {
-      // Update cache with server response
-      queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
-      if (activeSessionId) {
-        queryClient.setQueryData(queryKeys.users.profile(activeSessionId), data);
-      }
-
-      // Update authStore so frontend components see the changes immediately
-      useAuthStore.getState().setUser(data);
-
-      const cleared = clearedFieldsFromProfileUpdate(updates);
-      upsertCachedUser(queryClient, data, data.id, {
-        cleared: cleared.length > 0 ? cleared : undefined,
-      });
-
-      // Invalidate all related queries so every consumer (the account dialog,
-      // session lists, managed accounts, etc.) refetches the fresh profile.
-      // This is critical right after `username` is set the first time, when
-      // every cached "session profile" still reports the user as unnamed.
-      invalidateUserQueries(queryClient);
-      invalidateAccountQueries(queryClient);
-      invalidateSessionQueries(queryClient);
-    },
-  });
-};
-
-/**
- * Upload avatar with progress tracking and offline queue support
- */
-export const useUploadAvatar = () => {
-  const showApiError = useApiErrorToast();
   const { oxyServices, activeSessionId } = useOxy();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationKey: [...mutationKeys.account.uploadAvatar],
-    mutationFn: async (file: { uri: string; type?: string; name?: string; size?: number }) => {
-      return authenticatedApiCall<User>(oxyServices, activeSessionId, async () => {
-        const uploadResult = await oxyServices.assets.upload(file, { visibility: 'public' });
-        const fileId = uploadResult?.file?.id;
-
-        if (!fileId || typeof fileId !== 'string') {
-          throw new Error('Upload succeeded but response did not contain a file ID');
-        }
-
-        // Update profile with file ID
-        return await oxyServices.users.updateMe({ avatar: fileId });
-      });
-    },
-    onMutate: async (file) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
-      const previousUser = queryClient.getQueryData<User>(
-        queryKeys.accounts.current(activeSessionId),
-      );
-
-      // Optimistically set a temporary avatar (using file URI as placeholder)
-      if (previousUser) {
-        const optimisticUser = {
-          ...previousUser,
-          avatar: file.uri, // Temporary, will be replaced with fileId
-        };
-        queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), optimisticUser);
-        if (activeSessionId) {
-          queryClient.setQueryData<User>(queryKeys.users.profile(activeSessionId), optimisticUser);
-        }
-      }
-
-      return { previousUser };
-    },
-    onError: (error, _file, context) => {
-      // Avatar upload only mutates the `avatar` field — restore only that key
-      if (context?.previousUser) {
-        const previousAvatar = context.previousUser.avatar;
-        const current = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
-        if (current) {
-          queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-            ...current,
-            avatar: previousAvatar,
-          });
-        }
-        if (activeSessionId) {
-          const currentProfile = queryClient.getQueryData<User>(
-            queryKeys.users.profile(activeSessionId),
-          );
-          if (currentProfile) {
-            queryClient.setQueryData<User>(queryKeys.users.profile(activeSessionId), {
-              ...currentProfile,
-              avatar: previousAvatar,
-            });
-          }
-        }
-      }
-      showApiError(error, 'actionErrors.uploadAvatar');
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
-      if (activeSessionId) {
-        queryClient.setQueryData(queryKeys.users.profile(activeSessionId), data);
-      }
-
-      // Update authStore so frontend components see the changes immediately
-      useAuthStore.getState().setUser(data);
-
-      // Invalidate all related queries to refresh everywhere, including the
-      // sessions cache so other-account avatars update too.
-      invalidateUserQueries(queryClient);
-      invalidateAccountQueries(queryClient);
-      invalidateSessionQueries(queryClient);
-      toast.success('Avatar updated successfully');
-    },
-  });
-};
-
-/**
- * Variables accepted by the `useUpdateAccountSettings` mutation.
- *
- * `currentUser` is captured at dispatch time so the rebuilt user object the
- * mutation returns is computed against a stable snapshot — NOT the cache
- * value at the moment the API call settles. Reading from the cache inside
- * `mutationFn` would race with sibling optimistic updates: a concurrent
- * write could already have overwritten the cache by the time the privacy
- * update returns, causing the rebuilt user to clobber the sibling's
- * optimistic value.
- */
-interface UpdateAccountSettingsVariables {
-  /** Subset of privacy fields to write. */
-  updates: Partial<PrivacySettings>;
-  /**
-   * The User snapshot captured at mutation dispatch time. The mutation
-   * rebuilds this user with the updated `privacySettings` and returns it
-   * to `onSuccess`. Required to avoid the race described above.
-   */
-  currentUser: User;
-}
-
-/**
- * Update account settings (privacy preferences).
- *
- * Privacy settings are not part of the `PUT /users/me` allow-list; the API
- * would silently drop them. Route through `updatePrivacySettings` so the
- * dedicated `PATCH /privacy/:id/privacy` endpoint performs a dot-path merge
- * and returns the updated `privacySettings` object.
- *
- * The returned object exposes the standard mutation surface PLUS a
- * convenience `mutate(updates)` / `mutateAsync(updates)` that snapshots
- * the current user from `useOxy()` at dispatch time. Callers that need to
- * supply their own user snapshot (testing, server-side) can call the
- * underlying `.mutate({ updates, currentUser })` form via `.mutation`.
- */
-export const useUpdateAccountSettings = () => {
-  const showApiError = useApiErrorToast();
-  const { oxyServices, activeSessionId, user } = useOxy();
-  const queryClient = useQueryClient();
-
-  const mutation = useMutation({
-    mutationKey: [...mutationKeys.account.updateSettings],
-    mutationFn: async ({ updates, currentUser }: UpdateAccountSettingsVariables) => {
-      const userId = currentUser.id;
-      if (!userId) {
-        throw new Error('User ID is required to update account settings');
-      }
-      const updatedPrivacy = await authenticatedApiCall<PrivacySettings>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.privacy.updateSettings(updates, userId),
-      );
-      // Rebuild against the dispatch-time snapshot, NOT the live cache.
-      // The cache may have been mutated by a sibling write between
-      // dispatch and settle; using `currentUser` keeps this mutation
-      // hermetic.
-      return {
-        ...currentUser,
-        privacySettings: updatedPrivacy,
-      };
-    },
-    onMutate: async ({ updates }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.accounts.settings() });
-      const previousUser = queryClient.getQueryData<User>(
-        queryKeys.accounts.current(activeSessionId),
-      );
-
-      if (previousUser) {
-        queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-          ...previousUser,
-          privacySettings: {
-            ...previousUser.privacySettings,
-            ...updates,
-          },
-        });
-      }
-
-      return { previousUser };
-    },
-    onError: (error, { updates }, context) => {
-      // Restore only the privacySettings keys this mutation tried to change
-      if (context?.previousUser && updates) {
-        const previousPrivacy = context.previousUser.privacySettings ?? {};
-        const changedKeys = Object.keys(updates) as Array<keyof PrivacySettings>;
-        const partialPrivacyRollback = changedKeys.reduce<Partial<PrivacySettings>>((acc, key) => {
-          (acc as Record<string, unknown>)[key as string] = (
-            previousPrivacy as Record<string, unknown>
-          )[key as string];
-          return acc;
-        }, {});
-
-        const current = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
-        if (current) {
-          queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-            ...current,
-            privacySettings: {
-              ...(current.privacySettings ?? {}),
-              ...partialPrivacyRollback,
-            },
-          });
-        }
-      }
-      showApiError(error, 'actionErrors.updateSettings');
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
-
-      // Update authStore so frontend components see the changes immediately
-      useAuthStore.getState().setUser(data);
-
-      invalidateAccountQueries(queryClient);
-      toast.success('Settings updated successfully');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts.settings() });
-    },
-  });
-
-  // Snapshot the current user at dispatch time. Reading `user` here (from
-  // the `useOxy()` closure of the call to `useUpdateAccountSettings`) is
-  // the dispatch-time value, captured the moment `mutate()` runs — exactly
-  // what the race fix needs.
-  return {
-    ...mutation,
-    mutate: (updates: Partial<PrivacySettings>): void => {
-      const currentUser =
-        user ?? queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
-      if (!currentUser) {
-        toast.error('Cannot update account settings: no current user');
-        return;
-      }
-      mutation.mutate({ updates, currentUser });
-    },
-    mutateAsync: async (updates: Partial<PrivacySettings>): Promise<User> => {
-      const currentUser =
-        user ?? queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
-      if (!currentUser) {
-        throw new Error('Cannot update account settings: no current user');
-      }
-      return mutation.mutateAsync({ updates, currentUser });
-    },
-  };
-};
-
-/**
- * Update privacy settings with optimistic updates and authentication handling
- */
-export const useUpdatePrivacySettings = () => {
-  const showApiError = useApiErrorToast();
-  const { oxyServices, activeSessionId, user } = useOxy();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationKey: [...mutationKeys.account.updatePrivacySettings],
-    mutationFn: async ({
-      settings,
-      userId,
-    }: {
-      settings: Partial<PrivacySettings>;
-      userId?: string;
-    }) => {
-      const targetUserId = userId || user?.id;
-      if (!targetUserId) {
-        throw new Error('User ID is required');
-      }
-
-      return authenticatedApiCall<PrivacySettings>(oxyServices, activeSessionId, () =>
-        oxyServices.privacy.updateSettings(settings, targetUserId),
-      );
-    },
-    // Optimistic update
-    onMutate: async ({ settings, userId }) => {
-      const targetUserId = userId || user?.id;
-      if (!targetUserId) return;
-
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: queryKeys.privacy.settings(targetUserId) });
-      await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
-
-      // Snapshot previous values
-      const previousPrivacySettings = queryClient.getQueryData(
-        queryKeys.privacy.settings(targetUserId),
-      );
-      const previousUser = queryClient.getQueryData<User>(
-        queryKeys.accounts.current(activeSessionId),
-      );
-
-      // Optimistically update privacy settings
-      if (previousPrivacySettings) {
-        queryClient.setQueryData<PrivacySettings>(queryKeys.privacy.settings(targetUserId), {
-          ...(previousPrivacySettings as PrivacySettings),
-          ...settings,
-        });
-      }
-
-      // Also update user query if available
-      if (previousUser) {
-        queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-          ...previousUser,
-          privacySettings: {
-            ...previousUser.privacySettings,
-            ...settings,
-          },
-        });
-      }
-
-      return { previousPrivacySettings, previousUser };
-    },
-    // On error, rollback ONLY the privacy keys this mutation tried to change.
-    // Restoring the entire previous object would wipe out other concurrent
-    // optimistic updates (e.g. user toggles two privacy switches in quick
-    // succession; failure on one must not revert the other).
-    onError: (error, { settings, userId }, context) => {
-      const targetUserId = userId || user?.id;
-      const changedKeys = settings ? (Object.keys(settings) as Array<keyof PrivacySettings>) : [];
-
-      // Rollback the privacy.settings query (partial)
-      if (context?.previousPrivacySettings && targetUserId && changedKeys.length > 0) {
-        const previousPrivacy = context.previousPrivacySettings as Record<string, unknown>;
-        const partialPrivacyRollback = changedKeys.reduce<Partial<PrivacySettings>>((acc, key) => {
-          (acc as Record<string, unknown>)[key as string] = previousPrivacy[key as string];
-          return acc;
-        }, {});
-        const currentPrivacy = queryClient.getQueryData<PrivacySettings>(
-          queryKeys.privacy.settings(targetUserId),
+  const view = useAction(updateProfile);
+  const { run: call } = view;
+  const run = useCallback(
+    (updates: UserProfileUpdate) =>
+      call(oxyServices, activeSessionId, updates).catch((error: unknown) => {
+        toast.error(
+          describeUsernameRefusal(error, updates.username ?? '', t) ??
+            describeApiError(error, t, t('actionErrors.updateProfile')),
         );
-        if (currentPrivacy) {
-          queryClient.setQueryData<PrivacySettings>(queryKeys.privacy.settings(targetUserId), {
-            ...currentPrivacy,
-            ...partialPrivacyRollback,
-          });
-        }
-      }
-
-      // Rollback the accounts.current() user.privacySettings (partial)
-      if (context?.previousUser && changedKeys.length > 0) {
-        const previousPrivacy = (context.previousUser.privacySettings ?? {}) as Record<
-          string,
-          unknown
-        >;
-        const partialPrivacyRollback = changedKeys.reduce<Partial<PrivacySettings>>((acc, key) => {
-          (acc as Record<string, unknown>)[key as string] = previousPrivacy[key as string];
-          return acc;
-        }, {});
-        const current = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
-        if (current) {
-          queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-            ...current,
-            privacySettings: {
-              ...(current.privacySettings ?? {}),
-              ...partialPrivacyRollback,
-            },
-          });
-        }
-      }
-
-      // After partial rollback, force a fresh fetch from the server so any
-      // concurrent-mutation state we may have failed to restore correctly
-      // gets reconciled with the source of truth. Targeted at privacy.settings
-      // only — NOT onSettled, which would defeat the merge fix on success.
-      if (targetUserId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.privacy.settings(targetUserId) });
-      }
-
-      showApiError(error, 'actionErrors.updatePrivacy');
-    },
-    // On success, MERGE the server response into the cached state. Older
-    // API builds returned only the changed field (or wiped the privacySettings
-    // subdocument when handed a partial update), which would clobber every
-    // other toggle if we blindly replaced. Defensive merge means the UI stays
-    // consistent regardless of server behaviour.
-    //
-    // BOTH the privacy.settings query AND the accounts.current() user are
-    // gated on `targetUserId`. If it's missing (no userId param, no logged-in
-    // user) the optimistic update in onMutate would have early-returned too,
-    // so neither cache was ever touched — there's nothing to reconcile here.
-    onSuccess: (data, { userId, settings }) => {
-      const targetUserId = userId || user?.id;
-      if (!targetUserId) return;
-
-      const incoming = (data ?? {}) as PrivacySettings;
-      const requested = (settings ?? {}) as Partial<PrivacySettings>;
-
-      queryClient.setQueryData<PrivacySettings>(
-        queryKeys.privacy.settings(targetUserId),
-        (previous) => ({
-          ...(previous ?? {}),
-          ...requested,
-          ...incoming, // server wins for fields it explicitly returned
-        }),
-      );
-
-      const currentUser = queryClient.getQueryData<User>(
-        queryKeys.accounts.current(activeSessionId),
-      );
-      if (currentUser) {
-        const updatedUser: User = {
-          ...currentUser,
-          privacySettings: {
-            ...(currentUser.privacySettings ?? {}),
-            ...requested,
-            ...incoming,
-          },
-        };
-        queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), updatedUser);
-        useAuthStore.getState().setUser(updatedUser);
-      }
-      // Deliberately NOT invalidating any queries here. invalidateAccountQueries
-      // invalidates accounts.all which is the prefix for accounts.current(),
-      // triggering a background refetch of useCurrentUser that would overwrite
-      // the merged state above. The onSuccess merge is the source of truth.
-    },
-  });
+        throw error;
+      }),
+    [call, oxyServices, activeSessionId, t],
+  );
+  return { ...view, run };
 };
 
-/** Uploaded file data structure from API */
-interface UploadedFile {
-  id: string;
-  originalName?: string;
-  sha256?: string;
-  mime?: string;
-  size?: number;
-  createdAt?: string;
-  metadata?: Record<string, unknown>;
-  variants?: Array<{
-    type: string;
-    key: string;
-    width?: number;
-    height?: number;
-    readyAt?: string;
-    metadata?: Record<string, unknown>;
-  }>;
-}
+/** Uploads a new picture and makes it the signed-in person's avatar. */
+export const useUploadAvatar = (): ActionView<[AvatarFile], User> => {
+  const showApiError = useApiErrorToast();
+  const { oxyServices, activeSessionId } = useOxy();
+  const view = useAction(uploadAvatar);
+  const { run: call } = view;
+  const run = useCallback(
+    async (file: AvatarFile) => {
+      try {
+        const user = await call(oxyServices, activeSessionId, file);
+        toast.success('Avatar updated successfully');
+        return user;
+      } catch (error) {
+        showApiError(error, 'actionErrors.uploadAvatar');
+        throw error;
+      }
+    },
+    [call, oxyServices, activeSessionId, showApiError],
+  );
+  return { ...view, run };
+};
 
-/** Upload result type that supports both single file and batch responses */
-interface UploadResult {
-  file?: UploadedFile;
-  files?: UploadedFile[];
-  id?: string;
+/**
+ * Changes the signed-in person's privacy preferences through the dedicated
+ * privacy endpoint (`PUT /users/me` would silently drop them). The person is
+ * snapshotted when the write is made, and the user it returns is rebuilt
+ * from that snapshot, so a sibling write settling meanwhile is not overwritten.
+ */
+export const useUpdateAccountSettings = (): ActionView<[Partial<PrivacySettings>], User> => {
+  const showApiError = useApiErrorToast();
+  const { oxyServices, activeSessionId, user } = useOxy();
+  const view = useAction(updateAccountSettings);
+  const { run: call } = view;
+  const run = useCallback(
+    async (updates: Partial<PrivacySettings>) => {
+      if (!user) throw new Error('Cannot update account settings: no current user');
+      try {
+        const updated = await call(oxyServices, activeSessionId, user, updates);
+        toast.success('Settings updated successfully');
+        return updated;
+      } catch (error) {
+        showApiError(error, 'actionErrors.updateSettings');
+        throw error;
+      }
+    },
+    [call, oxyServices, activeSessionId, user, showApiError],
+  );
+  return { ...view, run };
+};
+
+/** What `useUpdatePrivacySettings` writes: some settings of a person, the active account by default. */
+export interface PrivacySettingsChange {
+  settings: Partial<PrivacySettings>;
+  userId?: string;
 }
 
 /**
- * Update the authenticated user's notification preferences with optimistic
- * updates. Persisted on the User document via `PUT /users/me` — same cache-
- * invalidation behaviour as `useUpdateProfile`.
+ * Changes privacy settings, shown at once. Only the fields asked for are
+ * written, so two quick toggles never undo each other, and a failure drops
+ * exactly its own.
  */
-export const useUpdateNotificationPreferences = () => {
+export const useUpdatePrivacySettings = (): ActionView<
+  [PrivacySettingsChange],
+  PrivacySettings
+> => {
   const showApiError = useApiErrorToast();
-  const { oxyServices, activeSessionId } = useOxy();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationKey: [...mutationKeys.account.updateNotificationPreferences],
-    mutationFn: async (preferences: Partial<NotificationPreferences>) => {
-      return authenticatedApiCall<User>(oxyServices, activeSessionId, () =>
-        oxyServices.users.updateMe({ notificationPreferences: preferences }),
-      );
-    },
-    onMutate: async (preferences) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
-      const previousUser = queryClient.getQueryData<User>(
-        queryKeys.accounts.current(activeSessionId),
-      );
-
-      if (previousUser) {
-        queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-          ...previousUser,
-          notificationPreferences: {
-            ...previousUser.notificationPreferences,
-            ...preferences,
-          },
-        });
-      }
-
-      return { previousUser };
-    },
-    onError: (error, _preferences, context) => {
-      if (context?.previousUser) {
-        const current = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
-        if (current) {
-          queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-            ...current,
-            notificationPreferences: context.previousUser.notificationPreferences,
-          });
-        }
-      }
-      showApiError(error, 'actionErrors.updateNotifications');
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
-      useAuthStore.getState().setUser(data);
-      invalidateAccountQueries(queryClient);
-    },
-  });
-};
-
-/**
- * Update the authenticated user's general preferences (language, theme,
- * reduce-motion, timezone). Persisted on the User document via
- * `PUT /users/me`.
- */
-export const useUpdateUserPreferences = () => {
-  const showApiError = useApiErrorToast();
-  const { oxyServices, activeSessionId } = useOxy();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationKey: [...mutationKeys.account.updateUserPreferences],
-    mutationFn: async (preferences: Partial<UserPreferences>) => {
-      return authenticatedApiCall<User>(oxyServices, activeSessionId, () =>
-        oxyServices.users.updateMe({ userPreferences: preferences }),
-      );
-    },
-    onMutate: async (preferences) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
-      const previousUser = queryClient.getQueryData<User>(
-        queryKeys.accounts.current(activeSessionId),
-      );
-
-      if (previousUser) {
-        queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-          ...previousUser,
-          userPreferences: {
-            ...previousUser.userPreferences,
-            ...preferences,
-          },
-        });
-      }
-
-      return { previousUser };
-    },
-    onError: (error, _preferences, context) => {
-      if (context?.previousUser) {
-        const current = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
-        if (current) {
-          queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
-            ...current,
-            userPreferences: context.previousUser.userPreferences,
-          });
-        }
-      }
-      showApiError(error, 'actionErrors.updatePreferences');
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.accounts.current(activeSessionId), data);
-      useAuthStore.getState().setUser(data);
-      invalidateAccountQueries(queryClient);
-    },
-  });
-};
-
-/**
- * Revoke the current user's grant for a connected application (by its
- * `applicationId`). Removes the grant so the app no longer appears in the user's
- * "Connected apps" list — next sign-in for that app will require explicit
- * re-consent.
- */
-export const useRevokeConnectedApp = () => {
-  const showApiError = useApiErrorToast();
-  const { oxyServices, activeSessionId } = useOxy();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationKey: [...mutationKeys.connectedApps.revoke],
-    mutationFn: async (applicationId: string) => {
-      return authenticatedApiCall<void>(oxyServices, activeSessionId, () =>
-        oxyServices.apps.connected.revoke(applicationId),
-      );
-    },
-    onSuccess: () => {
-      invalidateConnectedAppsQueries(queryClient);
-    },
-    onError: (error) => {
-      showApiError(error, 'actionErrors.revokeConnectedApp');
-    },
-  });
-};
-
-/**
- * Upload file with authentication handling and progress tracking
- */
-export const useUploadFile = () => {
-  const { oxyServices, activeSessionId } = useOxy();
-
-  return useMutation({
-    mutationKey: [...mutationKeys.account.uploadFile],
-    mutationFn: async ({
-      file,
-      visibility,
-      metadata,
-      onProgress,
-    }: {
-      file: AssetUploadInput;
-      visibility?: 'private' | 'public' | 'unlisted';
-      metadata?: AssetMetadata;
-      onProgress?: (progress: number) => void;
-    }) => {
-      return authenticatedApiCall<UploadResult>(oxyServices, activeSessionId, () =>
-        oxyServices.assets.upload(file, { visibility, metadata, onProgress }),
-      );
-    },
-  });
-};
-
-/**
- * Take an application's access to one of the person's files away (ADR 0043
- * stage 4c): optimistic — the application leaves the cached list at once and
- * comes back if the revoke fails — then the list is re-read either way. The
- * caller shows its own toasts (it knows the application's name).
- */
-export const useRevokeFileAppAccess = () => {
-  const { oxyServices, activeSessionId } = useOxy();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationKey: [...mutationKeys.fileAppAccess.revoke],
-    mutationFn: async ({ fileId, applicationId }: { fileId: string; applicationId: string }) =>
-      authenticatedApiCall<FileApplicationAccessRevocation>(oxyServices, activeSessionId, () =>
-        oxyServices.assets.revokeAppAccess(fileId, applicationId),
+  const { oxyServices, activeSessionId, user } = useOxy();
+  const view = useAction(updatePrivacySettings);
+  const { run: call } = view;
+  const userId = user?.id;
+  const run = useCallback(
+    (change: PrivacySettingsChange) =>
+      call(oxyServices, activeSessionId, change.userId || userId, change.settings).catch(
+        (error: unknown) => {
+          showApiError(error, 'actionErrors.updatePrivacy');
+          throw error;
+        },
       ),
-    onMutate: async ({ fileId, applicationId }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.files.appAccess(fileId) });
-      return { previous: removeAppAccessFromCache(queryClient, fileId, applicationId) };
-    },
-    onError: (_error, { fileId }, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKeys.files.appAccess(fileId), context.previous);
-      }
-    },
-    onSettled: (_data, _error, { fileId }) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.files.appAccess(fileId) });
-    },
-  });
+    [call, oxyServices, activeSessionId, userId, showApiError],
+  );
+  return { ...view, run };
+};
+
+/** Changes the signed-in person's notification preferences, shown at once. */
+export const useUpdateNotificationPreferences = (): ActionView<
+  [Partial<NotificationPreferences>],
+  User
+> => {
+  const showApiError = useApiErrorToast();
+  const { oxyServices, activeSessionId } = useOxy();
+  const view = useAction(updateNotificationPreferences);
+  const { run: call } = view;
+  const run = useCallback(
+    (preferences: Partial<NotificationPreferences>) =>
+      call(oxyServices, activeSessionId, preferences).catch((error: unknown) => {
+        showApiError(error, 'actionErrors.updateNotifications');
+        throw error;
+      }),
+    [call, oxyServices, activeSessionId, showApiError],
+  );
+  return { ...view, run };
+};
+
+/** Changes the signed-in person's general preferences (language, theme, timezone), shown at once. */
+export const useUpdateUserPreferences = (): ActionView<[Partial<UserPreferences>], User> => {
+  const showApiError = useApiErrorToast();
+  const { oxyServices, activeSessionId } = useOxy();
+  const view = useAction(updateUserPreferences);
+  const { run: call } = view;
+  const run = useCallback(
+    (preferences: Partial<UserPreferences>) =>
+      call(oxyServices, activeSessionId, preferences).catch((error: unknown) => {
+        showApiError(error, 'actionErrors.updatePreferences');
+        throw error;
+      }),
+    [call, oxyServices, activeSessionId, showApiError],
+  );
+  return { ...view, run };
+};
+
+/**
+ * Revokes a connected application's grant (by its `applicationId`): it leaves
+ * the "Connected apps" list, and its next sign-in asks for consent again.
+ */
+export const useRevokeConnectedApp = (): ActionView<[string], void> => {
+  const showApiError = useApiErrorToast();
+  const { oxyServices, activeSessionId } = useOxy();
+  const view = useAction(revokeConnectedApp);
+  const { run: call } = view;
+  const run = useCallback(
+    (applicationId: string) =>
+      call(oxyServices, activeSessionId, applicationId).catch((error: unknown) => {
+        showApiError(error, 'actionErrors.revokeConnectedApp');
+        throw error;
+      }),
+    [call, oxyServices, activeSessionId, showApiError],
+  );
+  return { ...view, run };
+};
+
+/** Uploads a file to the person's library, reporting progress through `onProgress`. */
+export const useUploadFile = (): ActionView<[UploadFileInput], UploadResult> => {
+  const { oxyServices, activeSessionId } = useOxy();
+  const view = useAction(uploadFile);
+  const { run: call } = view;
+  const run = useCallback(
+    (input: UploadFileInput) => call(oxyServices, activeSessionId, input),
+    [call, oxyServices, activeSessionId],
+  );
+  return { ...view, run };
 };

@@ -29,17 +29,20 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =>
 
   const privacyQuery = usePrivacySettings(user?.id);
   const updateSettings = useUpdatePrivacySettings();
-  const privacy = privacyQuery.data ?? user?.privacySettings;
+  const privacy = privacyQuery.value ?? user?.privacySettings;
   const settings: SearchSettings = {
     safeSearch: privacy?.autoFilter ?? true,
     searchPersonalization: privacy?.dataSharing ?? true,
   };
   const isSaving = updateSettings.isPending;
-  const isLoading = !user?.id || privacyQuery.isPending;
+  const isLoading = !user?.id || privacyQuery.isLoading;
   const toggle = (key: keyof SearchSettings) => {
     if (isSaving || isLoading) return;
     const field = key === 'safeSearch' ? 'autoFilter' : 'dataSharing';
-    updateSettings.mutate({ userId: user.id, settings: { [field]: !settings[key] } });
+    // A failure is told to the person by the hook, and rolled back.
+    updateSettings
+      .run({ userId: user.id, settings: { [field]: !settings[key] } })
+      .catch(() => undefined);
   };
   useEffect(() => {
     if (privacyQuery.error) toast.error(t('privacySettings.loadError'));

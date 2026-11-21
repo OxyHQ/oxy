@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, Store } from '@oxy.so/bloom-data';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { AccountNode } from '@oxy.so/core';
 import { AccountSettings } from '../AccountSettings';
@@ -41,11 +41,11 @@ function channel(permissions: string[]): AccountNode {
 }
 
 function renderSettings(props: Partial<Parameters<typeof AccountSettings>[0]> = {}) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // A fresh account store each time, as the session opens one per account.
   return render(
-    <QueryClientProvider client={client}>
+    <DataProvider store={new Store()}>
       <AccountSettings accountId="chan" {...props} />
-    </QueryClientProvider>,
+    </DataProvider>,
   );
 }
 

@@ -11,7 +11,6 @@
 import {
   invalidateAccountQueries,
   invalidateSessionQueries,
-  invalidateUserQueries,
   queryKeys,
 } from '../../src/ui/hooks/queries/queryKeys';
 
@@ -35,72 +34,10 @@ describe('queryKeys.accounts', () => {
   });
 });
 
-describe('queryKeys.users', () => {
-  it('profile() is keyed by sessionId, not userId', () => {
-    expect(queryKeys.users.profile('s1')).toEqual(['users', 'detail', 's1', 'profile']);
-  });
-
-  it('detail() is keyed by userId', () => {
-    expect(queryKeys.users.detail('u1')).toEqual(['users', 'detail', 'u1']);
-  });
-
-  it('detailForViewer() scopes relationship-bearing fetches by viewer', () => {
-    expect(queryKeys.users.detailForViewer('u1', '')).toEqual([
-      'users',
-      'detail',
-      'u1',
-      'viewer',
-      '',
-    ]);
-    expect(queryKeys.users.detailForViewer('u1', 'viewer-2')).toEqual([
-      'users',
-      'detail',
-      'u1',
-      'viewer',
-      'viewer-2',
-    ]);
-  });
-
-  it('byUsername() scopes relationship-bearing fetches by viewer', () => {
-    expect(queryKeys.users.byUsername('alice', '')).toEqual([
-      'users',
-      'detail',
-      'username',
-      'alice',
-      'viewer',
-      '',
-    ]);
-    expect(queryKeys.users.byUsername('alice', 'viewer-2')).toEqual([
-      'users',
-      'detail',
-      'username',
-      'alice',
-      'viewer',
-      'viewer-2',
-    ]);
-  });
-
-  it('byUsername() normalizes username casing/whitespace so seeders agree by construction', () => {
-    const canonical = queryKeys.users.byUsername('alice', 'viewer-2');
-    expect(queryKeys.users.byUsername('Alice', 'viewer-2')).toEqual(canonical);
-    expect(queryKeys.users.byUsername('ALICE', 'viewer-2')).toEqual(canonical);
-    expect(queryKeys.users.byUsername('  Alice  ', 'viewer-2')).toEqual(canonical);
-  });
-
-  it('list() includes the supplied userIds', () => {
-    expect(queryKeys.users.list(['a', 'b'])).toEqual(['users', 'list', ['a', 'b']]);
-  });
-});
-
-describe('queryKeys.sessions / devices / privacy / security', () => {
+describe('queryKeys.sessions / devices / security', () => {
   it('sessions.device() is unique per deviceId', () => {
     expect(queryKeys.sessions.device('d1')).toEqual(['sessions', 'device', 'd1']);
     expect(queryKeys.sessions.device('d2')).toEqual(['sessions', 'device', 'd2']);
-  });
-
-  it("privacy.settings() resolves to 'current' when no userId is provided", () => {
-    expect(queryKeys.privacy.settings()).toEqual(['privacy', 'settings', 'current']);
-    expect(queryKeys.privacy.settings('u1')).toEqual(['privacy', 'settings', 'u1']);
   });
 
   it('security.activity() includes every filter argument in the key', () => {
@@ -178,14 +115,6 @@ describe('invalidate helpers', () => {
     invalidateAccountQueries(queryClient);
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: ['accounts'],
-    });
-  });
-
-  it('invalidateUserQueries scopes to the users root', () => {
-    const queryClient = { invalidateQueries: jest.fn() };
-    invalidateUserQueries(queryClient);
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['users'],
     });
   });
 

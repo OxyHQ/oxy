@@ -7,7 +7,7 @@ import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import Ionicons from '../icons/Ionicons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { skip, useAction, useEntity, useList, useRecord } from '@oxy.so/bloom-data';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -24,12 +24,30 @@ import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useApiErrorToast } from '../hooks/useApiErrorToast';
 import { withoutWhitespace } from '../utils/withoutWhitespace';
-import { userWriter } from '../data/user';
-
-/** Roles assignable via invite / role change — everything except `owner`. */
-type AssignableRole = Exclude<AccountRole, 'owner'>;
+import {
+  type AssignableRole,
+  accountInvitations,
+  accountNode,
+  accountRoster,
+  changeInvitation,
+  inviteMember,
+  memberProfiles,
+  removeMember,
+  transferOwnership,
+  updateMemberRole,
+} from '../data/account';
+import { User } from '../data/user';
+import type { CachedUser } from '../data/userRecord';
 
 const ASSIGNABLE_ROLES: AssignableRole[] = ['admin', 'editor', 'developer', 'billing', 'viewer'];
+
+const handleOf = (user: CachedUser | undefined) => getNormalizedUserHandle(user);
+
+/** A member's handle from `User`, or their id while no handle is known. */
+function MemberName({ userId }: { userId: string }) {
+  const handle = useEntity(User, userId, handleOf);
+  return <>{handle ?? userId}</>;
+}
 
 /**
  * Manage the members of an account (invite by email, change roles,
@@ -47,7 +65,6 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
     subtitle: t('accounts.members.subtitle') || 'People with access to this account.',
   });
   const { oxyServices, canUsePrivateApi, accounts } = useOxy();
-  const queryClient = useQueryClient();
 
   const id = typeof accountId === 'string' ? accountId : '';
 
@@ -56,19 +73,18 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
     [locale],
   );
 
-  const accountQuery = useQuery({
-    queryKey: ['accounts', 'detail', id],
-    initialData: accounts?.find((account) => account.accountId === id),
-    initialDataUpdatedAt: 0,
-    queryFn: () => oxyServices.accounts.get(id),
-    enabled: canUsePrivateApi && id.length > 0,
-  });
+  const accountView = useRecord(
+    accountNode,
+    ...(canUsePrivateApi && id.length > 0 ? ([oxyServices, id] as const) : [skip]),
+  );
+  // Until it is read, the node the session's account list holds.
+  const account = accountView.value ?? accounts?.find((entry) => entry.accountId === id);
 
-  const callerMembership = accountQuery.data?.callerMembership ?? null;
+  const callerMembership = account?.callerMembership ?? null;
   const permissions = callerMembership?.permissions ?? [];
   // The owner of an account (relationship 'self'/'owner') gets an implicit
   // full-permission set even when no explicit membership row exists.
-  const isImplicitOwner = accountQuery.data ? accountQuery.data.relationship !== 'member' : false;
+  const isImplicitOwner = account ? account.relationship !== 'member' : false;
   const can = useCallback(
     (permission: string): boolean => isImplicitOwner || permissions.includes(permission),
     [isImplicitOwner, permissions],
@@ -80,65 +96,36 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   const canRemove = can('members:remove');
   const canTransfer = can('ownership:transfer');
 
-  const membersQuery = useQuery({
-    queryKey: ['accounts', 'members', id],
-    queryFn: () => oxyServices.accounts.members.list(id),
-    enabled: canUsePrivateApi && id.length > 0 && canRead,
-  });
-  const invitationsQuery = useQuery({
-    queryKey: ['account-invitations', id],
-    queryFn: () => oxyServices.accounts.invitations.list(id),
-    enabled: canUsePrivateApi && !!id && canRead,
-  });
-  const invitationAction = useMutation({
-    mutationFn: async ({
-      invitationId,
-      action,
-    }: {
-      invitationId: string;
-      action: 'resend' | 'cancel';
-    }) => {
-      if (action === 'resend') await oxyServices.accounts.invitations.resend(id, invitationId);
-      else await oxyServices.accounts.invitations.cancel(id, invitationId);
+  const readable = canUsePrivateApi && id.length > 0 && canRead;
+  const roster = useRecord(accountRoster, ...(readable ? ([oxyServices, id] as const) : [skip]));
+  const invitations = useRecord(
+    accountInvitations,
+    ...(readable ? ([oxyServices, id] as const) : [skip]),
+  );
+  const invitationAction = useAction(changeInvitation);
+  const { run: runInvitationAction } = invitationAction;
+  const changeInvitationStatus = useCallback(
+    (invitationId: string, change: 'resend' | 'cancel') => {
+      runInvitationAction(oxyServices, id, invitationId, change).catch((error: unknown) =>
+        showApiError(error, 'accounts.members.toasts.invitationUpdateFailed'),
+      );
     },
-    onSuccess: () => {
-      void invitationsQuery.refetch();
-    },
-    onError: (error) => showApiError(error, 'accounts.members.toasts.invitationUpdateFailed'),
-  });
-  const members = useMemo<AccountMember[]>(() => membersQuery.data ?? [], [membersQuery.data]);
+    [runInvitationAction, oxyServices, id, showApiError],
+  );
+  const members = useMemo<readonly AccountMember[]>(
+    () => roster.value?.members ?? [],
+    [roster.value?.members],
+  );
   const memberUserIds = useMemo(
     () => [...new Set(members.map((member) => member.memberUserId).filter((id) => id.length > 0))],
     [members],
   );
-  const memberProfilesQuery = useQuery({
-    queryKey: ['users', 'by-ids', memberUserIds],
-    // `lookupMany`, not `getMany`: a chunk that failed is unknown, not absent.
-    // Failing the query lets React Query retry it, where a resolved empty
-    // answer would be cached as "no handle" for the whole stale window.
-    queryFn: async () => {
-      const store = userWriter();
-      const lookup = await oxyServices.users.lookupMany(memberUserIds);
-      store(lookup.found);
-      if (lookup.failed.length > 0) throw lookup.error ?? new Error('Member profiles unavailable');
-      return lookup.found;
-    },
-    enabled: canUsePrivateApi && memberUserIds.length > 0,
-  });
-  const memberLabelByUserId = useMemo(() => {
-    const labels = new Map<string, string>();
-    for (const profile of memberProfilesQuery.data ?? []) {
-      // `getNormalizedUserHandle` answers null for an actor with no resolvable
-      // handle. Leaving that entry out is what lets `memberDisplayLabel`'s own
-      // fallback run, rather than storing a null the map is not typed to hold.
-      const handle = getNormalizedUserHandle(profile);
-      if (handle) labels.set(profile.id, handle);
-    }
-    return labels;
-  }, [memberProfilesQuery.data]);
-  const memberDisplayLabel = useCallback(
-    (memberUserId: string): string => memberLabelByUserId.get(memberUserId) ?? memberUserId,
-    [memberLabelByUserId],
+  // Reads the members' profiles into `User`, where each row's name is read.
+  useList(
+    memberProfiles,
+    ...(canUsePrivateApi && memberUserIds.length > 0
+      ? ([oxyServices, memberUserIds] as const)
+      : [skip]),
   );
   // DIRECT owners only. The list also carries members whose row lives on an
   // ancestor, and the last-owner rule this count feeds is about the rows on THIS
@@ -150,73 +137,19 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
     [members],
   );
 
-  const invalidateMembers = useCallback(() => {
-    // Inherited rows on descendant rosters derive from ancestor membership
-    // tables — mirror the SDK's per-account prefix sweep so every cached member
-    // list refetches, not only the account that was mutated.
-    queryClient.invalidateQueries({ queryKey: ['accounts', 'members'] });
-    queryClient.invalidateQueries({ queryKey: ['account-invitations', id] });
-    queryClient.invalidateQueries({ queryKey: ['accounts', 'detail', id] });
-  }, [queryClient, id]);
-
   // --- Invite form state ---
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<AssignableRole>('editor');
   const [inviteError, setInviteError] = useState<string | null>(null);
 
-  const inviteMutation = useMutation({
-    mutationKey: ['accounts', 'members', 'invite', id],
-    mutationFn: (input: { email: string; role: AssignableRole }) =>
-      oxyServices.accounts.invitations.create(id, input),
-    onSuccess: () => {
-      setInviteEmail('');
-      setInviteRole('editor');
-      setInviteError(null);
-      invalidateMembers();
-      toast.success(t('accounts.members.toasts.invited'));
-    },
-    onError: (error) => {
-      invalidateMembers();
-      showApiError(error, 'accounts.members.toasts.inviteFailed');
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationKey: ['accounts', 'members', 'update', id],
-    mutationFn: (input: { memberId: string; role: AssignableRole }) =>
-      oxyServices.accounts.members.update(id, input.memberId, { role: input.role }),
-    onSuccess: () => {
-      invalidateMembers();
-      toast.success(t('accounts.members.toasts.roleUpdated') || 'Role updated');
-    },
-    onError: (error) => {
-      showApiError(error, 'accounts.members.toasts.roleFailed');
-    },
-  });
-
-  const removeMutation = useMutation({
-    mutationKey: ['accounts', 'members', 'remove', id],
-    mutationFn: (memberId: string) => oxyServices.accounts.members.remove(id, memberId),
-    onSuccess: () => {
-      invalidateMembers();
-      toast.success(t('accounts.members.toasts.removed') || 'Member removed');
-    },
-    onError: (error) => {
-      showApiError(error, 'accounts.members.toasts.removeFailed');
-    },
-  });
-
-  const transferMutation = useMutation({
-    mutationKey: ['accounts', 'members', 'transfer', id],
-    mutationFn: (userId: string) => oxyServices.accounts.transferOwnership(id, { userId }),
-    onSuccess: () => {
-      invalidateMembers();
-      toast.success(t('accounts.members.toasts.transferred') || 'Ownership transferred');
-    },
-    onError: (error) => {
-      showApiError(error, 'accounts.members.toasts.transferFailed');
-    },
-  });
+  const inviteMutation = useAction(inviteMember);
+  const updateMutation = useAction(updateMemberRole);
+  const removeMutation = useAction(removeMember);
+  const transferMutation = useAction(transferOwnership);
+  const { run: invite } = inviteMutation;
+  const { run: updateRole } = updateMutation;
+  const { run: remove } = removeMutation;
+  const { run: transfer } = transferMutation;
 
   const handleInvite = useCallback(() => {
     // The contract `POST /accounts/:id/invitations` holds the address to.
@@ -226,17 +159,28 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
       return;
     }
     setInviteError(null);
-    inviteMutation.mutate({ email, role: inviteRole });
-  }, [inviteEmail, inviteRole, inviteMutation, t]);
+    invite(oxyServices, id, { email, role: inviteRole }).then(
+      () => {
+        setInviteEmail('');
+        setInviteRole('editor');
+        setInviteError(null);
+        toast.success(t('accounts.members.toasts.invited'));
+      },
+      (error: unknown) => showApiError(error, 'accounts.members.toasts.inviteFailed'),
+    );
+  }, [inviteEmail, inviteRole, invite, oxyServices, id, showApiError, t]);
 
   const handleChangeRole = useCallback(
     (member: AccountMember, role: AccountRole) => {
       if (role === member.role || role === 'owner') {
         return;
       }
-      updateMutation.mutate({ memberId: member._id, role });
+      updateRole(oxyServices, id, member._id, role).then(
+        () => toast.success(t('accounts.members.toasts.roleUpdated') || 'Role updated'),
+        (error: unknown) => showApiError(error, 'accounts.members.toasts.roleFailed'),
+      );
     },
-    [updateMutation],
+    [updateRole, oxyServices, id, showApiError, t],
   );
 
   const confirmRemove = useCallback(
@@ -250,9 +194,13 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
         cancelLabel: t('common.cancel') || 'Cancel',
         destructive: true,
       });
-      if (confirmed) removeMutation.mutate(member._id);
+      if (!confirmed) return;
+      remove(oxyServices, id, member._id).then(
+        () => toast.success(t('accounts.members.toasts.removed') || 'Member removed'),
+        (error: unknown) => showApiError(error, 'accounts.members.toasts.removeFailed'),
+      );
     },
-    [removeMutation, t],
+    [remove, oxyServices, id, showApiError, t],
   );
 
   const confirmTransfer = useCallback(
@@ -266,9 +214,13 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
         cancelLabel: t('common.cancel') || 'Cancel',
         destructive: true,
       });
-      if (confirmed) transferMutation.mutate(member.memberUserId);
+      if (!confirmed) return;
+      transfer(oxyServices, id, member.memberUserId).then(
+        () => toast.success(t('accounts.members.toasts.transferred') || 'Ownership transferred'),
+        (error: unknown) => showApiError(error, 'accounts.members.toasts.transferFailed'),
+      );
     },
-    [transferMutation, t],
+    [transfer, oxyServices, id, showApiError, t],
   );
 
   if (!id) {
@@ -285,7 +237,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
   return (
     <View className="px-screen-margin pt-space-16 pb-space-32 gap-space-24">
-      {!accountQuery.isLoading && !canRead ? (
+      {!accountView.isLoading && !canRead ? (
         <Text className="text-body font-body text-text-secondary text-center py-space-24">
           {t('accounts.members.errors.noPermission') ||
             'You do not have permission to view members.'}
@@ -357,8 +309,8 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
       {canRead ? (
         <View className="gap-space-12">
           <Text className="text-body font-semibold text-text">Pending invitations</Text>
-          {invitationsQuery.isError ? <Text>Could not load invitations.</Text> : null}
-          {(invitationsQuery.data ?? []).map((invitation) => (
+          {invitations.status === 'error' ? <Text>Could not load invitations.</Text> : null}
+          {(invitations.value?.invitations ?? []).map((invitation) => (
             <View key={invitation.id} className="gap-space-8 p-space-16 rounded-radius-20 bg-fill">
               <Text>
                 {invitation.email} · {roleLabel(invitation.role)} · {invitation.status}
@@ -367,9 +319,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
               {canInvite ? (
                 <Button
                   disabled={invitationAction.isPending}
-                  onPress={() =>
-                    invitationAction.mutate({ invitationId: invitation.id, action: 'resend' })
-                  }
+                  onPress={() => changeInvitationStatus(invitation.id, 'resend')}
                 >
                   Resend
                 </Button>
@@ -377,9 +327,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
               {canRemove ? (
                 <Button
                   disabled={invitationAction.isPending}
-                  onPress={() =>
-                    invitationAction.mutate({ invitationId: invitation.id, action: 'cancel' })
-                  }
+                  onPress={() => changeInvitationStatus(invitation.id, 'cancel')}
                 >
                   Cancel invitation
                 </Button>
@@ -392,7 +340,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
       {/* Member list */}
       {canRead ? (
         <View className="gap-space-8">
-          {membersQuery.isLoading ? (
+          {roster.isLoading ? (
             <View className="items-center py-space-24">{null}</View>
           ) : members.length === 0 ? (
             <Text className="text-body font-body text-text-secondary text-center py-space-24">
@@ -424,7 +372,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                           className="text-body font-bodyBold text-text flex-1"
                           numberOfLines={1}
                         >
-                          {memberDisplayLabel(member.memberUserId)}
+                          <MemberName userId={member.memberUserId} />
                         </Text>
                         {isOwner ? (
                           <View

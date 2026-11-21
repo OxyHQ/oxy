@@ -24,33 +24,6 @@ export const queryKeys = {
     settings: () => [...queryKeys.accounts.all, 'settings'] as const,
   },
 
-  // User queries
-  users: {
-    all: ['users'] as const,
-    lists: () => [...queryKeys.users.all, 'list'] as const,
-    list: (userIds: string[]) => [...queryKeys.users.lists(), userIds] as const,
-    details: () => [...queryKeys.users.all, 'detail'] as const,
-    detail: (userId: string) => [...queryKeys.users.details(), userId] as const,
-    /** Viewer-scoped single-profile fetch by user id (`relationship` is viewer-relative). */
-    detailForViewer: (userId: string, viewerId: string) =>
-      [...queryKeys.users.details(), userId, 'viewer', viewerId] as const,
-    /**
-     * Viewer-scoped single-profile fetch by username (`relationship` is
-     * viewer-relative). Username is normalized to `trim().toLowerCase()` here
-     * so the hook key and any external seeder (e.g. Mention's precache) agree
-     * by construction — normalize once, never at call sites.
-     */
-    byUsername: (username: string, viewerId: string) =>
-      [
-        ...queryKeys.users.details(),
-        'username',
-        username.trim().toLowerCase(),
-        'viewer',
-        viewerId,
-      ] as const,
-    profile: (sessionId: string) => [...queryKeys.users.details(), sessionId, 'profile'] as const,
-  },
-
   // Session queries
   sessions: {
     all: ['sessions'] as const,
@@ -69,15 +42,6 @@ export const queryKeys = {
     list: (accountScope?: string) => [...queryKeys.devices.lists(), accountScope] as const,
     details: () => [...queryKeys.devices.all, 'detail'] as const,
     detail: (deviceId: string) => [...queryKeys.devices.details(), deviceId] as const,
-  },
-
-  // Privacy settings queries
-  privacy: {
-    all: ['privacy'] as const,
-    settings: (userId?: string) =>
-      [...queryKeys.privacy.all, 'settings', userId || 'current'] as const,
-    /** The active account's blocked + restricted lists. */
-    lists: (userId?: string) => [...queryKeys.privacy.all, 'lists', userId || 'current'] as const,
   },
 
   // Security activity queries
@@ -120,12 +84,6 @@ export const queryKeys = {
      * stage 4c) — under `files.all`, so a library invalidation refreshes it too.
      */
     appAccess: (fileId: string) => [...queryKeys.files.all, 'appAccess', fileId] as const,
-  },
-
-  // Connected apps (OAuth grants the user has authorized)
-  connectedApps: {
-    all: ['connectedApps'] as const,
-    list: () => [...queryKeys.connectedApps.all, 'list'] as const,
   },
 
   // Follow / social graph queries
@@ -180,13 +138,6 @@ export const invalidateAccountQueries = (queryClient: QueryClient): void => {
 };
 
 /**
- * Helper to invalidate all user-related queries
- */
-export const invalidateUserQueries = (queryClient: QueryClient): void => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
-};
-
-/**
  * Helper to invalidate all session-related queries
  */
 export const invalidateSessionQueries = (queryClient: QueryClient): void => {
@@ -198,13 +149,6 @@ export const invalidateSessionQueries = (queryClient: QueryClient): void => {
  */
 export const invalidateDeviceQueries = (queryClient: QueryClient): void => {
   queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
-};
-
-/**
- * Helper to invalidate all privacy-settings queries
- */
-export const invalidatePrivacyQueries = (queryClient: QueryClient): void => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.privacy.all });
 };
 
 /**
@@ -234,13 +178,6 @@ export const invalidateAuthMethodsQueries = (queryClient: QueryClient): void => 
  */
 export const invalidatePaymentsQueries = (queryClient: QueryClient): void => {
   queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
-};
-
-/**
- * Helper to invalidate the user's connected-apps list
- */
-export const invalidateConnectedAppsQueries = (queryClient: QueryClient): void => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.connectedApps.all });
 };
 
 /**

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useFollowStore } from '../stores/followStore';
 import { useOxy } from '../context/oxyRuntimeContext';
 import {
@@ -11,7 +11,7 @@ import {
 import type { FollowErrorCode } from '../utils/followErrors';
 import { useShallow } from 'zustand/react/shallow';
 import { queryKeys } from './queries/queryKeys';
-import { patchCachedUserRelationship } from './queries/userCacheRelationship';
+import { User } from '../data/user';
 
 /**
  * useFollow — Hook for follow state management.
@@ -27,7 +27,6 @@ import { patchCachedUserRelationship } from './queries/userCacheRelationship';
  *    them in selectors would cause unnecessary selector recalculations).
  */
 export const useFollow = (userId?: string | string[]) => {
-  const queryClient = useQueryClient();
   const { oxyServices, canUsePrivateApi } = useOxy();
   const userIds = useMemo(
     () => (Array.isArray(userId) ? userId : userId ? [userId] : []),
@@ -142,8 +141,8 @@ export const useFollow = (userId?: string | string[]) => {
     const accepted = await useFollowStore
       .getState()
       .toggleFollowUser(userId, oxyServices, currentlyFollowing);
-    if (accepted) patchCachedUserRelationship(queryClient, userId, !currentlyFollowing);
-  }, [isSingleUser, userId, canUsePrivateApi, oxyServices, queryClient]);
+    if (accepted) User.merge(userId, { relationship: { isFollowing: !currentlyFollowing } });
+  }, [isSingleUser, userId, canUsePrivateApi, oxyServices]);
 
   const setFollowStatus = useCallback(
     (following: boolean) => {
@@ -224,9 +223,9 @@ export const useFollow = (userId?: string | string[]) => {
       const accepted = await useFollowStore
         .getState()
         .toggleFollowUser(targetUserId, oxyServices, currentState);
-      if (accepted) patchCachedUserRelationship(queryClient, targetUserId, !currentState);
+      if (accepted) User.merge(targetUserId, { relationship: { isFollowing: !currentState } });
     },
-    [canUsePrivateApi, oxyServices, queryClient],
+    [canUsePrivateApi, oxyServices],
   );
 
   const setFollowStatusForUser = useCallback((targetUserId: string, following: boolean) => {

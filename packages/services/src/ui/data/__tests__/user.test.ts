@@ -1,6 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
 import { entity, setActiveStore, Store, withStore } from '@oxy.so/bloom-data';
-import { upsertCachedUser, upsertCachedUsers } from '../../hooks/queries/userCache';
 import { storeUsers, User, userWriter } from '../user';
 
 let store: Store;
@@ -141,23 +139,5 @@ describe('userWriter', () => {
     setActiveStore(new Store());
     write({ id: 'u1', username: 'ada' });
     expect(withStore(store, () => User.has('u1'))).toBe(true);
-  });
-});
-
-describe('upsertCachedUser', () => {
-  it('writes the person into User as well as the query cache', () => {
-    const queryClient = new QueryClient();
-    upsertCachedUser(queryClient, profile, 'viewer');
-    upsertCachedUsers(queryClient, [{ id: 'u5', username: 'kat', name: 'Kat' }], 'viewer');
-    expect(User.get('u1')).toEqual(profile);
-    expect(User.get('u5')).toEqual({ id: 'u5', username: 'kat', name: { displayName: 'Kat' } });
-  });
-
-  it('passes a declared clear to User', () => {
-    const queryClient = new QueryClient();
-    upsertCachedUser(queryClient, profile, 'viewer');
-    upsertCachedUser(queryClient, { id: 'u1', username: 'ada' }, 'viewer', { cleared: ['bio'] });
-    expect(User.get('u1')?.bio).toBeUndefined();
-    expect(User.get('u1')?.avatar).toBe('file-1');
   });
 });

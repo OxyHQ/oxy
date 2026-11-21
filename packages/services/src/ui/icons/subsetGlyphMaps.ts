@@ -325,7 +325,6 @@ export const materialCommunityIconsGlyphMap = {
   "tray-arrow-down": 983328,
   "trophy": 984376,
   "trophy-outline": 984378,
-  "update": 984752,
   "upload": 984402,
   "video-outline": 986076,
   "volume-off": 984449,

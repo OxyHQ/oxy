@@ -11,7 +11,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import type { FileApplicationAccess } from '@oxy.so/core';
 import { useI18n } from '../../hooks/useI18n';
 import { useFileAppAccess } from '../../hooks/queries/useFileQueries';
-import { useRevokeFileAppAccess } from '../../hooks/mutations/useAccountMutations';
+import { useRevokeFileAppAccess } from '../../hooks/mutations/useFileAppAccessMutations';
 
 const APP_ICON_SIZE = 32;
 

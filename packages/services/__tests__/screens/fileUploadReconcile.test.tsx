@@ -114,7 +114,7 @@ const tempEntries = (client: QueryClient) =>
 
 const makeParams = (mutateAsync: jest.Mock) => ({
   targetUserId: OWNER,
-  uploadFileMutation: { mutateAsync } as unknown as UploadMutation,
+  uploadFileMutation: { run: mutateAsync } as unknown as UploadMutation,
   defaultVisibility: 'private' as const,
   selectMode: false,
   multiSelect: false,

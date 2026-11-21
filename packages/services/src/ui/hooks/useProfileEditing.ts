@@ -125,7 +125,7 @@ export const useProfileEditing = () => {
       }
 
       try {
-        await updateProfileMutation.mutateAsync(updateData);
+        await updateProfileMutation.run(updateData);
         return true;
       } catch (error: unknown) {
         // Error toast is handled by the mutation

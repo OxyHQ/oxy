@@ -104,7 +104,7 @@ export function useAccountColorSave({
 } {
   const { user } = useAuth();
   const { mode, colorPreset, setColorPreset } = useBloomTheme();
-  const { mutateAsync, isPending } = useUpdateProfile();
+  const { run: updateProfile, isPending } = useUpdateProfile();
   const colors = useMemo(
     () => entitledAccountColors(user).filter((name) => canUse?.(name) ?? true),
     [user, canUse],
@@ -115,7 +115,7 @@ export function useAccountColorSave({
       const previous = colorPreset;
       setColorPreset(name);
       try {
-        await mutateAsync({
+        await updateProfile({
           color: name,
           themePreference: {
             mode:
@@ -129,7 +129,7 @@ export function useAccountColorSave({
         throw error;
       }
     },
-    [colors, colorPreset, setColorPreset, mutateAsync, user, mode],
+    [colors, colorPreset, setColorPreset, updateProfile, user, mode],
   );
   return { colors, value: colorPreset, saveColor, saving: isPending };
 }

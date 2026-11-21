@@ -65,7 +65,7 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
     hasIdentity,
   } = useOxy();
 
-  const { data: userFromQuery, isLoading: userLoading } = useCurrentUser({
+  const { value: userFromQuery, isLoading: userLoading } = useCurrentUser({
     enabled: isAuthenticated,
   });
   // `user` IS the active account. In the real-session switch model, switching

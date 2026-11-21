@@ -15,7 +15,7 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
 jest.mock('../../src/ui/hooks/useI18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 jest.mock('../../src/ui/hooks/useSurfaceHeader', () => ({ useSurfaceHeader: () => undefined }));
 jest.mock('../../src/ui/hooks/mutations/useAccountMutations', () => ({
-  useUpdateProfile: () => ({ mutateAsync, isPending: false }),
+  useUpdateProfile: () => ({ run: mutateAsync, isPending: false }),
 }));
 
 beforeEach(() => {

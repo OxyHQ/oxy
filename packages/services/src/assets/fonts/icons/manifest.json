@@ -153,8 +153,8 @@
     "materialCommunityIcons": {
       "fontFamily": "OxyServicesMaterialCommunityIcons",
       "file": "src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf",
-      "bytes": 29428,
-      "sha256": "753326d0f2e150fb56967854632ebdb60b3ed65cb5d6ea9cd01118d8eaea1c8d",
+      "bytes": 29284,
+      "sha256": "ca8fb1b2696e36f690b4333ce894ea964c477d11ad486b1b844cd2ac652032ea",
       "names": [
         "account",
         "account-circle",
@@ -339,7 +339,6 @@
         "tray-arrow-down",
         "trophy",
         "trophy-outline",
-        "update",
         "upload",
         "video-outline",
         "volume-off",
@@ -356,5 +355,5 @@
     }
   },
   "glyphMapsFile": "src/ui/icons/subsetGlyphMaps.ts",
-  "glyphMapsSha256": "aa9b65907b9ab6ed7f0238ac22e3b9d006da8eb5131bef0af3b5fa89cc192ad1"
+  "glyphMapsSha256": "22a2a16a6c9ab7d3fa6828a6edb38917884233d73964f951b534f9acec5c1a0d"
 }

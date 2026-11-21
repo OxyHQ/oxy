@@ -6,9 +6,9 @@ let mockCurrentLanguage = 'en-US';
 let mockCanUsePrivateApi = true;
 const mockUser = { id: 'account', publicKey: '', username: 'ada', name: {} };
 let mockQuery: {
-  data?: typeof mockUser & { languages?: string[] };
-  dataUpdatedAt: number;
-  isError: boolean;
+  value?: typeof mockUser & { languages?: string[] };
+  updatedAt: number;
+  status: 'success' | 'error';
   fetchStatus?: 'fetching' | 'paused' | 'idle';
 };
 jest.mock('../../context/oxyRuntimeContext', () => ({
@@ -23,7 +23,7 @@ jest.mock('../../context/oxyRuntimeContext', () => ({
 jest.mock('../../hooks/queries/useAccountQueries', () => ({ useCurrentUser: () => mockQuery }));
 
 it('waits for the owner preference query and its runtime projection before painting the account app', async () => {
-  mockQuery = { data: mockUser, dataUpdatedAt: 0, isError: false };
+  mockQuery = { value: mockUser, updatedAt: 0, status: 'success' };
   const onChange = jest.fn();
   const config = { supportedLocales: ['en-US', 'es-ES'], fallbackLocale: 'en-US', onChange };
   const screen = render(
@@ -32,7 +32,7 @@ it('waits for the owner preference query and its runtime projection before paint
     </AccountLanguageBoundary>,
   );
   expect(screen.queryByText('App')).toBeNull();
-  mockQuery = { data: { ...mockUser, languages: ['es-ES'] }, dataUpdatedAt: 123, isError: false };
+  mockQuery = { value: { ...mockUser, languages: ['es-ES'] }, updatedAt: 123, status: 'success' };
   screen.rerender(
     <AccountLanguageBoundary language={config}>
       <span>App</span>
@@ -56,9 +56,9 @@ it.each(['paused', 'disabled', 'error'] as const)(
     mockCurrentLanguage = 'en-US';
     mockCanUsePrivateApi = unavailable !== 'disabled';
     mockQuery = {
-      data: mockUser,
-      dataUpdatedAt: 0,
-      isError: unavailable === 'error',
+      value: mockUser,
+      updatedAt: 0,
+      status: unavailable === 'error' ? 'error' : 'success',
       fetchStatus: unavailable === 'paused' ? 'paused' : 'idle',
     };
     const onChange = jest.fn();
@@ -74,9 +74,9 @@ it.each(['paused', 'disabled', 'error'] as const)(
     expect(onChange.mock.calls).toEqual([['en-US']]);
     mockCanUsePrivateApi = true;
     mockQuery = {
-      data: { ...mockUser, languages: ['es-ES'] },
-      dataUpdatedAt: 123,
-      isError: false,
+      value: { ...mockUser, languages: ['es-ES'] },
+      updatedAt: 123,
+      status: 'success',
       fetchStatus: 'idle',
     };
     mockCurrentLanguage = 'es-ES';

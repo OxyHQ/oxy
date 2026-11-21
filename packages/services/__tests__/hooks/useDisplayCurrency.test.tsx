@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, Store, withStore } from '@oxy.so/bloom-data';
+import { User } from '../../src/ui/data/user';
 import { useDisplayCurrency } from '../../src/ui/hooks/useDisplayCurrency';
+
 let mockUser = { id: 'a', userPreferences: { displayCurrency: 'EUR' } };
 let mockSession = 'a-session';
 let mockAuthenticated = true;
@@ -19,21 +21,27 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   }),
 }));
 jest.mock('../../src/ui/hooks/queries/useAccountQueries', () => ({
-  useCurrentUser: () => ({ data: mockUser }),
+  useCurrentUser: () => ({ value: mockUser }),
 }));
 jest.mock('../../src/ui/stores/authStore', () => ({
   useAuthStore: { getState: () => ({ user: mockUser, setUser: mockSetUser }) },
 }));
+
+/** Each account's store, as the session opens one per account. */
+const stores = new Map<string, Store>();
+function storeOf(account: string): Store {
+  let store = stores.get(account);
+  if (!store) {
+    store = new Store();
+    stores.set(account, store);
+  }
+  return store;
+}
 function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}
-    >
-      {children}
-    </QueryClientProvider>
-  );
+  return <DataProvider store={storeOf(mockUser.id)}>{children}</DataProvider>;
 }
 beforeEach(() => {
+  stores.clear();
   mockUser = { id: 'a', userPreferences: { displayCurrency: 'EUR' } };
   mockSession = 'a-session';
   mockAuthenticated = true;
@@ -48,6 +56,17 @@ test('restores account preference and replaces it on account switch', () => {
   rerender();
   expect(result.current.currency).toBe('FAIR');
 });
+test('a saved choice joins the account and the signed-in profile', async () => {
+  const saved = { id: 'a', userPreferences: { displayCurrency: 'USD' } };
+  mockUpdate.mockResolvedValue(saved);
+  const { result } = renderHook(useDisplayCurrency, { wrapper });
+  act(() => result.current.selectCurrency('USD'));
+  await waitFor(() => expect(mockSetUser).toHaveBeenCalledWith(saved));
+  expect(withStore(storeOf('a'), () => User.get('a'))?.userPreferences).toEqual({
+    displayCurrency: 'USD',
+  });
+  expect(result.current.isSaving).toBe(false);
+});
 test('a response after account switching never overwrites the current account', async () => {
   let finish: (value: unknown) => void = () => {};
   mockUpdate.mockImplementation(
@@ -61,12 +80,24 @@ test('a response after account switching never overwrites the current account', 
   await waitFor(() =>
     expect(mockUpdate).toHaveBeenCalledWith({ userPreferences: { displayCurrency: 'USD' } }),
   );
+  // The session opens B's store and closes A's.
+  await act(async () => {
+    await storeOf('a').close();
+  });
   mockUser = { id: 'b', userPreferences: { displayCurrency: 'FAIR' } };
   mockSession = 'b-session';
   rerender();
   await act(async () => finish({ id: 'a', userPreferences: { displayCurrency: 'USD' } }));
   expect(mockSetUser).not.toHaveBeenCalled();
+  expect(withStore(storeOf('b'), () => User.get('a'))).toBeUndefined();
   expect(result.current.currency).toBe('FAIR');
+});
+test('refuses an answer for another account than the one that chose', async () => {
+  mockUpdate.mockResolvedValue({ id: 'someone-else', userPreferences: { displayCurrency: 'USD' } });
+  const { result } = renderHook(useDisplayCurrency, { wrapper });
+  act(() => result.current.selectCurrency('USD'));
+  await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+  expect(mockSetUser).not.toHaveBeenCalled();
 });
 test('signed out selection makes no private write', () => {
   mockAuthenticated = false;
