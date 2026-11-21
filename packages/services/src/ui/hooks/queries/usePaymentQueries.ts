@@ -1,124 +1,61 @@
-import { useQuery } from '@tanstack/react-query';
-import { authenticatedApiCall } from '@oxy.so/core';
-import { queryKeys } from './queryKeys';
+import { skip } from '@oxy.so/bloom-data';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import type { Subscription, Payment, Wallet, WalletTransactionsResponse } from './paymentTypes';
+import { useAnswer } from '../../data/answer';
+import { paymentHistory, subscription, wallet, walletTransactions } from '../../data/payments';
 
 /**
- * Payment / wallet / subscription query hooks.
+ * Payment / wallet / subscription hooks over `data/payments.ts`.
  *
- * These replace the imperative `oxyServices.*` + `Promise.allSettled` +
- * `useEffect` pattern used in app screens. Each hook:
- *  - is gated on `isAuthenticated` (the underlying SDK methods read the
- *    current user id off the access token and throw when unauthenticated),
- *  - routes through `authenticatedApiCall` so a stale token is refreshed and
- *    auth errors are handled consistently (matches `useUserDevices` /
- *    `usePrivacySettings`),
- *  - keeps its `queryFn` pure — no store writes, no side effects.
- *
- * The wrapped SDK methods (`@oxy.so/core` payment mixin) return `any`; the
- * generic on `authenticatedApiCall<T>` pins the resolved value to the
- * precise domain type so consumers get full typing.
+ * Each hook is gated on a signed-in account (the underlying SDK methods read
+ * the current user id off the access token and throw when unauthenticated)
+ * and returns a bloom-data `RecordView`: the answer is its `value`.
  */
 
+/** The arguments of a private billing read, or `skip` until there is a signed-in account. */
+function useBillingAccount(options?: { enabled?: boolean }) {
+  const { oxyServices, isAuthenticated, activeSessionId, user } = useOxy();
+  const enabled = options?.enabled !== false && isAuthenticated && !!user?.id;
+  return enabled && user?.id ? ([oxyServices, user.id, activeSessionId ?? null] as const) : null;
+}
+
 /**
- * Get the current user's subscription.
- *
- * Wraps `oxyServices.billing.subscription()`
- * (`GET /subscription/:userId`, billing-first). Returns the persisted
- * subscription or the API's `{ plan: 'basic' }` fallback when the user has
- * never subscribed.
+ * The current user's subscription (`GET /subscription/:userId`, billing-first):
+ * the persisted subscription, or the API's `{ plan: 'basic' }` fallback when
+ * the user has never subscribed.
  */
 export const useUserSubscription = (options?: { enabled?: boolean }) => {
-  const { oxyServices, isAuthenticated, activeSessionId, user } = useOxy();
-
-  return useQuery({
-    queryKey: queryKeys.payments.subscription(user?.id),
-    queryFn: async () => {
-      return authenticatedApiCall<Subscription>(oxyServices, activeSessionId, () =>
-        oxyServices.billing.subscription(),
-      );
-    },
-    enabled: options?.enabled !== false && isAuthenticated && !!user?.id,
-    // Subscription state changes rarely; tolerate a longer fresh window.
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
-  });
+  const account = useBillingAccount(options);
+  return useAnswer(subscription, ...(account ?? [skip]));
 };
 
 /**
- * Get the current user's payment / billing history.
- *
- * Wraps `oxyServices.billing.payments()` (`GET /payments/user`), which
- * returns the user's `deposit` and `purchase` transactions newest-first.
+ * The current user's payment / billing history (`GET /payments/user`): its
+ * `deposit` and `purchase` transactions, newest first.
  */
 export const useUserPayments = (options?: { enabled?: boolean }) => {
-  const { oxyServices, isAuthenticated, activeSessionId, user } = useOxy();
-
-  return useQuery({
-    queryKey: queryKeys.payments.history(user?.id),
-    queryFn: async () => {
-      return authenticatedApiCall<Payment[]>(oxyServices, activeSessionId, () =>
-        oxyServices.billing.payments(),
-      );
-    },
-    enabled: options?.enabled !== false && isAuthenticated && !!user?.id,
-    // Billing history is append-mostly; a short fresh window is fine.
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
-  });
+  const account = useBillingAccount(options);
+  return useAnswer(paymentHistory, ...(account ?? [skip]));
 };
 
-/**
- * Get the current user's FairCoin wallet balance.
- *
- * Wraps `oxyServices.billing.wallet()` (`GET /wallet/:userId`).
- * Balance changes frequently, so the fresh window is intentionally short.
- */
+/** The current user's FairCoin wallet balance (`GET /wallet/:userId`). */
 export const useUserWallet = (options?: { enabled?: boolean }) => {
-  const { oxyServices, isAuthenticated, activeSessionId, user } = useOxy();
-
-  return useQuery({
-    queryKey: queryKeys.payments.wallet(user?.id),
-    queryFn: async () => {
-      return authenticatedApiCall<Wallet>(oxyServices, activeSessionId, () =>
-        oxyServices.billing.wallet(),
-      );
-    },
-    enabled: options?.enabled !== false && isAuthenticated && !!user?.id,
-    staleTime: 60 * 1000, // 1 minute (balance moves often)
-    gcTime: 10 * 60 * 1000, // 10 minutes
-  });
+  const account = useBillingAccount(options);
+  return useAnswer(wallet, ...(account ?? [skip]));
 };
 
 /**
- * Get the current user's wallet transaction history (paginated).
+ * The current user's wallet transaction history (`GET /wallet/transactions/:userId`),
+ * as the API's `{ data, pagination }` envelope.
  *
- * Wraps `oxyServices.billing.walletTransactions(options)`
- * (`GET /wallet/transactions/:userId`). The API responds with a
- * `{ data, pagination }` envelope, preserved here as
- * `WalletTransactionsResponse`.
- *
- * @param params - Optional `limit` / `offset` pagination controls. These are
- *   part of the query key, so distinct pages cache independently.
+ * @param params - Optional `limit` / `offset`; each page is held on its own.
  */
 export const useUserWalletTransactions = (
   params?: { limit?: number; offset?: number },
   options?: { enabled?: boolean },
 ) => {
-  const { oxyServices, isAuthenticated, activeSessionId, user } = useOxy();
-  const limit = params?.limit;
-  const offset = params?.offset;
-
-  return useQuery({
-    queryKey: queryKeys.payments.walletTransactions(limit, offset, user?.id),
-    queryFn: async () => {
-      return authenticatedApiCall<WalletTransactionsResponse>(oxyServices, activeSessionId, () =>
-        oxyServices.billing.walletTransactions({ limit, offset }),
-      );
-    },
-    enabled: options?.enabled !== false && isAuthenticated && !!user?.id,
-    staleTime: 60 * 1000, // 1 minute (ledger updates frequently)
-    gcTime: 10 * 60 * 1000, // 10 minutes
-  });
+  const account = useBillingAccount(options);
+  return useAnswer(
+    walletTransactions,
+    ...(account ? ([...account, params?.limit, params?.offset] as const) : [skip]),
+  );
 };

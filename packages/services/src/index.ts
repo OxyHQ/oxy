@@ -185,7 +185,6 @@ export {
   queryKeys,
   invalidateAccountQueries,
   invalidateSessionQueries,
-  invalidatePaymentsQueries,
 } from './ui/hooks/queries/queryKeys';
 
 // The user merge rules' public half. Every person an app reads goes through

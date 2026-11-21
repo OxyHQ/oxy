@@ -41,44 +41,6 @@ describe('queryKeys.sessions', () => {
   });
 });
 
-describe('queryKeys.payments', () => {
-  it("uses ['payments'] as root", () => {
-    expect(queryKeys.payments.all).toEqual(['payments']);
-  });
-
-  it("subscription() resolves to 'current' when no userId is provided", () => {
-    expect(queryKeys.payments.subscription()).toEqual(['payments', 'subscription', 'current']);
-    expect(queryKeys.payments.subscription('u1')).toEqual(['payments', 'subscription', 'u1']);
-  });
-
-  it('history() builds [payments, history, current]', () => {
-    expect(queryKeys.payments.history()).toEqual(['payments', 'history', 'current']);
-  });
-
-  it('wallet() builds [payments, wallet, current]', () => {
-    expect(queryKeys.payments.wallet()).toEqual(['payments', 'wallet', 'current']);
-  });
-
-  it('walletTransactions() includes pagination in the leaf so pages cache independently', () => {
-    expect(queryKeys.payments.walletTransactions(5, 0)).toEqual([
-      'payments',
-      'wallet',
-      'current',
-      'transactions',
-      5,
-      0,
-    ]);
-    expect(queryKeys.payments.walletTransactions(5, 5)).toEqual([
-      'payments',
-      'wallet',
-      'current',
-      'transactions',
-      5,
-      5,
-    ]);
-  });
-});
-
 describe('invalidate helpers', () => {
   it('invalidateAccountQueries scopes invalidation to the accounts root', () => {
     const queryClient = { invalidateQueries: jest.fn() };

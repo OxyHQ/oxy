@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { actionStatus, DataProvider, environment, Store } from '@oxy.so/bloom-data';
 import { OxyServices } from '@oxy.so/core';
 jest.mock('@oxy.so/core/session', () => jest.requireActual('../../../core/src/session/index'), {
   virtual: true,
@@ -58,6 +58,11 @@ function instance(id: string) {
   });
   return { oxy, runtime, user };
 }
+/** Every call the store's actions made has ended. */
+async function settled(store: Store) {
+  await act(async () => {});
+  await waitFor(() => expect(actionStatus(store)).toEqual({ pending: 0, paused: 0 }));
+}
 function retainedHandler(button: HTMLElement): () => void {
   const key = Object.keys(button).find((name) => name.startsWith('__reactProps$'));
   if (!key) throw new Error('React button props not found');
@@ -68,9 +73,7 @@ it('rejects a retained A handler after provider instance A to B to A', async () 
   const b = instance('bob');
   expect(a.runtime.getAccountSessionRevision()).toBe(b.runtime.getAccountSessionRevision());
   expect(a.oxy.http.getSessionEpoch()).toBe(b.oxy.http.getSessionEpoch());
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  const store = new Store();
   const originalFetch = global.fetch;
   const fetchMock = jest.fn(async () => ({
     ok: true,
@@ -88,7 +91,7 @@ it('rejects a retained A handler after provider instance A to B to A', async () 
   }));
   global.fetch = fetchMock as never;
   const tree = (entry: typeof a) => (
-    <QueryClientProvider client={client}>
+    <DataProvider store={store}>
       <OxyRuntimeHandleProvider value={entry.runtime}>
         <OxyRuntimeContext.Provider
           value={
@@ -103,7 +106,7 @@ it('rejects a retained A handler after provider instance A to B to A', async () 
           <OrganizationDirectorySearch onCreateAccount={jest.fn()} />
         </OxyRuntimeContext.Provider>
       </OxyRuntimeHandleProvider>
-    </QueryClientProvider>
+    </DataProvider>
   );
   try {
     const view = render(tree(a));
@@ -120,11 +123,11 @@ it('rejects a retained A handler after provider instance A to B to A', async () 
     view.rerender(tree(b));
     view.rerender(tree(a));
     act(() => retained());
-    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+    await settled(store);
     expect(fetchMock).not.toHaveBeenCalled();
   } finally {
     cleanup();
-    client.clear();
+    void store.close();
     global.fetch = originalFetch;
     jest.restoreAllMocks();
     a.oxy.dispose();
@@ -135,9 +138,7 @@ it('rejects a retained A handler after provider instance A to B to A', async () 
 it('discards A form on provider replacement and permits a fresh B claim', async () => {
   const a = instance('alice');
   const b = instance('bob');
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  const store = new Store();
   const originalFetch = global.fetch;
   const fetchMock = jest.fn(async () => ({
     ok: true,
@@ -155,7 +156,7 @@ it('discards A form on provider replacement and permits a fresh B claim', async 
   }));
   global.fetch = fetchMock as never;
   const tree = (entry: typeof a) => (
-    <QueryClientProvider client={client}>
+    <DataProvider store={store}>
       <OxyRuntimeHandleProvider value={entry.runtime}>
         <OxyRuntimeContext.Provider
           value={
@@ -170,7 +171,7 @@ it('discards A form on provider replacement and permits a fresh B claim', async 
           <OrganizationDirectorySearch onCreateAccount={jest.fn()} />
         </OxyRuntimeContext.Provider>
       </OxyRuntimeHandleProvider>
-    </QueryClientProvider>
+    </DataProvider>
   );
   try {
     const view = render(tree(a));
@@ -187,7 +188,7 @@ it('discards A form on provider replacement and permits a fresh B claim', async 
     view.rerender(tree(b));
     expect(screen.queryByLabelText('organizationDirectory.evidence')).toBeNull();
     act(() => retained());
-    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+    await settled(store);
     expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
       target: { value: 'Acme' },
@@ -205,7 +206,7 @@ it('discards A form on provider replacement and permits a fresh B claim', async 
     expect(options.body).toContain('private-case:bob');
   } finally {
     cleanup();
-    client.clear();
+    void store.close();
     global.fetch = originalFetch;
     jest.restoreAllMocks();
     a.oxy.dispose();
@@ -217,9 +218,7 @@ it('rejects reentry from the replacement tree layout phase', async () => {
   const { useLayoutEffect } = await import('react');
   const a = instance('alice');
   const b = instance('bob');
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  const store = new Store();
   const originalFetch = global.fetch;
   const fetchMock = jest.fn(async () => ({
     ok: true,
@@ -243,7 +242,7 @@ it('rejects reentry from the replacement tree layout phase', async () => {
     return null;
   };
   const tree = (entry: typeof a, handler?: () => void) => (
-    <QueryClientProvider client={client}>
+    <DataProvider store={store}>
       <OxyRuntimeHandleProvider value={entry.runtime}>
         <OxyRuntimeContext.Provider
           value={
@@ -259,7 +258,7 @@ it('rejects reentry from the replacement tree layout phase', async () => {
           {handler ? <Invoke handler={handler} /> : null}
         </OxyRuntimeContext.Provider>
       </OxyRuntimeHandleProvider>
-    </QueryClientProvider>
+    </DataProvider>
   );
   try {
     const view = render(tree(a));
@@ -274,11 +273,11 @@ it('rejects reentry from the replacement tree layout phase', async () => {
       screen.getByRole('button', { name: 'organizationDirectory.claim' }),
     );
     view.rerender(tree(b, retained));
-    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+    await settled(store);
     expect(fetchMock).not.toHaveBeenCalled();
   } finally {
     cleanup();
-    client.clear();
+    void store.close();
     global.fetch = originalFetch;
     jest.restoreAllMocks();
     a.oxy.dispose();
@@ -289,9 +288,7 @@ it('rejects reentry from the replacement tree layout phase', async () => {
 it('does not replay a queued A claim after the provider is replaced with B', async () => {
   const a = instance('alice');
   const b = instance('bob');
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  const store = new Store();
   const originalFetch = global.fetch;
   const fetchMock = jest.fn(async () => ({
     ok: true,
@@ -309,7 +306,7 @@ it('does not replay a queued A claim after the provider is replaced with B', asy
   }));
   global.fetch = fetchMock as never;
   const tree = (entry: typeof a) => (
-    <QueryClientProvider client={client}>
+    <DataProvider store={store}>
       <OxyRuntimeHandleProvider value={entry.runtime}>
         <OxyRuntimeContext.Provider
           value={
@@ -324,7 +321,7 @@ it('does not replay a queued A claim after the provider is replaced with B', asy
           <OrganizationDirectorySearch onCreateAccount={jest.fn()} />
         </OxyRuntimeContext.Provider>
       </OxyRuntimeHandleProvider>
-    </QueryClientProvider>
+    </DataProvider>
   );
   try {
     const view = render(tree(a));
@@ -335,20 +332,19 @@ it('does not replay a queued A claim after the provider is replaced with B', asy
     fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
       target: { value: 'private-case:alice' },
     });
-    act(() => onlineManager.setOnline(false));
+    act(() => environment.setOnline(false));
     fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
-    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.isPaused).toBe(true));
+    await waitFor(() => expect(actionStatus(store).paused).toBe(1));
     view.rerender(tree(b));
     await act(async () => {
-      onlineManager.setOnline(true);
-      await client.resumePausedMutations();
+      environment.setOnline(true);
     });
-    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+    await settled(store);
     expect(fetchMock).not.toHaveBeenCalled();
   } finally {
-    onlineManager.setOnline(true);
+    environment.setOnline(true);
     cleanup();
-    client.clear();
+    void store.close();
     global.fetch = originalFetch;
     jest.restoreAllMocks();
     a.oxy.dispose();
@@ -360,9 +356,7 @@ it('does not replay A when replacement B resumes mutations from a layout effect'
   const { useLayoutEffect } = await import('react');
   const a = instance('alice');
   const b = instance('bob');
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  const store = new Store();
   const originalFetch = global.fetch;
   const fetchMock = jest.fn(async () => ({
     ok: true,
@@ -381,13 +375,12 @@ it('does not replay A when replacement B resumes mutations from a layout effect'
   global.fetch = fetchMock as never;
   const Resume = () => {
     useLayoutEffect(() => {
-      onlineManager.setOnline(true);
-      void client.resumePausedMutations();
+      environment.setOnline(true);
     }, []);
     return null;
   };
   const tree = (entry: typeof a, resume = false) => (
-    <QueryClientProvider client={client}>
+    <DataProvider store={store}>
       <OxyRuntimeHandleProvider value={entry.runtime}>
         <OxyRuntimeContext.Provider
           value={
@@ -403,7 +396,7 @@ it('does not replay A when replacement B resumes mutations from a layout effect'
           {resume ? <Resume /> : null}
         </OxyRuntimeContext.Provider>
       </OxyRuntimeHandleProvider>
-    </QueryClientProvider>
+    </DataProvider>
   );
   try {
     const view = render(tree(a));
@@ -414,16 +407,16 @@ it('does not replay A when replacement B resumes mutations from a layout effect'
     fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
       target: { value: 'private-case:alice' },
     });
-    act(() => onlineManager.setOnline(false));
+    act(() => environment.setOnline(false));
     fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
-    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.isPaused).toBe(true));
+    await waitFor(() => expect(actionStatus(store).paused).toBe(1));
     view.rerender(tree(b, true));
-    await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+    await settled(store);
     expect(fetchMock).not.toHaveBeenCalled();
   } finally {
-    onlineManager.setOnline(true);
+    environment.setOnline(true);
     cleanup();
-    client.clear();
+    void store.close();
     global.fetch = originalFetch;
     jest.restoreAllMocks();
     a.oxy.dispose();

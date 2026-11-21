@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, Store, withStore } from '@oxy.so/bloom-data';
 import type { PurchaseApproval, SupervisionState } from '@oxy.so/contracts';
 const child = {
   childAccountId: 'child',
@@ -73,6 +73,7 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
     user: { id: account, kind: 'personal' },
     activeSessionId: session,
     isAuthenticated: true,
+    canUsePrivateApi: true,
     oxyServices: { safety },
   }),
 }));
@@ -104,16 +105,15 @@ jest.mock('../../src/ui/components/signIn/ReauthStep', () => ({
 }));
 import SupervisionScreen from '../../src/ui/screens/SupervisionScreen';
 import { formatApprovalAmount } from '../../src/ui/components/supervision/presentation';
-const clients: QueryClient[] = [];
+import { purchaseApproval } from '../../src/ui/data/supervision';
 function mount(approvalId?: string) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  clients.push(client);
+  const store = new Store();
   const tree = () => (
-    <QueryClientProvider client={client}>
+    <DataProvider store={store}>
       <SupervisionScreen approvalId={approvalId} />
-    </QueryClientProvider>
+    </DataProvider>
   );
-  return { ...render(tree()), tree, client };
+  return { ...render(tree()), tree, store };
 }
 beforeEach(() => {
   jest.clearAllMocks();
@@ -129,9 +129,6 @@ beforeEach(() => {
     })),
   }));
   safety.purchaseApproval.mockResolvedValue(purchase);
-});
-afterEach(() => {
-  clients.splice(0).forEach((client) => client.clear());
 });
 it('opens the exact approval and shows every option, merchant and amount before fresh guardian approval', async () => {
   mount('approval');
@@ -186,11 +183,13 @@ it('does not describe a pending invitation as active supervision', async () => {
   expect(screen.queryByText('supervision.accept')).toBeNull();
 });
 it('hides retained purchase evidence after access is revoked', async () => {
-  const { client } = mount('approval');
+  const { store } = mount('approval');
   await screen.findByText('Blue / Medium');
   safety.purchaseApproval.mockRejectedValue(new Error('forbidden'));
   await act(async () => {
-    await client.invalidateQueries({ queryKey: ['oxy', 'safety', 'purchase'] });
+    await withStore(store, () =>
+      purchaseApproval.refresh({ safety } as never, account, session, 'approval'),
+    );
   });
   await waitFor(() => expect(screen.queryByText('Blue / Medium')).toBeNull());
   expect(screen.queryByText('supervision.approvePurchase')).toBeNull();
@@ -212,6 +211,38 @@ it('drops old state when the same account enters a different session', async () 
   safety.supervisionState.mockImplementation(() => new Promise(() => {}));
   rerender(tree());
   expect(screen.queryByText('supervision.children')).toBeNull();
+});
+it('reads again what a change can have altered, once it is made', async () => {
+  state = {
+    self: null,
+    children: [child],
+    invitations: [
+      {
+        id: 'invite',
+        childAccountId: 'child',
+        guardianAccountId: 'guardian',
+        status: 'pending',
+        consentVersion: '1',
+        createdAt: '2026-10-15T00:00:00.000Z',
+        expiresAt: '2027-01-01T00:00:00.000Z',
+      },
+    ],
+  };
+  mount();
+  fireEvent.click(await screen.findByText('supervision.cancelInvitation'));
+  state = { self: null, children: [child], invitations: [] };
+  expect(await screen.findByText('supervision.saved')).toBeTruthy();
+  expect(safety.cancelGuardianInvitation).toHaveBeenCalledWith('invite');
+  expect(safety.supervisionState).toHaveBeenCalledTimes(2);
+  expect(safety.contacts).toHaveBeenCalledTimes(2);
+  expect(safety.purchaseApprovals).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText('supervision.cancelInvitation')).toBeNull();
+});
+it('does not retry a failed screen read', async () => {
+  safety.contacts.mockRejectedValueOnce(Object.assign(new Error('unavailable'), { status: 503 }));
+  mount();
+  expect(await screen.findByText('supervision.loadError')).toBeTruthy();
+  expect(safety.contacts).toHaveBeenCalledTimes(1);
 });
 it('formats safe-integer authorization money without floating-point rounding', () => {
   expect(formatApprovalAmount(Number.MAX_SAFE_INTEGER, 'USD', 'en-US')).toBe(

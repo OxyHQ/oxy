@@ -1,47 +1,57 @@
 /**
- * Tests for the payment / wallet / subscription query hooks.
- *
- * These hooks replace the imperative `oxyServices.*` + `useEffect` fetching
- * that app screens (e.g. the accounts `payments` tab) previously hand-rolled.
+ * Tests for the payment / wallet / subscription hooks.
  *
  * The contract each test pins:
- *  - The hook calls the EXACT SDK method it claims to wrap.
- *  - The resolved data flows through unchanged and is correctly typed.
- *  - The hook is gated on authentication (`enabled` is false when signed out,
- *    so the SDK method is never called).
- *  - `authenticatedApiCall` is the auth wrapper, matching `useUserDevices`.
+ *  - The hook calls the EXACT SDK method it claims to wrap, through
+ *    `authenticatedApiCall`, and its answer is the view's `value`.
+ *  - The hook reads nothing until there is a signed-in account.
+ *  - The read edge cases the SDK's reads share: staleness, the retry rule,
+ *    and a late answer after an account switch.
  *
  * `@oxy.so/core`'s `authenticatedApiCall` is mocked to invoke its callback
  * directly so the test exercises hook wiring, not token-refresh internals
- * (those are covered by core's own suite). `useOxy` is mocked to supply a
- * stub `oxyServices` whose payment methods are jest mocks.
+ * (those are covered by core's own suite).
  */
 
 import type { ReactNode } from 'react';
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { DataProvider, setActiveStore, Store } from '@oxy.so/bloom-data';
 import type {
-  Subscription,
   Payment,
+  Subscription,
   Wallet,
   WalletTransactionsResponse,
 } from '../../src/ui/hooks/queries/paymentTypes';
+import {
+  useUserPayments,
+  useUserSubscription,
+  useUserWallet,
+  useUserWalletTransactions,
+} from '../../src/ui/hooks/queries/usePaymentQueries';
 
-interface MockOxyServices {
-  getCurrentUserSubscription: jest.Mock;
-  getUserPayments: jest.Mock;
-  getCurrentUserWallet: jest.Mock;
-  getCurrentUserWalletTransactions: jest.Mock;
-}
-
-interface MockOxyState {
-  oxyServices: MockOxyServices;
-  isAuthenticated: boolean;
-  activeSessionId: string | null;
-  // Payment/wallet/subscription queries scope by the ACTIVE account (the
-  // account switched into), not the device-session owner.
-  user: { id: string } | null;
-}
+const mockBilling = {
+  subscription: jest.fn(),
+  payments: jest.fn(),
+  wallet: jest.fn(),
+  walletTransactions: jest.fn(),
+};
+const mockSession = {
+  user: { id: 'a' } as { id: string } | null,
+  isAuthenticated: true,
+};
+jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
+  useOxy: () => ({
+    oxyServices: { billing: mockBilling },
+    user: mockSession.user,
+    isAuthenticated: mockSession.isAuthenticated,
+    activeSessionId: 'session',
+  }),
+}));
+// The token is valid: the read goes straight to the API.
+jest.mock('@oxy.so/core', () => ({
+  ...jest.requireActual('@oxy.so/core'),
+  authenticatedApiCall: (_oxy: unknown, _session: unknown, call: () => Promise<unknown>) => call(),
+}));
 
 const SUBSCRIPTION_FIXTURE: Subscription = {
   plan: 'pro',
@@ -91,212 +101,170 @@ const TRANSACTIONS_FIXTURE: WalletTransactionsResponse = {
   pagination: { total: 1, limit: 5, offset: 0, hasMore: false },
 };
 
-const makeServices = (): MockOxyServices => ({
-  billing: {
-    subscription: jest.fn(async () => SUBSCRIPTION_FIXTURE),
-    payments: jest.fn(async () => PAYMENTS_FIXTURE),
-    wallet: jest.fn(async () => WALLET_FIXTURE),
-    walletTransactions: jest.fn(async () => TRANSACTIONS_FIXTURE),
-  },
+const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { status });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+beforeEach(() => {
+  setActiveStore(new Store());
+  for (const call of Object.values(mockBilling)) call.mockReset();
+  mockSession.user = { id: 'a' };
+  mockSession.isAuthenticated = true;
 });
 
-const defaultMockState = (): MockOxyState => ({
-  oxyServices: makeServices(),
-  isAuthenticated: true,
-  activeSessionId: 'sess-1',
-  user: { id: 'u1' },
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
-let mockState: MockOxyState = defaultMockState();
-
-jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
-  __esModule: true,
-  useOxy: () => mockState,
-}));
-
-// Strip the auth/token-refresh layer: run the supplied API call directly so
-// the test asserts hook wiring, not core's token machinery.
-const authenticatedApiCallMock = jest.fn(
-  async <T,>(_svc: unknown, _sid: unknown, apiCall: () => Promise<T>): Promise<T> => apiCall(),
-);
-
-jest.mock('@oxy.so/core', () => ({
-  __esModule: true,
-  authenticatedApiCall: (svc: unknown, sid: unknown, apiCall: () => Promise<unknown>) =>
-    authenticatedApiCallMock(svc, sid, apiCall),
-}));
-
-import {
-  useUserSubscription,
-  useUserPayments,
-  useUserWallet,
-  useUserWalletTransactions,
-} from '../../src/ui/hooks/queries/usePaymentQueries';
-import { queryKeys } from '../../src/ui/hooks/queries/queryKeys';
-
-const makeWrapper = (queryClient: QueryClient) =>
-  function Wrapper({ children }: { children: ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-  };
-
-describe('payment query hooks', () => {
-  let queryClient: QueryClient;
-
-  beforeEach(() => {
-    mockState = defaultMockState();
-    authenticatedApiCallMock.mockClear();
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false, gcTime: 0 },
-        mutations: { retry: false },
-      },
-    });
+describe('what each hook reads', () => {
+  it('useUserSubscription reads the subscription', async () => {
+    mockBilling.subscription.mockResolvedValue(SUBSCRIPTION_FIXTURE);
+    const { result } = renderHook(() => useUserSubscription());
+    await waitFor(() => expect(result.current.status).toBe('success'));
+    expect(mockBilling.subscription).toHaveBeenCalledTimes(1);
+    expect(result.current.value?.plan).toBe('pro');
+    expect(result.current.value?.features?.analytics).toBe(true);
+    expect(result.current.value?.endDate).toBe('2026-02-01T00:00:00.000Z');
   });
 
-  afterEach(() => {
-    queryClient.clear();
+  it('useUserPayments reads the payment history', async () => {
+    mockBilling.payments.mockResolvedValue(PAYMENTS_FIXTURE);
+    const { result } = renderHook(() => useUserPayments());
+    await waitFor(() => expect(result.current.status).toBe('success'));
+    expect(mockBilling.payments).toHaveBeenCalledTimes(1);
+    expect(result.current.value).toHaveLength(1);
+    expect(result.current.value?.[0]?.amount).toBe(9.99);
   });
 
-  describe('useUserSubscription', () => {
-    it('calls getCurrentUserSubscription and returns the typed subscription', async () => {
-      const { result } = renderHook(() => useUserSubscription(), {
-        wrapper: makeWrapper(queryClient),
-      });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(mockState.oxyServices.billing.subscription).toHaveBeenCalledTimes(1);
-      expect(authenticatedApiCallMock).toHaveBeenCalled();
-
-      const data = result.current.data;
-      expect(data?.plan).toBe('pro');
-      expect(data?.features?.analytics).toBe(true);
-      expect(data?.endDate).toBe('2026-02-01T00:00:00.000Z');
-    });
-
-    it('does not call the SDK when unauthenticated', () => {
-      mockState.isAuthenticated = false;
-
-      const { result } = renderHook(() => useUserSubscription(), {
-        wrapper: makeWrapper(queryClient),
-      });
-
-      expect(result.current.fetchStatus).toBe('idle');
-      expect(mockState.oxyServices.billing.subscription).not.toHaveBeenCalled();
-    });
-
-    it('honours an explicit enabled: false override even when authenticated', () => {
-      const { result } = renderHook(() => useUserSubscription({ enabled: false }), {
-        wrapper: makeWrapper(queryClient),
-      });
-
-      expect(result.current.fetchStatus).toBe('idle');
-      expect(mockState.oxyServices.billing.subscription).not.toHaveBeenCalled();
-    });
-
-    it('does not call the SDK without a scoped active account id', () => {
-      mockState.user = null;
-
-      const { result } = renderHook(() => useUserSubscription(), {
-        wrapper: makeWrapper(queryClient),
-      });
-
-      expect(result.current.fetchStatus).toBe('idle');
-      expect(mockState.oxyServices.billing.subscription).not.toHaveBeenCalled();
-    });
+  it('useUserWallet reads the wallet', async () => {
+    mockBilling.wallet.mockResolvedValue(WALLET_FIXTURE);
+    const { result } = renderHook(() => useUserWallet());
+    await waitFor(() => expect(result.current.status).toBe('success'));
+    expect(result.current.value?.balance).toBe(42.5);
+    expect(result.current.value?.address).toBeNull();
   });
 
-  describe('useUserPayments', () => {
-    it('calls getUserPayments and returns the typed payment array', async () => {
-      const { result } = renderHook(() => useUserPayments(), {
-        wrapper: makeWrapper(queryClient),
-      });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(mockState.oxyServices.billing.payments).toHaveBeenCalledTimes(1);
-      expect(result.current.data).toHaveLength(1);
-      expect(result.current.data?.[0]?.amount).toBe(9.99);
-      expect(result.current.data?.[0]?.status).toBe('completed');
-    });
+  it('useUserWalletTransactions forwards the page and returns the envelope', async () => {
+    mockBilling.walletTransactions.mockResolvedValue(TRANSACTIONS_FIXTURE);
+    const { result } = renderHook(() => useUserWalletTransactions({ limit: 5 }));
+    await waitFor(() => expect(result.current.status).toBe('success'));
+    expect(mockBilling.walletTransactions).toHaveBeenCalledWith({ limit: 5, offset: undefined });
+    expect(result.current.value?.data[0]?.type).toBe('deposit');
+    expect(result.current.value?.pagination.total).toBe(1);
   });
+});
 
-  describe('useUserWallet', () => {
-    it('calls getCurrentUserWallet and returns the typed wallet', async () => {
-      const { result } = renderHook(() => useUserWallet(), {
-        wrapper: makeWrapper(queryClient),
-      });
+it('reads nothing until there is a signed-in account, or while the caller disables it', async () => {
+  mockSession.user = null;
+  mockSession.isAuthenticated = false;
+  const signedOut = renderHook(() => useUserSubscription());
+  mockSession.user = { id: 'a' };
+  mockSession.isAuthenticated = true;
+  const disabled = renderHook(() => useUserSubscription({ enabled: false }));
+  await act(async () => {});
 
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(mockBilling.subscription).not.toHaveBeenCalled();
+  expect(signedOut.result.current.isLoading).toBe(false);
+  expect(disabled.result.current.value).toBeUndefined();
+});
 
-      expect(mockState.oxyServices.billing.wallet).toHaveBeenCalledTimes(1);
-      expect(result.current.data?.balance).toBe(42.5);
-      expect(result.current.data?.address).toBeNull();
-    });
+it('returns the answer as the view value', async () => {
+  mockBilling.subscription.mockResolvedValue({ plan: 'pro', status: 'active' });
+  const { result } = renderHook(() => useUserSubscription());
+  expect(result.current.isLoading).toBe(true);
+
+  await waitFor(() => expect(result.current.value?.plan).toBe('pro'));
+  expect(result.current.isLoading).toBe(false);
+});
+
+it('serves a fresh answer to a new screen, and reads again once it is stale', async () => {
+  const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+  mockBilling.wallet.mockResolvedValue({ userId: 'a', balance: 5, address: null });
+  const first = renderHook(() => useUserWallet());
+  await waitFor(() => expect(first.result.current.value?.balance).toBe(5));
+  first.unmount();
+
+  now.mockReturnValue(1_000_000 + 59_000);
+  const fresh = renderHook(() => useUserWallet());
+  await act(async () => {});
+  expect(fresh.result.current.value?.balance).toBe(5);
+  expect(mockBilling.wallet).toHaveBeenCalledTimes(1);
+  fresh.unmount();
+
+  // The wallet is stale after a minute.
+  now.mockReturnValue(1_000_000 + 61_000);
+  mockBilling.wallet.mockResolvedValue({ userId: 'a', balance: 7, address: null });
+  const stale = renderHook(() => useUserWallet());
+  expect(stale.result.current.value?.balance).toBe(5);
+  await waitFor(() => expect(stale.result.current.value?.balance).toBe(7));
+  expect(mockBilling.wallet).toHaveBeenCalledTimes(2);
+});
+
+it('retries a server failure, and never a refusal', async () => {
+  jest.useFakeTimers();
+  mockBilling.subscription
+    .mockRejectedValueOnce(httpError(503))
+    .mockResolvedValue({ plan: 'basic' });
+  const retried = renderHook(() => useUserSubscription());
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1_000);
   });
+  expect(retried.result.current.value?.plan).toBe('basic');
+  expect(mockBilling.subscription).toHaveBeenCalledTimes(2);
 
-  describe('useUserWalletTransactions', () => {
-    it('forwards pagination params and returns the paginated envelope', async () => {
-      const { result } = renderHook(() => useUserWalletTransactions({ limit: 5 }), {
-        wrapper: makeWrapper(queryClient),
-      });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(mockState.oxyServices.billing.walletTransactions).toHaveBeenCalledWith({
-        limit: 5,
-        offset: undefined,
-      });
-      expect(result.current.data?.data).toHaveLength(1);
-      expect(result.current.data?.data[0]?.type).toBe('deposit');
-      expect(result.current.data?.pagination.total).toBe(1);
-    });
-
-    it('caches distinct pages under distinct query keys', async () => {
-      const first = renderHook(() => useUserWalletTransactions({ limit: 5, offset: 0 }), {
-        wrapper: makeWrapper(queryClient),
-      });
-      const second = renderHook(() => useUserWalletTransactions({ limit: 5, offset: 5 }), {
-        wrapper: makeWrapper(queryClient),
-      });
-
-      await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
-      await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
-
-      // Two distinct offsets => two independent fetches.
-      expect(mockState.oxyServices.billing.walletTransactions).toHaveBeenCalledTimes(2);
-    });
+  mockBilling.wallet.mockRejectedValue(httpError(404));
+  const refused = renderHook(() => useUserWallet());
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(10_000);
   });
+  expect(refused.result.current.status).toBe('error');
+  expect(mockBilling.wallet).toHaveBeenCalledTimes(1);
+});
 
-  it('scopes payment query keys by the active account id', async () => {
-    const { result: firstResult } = renderHook(() => useUserWallet(), {
-      wrapper: makeWrapper(queryClient),
-    });
+it('drops an answer that lands after the account was left', async () => {
+  const late = deferred<{ plan: string }>();
+  mockBilling.subscription.mockReturnValueOnce(late.promise);
+  const first = new Store();
+  const second = new Store();
+  let store = first;
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <DataProvider store={store}>{children}</DataProvider>
+  );
+  const { result, rerender } = renderHook(() => useUserSubscription(), { wrapper });
+  await act(async () => {});
+  expect(mockBilling.subscription).toHaveBeenCalledTimes(1);
 
-    await waitFor(() => expect(firstResult.current.isSuccess).toBe(true));
-
-    const firstServices = mockState.oxyServices;
-    const secondWallet: Wallet = { userId: 'u2', balance: 7, address: null };
-    mockState = {
-      oxyServices: {
-        ...makeServices(),
-        billing: { wallet: jest.fn(async () => secondWallet) },
-      },
-      isAuthenticated: true,
-      activeSessionId: 'sess-2',
-      user: { id: 'u2' },
-    };
-
-    const { result: secondResult } = renderHook(() => useUserWallet(), {
-      wrapper: makeWrapper(queryClient),
-    });
-
-    await waitFor(() => expect(secondResult.current.isSuccess).toBe(true));
-
-    expect(firstServices.billing.wallet).toHaveBeenCalledTimes(1);
-    expect(mockState.oxyServices.billing.wallet).toHaveBeenCalledTimes(1);
-    expect(secondResult.current.data?.userId).toBe('u2');
-    expect(queryClient.getQueryData(queryKeys.payments.wallet('u1'))).toEqual(WALLET_FIXTURE);
-    expect(queryClient.getQueryData(queryKeys.payments.wallet('u2'))).toEqual(secondWallet);
+  // The person switches account: the first store closes, the second opens.
+  mockSession.user = { id: 'b' };
+  mockBilling.subscription.mockResolvedValue({ plan: 'business' });
+  await act(async () => {
+    await first.close();
+    store = second;
+    rerender();
   });
+  await waitFor(() => expect(result.current.value?.plan).toBe('business'));
+
+  await act(async () => {
+    late.resolve({ plan: 'pro' });
+  });
+  expect(result.current.value?.plan).toBe('business');
+});
+
+it('keys each ledger page on its own', async () => {
+  mockBilling.walletTransactions.mockImplementation(async ({ offset }: { offset?: number }) => ({
+    data: [],
+    pagination: { total: 40, limit: 20, offset: offset ?? 0, hasMore: true },
+  }));
+  const first = renderHook(() => useUserWalletTransactions({ limit: 20 }));
+  const second = renderHook(() => useUserWalletTransactions({ limit: 20, offset: 20 }));
+  await waitFor(() => expect(second.result.current.value?.pagination.offset).toBe(20));
+  expect(first.result.current.value?.pagination.offset).toBe(0);
+  expect(mockBilling.walletTransactions).toHaveBeenCalledTimes(2);
 });

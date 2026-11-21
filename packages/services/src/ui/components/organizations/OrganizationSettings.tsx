@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAction, useRecord } from '@oxy.so/bloom-data';
 import type { Organization, OrganizationType, UpdateOrganization } from '@oxy.so/contracts';
 import { updateOrganizationCheck, checkContract } from '@oxy.so/contracts/client';
 import { Button } from '@oxy.so/bloom/button';
@@ -10,6 +10,8 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
+import { useQueryClient } from '../../hooks/useQueryClient';
+import { organization as organizationSource, updateOrganization } from '../../data/organizations';
 import { OrganizationTypePicker } from './OrganizationTypePicker';
 
 export function OrganizationSettings({
@@ -21,30 +23,26 @@ export function OrganizationSettings({
 }) {
   const { oxyServices, canUsePrivateApi } = useOxy();
   const { t } = useI18n();
-  const organization = useQuery({
-    queryKey: ['oxy', 'organizations', accountId],
-    queryFn: () => oxyServices.organizations.get(accountId),
-    retry: false,
-  });
-  if (organization.isPending) return <ActivityIndicator />;
-  if (organization.isError)
+  const organization = useRecord(organizationSource, oxyServices, accountId);
+  if (organization.isLoading) return <ActivityIndicator />;
+  if (organization.status === 'error' || !organization.value)
     return (
       <View>
         <Text accessibilityRole="alert">{t('organizationDirectory.failed')}</Text>
-        <Button onPress={() => organization.refetch()}>{t('organizationDirectory.retry')}</Button>
+        <Button onPress={() => organization.refresh()}>{t('organizationDirectory.retry')}</Button>
       </View>
     );
   if (!canUpdate || !canUsePrivateApi)
     return (
       <GroupedSection title={t('organizationDirectory.title')}>
-        <Text>{t(`organizationDirectory.types.${organization.data.organizationType}`)}</Text>
+        <Text>{t(`organizationDirectory.types.${organization.value.organizationType}`)}</Text>
         <Text>{t('organizationDirectory.readonly')}</Text>
       </GroupedSection>
     );
   return (
     <OrganizationForm
-      key={`${accountId}:${organization.data.updatedAt}`}
-      organization={organization.data}
+      key={`${accountId}:${organization.value.updatedAt}`}
+      organization={organization.value}
     />
   );
 }
@@ -58,18 +56,21 @@ function OrganizationForm({ organization }: { organization: Organization }) {
   const [country, setCountry] = useState(organization.countryCode ?? '');
   const [type, setType] = useState<OrganizationType>(organization.organizationType);
   const [invalid, setInvalid] = useState(false);
-  const save = useMutation({
-    mutationFn: (input: UpdateOrganization) => {
-      if (!canUsePrivateApi) throw new Error('An authenticated session is required');
-      return oxyServices.organizations.update(organization.accountId, input);
-    },
-    onSuccess: () => {
-      toast.success(t('organizationDirectory.saved'));
-      void queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
-      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      void queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
-  });
+  const save = useAction(updateOrganization);
+  const submit = async (input: UpdateOrganization) => {
+    try {
+      await save.run(oxyServices, () => {
+        if (!canUsePrivateApi) throw new Error('An authenticated session is required');
+        return { accountId: organization.accountId, input };
+      });
+    } catch {
+      return; // `save.error` shows it.
+    }
+    toast.success(t('organizationDirectory.saved'));
+    // The organization's account and person records carry its name and kind.
+    void queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    void queryClient.invalidateQueries({ queryKey: ['users'] });
+  };
   return (
     <GroupedSection title={t('organizationDirectory.title')}>
       <View className="gap-space-16 p-space-16">
@@ -103,7 +104,7 @@ function OrganizationForm({ organization }: { organization: Organization }) {
         {invalid ? (
           <Text accessibilityRole="alert">{t('organizationDirectory.invalid')}</Text>
         ) : null}
-        {save.isError ? (
+        {save.error ? (
           <Text accessibilityRole="alert">{t('organizationDirectory.saveFailed')}</Text>
         ) : null}
         <Button
@@ -117,7 +118,7 @@ function OrganizationForm({ organization }: { organization: Organization }) {
               organizationType: type,
             });
             setInvalid(input === null);
-            if (input) save.mutate(input);
+            if (input) void submit(input);
           }}
         >
           {t('organizationDirectory.save')}

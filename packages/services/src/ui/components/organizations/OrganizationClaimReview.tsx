@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skip, useAction, useEntity, useList, useStore, withStore } from '@oxy.so/bloom-data';
 import { isHttpRequestError } from '@oxy.so/core';
 import type { OrganizationClaimReview as OrganizationClaimReviewInput } from '@oxy.so/contracts';
 import { organizationClaimReviewCheck, parseContract } from '@oxy.so/contracts/client';
@@ -10,6 +10,17 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
+import { useQueryClient } from '../../hooks/useQueryClient';
+import { useAnswer } from '../../data/answer';
+import {
+  Organization,
+  OrganizationClaim,
+  organizationsByAccount,
+  refreshOrganizationClaims,
+  reviewClaimDetail,
+  reviewOrganizationClaim,
+  reviewOrganizationClaims,
+} from '../../data/organizations';
 
 /** The queue is requested only after an explicit action; the server rechecks staff authority. */
 export function OrganizationClaimReview() {
@@ -31,35 +42,19 @@ function ReviewQueue() {
   const { t } = useI18n();
   const { oxyServices, user, canUsePrivateApi } = useOxy();
   const [selected, setSelected] = useState<string | null>(null);
-  const requests = useInfiniteQuery({
-    queryKey: ['oxy', 'organizations', 'review', user?.id, canUsePrivateApi],
-    queryFn: ({ pageParam }) =>
-      oxyServices.organizations.reviewClaims({
-        status: 'pending',
-        limit: 20,
-        ...(pageParam ? { cursor: pageParam } : {}),
-      }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
-    enabled: canUsePrivateApi,
-    retry: false,
-    gcTime: 0,
-  });
-  const claims = requests.data?.pages.flatMap((page) => page.items) ?? [];
-  const ids = [...new Set(claims.map((claim) => claim.accountId))].sort();
-  const organizations = useQuery({
-    queryKey: ['oxy', 'organizations', 'review-organizations', ids],
-    queryFn: async () => {
-      const batches = [];
-      for (let offset = 0; offset < ids.length; offset += 100)
-        batches.push(oxyServices.organizations.batch({ ids: ids.slice(offset, offset + 100) }));
-      return (await Promise.all(batches)).flatMap((batch) => batch.items);
-    },
-    enabled: canUsePrivateApi && requests.isSuccess && ids.length > 0,
-    retry: false,
-  });
-  if (requests.isPending) return <ActivityIndicator />;
-  if (requests.isError)
+  const requests = useList(
+    reviewOrganizationClaims,
+    ...(canUsePrivateApi ? ([oxyServices, user?.id ?? ''] as const) : ([skip] as const)),
+  );
+  const ids = [...new Set(requests.extra ?? [])].sort();
+  const organizations = useAnswer(
+    organizationsByAccount,
+    ...(canUsePrivateApi && requests.status === 'success' && ids.length > 0
+      ? ([oxyServices, ids] as const)
+      : ([skip] as const)),
+  );
+  if (requests.isLoading) return <ActivityIndicator />;
+  if (requests.status === 'error')
     return (
       <View className="gap-space-16 p-space-16">
         <Text accessibilityRole="alert">
@@ -69,31 +64,48 @@ function ReviewQueue() {
               : 'organizationDirectory.requestError',
           )}
         </Text>
-        <Button onPress={() => requests.refetch()}>{t('organizationDirectory.retry')}</Button>
+        <Button onPress={() => requests.refresh()}>{t('organizationDirectory.retry')}</Button>
       </View>
     );
   if (selected)
     return <ReviewDetail claimId={selected} key={selected} onClose={() => setSelected(null)} />;
   return (
     <View className="gap-space-16 p-space-16">
-      {claims.length === 0 ? <Text>{t('organizationDirectory.review.empty')}</Text> : null}
-      {claims.map((claim) => (
-        <GroupedSectionItem
-          key={claim.id}
-          title={
-            organizations.data?.find((item) => item.requestedAccountId === claim.accountId)
-              ?.organization.name ?? t('organizationDirectory.view')
-          }
-          description={t('organizationDirectory.pending')}
-          onPress={() => setSelected(claim.id)}
+      {requests.ids.length === 0 ? <Text>{t('organizationDirectory.review.empty')}</Text> : null}
+      {requests.ids.map((id) => (
+        <ReviewRow
+          key={id}
+          claimId={id}
+          organizations={organizations.value}
+          onPress={() => setSelected(id)}
         />
       ))}
-      {requests.hasNextPage ? (
-        <Button onPress={() => requests.fetchNextPage()} disabled={requests.isFetchingNextPage}>
+      {requests.hasMore ? (
+        <Button onPress={() => requests.more()} disabled={requests.isFetching}>
           {t('organizationDirectory.loadMore')}
         </Button>
       ) : null}
     </View>
+  );
+}
+function ReviewRow({
+  claimId,
+  organizations,
+  onPress,
+}: {
+  claimId: string;
+  organizations: Readonly<Record<string, string>> | undefined;
+  onPress: () => void;
+}) {
+  const { t } = useI18n();
+  const claim = useEntity(OrganizationClaim, claimId);
+  const organization = useEntity(Organization, claim && organizations?.[claim.accountId]);
+  return (
+    <GroupedSectionItem
+      title={organization?.name ?? t('organizationDirectory.view')}
+      description={t('organizationDirectory.pending')}
+      onPress={onPress}
+    />
   );
 }
 function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => void }) {
@@ -102,44 +114,50 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
   const queryClient = useQueryClient();
   const [evidence, setEvidence] = useState('');
   const [authorizationRevoked, setAuthorizationRevoked] = useState(false);
-  const detail = useQuery({
-    queryKey: ['oxy', 'organizations', 'review-detail', user?.id, canUsePrivateApi, claimId],
-    queryFn: () => oxyServices.organizations.reviewClaimDetail(claimId),
-    enabled: canUsePrivateApi,
-    retry: false,
-    gcTime: 0,
-  });
-  const review = useMutation({
-    mutationFn: (decision: OrganizationClaimReviewInput['decision']) => {
-      if (
-        !canUsePrivateApi ||
-        authorizationRevoked ||
-        !detail.isSuccess ||
-        !detail.data ||
-        detail.data.claimantUserId === user?.id
-      )
-        throw new Error('Independent staff review is required');
-      return oxyServices.organizations.reviewClaim(
-        claimId,
-        parseContract(organizationClaimReviewCheck, { decision, evidenceReference: evidence }),
-      );
-    },
-    onError: (error) => {
+  const detail = useAnswer(
+    reviewClaimDetail,
+    ...(canUsePrivateApi ? ([oxyServices, claimId] as const) : ([skip] as const)),
+  );
+  const store = useStore();
+  const review = useAction(reviewOrganizationClaim);
+  // A review changes the claim lists this store shows.
+  const refreshClaims = () => withStore(store, () => refreshOrganizationClaims(oxyServices));
+  const decide = async (decision: OrganizationClaimReviewInput['decision']) => {
+    try {
+      await review.run(oxyServices, () => {
+        if (
+          !canUsePrivateApi ||
+          authorizationRevoked ||
+          detail.status !== 'success' ||
+          !detail.value ||
+          detail.value.claimantUserId === user?.id
+        )
+          throw new Error('Independent staff review is required');
+        return {
+          claimId,
+          input: parseContract(organizationClaimReviewCheck, {
+            decision,
+            evidenceReference: evidence,
+          }),
+        };
+      });
+    } catch (error) {
       if (isHttpRequestError(error) && error.status === 403) setAuthorizationRevoked(true);
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
-      await queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      onClose();
-    },
-  });
+      return;
+    }
+    await refreshClaims();
+    // The claimed account's own data (its kind, its owners) changed too.
+    await queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    onClose();
+  };
   const conflict = isHttpRequestError(review.error) && review.error.status === 409;
   const forbidden = isHttpRequestError(review.error) && review.error.status === 403;
-  const selfReview = detail.data?.claimantUserId === user?.id;
+  const selfReview = detail.value?.claimantUserId === user?.id;
+  const loaded = detail.status === 'success' && detail.value;
   return (
     <View className="gap-space-16 p-space-16">
-      {detail.isPending ? <ActivityIndicator /> : null}
-      {detail.isError ? (
+      {detail.isLoading ? <ActivityIndicator /> : null}
+      {detail.status === 'error' ? (
         <>
           <Text accessibilityRole="alert">
             {t(
@@ -148,16 +166,16 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
                 : 'organizationDirectory.requestError',
             )}
           </Text>
-          <Button onPress={() => detail.refetch()}>{t('organizationDirectory.retry')}</Button>
+          <Button onPress={() => detail.refresh()}>{t('organizationDirectory.retry')}</Button>
         </>
       ) : null}
       {authorizationRevoked ? (
         <Text accessibilityRole="alert">{t('organizationDirectory.review.forbidden')}</Text>
       ) : null}
-      {detail.isSuccess && canUsePrivateApi && !authorizationRevoked ? (
+      {loaded && canUsePrivateApi && !authorizationRevoked ? (
         <>
           <Text>{t('organizationDirectory.evidence')}</Text>
-          <Text selectable>{detail.data.evidenceReference}</Text>
+          <Text selectable>{loaded.evidenceReference}</Text>
           <Text>{t('organizationDirectory.review.hint')}</Text>
           {selfReview ? <Text>{t('organizationDirectory.review.independent')}</Text> : null}
           <TextField>
@@ -168,7 +186,7 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
               maxLength={1000}
             />
           </TextField>
-          {review.isError ? (
+          {review.error ? (
             <Text accessibilityRole="alert">
               {t(
                 conflict
@@ -185,13 +203,13 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
               disabled={
                 !canUsePrivateApi ||
                 selfReview ||
-                detail.data.status !== 'pending' ||
+                loaded.status !== 'pending' ||
                 !evidence.trim() ||
                 review.isPending ||
                 conflict ||
                 forbidden
               }
-              onPress={() => review.mutate(decision)}
+              onPress={() => void decide(decision)}
             >
               {t(`organizationDirectory.review.${decision}`)}
             </Button>
@@ -199,7 +217,7 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
           {conflict ? (
             <Button
               onPress={async () => {
-                await queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
+                await refreshClaims();
                 onClose();
               }}
             >

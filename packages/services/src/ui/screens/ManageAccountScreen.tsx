@@ -75,7 +75,7 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
   // alike read this single `user`.
   const user = userFromQuery ?? contextUser;
 
-  const { data: subscription } = useUserSubscription({ enabled: isAuthenticated });
+  const { value: subscription } = useUserSubscription({ enabled: isAuthenticated });
   const [signingOut, setSigningOut] = useState(false);
 
   const displayName = useMemo(
