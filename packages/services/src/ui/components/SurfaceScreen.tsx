@@ -3,7 +3,6 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
-import { useStore } from 'zustand';
 import { useOverlayLayerContext, isTopmostOverlayLayer } from '@oxy.so/bloom/overlay';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useDialogFrame, useDialogHeader, type DialogHeaderConfig } from '@oxy.so/bloom/dialog';
@@ -11,7 +10,7 @@ import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
 import type { RouteName } from '../navigation/routes';
 import { getScreenComponent, loadScreens, screensReady } from '../navigation/routes';
 import { pushSurfaceBackHandler } from '../navigation/surfaceBackBridge';
-import type { SurfaceNavStack } from '../navigation/surfaceNavStack';
+import { type SurfaceNavStack, useSurfaceNavState } from '../navigation/surfaceNavStack';
 import { getSurfaceConfig } from '../navigation/surfaceRegistry';
 import { SurfaceHeaderContext, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
 import { SurfaceFrameWidthContext } from '../hooks/useSurfaceFrameWidth';
@@ -140,7 +139,7 @@ function SurfaceScreen({
     navigation;
   const theme = useTheme();
   const overlayLayer = useOverlayLayerContext();
-  const state = useStore(navStack.store);
+  const state = useSurfaceNavState(navStack);
   const top = state.frames[state.frames.length - 1];
 
   useEffect(() => {

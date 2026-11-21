@@ -25,7 +25,7 @@ describe('imperative navigation preserves the visible surface history', () => {
     expect(goBack()).toBe(true);
     expect(stack.getTop().route).toBe('AccountDialog');
     expect(goBack()).toBe(false);
-    expect(stack.store.getState().closing).toBe(false);
+    expect(stack.getState().closing).toBe(false);
   });
 
   it('opens a root only when there is no existing surface', () => {
