@@ -37,6 +37,7 @@
     "expo-linking": "{{v.expoLinking}}",
     "expo-router": "{{v.expoRouter}}",
     "expo-secure-store": "{{v.expoSecureStore}}",
+    "expo-sqlite": "{{v.expoSqlite}}",
     "expo-splash-screen": "{{v.expoSplashScreen}}",
     "expo-status-bar": "{{v.expoStatusBar}}",
     "expo-symbols": "{{v.expoSymbols}}",

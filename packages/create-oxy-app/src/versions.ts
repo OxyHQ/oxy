@@ -97,6 +97,7 @@ export const VERSIONS = {
   // device credential (`oxy-doctor` fails an app missing any of them).
   expoCrypto: '~58.0.7',
   expoSecureStore: '~58.0.2',
+  expoSqlite: '~58.0.15', // expo-sqlite — each account's bloom-data copy on a device (Services 15)
   expoFileSystem: '~58.0.10',
   expoAppIntegrity: '~58.0.2', // @expo/app-integrity
   netinfo: '12.0.1', // @react-native-community/netinfo
