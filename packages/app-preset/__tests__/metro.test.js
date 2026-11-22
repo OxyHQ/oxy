@@ -72,6 +72,7 @@ after(() => {
 test('configures optional SVG, aliases, watch roots and minifier policy', () => {
   const projectRoot = '/repo/packages/frontend';
   const config = createOxyMetroConfig(projectRoot, {
+    nativewind: true,
     cssInput: './styles/global.css',
     dropConsole: true,
     svgTransformerPath: '/transformers/svg.js',
@@ -264,7 +265,10 @@ test('react-native gets the completed shim, over every other resolver, Bundle Mo
   const projectRoot = '/repo/packages/frontend';
   const app = '/repo/app/index.tsx';
   for (const workletsBundleMode of [false, true]) {
-    const { resolveRequest } = createOxyMetroConfig(projectRoot, { workletsBundleMode }).resolver;
+    const { resolveRequest } = createOxyMetroConfig(projectRoot, {
+      nativewind: true,
+      workletsBundleMode,
+    }).resolver;
     const metro = [];
     const resolve = (originModulePath, moduleName, platform = 'android') =>
       resolveRequest(
@@ -300,5 +304,39 @@ test('react-native gets the completed shim, over every other resolver, Bundle Mo
       [`${projectRoot}/package.json`, 'react-native', 'android'],
       [`${projectRoot}/package.json`, 'react-native-css/components', 'android'],
     ]);
+  }
+});
+
+test('NativeWind wraps only an app that depends on it', () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'oxy-metro-nw-')));
+  try {
+    const write = (name, manifest) => {
+      const dir = path.join(root, name);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(manifest));
+      return dir;
+    };
+    const styled = write('styled', { dependencies: { nativewind: '5.0.0' } });
+    const plainApp = write('plain', { dependencies: { '@oxy.so/bloom': '23.0.0' } });
+    const options = { workspaceRoot: root };
+    assert.equal(createOxyMetroConfig(styled, options).nativeWindOptions.input, './global.css');
+    const plain = createOxyMetroConfig(plainApp, options);
+    assert.equal(plain.nativeWindOptions, undefined);
+    // The option decides when given, whatever the app depends on.
+    assert.equal(
+      createOxyMetroConfig(styled, { ...options, nativewind: false }).nativeWindOptions,
+      undefined,
+    );
+    // Without NativeWind the completed shim (NativeWind's redirect's answer) is not applied.
+    const resolve = (config) =>
+      config.resolver.resolveRequest(
+        { originModulePath: path.join(plainApp, 'app/index.tsx'), resolveRequest: () => null },
+        'react-native',
+        'android',
+      ).filePath;
+    assert.equal(resolve(createOxyMetroConfig(styled, options)), COMPLETE_REACT_NATIVE);
+    assert.notEqual(resolve(plain), COMPLETE_REACT_NATIVE);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });

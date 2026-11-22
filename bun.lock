@@ -285,11 +285,13 @@
         "expo-font",
         "expo-router",
         "expo-server",
+        "nativewind",
         "react",
         "react-dom",
         "react-native-webgpu",
         "react-native-worklets",
         "sharp",
+        "tailwindcss",
       ],
     },
     "packages/auth": {

@@ -4,7 +4,8 @@
  * Lifts the shared Metro configuration every Oxy Expo app used to copy-paste:
  * monorepo watch folders, the block list, symlink + package-exports resolution
  * (required by @oxy.so/bloom's subpath exports), the web-font/wasm asset
- * extensions, the release minifier tuning, and the NativeWind wrapper.
+ * extensions, the release minifier tuning, Bloom's base face for raw text, and
+ * the NativeWind wrapper for an app that still styles with `className`.
  *
  * Usage — a three-line metro.config.js:
  *
@@ -19,6 +20,11 @@
  *   `packages/shared-types` workspace package. When set, it is aliased to the
  *   monorepo `packages/shared-types` dir and its `src` is added to the block
  *   list (so Metro never bundles the un-built TypeScript source).
+ * @param {boolean} [options.nativewind] Wrap the config for NativeWind
+ *   (react-native-css). Defaults to whether the app's package.json depends on
+ *   `nativewind`: Bloom needs none, so an app that no longer writes `className`
+ *   drops the dependency and gets no wrapper, no react-native-css runtime and no
+ *   redirect of React Native's components.
  * @param {string} [options.cssInput='./global.css'] NativeWind CSS entry point.
  * @param {(string|RegExp)[]} [options.extraBlockList=[]] Extra Metro
  *   `blockList` patterns appended to the Oxy defaults.
@@ -43,7 +49,6 @@
  * @returns {import('metro-config').MetroConfig}
  */
 const { getDefaultConfig } = require('expo/metro-config');
-const { withNativeWind } = require('nativewind/metro');
 const fs = require('node:fs');
 const path = require('node:path');
 const { resolveOxyBuildId } = require('../build-id');
@@ -120,6 +125,29 @@ function findWorkspaceRoot(projectRoot) {
     if (fs.existsSync(path.join(dir, '.git'))) return lockfileRoot || dir;
     if (path.dirname(dir) === dir) return lockfileRoot || start;
   }
+}
+
+/**
+ * Whether the app at `projectRoot` depends on NativeWind: its own package.json,
+ * never a copy hoisted from another app of the monorepo.
+ *
+ * @param {string} projectRoot
+ * @returns {boolean}
+ */
+function dependsOnNativeWind(projectRoot) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
+    return ['dependencies', 'devDependencies'].some((field) =>
+      Boolean(manifest?.[field]?.nativewind),
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The `nativewind` option, or the app's own dependency on it. */
+function usesNativeWind(projectRoot, options) {
+  return options.nativewind ?? dependsOnNativeWind(projectRoot);
 }
 
 function createOxyMetroConfig(projectRoot, options = {}) {
@@ -266,6 +294,9 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     },
   };
 
+  if (!usesNativeWind(projectRoot, options)) return config;
+  // Loaded only for an app that styles with NativeWind: the others may not install it.
+  const { withNativeWind } = require('nativewind/metro');
   return withNativeWind(withReactNativeCssSingleInstance(config, projectRoot), {
     input: cssInput,
     inlineRem: 16,
@@ -398,30 +429,47 @@ const BASE_FONT_MODULES = new Set(
 /** NativeWind's `Text` and `TextInput` components, by any of the conditions Metro may pick. */
 const CSS_TEXT_COMPONENT =
   /[/\\]react-native-css[/\\](?:dist[/\\](?:commonjs|module)[/\\]components[/\\](Text|TextInput)\.js|src[/\\]components[/\\](Text|TextInput)\.tsx)$/;
+/**
+ * React Native's own `Text` and `TextInput` files, and react-native-web's (the
+ * path Expo's Babel preset rewrites `import { Text } from 'react-native'` to on
+ * the web, in either of its builds).
+ */
+const REACT_NATIVE_TEXT_COMPONENT =
+  /[/\\](?:react-native[/\\]Libraries[/\\](?:Text[/\\](Text)|Components[/\\]TextInput[/\\](TextInput))\.js|react-native-web[/\\]dist[/\\](?:cjs[/\\])?exports[/\\](Text|TextInput)[/\\]index\.js)$/;
 
 /**
- * Wraps a Metro config so that wherever NativeWind's `Text` or `TextInput`
- * would be bundled, `./base-font/Text.js` or `./base-font/TextInput.js` is:
- * the same component, drawing Bloom's base face when the text names no family
- * (Inter on Android and iOS, the document's family on the web; see
- * `./base-font/base-font.native.js` and `.web.js` for why each platform needs it).
+ * Wraps a Metro config so that wherever the app's `Text` or `TextInput` would be
+ * bundled, the same component drawing Bloom's base face when the text names no
+ * family is (Inter on Android and iOS, the document's family on the web; see
+ * `./base-font/hosts.native.js` and `.web.js` for why each platform needs it).
  *
- * NativeWind is where every text of the app already passes: on native it sends
- * `import { Text } from 'react-native'` (and deep `react-native/Libraries/…`
- * imports) to its components, on the web the deep `react-native-web` import Expo's
- * Babel preset rewrites it to. So the match is on the RESOLVED file, by every
- * route that reaches it; nothing else changes.
+ * The match is on the RESOLVED file, by every route that reaches it; nothing
+ * else changes:
+ *
+ * - Without NativeWind, React Native's own `Text` and `TextInput` files (and
+ *   react-native-web's on the web) become `./base-font/PlainText.js` and
+ *   `./base-font/PlainTextInput.js`, the base-face hosts. Bloom's and the Bloom
+ *   language's texts name their family, so only a raw text takes the face.
+ * - With NativeWind, every text already passes through its components (it sends
+ *   `import { Text } from 'react-native'` there), so NativeWind's `Text` and
+ *   `TextInput` become `./base-font/Text.js` and `./base-font/TextInput.js`, the
+ *   same hosts under NativeWind's `styled()`.
  *
  * Apply it OUTERMOST. The base-font modules' own imports (React Native's hosts,
  * NativeWind's runtime) go straight to Metro's resolver from the project, past
- * every redirect: NativeWind's would send the hosts back to the components
- * these modules replace.
+ * every redirect: this one, or NativeWind's, would send the hosts back to the
+ * components these modules replace.
  *
- * @param {import('metro-config').MetroConfig} config The finished config, NativeWind applied.
+ * @param {import('metro-config').MetroConfig} config The finished config.
  * @param {string} [projectRoot=config.projectRoot] The app package.
+ * @param {{ nativewind?: boolean }} [options] Whether `config` is NativeWind's
+ *   (defaults to the app's own dependency on it, as `createOxyMetroConfig`).
  * @returns {import('metro-config').MetroConfig} `config`, its resolver wrapped.
  */
-function withBaseFontText(config, projectRoot = config.projectRoot) {
+function withBaseFontText(config, projectRoot = config.projectRoot, options = {}) {
+  const nativewind = usesNativeWind(projectRoot, options);
+  const component = nativewind ? CSS_TEXT_COMPONENT : REACT_NATIVE_TEXT_COMPONENT;
+  const replacement = nativewind ? '' : 'Plain';
   const parentResolveRequest = config.resolver.resolveRequest;
   const projectOrigin = path.join(projectRoot, 'package.json');
 
@@ -443,13 +491,10 @@ function withBaseFontText(config, projectRoot = config.projectRoot) {
       moduleName,
       platform,
     );
-    const component =
-      resolution?.type === 'sourceFile' && CSS_TEXT_COMPONENT.exec(resolution.filePath);
-    if (component) {
-      return {
-        type: 'sourceFile',
-        filePath: path.join(BASE_FONT_DIR, `${component[1] ?? component[2]}.js`),
-      };
+    const match = resolution?.type === 'sourceFile' && component.exec(resolution.filePath);
+    if (match) {
+      const name = match.slice(1).find(Boolean);
+      return { type: 'sourceFile', filePath: path.join(BASE_FONT_DIR, `${replacement}${name}.js`) };
     }
     return resolution;
   };
@@ -505,6 +550,7 @@ function withWorkletsBundleMode(config, projectRoot) {
 
 function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
   const { workletsBundleMode = false, staticHydrationBoundary = false } = options;
+  const nativewind = usesNativeWind(projectRoot, options);
   const nativeWindConfig = createOxyMetroConfig(projectRoot, options);
   let config = withBloomSingleInstance(nativeWindConfig, projectRoot);
   if (staticHydrationBoundary) config = withStaticHydrationBoundary(config, projectRoot);
@@ -520,9 +566,10 @@ function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
     options.workspaceRoot ? path.resolve(options.workspaceRoot) : findWorkspaceRoot(projectRoot),
   );
   // Outermost, so they see the final resolution and their own modules'
-  // imports reach no redirect beneath them.
-  config = withCompleteReactNative(config, projectRoot);
-  return withBaseFontText(config, projectRoot);
+  // imports reach no redirect beneath them. The completed module answers
+  // NativeWind's redirect of `react-native`; without NativeWind there is none.
+  if (nativewind) config = withCompleteReactNative(config, projectRoot);
+  return withBaseFontText(config, projectRoot, { nativewind });
 }
 
 module.exports = {

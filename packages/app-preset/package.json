@@ -1,7 +1,7 @@
 {
   "name": "@oxy.so/app-preset",
-  "version": "6.8.0",
-  "description": "The Oxy distro of Expo \u2014 centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, \u2026). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
+  "version": "6.9.0",
+  "description": "The Oxy distro of Expo — centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, …). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
     "access": "public"
@@ -146,6 +146,12 @@
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "nativewind": {
+      "optional": true
+    },
+    "tailwindcss": {
       "optional": true
     }
   },

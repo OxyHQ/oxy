@@ -471,6 +471,18 @@ file, so `import { Text } from 'react-native'`, deep `react-native/Libraries/…
 imports and the react-native-web path Expo's Babel preset rewrites to all reach
 it; `withBaseFontText` is exported for an app that composes its own config.
 
+#### An app without NativeWind (6.9.0+)
+
+Bloom styles without `className`, so an app that no longer writes it drops
+`nativewind` (and `react-native-css`, Tailwind and `base.css`) from its
+package.json. `createOxyMetroConfig` reads the app's own package.json: with no
+`nativewind` dependency it applies no NativeWind wrapper, no react-native-css
+runtime and no redirect of React Native's components (`nativewind: true | false`
+overrides). The base face then rides on React Native's own files: `Text` and
+`TextInput` (react-native-web's on the web) resolve to `metro/base-font/PlainText.js`
+and `PlainTextInput.js`, the same hosts without `styled()`. Bloom's and the Bloom
+language's texts name their family, so only a raw text takes it.
+
 #### `react-native` on native: the complete NativeWind shim (4.1.0+)
 
 On native, NativeWind's resolver sends every `import … from 'react-native'`

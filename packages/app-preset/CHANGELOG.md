@@ -1,5 +1,23 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.9.0
+
+### Added
+
+- An app without NativeWind. Bloom no longer styles with `className`, so an app
+  that has moved its own `className` off (the Bloom language codemod) drops
+  `nativewind` from its package.json, and `createOxyMetroConfig` then applies no
+  NativeWind wrapper, no react-native-css runtime and no redirect of React
+  Native's components: every `View` and `Text` is React Native's own. The
+  `nativewind` option overrides the detection. `nativewind/metro` is loaded only
+  for an app that uses it, and the `nativewind` and `tailwindcss` peers are
+  optional.
+- The base face without NativeWind: React Native's `Text` and `TextInput` files
+  (react-native-web's on the web) resolve to `metro/base-font/PlainText.js` and
+  `PlainTextInput.js`, the base-face hosts (`metro/base-font/hosts.*.js`, which
+  NativeWind's `Text` now wraps as well). Bloom's and the language's texts name
+  their family; a raw text draws Inter, or the document's family on the web.
+
 ## 6.8.0
 
 ### Fixed
