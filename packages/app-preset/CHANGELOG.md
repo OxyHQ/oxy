@@ -18,6 +18,12 @@
   NativeWind's `Text` now wraps as well). Bloom's and the language's texts name
   their family; a raw text draws Inter, or the document's family on the web.
 
+### Notes
+
+- `css/base.css` still imports `@oxy.so/bloom/design-tokens/theme.css`, which
+  the Bloom release without NativeWind removes: an app takes that Bloom only
+  after its own `className` is gone (the Bloom language codemod).
+
 ## 6.8.0
 
 ### Fixed

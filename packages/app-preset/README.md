@@ -483,6 +483,12 @@ overrides). The base face then rides on React Native's own files: `Text` and
 and `PlainTextInput.js`, the same hosts without `styled()`. Bloom's and the Bloom
 language's texts name their family, so only a raw text takes it.
 
+Bloom without NativeWind ships no Tailwind theme (`@oxy.so/bloom/design-tokens/theme.css`
+is gone, which `css/base.css` imports) and publishes no CSS variables to
+react-native-css on native. So an app moves its own `className` off through the
+Bloom language codemod before it takes that Bloom; an app still on classes stays
+on the NativeWind-era Bloom until then.
+
 #### `react-native` on native: the complete NativeWind shim (4.1.0+)
 
 On native, NativeWind's resolver sends every `import … from 'react-native'`
