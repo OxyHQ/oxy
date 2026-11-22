@@ -20,9 +20,11 @@
 
 - `BloomNativeWindTheme` (`@oxy.so/app-preset/nativewind-theme`): for an app
   that takes the Bloom without NativeWind while it still has some `className`.
-  Mounted once inside `BloomProvider`, it writes Bloom's colour tokens into
-  react-native-css's root variables on native, as Bloom used to; the web needs
-  nothing. `css/base.css` keeps importing Bloom's `theme.css`, which Bloom keeps
+  Wrapped once around the app inside `BloomProvider`, it writes Bloom's colour
+  tokens into react-native-css's root variables on native, as Bloom used to, and
+  carries each Bloom colour scope's tokens into NativeWind's scoped variables
+  (Bloom's `ColorScopeLayerContext`), so classes inside a scope follow it; the
+  web needs nothing. `css/base.css` keeps importing Bloom's `theme.css`, which Bloom keeps
   for such apps until the fleet has migrated.
 
 ## 6.8.0

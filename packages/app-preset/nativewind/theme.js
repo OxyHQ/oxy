@@ -6,20 +6,23 @@
  * Bloom styles without NativeWind and no longer publishes its tokens to
  * react-native-css. An app whose remaining classes read them (`bg-primary`
  * through `@oxy.so/bloom/design-tokens/theme.css`) mounts this once, inside
- * `BloomProvider`: it writes the theme's tokens into react-native-css's root
- * variables, as Bloom did, and again whenever the theme changes. The web needs
- * nothing (Bloom writes the same tokens on the document), so it draws nothing
- * and publishes nothing there. A colour scope's own palette does not reach an
- * app's classes on native: those read the app theme.
+ * `BloomProvider`, around the app: it writes the theme's tokens into
+ * react-native-css's root variables, as Bloom did, and again whenever the theme
+ * changes; and it gives every Bloom colour scope a layer
+ * (`ColorScopeLayerContext`) that hands the scope's tokens to NativeWind's
+ * `VariableContextProvider`, so classes inside a scope follow its palette as
+ * they did. The web needs neither (Bloom writes the tokens on the document and
+ * on each scope's element), so there it only renders its children.
  *
  *   <BloomProvider …>
- *     <BloomNativeWindTheme />
- *     …
+ *     <BloomNativeWindTheme>
+ *       …
+ *     </BloomNativeWindTheme>
  *   </BloomProvider>
  */
-const { useLayoutEffect } = require('react');
+const { createElement, useLayoutEffect } = require('react');
 const { Platform } = require('react-native');
-const { useColorTokens } = require('@oxy.so/bloom/theme');
+const { ColorScopeLayerContext, useColorTokens } = require('@oxy.so/bloom/theme');
 
 /** `mutedForeground` → `muted-foreground`, `chart1Active` → `chart-1-active`. */
 function tokenName(key) {
@@ -36,12 +39,23 @@ function publish(tokens) {
   }
 }
 
-function BloomNativeWindTheme() {
-  const tokens = useColorTokens();
-  useLayoutEffect(() => {
-    if (Platform.OS !== 'web') publish(tokens);
-  }, [tokens]);
-  return null;
+/** A colour scope's subtree under its tokens, as NativeWind's own scoped variables. */
+function NativeWindScopeLayer({ vars, children }) {
+  const { VariableContextProvider } = require('nativewind');
+  return createElement(VariableContextProvider, { value: vars }, children);
 }
 
-module.exports = { BloomNativeWindTheme, tokenName };
+function BloomNativeWindTheme({ children }) {
+  const tokens = useColorTokens();
+  const native = Platform.OS !== 'web';
+  useLayoutEffect(() => {
+    if (native) publish(tokens);
+  }, [native, tokens]);
+  return createElement(
+    ColorScopeLayerContext.Provider,
+    { value: native ? NativeWindScopeLayer : null },
+    children,
+  );
+}
+
+module.exports = { BloomNativeWindTheme, NativeWindScopeLayer, tokenName };

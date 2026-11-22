@@ -487,10 +487,12 @@ An app can take the Bloom without NativeWind while it still has some
 `className` of its own. Bloom keeps `@oxy.so/bloom/design-tokens/theme.css`
 (which `css/base.css` imports) and `./tailwind-preset` as generated token outputs
 for those classes, until the fleet has migrated. On native Bloom no longer
-publishes its tokens to react-native-css, so such an app mounts
-`BloomNativeWindTheme` (`@oxy.so/app-preset/nativewind-theme`) once inside
-`BloomProvider`; it writes the theme's tokens into react-native-css's root
-variables, as Bloom did. The web needs nothing. Once the codemod has moved the
+publishes its tokens to react-native-css, so such an app wraps its tree in
+`BloomNativeWindTheme` (`@oxy.so/app-preset/nativewind-theme`) once, inside
+`BloomProvider`: it writes the theme's tokens into react-native-css's root
+variables, as Bloom did, and hands every Bloom colour scope's tokens to
+NativeWind's `VariableContextProvider` (through Bloom's `ColorScopeLayerContext`),
+so classes inside a scope follow its palette. The web needs neither. Once the codemod has moved the
 last class, the app drops `nativewind`, `react-native-css`, Tailwind,
 `css/base.css` and `BloomNativeWindTheme`.
 
