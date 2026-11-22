@@ -24,6 +24,7 @@
     "./plugin/withOxyUpdates": "./plugin/withOxyUpdates.js",
     "./metro": "./metro/index.js",
     "./babel": "./babel/index.js",
+    "./nativewind-theme": "./nativewind/theme.js",
     "./eslint": "./eslint/index.js",
     "./base.css": "./css/base.css",
     "./css/base.css": "./css/base.css",
@@ -46,7 +47,8 @@
     "web",
     "css",
     "tsconfig",
-    "README.md"
+    "README.md",
+    "nativewind"
   ],
   "keywords": [
     "oxyhq",
