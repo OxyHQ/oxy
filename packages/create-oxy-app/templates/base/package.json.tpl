@@ -11,7 +11,8 @@
     "dev:frontend": "bun run --cwd packages/frontend start",
     "build:shared-types": "bun run --cwd packages/shared-types build",
     "build:frontend": "bun run --cwd packages/frontend export:web",
-    "lint": "bun run --cwd packages/frontend lint",
+    "lint": "bun run --cwd packages/frontend lint",{{#language}}
+    "test": "bun run --cwd packages/frontend test",{{/language}}
     "validate:agents-md": "bun ./scripts/check-agents-md-size.mjs && bun ./scripts/test-check-agents-md-size.mjs",
     "postinstall": "bun run build:shared-types"{{#backend}},
     "dev:backend": "bun run --cwd packages/backend dev",
@@ -22,16 +23,16 @@
   },
   "overrides": {
     "@oxy.so/core": "{{v.oxyCore}}",
-    "@oxy.so/bloom": "{{v.oxyBloom}}",
+    "@oxy.so/bloom": "{{v.oxyBloom}}"{{^language}},
     "lightningcss": "{{v.lightningcss}}",
     "lightningcss-linux-x64-gnu": "{{v.lightningcss}}",
-    "lightningcss-linux-x64-musl": "{{v.lightningcss}}"
+    "lightningcss-linux-x64-musl": "{{v.lightningcss}}"{{/language}}
   },
   "resolutions": {
     "@oxy.so/core": "{{v.oxyCore}}",
-    "@oxy.so/bloom": "{{v.oxyBloom}}",
+    "@oxy.so/bloom": "{{v.oxyBloom}}"{{^language}},
     "lightningcss": "{{v.lightningcss}}",
     "lightningcss-linux-x64-gnu": "{{v.lightningcss}}",
-    "lightningcss-linux-x64-musl": "{{v.lightningcss}}"
+    "lightningcss-linux-x64-musl": "{{v.lightningcss}}"{{/language}}
   }
 }

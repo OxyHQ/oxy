@@ -2,8 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildRenderContext } from '../context';
-import { renderTree } from '../render';
+import { renderApp } from '../layers';
 
 /**
  * The template must not ignore its own source.
@@ -22,10 +21,11 @@ import { renderTree } from '../render';
 
 const TEMPLATES = path.join(import.meta.dir, '..', '..', 'templates');
 
-// The CLI's own context builder, not a hand-written token map: a template that
-// starts using a new `{{v.*}}` token would otherwise fail this test for a reason
-// that has nothing to do with what it checks.
-const ctx = buildRenderContext({
+// The CLI's own composition (every layer a full app renders), not a hand-written
+// token map or one template directory: a template that starts using a new
+// `{{v.*}}` token, or a file that moves between layers, would otherwise fail
+// this test for a reason that has nothing to do with what it checks.
+const config = {
   name: 'My App',
   slug: 'my-app',
   scheme: 'myapp',
@@ -34,12 +34,15 @@ const ctx = buildRenderContext({
   backend: true,
   deploy: true,
   demo: true,
-});
+  install: false,
+  git: false,
+  register: false,
+};
 
-/** Render the base template into a throwaway directory. */
-async function renderBase(): Promise<string> {
+/** Render a full app (JSX or language frontend) into a throwaway directory. */
+async function renderBase(language = false): Promise<string> {
   const dest = await fs.mkdtemp(path.join(os.tmpdir(), 'oxy-scaffold-gitignore-'));
-  await renderTree(path.join(TEMPLATES, 'base'), dest, ctx);
+  await renderApp({ ...config, language, targetDir: dest });
   return dest;
 }
 
@@ -67,8 +70,8 @@ async function ignoredFiles(dir: string): Promise<string[]> {
 }
 
 describe('the template does not ignore its own source', () => {
-  test('every rendered file is addable', async () => {
-    const dir = await renderBase();
+  test.each([false, true])('every rendered file is addable (language: %p)', async (language) => {
+    const dir = await renderBase(language);
     try {
       const ignored = await ignoredFiles(dir);
 

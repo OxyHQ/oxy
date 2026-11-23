@@ -59,9 +59,13 @@ Register an Application + public credential at https://console.oxy.so if you did
 
 ```
 packages/
-  frontend/       Expo Router app (@oxy.so/services + @oxy.so/bloom + NativeWind)
+  frontend/       Expo Router app (@oxy.so/services + @oxy.so/bloom{{#language}}, written in the Bloom language{{/language}}{{^language}} + NativeWind{{/language}})
   shared-types/   Shared TypeScript types{{#backend}}
   backend/        Express + PostgreSQL (drizzle) + Socket.IO API{{/backend}}
 ```
 
-All Expo config is centralized in `@oxy.so/app-preset` — see `AGENTS.md`.
+All Expo config is centralized in `@oxy.so/app-preset` — see `AGENTS.md`.{{#language}}
+
+The frontend's screens are written in the Bloom language: views are functions,
+their look a chain of modifiers whose values are Bloom tokens. Start with
+`packages/frontend/AGENTS.md`, and test with `bun run --cwd packages/frontend test`.{{/language}}

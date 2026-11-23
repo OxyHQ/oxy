@@ -8,12 +8,34 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 // segments, read as a dotted path (`t('home.title')`), never the English text.
 type Messages = { [segment: string]: string | Messages };
 
-const en: Messages = {
+const en: Messages = {{{^language}}
   home: {
     title: '{{APP_NAME}}',
     subtitle: 'Built with the Oxy SDK.',
     signedInAs: 'Signed in as',
+  },{{/language}}{{#language}}
+  notes: {
+    title: 'Notes',
+    empty: 'No notes yet.',
+    new: 'New note',
+    signOut: 'Sign out',
+    missing: 'This note is gone.',
   },
+  form: {
+    heading: 'New note',
+    title: 'Title',
+    titlePlaceholder: 'What is it about?',
+    body: 'Note',
+    bodyPlaceholder: 'Write it down',
+    category: 'Category',
+    pinned: 'Pinned',
+    save: 'Save note',
+  },
+  categories: {
+    idea: 'Idea',
+    task: 'Task',
+    journal: 'Journal',
+  },{{/language}}
   auth: {
     title: 'Welcome to {{APP_NAME}}',
     subtitle: 'Sign in with your Oxy account to continue.',

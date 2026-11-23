@@ -11,7 +11,7 @@ const TEMPLATE = path.join(
   '..',
   '..',
   'templates',
-  'base',
+  'jsx',
   'packages',
   'frontend',
   'package.json.tpl',

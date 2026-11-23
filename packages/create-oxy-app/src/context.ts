@@ -1,4 +1,4 @@
-import { BUN_VERSION, VERSIONS } from './versions';
+import { BUN_VERSION, versionsFor } from './versions';
 import type { RenderContext } from './render';
 
 /** Fully-resolved scaffold configuration (flags + prompts merged). */
@@ -12,6 +12,8 @@ export interface ResolvedConfig {
   backend: boolean;
   deploy: boolean;
   demo: boolean;
+  /** The frontend is written in the Bloom language (`templates/language`), not JSX. */
+  language: boolean;
   install: boolean;
   git: boolean;
   register: boolean;
@@ -59,7 +61,7 @@ export function buildRenderContext(config: ResolvedConfig): RenderContext {
     BUN_VERSION,
   };
 
-  for (const [key, value] of Object.entries(VERSIONS)) {
+  for (const [key, value] of Object.entries(versionsFor(config.language))) {
     tokens[`v.${key}`] = value;
   }
 
@@ -69,6 +71,7 @@ export function buildRenderContext(config: ResolvedConfig): RenderContext {
       backend: config.backend,
       deploy: config.deploy,
       demo: config.demo,
+      language: config.language,
     },
   };
 }
