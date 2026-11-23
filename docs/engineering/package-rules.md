@@ -114,6 +114,14 @@ yet, dependencies first, from exactly that commit. There is no typed commit, no 
   tag — and, when the package's `CHANGELOG.md` has a section for the version, a GitHub release
   with it; an existing tag must already name that commit or the job fails.
 
+A package whose files the one Linux build cannot make (a native addon per platform, as Bloom's
+`@oxy.so/bloom-language-compiler-<platform>` packages carry) commits its manifest and gets those
+files from the caller's own jobs in the same run: they upload them at their repository paths, the
+calling job `needs` them, and passes their artifact name pattern as `prebuilt_artifacts`; the build
+job downloads them into its checkout before it builds and packs. Those jobs hold no credential
+either, and a tarball missing a declared entry point still fails inspection, so a package never
+ships without its build. Bloom's `release-packages.yml` is the worked example.
+
 The caller grants `actions: read`, `contents: write` and `id-token: write` on its calling job,
 nothing at the workflow level, and queues its runs (`concurrency` with `queue: max`): none is ever
 cancelled, and a run whose versions an earlier run already published has nothing to do. A run that
