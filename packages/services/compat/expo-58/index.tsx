@@ -9,7 +9,7 @@ function SessionState() {
 
 function App() {
   return (
-    <OxyProvider baseURL="https://api.oxy.so" clientId="oxy_dk_services_expo_54">
+    <OxyProvider baseURL="https://api.oxy.so" clientId="oxy_dk_services_expo_58">
       <SessionState />
     </OxyProvider>
   );

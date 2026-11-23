@@ -1,26 +1,26 @@
 #!/usr/bin/env bun
 /**
- * @oxy.so/services against the OLDEST stack it declares: React Native 0.81,
- * React 19.1 and Expo SDK 54 (react-native-macos tops out at 0.83 and Astro
- * runs 0.81; react-native-web 0.21 is the web side).
+ * @oxy.so/services against the OLDEST stack it declares: Expo SDK 58 (React
+ * Native 0.88, React 19.3), the first Expo SDK that ships what Bloom 23 needs
+ * (react-native-reanimated 4.6+, react-native-gesture-handler 3.3+), with
+ * react-native-web 0.21 on the web and react-native-macos 0.83 (Astro: its
+ * latest release, and the oldest React Native Bloom 23's reanimated supports).
  *
  * The packages are installed as an EXTERNAL consumer would get them: this
  * directory's package.json and bun.lock (the third-party stack, frozen) are
  * copied to a temporary directory OUTSIDE the repository, and the workspace
  * packages are packed with `bun pm pack` and unpacked into its node_modules.
- * Nothing can resolve to the monorepo's own React Native 0.88 by walking up
- * the directory tree, because there is no tree above it.
+ * Nothing can resolve to the monorepo's own copies by walking up the
+ * directory tree, because there is no tree above it.
  *
  * Then, in that consumer:
  *   1. every peer @oxy.so/services declares is installed and SATISFIED by the
- *      Expo 54 stack (an optional peer only when installed), and every runtime
+ *      Expo 58 stack (an optional peer only when installed), and every runtime
  *      dependency of each packed package resolves;
  *   2. `tsc` typechecks services' published `src/` (what Metro and a
- *      `react-native`-condition typecheck compile), and two canaries prove the
- *      typecheck saw the old types: React 19.2's `useEffectEvent` and React
- *      Native's `useAnimatedValueXY` (absent from 0.81's types, present in
- *      0.88's) must both FAIL to resolve;
- *   3. `jest-expo` renders <OxyProvider> on iOS (React Native 0.81) and on web
+ *      `react-native`-condition typecheck compile), reading the consumer's
+ *      own types (the files it read are counted);
+ *   3. `jest-expo` renders <OxyProvider> on iOS (React Native 0.88) and on web
  *      (react-native-web 0.21) and its cold boot settles signed out with the
  *      network down, and the same render runs as macOS: `Platform.OS` is
  *      'macos' and every Expo module without a macOS podspec, and the SDK's
@@ -72,11 +72,12 @@ const FIXTURE_FILES = [
 ];
 const WORKSPACE_PACKAGES = ['contracts', 'protocol', 'telemetry', 'core', 'services'];
 const EXPECTED = {
-  react: '19.1.',
-  'react-native': '0.81.',
+  react: '19.3.',
+  'react-native': '0.88.',
   'react-native-web': '0.21.',
-  expo: '54.',
-  '@types/react': '19.1.',
+  'react-native-macos': '0.83.',
+  expo: '58.',
+  '@types/react': '19.3.',
 };
 
 const consumer = readJson(join(here, 'package.json'));
@@ -93,7 +94,7 @@ const run = (cmd, args, cwd, options = {}) =>
     env: { ...process.env, ...options.env },
   });
 
-const stage = realpathSync(mkdtempSync(join(tmpdir(), 'oxy-services-expo-54-')));
+const stage = realpathSync(mkdtempSync(join(tmpdir(), 'oxy-services-expo-58-')));
 console.log(`staging an external consumer in ${stage}`);
 
 try {
@@ -144,7 +145,7 @@ try {
     if (!version?.startsWith(prefix)) fail(`${name} is ${version}, this check is for ${prefix}x`);
   }
 
-  console.log('\n1. dependency and peer ranges against the Expo 54 stack');
+  console.log('\n1. dependency and peer ranges against the Expo 58 stack');
   for (const name of WORKSPACE_PACKAGES) {
     const dir = join(stage, 'node_modules', '@oxy.so', name);
     const manifest = readJson(join(dir, 'package.json'));
@@ -152,7 +153,7 @@ try {
       const version = installedVersion(dir, dep);
       if (!version)
         fail(
-          `${manifest.name} depends on ${dep}@${range}, which this consumer does not have: add it to compat/expo-54/package.json`,
+          `${manifest.name} depends on ${dep}@${range}, which this consumer does not have: add it to compat/expo-58/package.json`,
         );
       else if (!Bun.semver.satisfies(version, range))
         fail(`${manifest.name} depends on ${dep}@${range}, installed ${version}`);
@@ -167,24 +168,24 @@ try {
       const version = installedVersion(dir, peer);
       if (!version) {
         fail(
-          `${manifest.name} requires peer ${peer}@${range}, not installed in the Expo 54 consumer`,
+          `${manifest.name} requires peer ${peer}@${range}, not installed in the Expo 58 consumer`,
         );
         continue;
       }
       if (!Bun.semver.satisfies(version, range))
         fail(
-          `${manifest.name} peer ${peer}@"${range}" does not admit the Expo 54 stack's ${version}`,
+          `${manifest.name} peer ${peer}@"${range}" does not admit the Expo 58 stack's ${version}`,
         );
       else console.log(`  ok ${manifest.name} peer ${peer}@"${range}" admits ${version}`);
     }
   }
 
-  console.log('\n2. typecheck services src against React Native 0.81 / React 19.1 / Expo 54 types');
+  console.log('\n2. typecheck services src against React Native 0.88 / React 19.3 / Expo 58 types');
   const tsc = join(stage, 'node_modules', '.bin', 'tsc');
   try {
     run(tsc, ['-p', '.'], stage);
   } catch {
-    fail('tsc reported errors in @oxy.so/services against the Expo 54 stack');
+    fail('tsc reported errors in @oxy.so/services against the Expo 58 stack');
   }
   const files = run(tsc, ['-p', '.', '--listFilesOnly'], stage, { capture: true })
     .split('\n')
@@ -205,35 +206,11 @@ try {
   if (counts['react-native'] < 50)
     fail(`tsc saw only ${counts['react-native']} react-native type files`);
 
-  const canaries = {
-    'canary-react.ts':
-      "import { useEffectEvent } from 'react';\nexport const canary = useEffectEvent;\n",
-    'canary-react-native.ts':
-      "import { useAnimatedValueXY } from 'react-native';\nexport const canary = useAnimatedValueXY;\n",
-  };
-  for (const [file, source] of Object.entries(canaries)) {
-    writeFileSync(join(stage, file), source);
-    writeFileSync(
-      join(stage, 'tsconfig.canary.json'),
-      JSON.stringify({ extends: './tsconfig.json', include: [file] }),
-    );
-    let output = '';
-    try {
-      run(tsc, ['-p', 'tsconfig.canary.json'], stage, { capture: true });
-    } catch (error) {
-      output = `${error.stdout ?? ''}`;
-    }
-    const name = /import \{ (\w+) \}/.exec(source)[1];
-    if (!new RegExp(`error TS(2305|2724).*'${name}'`).test(output))
-      fail(`canary ${file} typechecked: the check is not reading the old types`);
-    else console.log(`  canary ${file} fails as it must`);
-  }
-
-  console.log('\n3. render <OxyProvider> on iOS (RN 0.81), web (react-native-web 0.21) and macOS');
+  console.log('\n3. render <OxyProvider> on iOS (RN 0.88), web (react-native-web 0.21) and macOS');
   try {
     run(join(stage, 'node_modules', '.bin', 'jest'), ['--ci', '--forceExit'], stage);
   } catch {
-    fail('OxyProvider did not render and settle on the Expo 54 stack');
+    fail('OxyProvider did not render and settle on the Expo 58 stack');
   }
 
   console.log(
@@ -255,7 +232,7 @@ try {
       fail(`the iOS export holds ${bytecode.length} Hermes bundles, expected 1`);
     else console.log(`  iOS: ${bytecode[0]}`);
   } catch {
-    fail('Metro could not bundle an app mounting OxyProvider for iOS on React Native 0.81');
+    fail('Metro could not bundle an app mounting OxyProvider for iOS on React Native 0.88');
   }
   try {
     run('node', ['bundle-macos.mjs'], stage, { env: { CI: '1' } });
@@ -307,4 +284,6 @@ if (failures.length > 0) {
   console.error(`\n${failures.length} failure(s)`);
   process.exit(1);
 }
-console.log('\n@oxy.so/services works on React Native 0.81 / React 19.1 / Expo SDK 54');
+console.log(
+  '\n@oxy.so/services works on React Native 0.88 / React 19.3 / Expo SDK 58 and react-native-macos 0.83',
+);

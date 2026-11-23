@@ -1,6 +1,6 @@
 /**
  * The modules a react-native-macos app does not have: every Expo module whose
- * podspec declares no `:osx` platform (Expo SDK 54), and the SDK's own
+ * podspec declares no `:osx` platform (Expo SDK 58), and the SDK's own
  * iOS/Android-only modules (Astro excludes @oxy.so/services from autolinking).
  * jest-expo mocks every Expo module as present; this takes these away again, so
  * `requireNativeModule` throws and `requireOptionalNativeModule` answers null,

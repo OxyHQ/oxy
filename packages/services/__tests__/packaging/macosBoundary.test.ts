@@ -3,7 +3,7 @@
  *
  * Astro, Oxy's browser, runs the SDK on react-native-macos, where the packages
  * below have no native implementation (their podspecs declare no `:osx`
- * platform in Expo SDK 54). Several throw the moment they are imported:
+ * platform in Expo SDK 58). Several throw the moment they are imported:
  * expo-image calls `requireNativeModule('ExpoImage')` at module scope and
  * react-native-keyboard-controller builds a `NativeEventEmitter` over a proxy
  * that throws "doesn't seem to be linked". One static import of either,
@@ -14,8 +14,8 @@
  * before `.native` and the default) that does not. Dynamic loads inside a
  * `try` are fine: they reject and the caller degrades
  * (`optionalPeerLoads.test.ts`). The render that proves it is
- * `compat/expo-54` (`bun check.mjs`), which mounts `<OxyProvider>` on
- * react-native-macos 0.81 with every one of these modules absent.
+ * `compat/expo-58` (`bun check.mjs`), which mounts `<OxyProvider>` on
+ * react-native-macos 0.83 with every one of these modules absent.
  */
 import fs from 'node:fs';
 import path from 'node:path';

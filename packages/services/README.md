@@ -121,7 +121,7 @@ bun add @oxy.so/services @oxy.so/core
 
 ### Peer Dependencies
 
-The native modules `@oxy.so/services` needs on iOS and Android (Expo SDK 54 to 58;
+The native modules `@oxy.so/services` needs on iOS and Android (Expo SDK 58;
 `package.json` has the exact ranges):
 
 ```bash

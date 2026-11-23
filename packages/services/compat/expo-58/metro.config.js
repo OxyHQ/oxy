@@ -1,7 +1,7 @@
 const { getDefaultConfig } = require('expo/metro-config');
 
 /**
- * Expo 54's Metro config, plus the macOS platform the way Astro bundles it:
+ * Expo 58's Metro config, plus the macOS platform the way Astro bundles it:
  * `react-native` (and its deep paths) resolved to react-native-macos, and the
  * `react-native` export condition, which @react-native/metro-config sets.
  */

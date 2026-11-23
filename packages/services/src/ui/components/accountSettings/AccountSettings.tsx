@@ -346,7 +346,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
                 maxLength={accountNameMaxLength(node.account.kind)}
               />
             </TextField>
-            {displayNameError ? <Text style={styles.text}>{displayNameError}</Text> : null}
+            {displayNameError ? <Text style={styles.fieldError}>{displayNameError}</Text> : null}
           </View>
           <View style={styles.stack}>
             <TextField>
@@ -438,7 +438,14 @@ const useStyles = createTokenStyles((t) => ({
   surface: { gap: 16, borderRadius: 20, backgroundColor: t.card, padding: 16 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   stack: { gap: 4 },
-  text: { paddingHorizontal: 4, fontSize: 11, lineHeight: 14, fontWeight: 400 },
+  // A field error, in Bloom's error role.
+  fieldError: {
+    paddingHorizontal: 4,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: 400,
+    color: t.destructive,
+  },
   mutedText2: {
     paddingHorizontal: 4,
     textAlign: 'right',

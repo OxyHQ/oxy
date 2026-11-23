@@ -464,7 +464,9 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                     maxLength={accountNameMaxLength(kind)}
                   />
                 </TextField>
-                {displayNameError ? <Text style={styles.text2}>{displayNameError}</Text> : null}
+                {displayNameError ? (
+                  <Text style={styles.fieldError}>{displayNameError}</Text>
+                ) : null}
               </View>
 
               {/* Bio */}
@@ -515,7 +517,14 @@ const useStyles = createTokenStyles((t) => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
   text: { fontSize: 11, lineHeight: 14, fontWeight: 400 },
   stack3: { gap: 4 },
-  text2: { paddingHorizontal: 4, fontSize: 11, lineHeight: 14, fontWeight: 400 },
+  // A field error, in Bloom's error role.
+  fieldError: {
+    paddingHorizontal: 4,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: 400,
+    color: t.destructive,
+  },
   mutedText: {
     paddingHorizontal: 4,
     textAlign: 'right',
