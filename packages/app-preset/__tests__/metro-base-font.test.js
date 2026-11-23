@@ -2,10 +2,11 @@
 //
 // React 19 ignores `Text.defaultProps` (it applies `defaultProps` to class
 // components only), so every raw `<Text>` drew the system face. The preset
-// swaps NativeWind's `Text` and `TextInput` for the same components over a host
-// that puts the base face first. These tests resolve the routes to them the way
-// Metro does (real `nativewind/metro`, real `react-native-css`, React Native and
-// react-native-web files), then render the components with stand-in hosts.
+// swaps React Native's `Text` and `TextInput` (NativeWind's, in an app that
+// styles with it) for the same components over a host that puts the base face
+// first. These tests resolve the routes to them the way Metro does (real
+// `nativewind/metro`, real `react-native-css`, React Native and react-native-web
+// files), then render the components with stand-in hosts.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -47,7 +48,20 @@ function resolverOf(config) {
     ).filePath;
 }
 
-const preset = () => resolverOf(withBaseFontText(withCompleteReactNative(nativeWindConfig())));
+const preset = () =>
+  resolverOf(
+    withBaseFontText(withCompleteReactNative(nativeWindConfig()), PRESET_ROOT, {
+      nativewind: true,
+    }),
+  );
+/** An app without NativeWind: Expo's config alone, the base face over React Native's files. */
+const plainConfig = () => ({
+  projectRoot: PRESET_ROOT,
+  resolver: { sourceExts: ['js'], resolveRequest: (context, name) => metroResolve(context, name) },
+  transformer: {},
+});
+const plain = () => resolverOf(withBaseFontText(plainConfig(), PRESET_ROOT, { nativewind: false }));
+const RN_ROOT = path.dirname(real('react-native/package.json'));
 const appFile = path.join(PRESET_ROOT, 'app/index.tsx');
 
 test('every route to NativeWind’s Text and TextInput reaches the base-font components', () => {
@@ -68,14 +82,41 @@ test('every route to NativeWind’s Text and TextInput reaches the base-font com
 });
 
 test('the base-font modules reach the real hosts, past every redirect', () => {
+  for (const resolve of [preset(), plain()]) {
+    const nativeHosts = path.join(BASE_FONT, 'hosts.native.js');
+    const webHosts = path.join(BASE_FONT, 'hosts.web.js');
+    assert.equal(
+      resolve(nativeHosts, 'react-native/Libraries/Text/Text', 'android'),
+      path.join(RN_ROOT, 'Libraries/Text/Text.js'),
+    );
+    assert.equal(resolve(webHosts, 'react-native-web/dist/exports/Text', 'web'), RNW_TEXT);
+  }
   const resolve = preset();
   const native = path.join(BASE_FONT, 'base-font.native.js');
-  const web = path.join(BASE_FONT, 'base-font.web.js');
-  assert.equal(resolve(native, 'react-native', 'android'), REACT_NATIVE_INDEX);
-  assert.equal(resolve(web, 'react-native-web/dist/exports/Text', 'web'), RNW_TEXT);
   assert.ok(resolve(native, 'react-native-css', 'ios').startsWith(CSS_ROOT));
   // A relative import stays relative to the module.
   assert.equal(resolve(native, './mappings', 'android'), path.join(BASE_FONT, 'mappings.js'));
+});
+
+test('without NativeWind, every route to React Native’s Text and TextInput reaches the base face', () => {
+  const resolve = plain();
+  for (const [origin, moduleName, platform, expected] of [
+    // Native: React Native's index getters and a deep import.
+    [REACT_NATIVE_INDEX, './Libraries/Text/Text', 'android', 'PlainText.js'],
+    [REACT_NATIVE_INDEX, './Libraries/Components/TextInput/TextInput', 'ios', 'PlainTextInput.js'],
+    [appFile, 'react-native/Libraries/Text/Text', 'android', 'PlainText.js'],
+    // Web: the deep import Expo's Babel preset writes, and react-native-web's index.
+    [appFile, 'react-native-web/dist/exports/Text', 'web', 'PlainText.js'],
+    [RNW_INDEX, './exports/TextInput', 'web', 'PlainTextInput.js'],
+  ]) {
+    assert.equal(resolve(origin, moduleName, platform), path.join(BASE_FONT, expected), moduleName);
+  }
+  // Nothing else, and no NativeWind module, is touched.
+  assert.equal(resolve(appFile, 'react-native', 'android'), REACT_NATIVE_INDEX);
+  assert.equal(
+    resolve(appFile, 'react-native/Libraries/Components/View/View', 'android'),
+    path.join(RN_ROOT, 'Libraries/Components/View/View.js'),
+  );
 });
 
 test('touches nothing else', () => {
@@ -95,7 +136,7 @@ test('touches nothing else', () => {
  * Loads a base-font module with stand-ins: hosts that record the props they
  * render with, a real React context as React Native's TextAncestorContext, and
  * `styled()` as the identity that keeps its mapping (`react-native-css` needs a
- * native runtime).
+ * native runtime). A base-font module's own `./x` imports load the same way.
  */
 function loadBaseFont(file) {
   const rendered = [];
@@ -110,9 +151,12 @@ function loadBaseFont(file) {
   const Text = host('Text');
   const TextInput = host('TextInput', { State: { focused: 1 } });
   const TextAncestorContext = React.createContext(false);
+  const platform = file.endsWith('.web.js') ? 'web' : 'native';
   const modules = {
     react: React,
-    'react-native': { Text, TextInput, unstable_TextAncestorContext: TextAncestorContext },
+    'react-native/Libraries/Text/Text': { default: Text },
+    'react-native/Libraries/Components/TextInput/TextInput': { default: TextInput },
+    'react-native/Libraries/Text/TextAncestorContext': { default: TextAncestorContext },
     'react-native-web/dist/exports/Text': { default: Text },
     'react-native-web/dist/exports/TextInput': { default: TextInput },
     'react-native-web/dist/exports/StyleSheet': { default: { create: (styles) => styles } },
@@ -122,15 +166,27 @@ function loadBaseFont(file) {
     'react-native-css/components/copyComponentProperties': require(
       path.join(CSS_ROOT, 'dist/commonjs/components/copyComponentProperties.js'),
     ),
-    './mappings': require(path.join(BASE_FONT, 'mappings.js')),
   };
-  const module = { exports: {} };
-  new Function('require', 'module', 'exports', fs.readFileSync(path.join(BASE_FONT, file), 'utf8'))(
-    (name) => modules[name],
-    module,
-    module.exports,
-  );
-  return { components: module.exports, rendered, TextAncestorContext };
+  const loaded = new Map();
+  const load = (name) => {
+    if (!name.startsWith('./')) return modules[name];
+    const base = name.slice(2);
+    const own = fs.existsSync(path.join(BASE_FONT, `${base}.js`))
+      ? `${base}.js`
+      : `${base}.${platform}.js`;
+    if (!loaded.has(own)) {
+      const module = { exports: {} };
+      loaded.set(own, module);
+      new Function(
+        'require',
+        'module',
+        'exports',
+        fs.readFileSync(path.join(BASE_FONT, own), 'utf8'),
+      )(load, module, module.exports);
+    }
+    return loaded.get(own).exports;
+  };
+  return { components: load(`./${file.replace(/\.js$/, '')}`), rendered, TextAncestorContext };
 }
 
 const render = (element) => renderToStaticMarkup(element);
@@ -166,6 +222,21 @@ test('web: a text inherits the document family beneath its own style', () => {
   assert.deepEqual(rendered, [
     { name: 'Text', props: { style: [{ fontFamily: 'inherit' }, own] } },
   ]);
+});
+
+test('without NativeWind, the base face reaches the text with React Native’s statics', () => {
+  for (const file of ['hosts.native.js', 'hosts.web.js']) {
+    const { components, rendered } = loadBaseFont(file);
+    render(React.createElement(components.Text, { style: { color: 'red' } }));
+    assert.equal(rendered.length, 1, file);
+    assert.deepEqual(rendered[0].props.style[1], { color: 'red' }, file);
+    assert.deepEqual(components.TextInput.State, { focused: 1 }, file);
+    assert.equal(components.TextInput.displayName, 'TextInput', file);
+  }
+  for (const file of ['PlainText.js', 'PlainTextInput.js']) {
+    const { components } = loadBaseFont(file);
+    assert.equal(typeof components.default, 'function', file);
+  }
 });
 
 test("both platforms keep NativeWind's mappings and React Native's statics", () => {

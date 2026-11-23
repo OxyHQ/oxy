@@ -471,6 +471,36 @@ file, so `import { Text } from 'react-native'`, deep `react-native/Libraries/…
 imports and the react-native-web path Expo's Babel preset rewrites to all reach
 it; `withBaseFontText` is exported for an app that composes its own config.
 
+#### An app without NativeWind (6.9.0+)
+
+Bloom styles without `className`, so an app that no longer writes it drops
+`nativewind` (and `react-native-css`, Tailwind and `base.css`) from its
+package.json. `createOxyMetroConfig` reads the app's own package.json: with no
+`nativewind` dependency it applies no NativeWind wrapper, no react-native-css
+runtime and no redirect of React Native's components (`nativewind: true | false`
+overrides). The base face then rides on React Native's own files: `Text` and
+`TextInput` (react-native-web's on the web) resolve to `metro/base-font/PlainText.js`
+and `PlainTextInput.js`, the same hosts without `styled()`. Bloom's and the Bloom
+language's texts name their family, so only a raw text takes it.
+
+An app can take the Bloom without NativeWind while it still has some
+`className` of its own. Bloom keeps `@oxy.so/bloom/design-tokens/theme.css`
+(which `css/base.css` imports) and `./tailwind-preset` as generated token outputs
+for those classes, until the fleet has migrated. On native Bloom no longer
+publishes its tokens to react-native-css, so such an app wraps its tree in
+`BloomNativeWindTheme` (`@oxy.so/app-preset/nativewind-theme`) once, inside
+`BloomProvider`: it writes the theme's tokens into react-native-css's root
+variables, as Bloom did, and hands every Bloom colour scope's tokens to
+NativeWind's `VariableContextProvider` (through Bloom's `ColorScopeLayerContext`),
+so classes inside a scope follow its palette. The web needs neither. Once the codemod has moved the
+last class, the app drops `nativewind`, `react-native-css`, Tailwind,
+`css/base.css` and `BloomNativeWindTheme`.
+
+`baseFont: false` (6.9.0+) turns the base face off: a React Native `Text` or
+`TextInput` that names no family keeps React Native's own, the platform face
+(Roboto on Android, San Francisco on iOS, react-native-web's system stack on the
+web), as an app on 6.7 drew it. Bloom's `Text` names Inter either way.
+
 #### `react-native` on native: the complete NativeWind shim (4.1.0+)
 
 On native, NativeWind's resolver sends every `import … from 'react-native'`
