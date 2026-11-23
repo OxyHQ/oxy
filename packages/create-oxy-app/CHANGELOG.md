@@ -1,5 +1,31 @@
 # Changelog: `create-oxy-app`
 
+## 0.10.0
+
+### Added
+
+- `--language` writes the frontend in the Bloom language (`@oxy.so/bloom-language`) on
+  Bloom without NativeWind; `--jsx` (the default) keeps the JSX frontend, and an
+  interactive run asks. The language frontend's routes are `layout()` and `screen()`: an
+  app shell over a stack of two tabs, a notes list read from `@oxy.so/bloom-data`, a form
+  whose inputs are bindings, and a note pushed over the tabs. Its header actions are
+  glass in one `GlassGroup`, one tinted. Metro is wrapped with `withBloomLanguage` and
+  Jest runs `jest-expo` through the compiler's transformer, so an unknown modifier or
+  token fails the tests as it fails the build; `packages/frontend/AGENTS.md` points agents
+  at Bloom's language docs. It has no NativeWind, Tailwind, react-native-css, `global.css`
+  or `className`, and takes its own Oxy set: Bloom `^23.0.0`, Services `^15.0.0`, Core
+  `^7.49.0`, app-preset `^6.9.0`, bloom-language, its compiler and bloom-data `^1.0.0`.
+- `scripts/pending-releases.mjs`: the ranges the language template names before their
+  release, the only E404s `assert-oxy-ranges-resolve.mjs` excuses. `verify-language-app.mjs`
+  scaffolds a language app, installs it (optionally over local packs) and runs its
+  typecheck and tests.
+
+### Changed
+
+- Templates render as layers (`base`, then `jsx` or `language`, then the optional
+  `backend`, `deploy` and JSX `demo`), and two layers writing one file is an error. The JSX
+  frontend's files moved from `base` to `jsx`; a JSX app renders as before.
+
 ## 0.9.2
 
 ### Fixed

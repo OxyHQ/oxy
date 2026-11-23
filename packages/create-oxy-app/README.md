@@ -22,7 +22,9 @@ bunx create-oxy-app my-app --yes
 --domain <domain>    Backend API domain
 --no-backend         Skip the Express + Socket.IO backend
 --no-deploy          Skip the AWS deploy workflow
---minimal            Skip the example authenticated screen
+--language           Write the frontend in the Bloom language (no NativeWind)
+--jsx                Write the frontend as JSX with NativeWind (the default)
+--minimal            Skip the example authenticated screen (JSX only)
 --no-install         Do not run `bun install`
 --no-git             Do not initialize a git repository
 --no-register        Do not register an Oxy client
@@ -51,6 +53,21 @@ Expo Router scroll adapter. OxyProvider owns the gesture, safe-area and keyboard
 roots; the template does not duplicate them. The root
 `Stack` is the sole `(auth)`↔`(app)` authority, keyed on the device-first
 session.
+
+## The Bloom language frontend
+
+`--language` writes the frontend in the Bloom language: views are functions, their look a
+chain of modifiers whose values are Bloom tokens, on Bloom without NativeWind. Routes are
+`layout()` and `screen()` from `@oxy.so/bloom-language/router`, app data is
+`@oxy.so/bloom-data`, Metro runs the language compiler (`withBloomLanguage`) and
+`bun run test` runs Jest through it. Its packages are listed in
+`scripts/pending-releases.mjs` until they are released; until then prove it against local
+packs:
+
+```bash
+bun run build
+node scripts/verify-language-app.mjs /tmp/notes-app ./packs   # oxy.so-<name>-<version>.tgz
+```
 
 ## The backend's datastore
 
