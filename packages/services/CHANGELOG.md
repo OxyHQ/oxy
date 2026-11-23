@@ -29,6 +29,12 @@ element was rendered before and after, light and dark, native and web); an app n
   `>=0.83.0 <0.89.0` (0.83 for react-native-macos, Astro's latest), `react` `>=19.2.0 <20.0.0`,
   `react-native-reanimated` `>=4.6.0 <5.0.0` and `react-native-gesture-handler` `>=3.3.0 <4.0.0`.
   `compat/expo-58` (was `compat/expo-54`) checks that stack, with react-native-macos 0.83.
+- **Astro's macOS target stays on Services 14.** Expo SDK 58 needs React Native 0.87 entry points
+  (`react-native/unstable-internals-do-not-use`, which expo-asset imports, and
+  `react-native/asset-registry`) that react-native-macos 0.83, its latest release, does not ship,
+  so a macOS app cannot bundle the Expo 58 stack. `compat/expo-58` still renders `<OxyProvider>` as
+  macOS under Jest; its macOS Metro bundle step is dropped and comes back once react-native-macos
+  0.87 or later exists.
   Its lockfile still holds the old stack: Bloom 23.0.0 and bloom-data 0.1.0 were published on
   2026-11-23 and the seven-day install quarantine admits them from 2026-11-30, when
   `compat/expo-58/bun.lock` is rebuilt (`bun install` there, no quarantine override) and

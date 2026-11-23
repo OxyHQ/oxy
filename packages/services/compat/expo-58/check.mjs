@@ -26,10 +26,14 @@
  *      'macos' and every Expo module without a macOS podspec, and the SDK's
  *      own iOS/Android-only native modules, are absent;
  *   4. Metro bundles an app that mounts <OxyProvider> for iOS (and Expo
- *      compiles it to Hermes bytecode) and for macOS the way Astro resolves
- *      it (`react-native` -> react-native-macos, the `react-native` export
- *      condition), and the macOS bundle holds the macOS forks, not the
- *      modules they replace.
+ *      compiles it to Hermes bytecode).
+ *
+ * No macOS Metro bundle: Expo SDK 58 needs React Native 0.87 entry points
+ * (`react-native/unstable-internals-do-not-use`, which expo-asset imports, and
+ * `react-native/asset-registry`) that react-native-macos 0.83, its latest
+ * release, does not ship, so Astro's macOS target stays on Services 14. The
+ * macOS bundle step (commit f92ba3400, `bundle-macos.mjs`) comes back once a
+ * react-native-macos 0.87 or later exists.
  *
  * Requires the workspace packages to be built first:
  *   bunx turbo run build --filter=@oxy.so/services...
@@ -68,7 +72,6 @@ const FIXTURE_FILES = [
   'app.json',
   'index.tsx',
   'metro.config.js',
-  'bundle-macos.mjs',
 ];
 const WORKSPACE_PACKAGES = ['contracts', 'protocol', 'telemetry', 'core', 'services'];
 const EXPECTED = {
@@ -213,9 +216,7 @@ try {
     fail('OxyProvider did not render and settle on the Expo 58 stack');
   }
 
-  console.log(
-    '\n4. bundle with Metro: iOS (compiled to Hermes bytecode) and macOS (react-native-macos)',
-  );
+  console.log('\n4. bundle with Metro: iOS (compiled to Hermes bytecode)');
   try {
     run(
       join(stage, 'node_modules', '.bin', 'expo'),
@@ -234,45 +235,6 @@ try {
   } catch {
     fail('Metro could not bundle an app mounting OxyProvider for iOS on React Native 0.88');
   }
-  try {
-    run('node', ['bundle-macos.mjs'], stage, { env: { CI: '1' } });
-    const bundle = readFileSync(join(stage, 'dist-macos', 'index.macos.js'), 'utf8');
-    const has = (path) => bundle.includes(`"${path}`);
-    const expectations = [
-      [
-        'react-native-macos is the React Native in the bundle',
-        has('node_modules/react-native-macos/Libraries/'),
-        true,
-      ],
-      ["react-native's own Libraries are not", has('node_modules/react-native/Libraries/'), false],
-      [
-        'the keyboard boundary is the macOS fork',
-        has('node_modules/@oxy.so/services/src/ui/components/KeyboardBoundary.macos.tsx'),
-        true,
-      ],
-      [
-        'the native keyboard boundary is not bundled',
-        has('node_modules/@oxy.so/services/src/ui/components/KeyboardBoundary.native.tsx'),
-        false,
-      ],
-      [
-        'images draw through the macOS fork',
-        has('node_modules/@oxy.so/services/src/ui/components/ExpoImage.macos.tsx'),
-        true,
-      ],
-      [
-        'image sizes come from the macOS fork',
-        has('node_modules/@oxy.so/services/src/ui/utils/imageSize.macos.ts'),
-        true,
-      ],
-    ];
-    for (const [claim, actual, expected] of expectations) {
-      if (actual !== expected) fail(`macOS bundle: expected that ${claim}`);
-      else console.log(`  macOS: ${claim}`);
-    }
-  } catch (error) {
-    fail(`Metro could not bundle an app mounting OxyProvider for macOS: ${error.message}`);
-  }
 } catch (error) {
   fail(error.message);
 } finally {
@@ -285,5 +247,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(
-  '\n@oxy.so/services works on React Native 0.88 / React 19.3 / Expo SDK 58 and react-native-macos 0.83',
+  '\n@oxy.so/services works on React Native 0.88 / React 19.3 / Expo SDK 58 (and renders on react-native-macos 0.83)',
 );

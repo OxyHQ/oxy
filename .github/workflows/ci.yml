@@ -1465,8 +1465,10 @@ jobs:
       # react-native-web 0.21 and react-native-macos 0.83 (Astro). Installed
       # from compat/expo-58's own lockfile in a directory
       # outside the checkout, with the workspace packages packed as npm would
-      # ship them; then peers, a typecheck, renders on iOS/web/macOS and Metro
-      # bundles for iOS (Hermes) and macOS. compat/expo-58/check.mjs says how.
+      # ship them; then peers, a typecheck, renders on iOS/web/macOS and a Metro
+      # bundle for iOS (Hermes). No macOS bundle until react-native-macos 0.87
+      # exists (Astro's macOS target stays on services 14).
+      # compat/expo-58/check.mjs says how.
       - name: 'Services Tests: Expo SDK 58 / react-native-macos 0.83 consumer'
         if: ${{ !cancelled() && steps.build-services.outcome == 'success' }}
         run: bun run check:compat-expo-58
