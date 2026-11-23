@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const path = require('node:path');
 
 const shared = {
@@ -10,11 +11,24 @@ const shared = {
 };
 
 const ios = require('jest-expo/ios/jest-preset');
+const reactNative = path.dirname(require.resolve('react-native/package.json'));
 const reactNativeMacOS = path.dirname(require.resolve('react-native-macos/package.json'));
+/**
+ * A mapping jest-expo points into react-native, pointed into react-native-macos instead. An
+ * entry point react-native-macos 0.83 does not ship fails to resolve, as in Astro's Metro
+ * (`__tests__/absent-entry-point.js`).
+ */
+const toMacOS = (target) => {
+  if (target !== reactNative && !target.startsWith(`${reactNative}/`)) return target;
+  const macos = `${reactNativeMacOS}${target.slice(reactNative.length)}`;
+  return target.includes('$') || fs.existsSync(macos)
+    ? macos
+    : '<rootDir>/__tests__/absent-entry-point.js';
+};
 const babelJest = Object.keys(ios.transform).find((key) => Array.isArray(ios.transform[key]));
 
 /**
- * react-native-macos 0.81, resolved the way Astro's Metro config does it
+ * react-native-macos 0.83, resolved the way Astro's Metro config does it
  * (`react-native` -> `react-native-macos`, platform `macos`, then `native`).
  */
 const macos = {
@@ -25,17 +39,26 @@ const macos = {
   moduleFileExtensions: ios.moduleFileExtensions.map((extension) =>
     extension.replace(/^ios\./, 'macos.'),
   ),
-  resolver: path.join(reactNativeMacOS, 'jest/resolver.js'),
+  resolver: '<rootDir>/__tests__/resolver-macos.js',
   testEnvironment: path.join(reactNativeMacOS, 'jest/react-native-env.js'),
   transform: {
     ...ios.transform,
-    [babelJest]: ['babel-jest', { caller: { name: 'metro', bundler: 'metro', platform: 'macos' } }],
+    // jest-expo's transform, for the macOS platform.
+    [babelJest]: [
+      ios.transform[babelJest][0],
+      {
+        ...ios.transform[babelJest][1],
+        caller: { ...ios.transform[babelJest][1].caller, platform: 'macos' },
+      },
+    ],
   },
   moduleNameMapper: {
-    ...ios.moduleNameMapper,
+    ...Object.fromEntries(
+      Object.entries(ios.moduleNameMapper).map(([request, target]) => [request, toMacOS(target)]),
+    ),
     ...shared.moduleNameMapper,
-    '^react-native$': reactNativeMacOS,
-    '^react-native/(.*)$': `${reactNativeMacOS}/$1`,
+    // react-native-macos's mocks, through React Native 0.88's mockComponent (see the file).
+    '^\\.\\./mockComponent$': '<rootDir>/__tests__/macos-mock-component.js',
   },
   setupFiles: [
     path.join(reactNativeMacOS, 'jest/setup.js'),
@@ -53,6 +76,7 @@ module.exports = {
       ...shared,
       displayName: 'ios',
       preset: 'jest-expo/ios',
+      resolver: '<rootDir>/__tests__/resolver.js',
       setupFiles: [
         '<rootDir>/__tests__/setup.js',
         '<rootDir>/__tests__/setup-native.js',
