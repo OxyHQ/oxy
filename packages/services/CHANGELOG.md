@@ -25,10 +25,14 @@ element was rendered before and after, light and dark, native and web); an app n
 - **Changed:** `@oxy.so/bloom` `>=22.1.1` becomes `>=23.0.0`.
 - **Changed:** the floor is Expo SDK 58, the first SDK that ships what Bloom 23 needs
   (`react-native-reanimated` 4.6+, `react-native-gesture-handler` 3.3+): `expo` and every Expo module
-  peer start at SDK 58's version (`>=58.0.0 <59.0.0` for `expo`), `react-native` becomes
+  peer are `>=58.0.0 <59.0.0`, `react-native` becomes
   `>=0.83.0 <0.89.0` (0.83 for react-native-macos, Astro's latest), `react` `>=19.2.0 <20.0.0`,
   `react-native-reanimated` `>=4.6.0 <5.0.0` and `react-native-gesture-handler` `>=3.3.0 <4.0.0`.
   `compat/expo-58` (was `compat/expo-54`) checks that stack, with react-native-macos 0.83.
+  Its lockfile still holds the old stack: Bloom 23.0.0 and bloom-data 0.1.0 were published on
+  2026-11-23 and the seven-day install quarantine admits them from 2026-11-30, when
+  `compat/expo-58/bun.lock` is rebuilt (`bun install` there, no quarantine override) and
+  `bun run check:compat-expo-58` runs on it.
 - **Removed:** `nativewind` (optional) and `react-native-css`.
 - **Unchanged:** `@react-native-async-storage/async-storage` stays a required peer. Services reads
   it only to move its device key-value data into bloom-data, each key the first time it is read,
