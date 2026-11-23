@@ -24,8 +24,10 @@ name: npm release
 #            exact commit, from the merge queue (`merge_group`) or a `push` run,
 #            and fails closed when it did not, never ran, or GitHub cannot say.
 #            The release does not test: CI already tested this very tree.
-#   build    the commit's tree: frozen install, then ONE build of each package
-#            released and of each workspace it links (its `build` script, with
+#   build    the commit's tree, plus the caller's `prebuilt_artifacts` (files
+#            its own jobs built in this run, at their repository paths): frozen
+#            install, then ONE build of each package released and of each
+#            workspace it links (its `build` script, with
 #            whatever its `prebuild`/`postbuild` hooks check), then each
 #            package's one tarball, packed without lifecycle scripts:
 #            `bun pm pack --ignore-scripts`, which rewrites `workspace:`/
@@ -64,6 +66,16 @@ on:
         required: false
         type: string
         default: ci.yml
+      prebuilt_artifacts:
+        description: >-
+          A name pattern of artifacts the caller's own jobs uploaded earlier in
+          this run (files the one Linux build cannot make, such as a native
+          addon per platform), each holding files at their paths in the
+          repository. The build job downloads them into its checkout before it
+          builds and packs. Nothing matching is not an error.
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -155,6 +167,17 @@ jobs:
             .github/scripts/release-runtime/package-lock.json
           sparse-checkout-cone-mode: false
           persist-credentials: false
+
+      # Files the caller built in this run that this Linux job cannot (an
+      # addon per platform), into the checkout at their repository paths. The
+      # tarball inspection below still requires every declared entry point.
+      - name: the caller's prebuilt files
+        if: inputs.prebuilt_artifacts != ''
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ inputs.prebuilt_artifacts }}
+          path: source
+          merge-multiple: true
 
       - uses: oven-sh/setup-bun@v2
         with:
