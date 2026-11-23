@@ -18,6 +18,7 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { usePrivacySettings } from '../hooks/queries/useAccountQueries';
 import { privacyLists, unblockUser, unrestrictUser } from '../data/account';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface PrivacySettings {
   isPrivateAccount: boolean;
@@ -64,6 +65,7 @@ const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
 };
 
 const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
+  const styles = useStyles();
   // Privacy settings belong to the ACTIVE account (the org/project/bot when
   // switched, else the personal user).
   const { oxyServices, user } = useOxy();
@@ -175,7 +177,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
 
   return (
     <>
-      <View className="px-screen-margin pb-space-24">
+      <View style={styles.section}>
         {/* Account Privacy */}
         <GroupedSection title={t('privacySettings.sections.account') || 'ACCOUNT PRIVACY'}>
           <GroupedSectionItem
@@ -430,7 +432,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
         {/* Blocked Users */}
         <GroupedSection title={t('privacySettings.sections.blockedUsers') || 'BLOCKED USERS'}>
           {isLoadingUsers ? null : blockedUsers.length === 0 ? (
-            <Text className="text-text-secondary text-center p-space-40">
+            <Text style={styles.mutedText}>
               {t('privacySettings.noBlockedUsers') || 'No blocked users'}
             </Text>
           ) : (
@@ -463,7 +465,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
         {/* Restricted Users */}
         <GroupedSection title={t('privacySettings.sections.restrictedUsers') || 'RESTRICTED USERS'}>
           {isLoadingUsers ? null : restrictedUsers.length === 0 ? (
-            <Text className="text-text-secondary text-center p-space-40">
+            <Text style={styles.mutedText}>
               {t('privacySettings.noRestrictedUsers') || 'No restricted users'}
             </Text>
           ) : (
@@ -499,3 +501,8 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
 };
 
 export default React.memo(PrivacySettingsScreen);
+
+const useStyles = createTokenStyles((t) => ({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+  mutedText: { padding: 40, textAlign: 'center', color: t.mutedForeground },
+}));

@@ -11,6 +11,7 @@ import { useI18n } from '../../hooks/useI18n';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { reputationBalance } from '../../data/trust';
 import { darkenColor, lightenColor } from '../../utils/colorUtils';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -78,6 +79,7 @@ const ACCENT_LIGHTEN = 0.1;
 const LOCKED_OPACITY = 0.5;
 
 const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
+  const themed = useThemedStyles();
   const { t } = useI18n();
   // Reputation/trust is the ACTIVE account's standing (the org/project/bot
   // when switched, else the personal user).
@@ -245,11 +247,7 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
     const mediumTone = baseColor;
 
     return (
-      <View
-        key={achievement.id}
-        className="bg-fill rounded-radius-20 items-center"
-        style={styles.achievementCard}
-      >
+      <View key={achievement.id} style={[themed.surface, styles.achievementCard]}>
         <View style={styles.badgeContainer}>
           {/* Outer glow effect - larger and softer */}
           {!isLocked && (
@@ -340,17 +338,15 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
           )}
         </View>
 
-        <H5
-          className="text-text text-center"
-          style={isLocked ? styles.lockedDimmed : undefined}
+        <Text
+          role="heading"
+          aria-level={5}
+          style={[themed.text, isLocked ? styles.lockedDimmed : undefined]}
           numberOfLines={2}
         >
           {achievement.name}
-        </H5>
-        <Text
-          className="text-text-tertiary text-center text-xs mt-space-2"
-          style={isLocked ? styles.lockedDimmed : undefined}
-        >
+        </Text>
+        <Text style={[themed.mutedText, isLocked ? styles.lockedDimmed : undefined]}>
           {achievement.description}
         </Text>
       </View>
@@ -359,10 +355,8 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
 
   if (!isAuthenticated) {
     return (
-      <View className="items-center justify-center px-screen-margin py-space-40">
-        <Text className="text-text text-base text-center">
-          {t('common.status.notSignedIn') || 'Not signed in'}
-        </Text>
+      <View style={styles.centered}>
+        <Text style={themed.text2}>{t('common.status.notSignedIn') || 'Not signed in'}</Text>
       </View>
     );
   }
@@ -371,35 +365,32 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
     achievements.length > 0 ? unlockedAchievements.length / achievements.length : 0;
 
   return (
-    <View className="px-screen-margin pt-space-20 pb-space-40">
+    <View style={styles.section}>
       {/* Stats Header */}
-      <View className="bg-fill rounded-radius-20 p-space-20 mb-space-24">
-        <View className="flex-row justify-between items-center mb-space-16">
+      <View style={themed.surface2}>
+        <View style={styles.row}>
           <View>
-            <H1 className="text-text" style={{ color: colors.primary }}>
+            <Text role="heading" aria-level={1} style={[themed.text3, { color: colors.primary }]}>
               {reputationTotal}
-            </H1>
-            <Text className="text-text-tertiary text-sm">
+            </Text>
+            <Text style={themed.mutedText2}>
               {t('trust.center.balance') || 'Reputation Points'}
             </Text>
           </View>
-          <View className="items-end">
-            <H1 className="text-text" style={{ color: colors.primary }}>
+          <View style={styles.container}>
+            <Text role="heading" aria-level={1} style={[themed.text3, { color: colors.primary }]}>
               {unlockedAchievements.length}
-            </H1>
-            <Text className="text-text-tertiary text-sm">
+            </Text>
+            <Text style={themed.mutedText2}>
               {t('trust.achievements.unlocked') || 'Achievements'}
             </Text>
           </View>
         </View>
-        <View className="mt-space-8">
-          <View
-            className="rounded-radius-full overflow-hidden mb-space-8"
-            style={[styles.progressBar, { backgroundColor: colors.border }]}
-          >
+        <View style={styles.section2}>
+          <View style={[styles.container2, styles.progressBar, { backgroundColor: colors.border }]}>
             <View
-              className="rounded-radius-full"
               style={[
+                styles.section3,
                 styles.progressBarFill,
                 {
                   width: `${progressRatio * 100}%`,
@@ -408,7 +399,7 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
               ]}
             />
           </View>
-          <Text className="text-text-tertiary text-xs text-right">
+          <Text style={themed.mutedText3}>
             {unlockedAchievements.length} / {achievements.length}
           </Text>
         </View>
@@ -417,9 +408,9 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
       {/* Unlocked Achievements */}
       {unlockedAchievements.length > 0 && (
         <>
-          <H4 className="text-text mt-space-8">
+          <Text role="heading" aria-level={4} style={themed.text4}>
             {t('trust.achievements.unlocked') || 'Unlocked Achievements'}
-          </H4>
+          </Text>
           <View style={styles.achievementsGrid}>
             {unlockedAchievements.map((achievement) => renderAchievement(achievement))}
           </View>
@@ -429,9 +420,9 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
       {/* Locked Achievements */}
       {lockedAchievements.length > 0 && (
         <>
-          <H4 className="text-text mt-space-8">
+          <Text role="heading" aria-level={4} style={themed.text4}>
             {t('trust.achievements.locked') || 'Locked Achievements'}
-          </H4>
+          </Text>
           <View style={styles.achievementsGrid}>
             {lockedAchievements.map((achievement) => renderAchievement(achievement))}
           </View>
@@ -569,6 +560,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
+
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+  section: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
+  row: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  container: { alignItems: 'flex-end' },
+  section2: { marginTop: 8 },
+  container2: { marginBottom: 8, overflow: 'hidden' },
+  section3: {},
 });
 
 export default TrustRewardsScreen;
+
+const useThemedStyles = createTokenStyles((t) => ({
+  surface: { alignItems: 'center', borderRadius: 20, backgroundColor: t.card },
+  text: { textAlign: 'center', color: t.foreground },
+  mutedText: {
+    marginTop: 2,
+    textAlign: 'center',
+    fontSize: 12,
+    color: t.mutedForeground,
+    lineHeight: 16,
+  },
+  text2: { textAlign: 'center', fontSize: 16, color: t.foreground, lineHeight: 24 },
+  surface2: { marginBottom: 24, borderRadius: 20, backgroundColor: t.card, padding: 20 },
+  text3: { color: t.foreground },
+  mutedText2: { fontSize: 14, color: t.mutedForeground, lineHeight: 20 },
+  mutedText3: { textAlign: 'right', fontSize: 12, color: t.mutedForeground, lineHeight: 16 },
+  text4: { marginTop: 8, color: t.foreground },
+}));

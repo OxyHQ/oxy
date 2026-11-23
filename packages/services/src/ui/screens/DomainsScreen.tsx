@@ -23,6 +23,7 @@ import {
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useApiErrorToast } from '../hooks/useApiErrorToast';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /**
  * DomainsScreen — prove that the signed-in identity controls a web domain.
@@ -33,6 +34,7 @@ import { useApiErrorToast } from '../hooks/useApiErrorToast';
  * (`/identity/domains`).
  */
 const DomainsScreen: React.FC<BaseScreenProps> = () => {
+  const themed = useThemedStyles();
   const { t } = useI18n();
   const showApiError = useApiErrorToast();
   useSurfaceHeader({ title: t('domains.title') });
@@ -103,18 +105,18 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
   };
 
   return (
-    <View className="px-screen-margin pb-space-24">
+    <View style={styles.section}>
       {pending ? (
         <GroupedSection title={t('domains.instructions.title', { domain: pending.domain })}>
-          <View className="px-space-16 py-space-12" style={styles.instructions}>
-            <Text className="text-text-secondary">{t('domains.instructions.dns')}</Text>
+          <View style={[styles.section2, styles.instructions]}>
+            <Text style={themed.mutedText}>{t('domains.instructions.dns')}</Text>
             <Text selectable testID="domains-dns-name">
               {pending.dns.name}
             </Text>
             <Text selectable testID="domains-dns-value">
               {pending.dns.value}
             </Text>
-            <Text className="text-text-secondary">{t('domains.instructions.wellKnown')}</Text>
+            <Text style={themed.mutedText}>{t('domains.instructions.wellKnown')}</Text>
             <Text selectable testID="domains-wellknown-url">
               {pending.wellKnown.url}
             </Text>
@@ -143,7 +145,7 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
         </GroupedSection>
       ) : (
         <GroupedSection title={t('domains.add.title')}>
-          <View className="px-space-16 py-space-12" style={styles.instructions}>
+          <View style={[styles.section2, styles.instructions]}>
             <TextFieldLabel>{t('domains.add.label')}</TextFieldLabel>
             <TextField disabled={request.isPending} invalid={invalid}>
               <TextFieldInput
@@ -180,9 +182,7 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
 
       <GroupedSection title={t('domains.list.title')}>
         {domains.ids.length === 0 ? (
-          <Text className="text-text-secondary px-space-16 py-space-12">
-            {t('domains.list.empty')}
-          </Text>
+          <Text style={themed.mutedText2}>{t('domains.list.empty')}</Text>
         ) : (
           domains.ids.map((id) => (
             <DomainRow
@@ -230,6 +230,14 @@ const styles = StyleSheet.create({
   instructions: {
     gap: 8,
   },
+
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+  section2: { paddingHorizontal: 16, paddingVertical: 12 },
 });
 
 export default React.memo(DomainsScreen);
+
+const useThemedStyles = createTokenStyles((t) => ({
+  mutedText: { color: t.mutedForeground },
+  mutedText2: { paddingHorizontal: 16, paddingVertical: 12, color: t.mutedForeground },
+}));

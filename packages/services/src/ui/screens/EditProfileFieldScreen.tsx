@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, type TextInputProps } from 'react-native';
+import { View, type TextInputProps, StyleSheet } from 'react-native';
 import Ionicons from '../icons/Ionicons';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -643,7 +643,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
   // Keep birthdays date-only: local calendar components avoid UTC day shifts.
   const renderBirthdayPicker = () => {
     return (
-      <View className="gap-space-8">
+      <View style={styles.stack}>
         <TextFieldLabel>{fieldConfig.title}</TextFieldLabel>
         <DatePicker
           value={fromCalendarDate(fieldValues.dateOfBirth)}
@@ -679,8 +679,8 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
 
     return (
       <>
-        <View className="flex-row items-center gap-space-8">
-          <View className="flex-1">
+        <View style={styles.row}>
+          <View style={styles.fill}>
             <TextFieldLabel>{addLabel}</TextFieldLabel>
             <TextField disabled={isSaving}>
               <TextFieldInput
@@ -733,7 +733,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
   };
 
   return (
-    <View className="px-screen-margin pt-space-16 pb-space-32 gap-space-24">
+    <View style={styles.container}>
       <View style={{ gap: 20 }}>
         {fieldConfig.isList
           ? renderListContent()
@@ -756,3 +756,10 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
 };
 
 export default React.memo(EditProfileFieldScreen);
+
+const styles = StyleSheet.create({
+  stack: { gap: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  fill: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  container: { gap: 24, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
+});

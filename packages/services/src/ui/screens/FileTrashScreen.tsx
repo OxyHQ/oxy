@@ -1,6 +1,6 @@
 import type React from 'react';
 import { type ComponentRef, useCallback, useMemo, useRef, useState } from 'react';
-import { View, type ScrollView } from 'react-native';
+import { View, type ScrollView, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import { toast } from '@oxy.so/bloom/toast';
@@ -124,7 +124,7 @@ const FileTrashScreen: React.FC<BaseScreenProps & { userId?: string }> = ({ user
           // A trashed file is not served, so there is nothing to open.
           onPress: () => {},
           rightElement: (
-            <View className="flex-row items-center gap-1.5 ml-3">
+            <View style={styles.row}>
               <Button
                 appearance="subtle"
                 tone="neutral"
@@ -179,30 +179,21 @@ const FileTrashScreen: React.FC<BaseScreenProps & { userId?: string }> = ({ user
         descriptionColor={colors.textSecondary}
       />
     ) : trashQuery.isLoading || !ownerId ? null : (
-      <View className="items-center py-[40px] px-[24px]">
+      <View style={styles.container}>
         <Ionicons name="trash-outline" size={64} color={colors.textTertiary} />
-        <Text
-          className="text-[24px] font-bold mt-[16px] mb-[8px] text-center"
-          style={{ color: colors.text }}
-        >
+        <Text style={[styles.title, { color: colors.text }]}>
           {t('fileManagement.trashView.emptyTitle')}
         </Text>
-        <Text
-          className="text-[16px] text-center leading-[24px]"
-          style={{ color: colors.textSecondary }}
-        >
+        <Text style={[styles.text, { color: colors.textSecondary }]}>
           {t('fileManagement.trashView.emptyDescription')}
         </Text>
       </View>
     );
 
   return (
-    <View className="flex-1">
+    <View style={styles.fill}>
       {files.length > 0 && (
-        <Text
-          className="text-[13px] leading-[18px] mx-[16px] mt-[4px] mb-[12px]"
-          style={{ color: colors.textSecondary }}
-        >
+        <Text style={[styles.text2, { color: colors.textSecondary }]}>
           {t('fileManagement.trashView.notice')}
         </Text>
       )}
@@ -228,3 +219,12 @@ const FileTrashScreen: React.FC<BaseScreenProps & { userId?: string }> = ({ user
 };
 
 export default FileTrashScreen;
+
+const styles = StyleSheet.create({
+  row: { marginLeft: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  container: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 40 },
+  title: { marginTop: 16, marginBottom: 8, textAlign: 'center', fontSize: 24, fontWeight: 700 },
+  text: { textAlign: 'center', fontSize: 16, lineHeight: 24 },
+  fill: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  text2: { marginHorizontal: 16, marginTop: 4, marginBottom: 12, fontSize: 13, lineHeight: 18 },
+});

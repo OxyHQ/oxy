@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { useAction, useRecord, useStore, withStore } from '@oxy.so/bloom-data';
 import type { Organization, OrganizationType, UpdateOrganization } from '@oxy.so/contracts';
 import { updateOrganizationCheck, checkContract } from '@oxy.so/contracts/client';
@@ -72,7 +72,7 @@ function OrganizationForm({ organization }: { organization: Organization }) {
   };
   return (
     <GroupedSection title={t('organizationDirectory.title')}>
-      <View className="gap-space-16 p-space-16">
+      <View style={styles.stack}>
         <TextField>
           <TextFieldInput
             label={t('organizationDirectory.legalName')}
@@ -126,3 +126,7 @@ function OrganizationForm({ organization }: { organization: Organization }) {
     </GroupedSection>
   );
 }
+
+const styles = StyleSheet.create({
+  stack: { gap: 16, padding: 16 },
+});

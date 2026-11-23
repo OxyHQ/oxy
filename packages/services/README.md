@@ -211,8 +211,9 @@ function App() {
 }
 ```
 
-Style text with Bloom's NativeWind font classes (`font-sans`, `font-mono`, …)
-rather than raw `fontFamily` strings.
+Set text in Bloom's `Text` (it names Bloom's font family) rather than raw `fontFamily`
+strings. Services needs no NativeWind: it styles through React Native styles and Bloom's
+colour tokens.
 
 ## Usage Patterns
 

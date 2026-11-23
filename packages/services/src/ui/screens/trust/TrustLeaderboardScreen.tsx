@@ -14,6 +14,7 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useOxy } from '../../context/oxyRuntimeContext';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const AVATAR_SIZE = 40;
 const EMPTY_ICON_SIZE = 64;
@@ -22,6 +23,7 @@ const ERROR_ICON_SIZE = 48;
 const PODIUM_RANK = 3;
 
 const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
+  const themed = useThemedStyles();
   const { oxyServices, user: currentUser } = useOxy();
   const { t, locale } = useI18n();
   const bloomTheme = useTheme();
@@ -81,9 +83,7 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
             accessibilityState={{ selected: isViewer }}
             icon={
               <View style={styles.tierRow}>
-                <Text className="text-text-secondary font-bold" style={styles.rank}>
-                  {item.rank}
-                </Text>
+                <Text style={[themed.mutedText, styles.rank]}>{item.rank}</Text>
                 <Avatar
                   source={
                     item.user.avatar
@@ -105,7 +105,7 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
         </GroupedSection>
       );
     },
-    [oxyServices, currentUserId, handleEntryPress, locale, t],
+    [oxyServices, currentUserId, handleEntryPress, locale, t, themed],
   );
 
   const keyExtractor = useCallback(
@@ -117,10 +117,10 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
 
   if (error) {
     return (
-      <View className="flex-1 bg-bg">
-        <View style={styles.center} className="px-space-32 gap-space-16">
+      <View style={themed.surface}>
+        <View style={[styles.stack, styles.center]}>
           <Ionicons name="alert-circle" size={ERROR_ICON_SIZE} color={bloomTheme.colors.error} />
-          <Text className="text-text-secondary text-base text-center">
+          <Text style={themed.mutedText2}>
             {error || t('trust.leaderboard.error') || 'Failed to load leaderboard'}
           </Text>
           <Button appearance="solid" tone="accent" onPress={loadLeaderboard}>
@@ -132,25 +132,25 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
   }
 
   return (
-    <View className="flex-1 bg-bg">
+    <View style={themed.surface}>
       <FlatList
         data={leaderboard}
         renderItem={renderEntry}
         keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
-        className="px-space-8 pt-space-12"
+        style={styles.section}
         ItemSeparatorComponent={ItemSeparator}
         ListEmptyComponent={
-          <View style={styles.emptyContainer} className="px-space-32 gap-space-8">
+          <View style={[styles.stack2, styles.emptyContainer]}>
             <Ionicons
               name="trophy-outline"
               size={EMPTY_ICON_SIZE}
               color={bloomTheme.colors.textSecondary}
             />
-            <H6 className="text-text text-center mt-space-8">
+            <Text role="heading" aria-level={6} style={themed.text}>
               {t('trust.leaderboard.empty') || 'No leaderboard data'}
-            </H6>
-            <Text className="text-text-secondary text-sm text-center">
+            </Text>
+            <Text style={themed.mutedText3}>
               {t('trust.leaderboard.emptyDesc') ||
                 'Top contributors will appear here as the community grows.'}
             </Text>
@@ -187,6 +187,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 80,
   },
+
+  stack: { gap: 16, paddingHorizontal: 32 },
+  section: { paddingHorizontal: 8, paddingTop: 12 },
+  stack2: { gap: 8, paddingHorizontal: 32 },
 });
 
 export default TrustLeaderboardScreen;
+
+const useThemedStyles = createTokenStyles((t) => ({
+  mutedText: { fontWeight: 700, color: t.mutedForeground },
+  surface: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', backgroundColor: t.background },
+  mutedText2: { textAlign: 'center', fontSize: 16, color: t.mutedForeground, lineHeight: 24 },
+  text: { marginTop: 8, textAlign: 'center', color: t.foreground },
+  mutedText3: { textAlign: 'center', fontSize: 14, color: t.mutedForeground, lineHeight: 20 },
+}));

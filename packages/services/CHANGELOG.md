@@ -8,6 +8,12 @@ React Query and zustand are gone from the package. Account switching needs no ca
 runtime opens the next account's store before anybody is woken, and an answer for the account
 that was left is dropped.
 
+Services also takes Bloom 23 and leaves NativeWind: its screens style through React Native styles
+and Bloom's colour tokens (`createTokenStyles` from `@oxy.so/bloom/theme`) and pass no
+`className`, which Bloom 23 no longer takes. They draw as they did on Bloom 22 (each converted
+element was rendered before and after, light and dark, native and web); an app needs no NativeWind,
+`react-native-css` or Tailwind for Services.
+
 ### Peers
 
 - **Added:** `@oxy.so/bloom-data` `>=0.1.0` (required; one instance per app, like Bloom) and
@@ -16,6 +22,8 @@ that was left is dropped.
   `@tanstack/query-async-storage-persister`, `@tanstack/query-sync-storage-persister` and `zustand`.
   An app that uses React Query or zustand itself declares them itself.
 - **Changed:** `react` `>=18.0.0 <20.0.0` becomes `>=19.0.0 <20.0.0`.
+- **Changed:** `@oxy.so/bloom` `>=22.1.1` becomes `>=23.0.0`.
+- **Removed:** `nativewind` (optional) and `react-native-css`.
 - **Unchanged:** `@react-native-async-storage/async-storage` stays a required peer. Services reads
   it only to move its device key-value data into bloom-data, each key the first time it is read,
   and to delete its dead keys once (among them the 14.x query caches, `oxy_query_cache_v3` and
@@ -25,6 +33,10 @@ that was left is dropped.
 
 ### Removed
 
+- Every `className` prop: `ProfileButton`, `BenefitList` and `BenefitRow` take `style` (they already
+  did), and `OxyAuthScreen`'s `className` is `inSplit` (the form column of an `OxyAuthSplit`, which
+  from `md` fills its half). The `className` typings Services added to React Native's `ScrollView`
+  and `FlatList` are gone.
 - `OxyProvider` no longer mounts a `QueryClientProvider` and takes no `queryClient` or
   `accountQueries` (also gone from `OxyRuntimeProviderProps`). An app that uses React Query mounts
   its own `QueryClientProvider` above `OxyProvider`, and invalidates its own queries on an account

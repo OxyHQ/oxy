@@ -560,6 +560,25 @@ export const useTheme = (): { isDark: boolean; colors: Record<string, string> } 
   },
 });
 
+/**
+ * `@oxy.so/bloom/theme`'s colour tokens: each token as its CSS variable (`var(--primary)`), as
+ * the web reads them, so a component's `createTokenStyles` sheet builds without a provider.
+ */
+const colorTokens: Readonly<Record<string, string>> = new Proxy(
+  {},
+  { get: (_target, name) => `var(--${String(name)})` },
+);
+export const useColorTokens = (): Readonly<Record<string, string>> => colorTokens;
+export function createTokenStyles<T>(
+  build: (tokens: Readonly<Record<string, string>>) => T,
+): () => T {
+  const sheet = build(colorTokens);
+  return () => sheet;
+}
+
+/** `@oxy.so/bloom/hooks`'s window breakpoint: the jsdom window is narrower than `sm`. */
+export const useWindowBreakpoint = (): 'base' => 'base';
+
 /** Generic passthrough for Bloom layout primitives not asserted in unit tests. */
 const passthrough =
   (tag: string) =>

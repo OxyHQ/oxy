@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -72,7 +72,7 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
 
   return (
     <>
-      <View className="px-screen-margin pb-space-24">
+      <View style={styles.section}>
         <GroupedSection title={t('notifications.sections.channels') || 'Channels'}>
           <GroupedSectionItem
             icon={<SettingsIcon name="bell" color={bloomTheme.colors.primary} />}
@@ -150,3 +150,7 @@ const NotificationsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
 };
 
 export default React.memo(NotificationsScreen);
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+});

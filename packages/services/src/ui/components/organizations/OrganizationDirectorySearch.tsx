@@ -6,7 +6,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { skip, useAction, useEntity, useList, useStore, withStore } from '@oxy.so/bloom-data';
 import type { Organization as OrganizationRecord, OrganizationType } from '@oxy.so/contracts';
 import {
@@ -234,7 +234,7 @@ function OrganizationDirectorySearchContent({
   if (selected)
     return (
       <GroupedSection title={selected.name}>
-        <View className="gap-space-16 p-space-16">
+        <View style={styles.stack}>
           <Text>{t(`organizationDirectory.${selected.claimStatus}`)}</Text>
           {selected.status === 'inactive' ? (
             <Text>{t('organizationDirectory.inactive')}</Text>
@@ -289,7 +289,7 @@ function OrganizationDirectorySearchContent({
       </GroupedSection>
     );
   return (
-    <View className="gap-space-16">
+    <View style={styles.stack2}>
       <TextField>
         <TextFieldInput
           label={t('organizationDirectory.search')}
@@ -408,3 +408,8 @@ function OrganizationRow({ accountId, onSelect }: { accountId: string; onSelect:
     />
   );
 }
+
+const styles = StyleSheet.create({
+  stack: { gap: 16, padding: 16 },
+  stack2: { gap: 16 },
+});

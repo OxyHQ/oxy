@@ -25,6 +25,7 @@ import type { Props as IconProps } from '@oxy.so/bloom/icons';
 import type { BaseScreenProps } from '../types/navigation';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface InfoSection {
   id: string;
@@ -67,6 +68,7 @@ const INFO_SECTIONS: InfoSection[] = [
 ];
 
 const LearnMoreUsernamesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
+  const themed = useThemedStyles();
   const bloomTheme = useTheme();
   const { t } = useI18n();
 
@@ -86,12 +88,10 @@ const LearnMoreUsernamesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }
 
   return (
     <>
-      <View className="px-screen-margin pb-space-32">
-        <View className="items-center py-space-24 gap-space-12">
+      <View style={styles.section}>
+        <View style={styles.container}>
           <IconCircle icon={RiAtLine} />
-          <Text className="font-sans text-body text-text-secondary text-center">
-            {t('learnMoreUsernames.introText')}
-          </Text>
+          <Text style={themed.mutedText}>{t('learnMoreUsernames.introText')}</Text>
         </View>
 
         <Accordion type="multiple" value={expandedIds} onValueChange={handleAccordionChange}>
@@ -99,7 +99,7 @@ const LearnMoreUsernamesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }
             <AccordionItem key={id} value={id}>
               <AccordionTrigger
                 icon={
-                  <View className="bg-fill-secondary rounded-radius-12" style={styles.iconSquare}>
+                  <View style={[themed.surface, styles.iconSquare]}>
                     <Icon size="md" style={{ color: bloomTheme.colors.primary }} />
                   </View>
                 }
@@ -107,15 +107,13 @@ const LearnMoreUsernamesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }
                 {t(titleKey)}
               </AccordionTrigger>
               <AccordionContent>
-                <Text className="font-sans text-body text-text-secondary">{t(contentKey)}</Text>
+                <Text style={themed.mutedText2}>{t(contentKey)}</Text>
               </AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
 
-        <Text className="font-sans text-caption text-text-tertiary text-center mt-space-16">
-          {t('learnMoreUsernames.footer')}
-        </Text>
+        <Text style={themed.mutedText3}>{t('learnMoreUsernames.footer')}</Text>
       </View>
     </>
   );
@@ -131,6 +129,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  section: { paddingHorizontal: 20, paddingBottom: 32 },
+  container: { alignItems: 'center', gap: 12, paddingVertical: 24 },
 });
 
 export default LearnMoreUsernamesScreen;
+
+const useThemedStyles = createTokenStyles((t) => ({
+  mutedText: { textAlign: 'center', color: t.mutedForeground, lineHeight: 22, fontWeight: 400 },
+  surface: { borderRadius: 12, backgroundColor: t.muted },
+  mutedText2: { color: t.mutedForeground, lineHeight: 22, fontWeight: 400 },
+  mutedText3: {
+    marginTop: 16,
+    textAlign: 'center',
+    color: t.mutedForeground,
+    lineHeight: 14,
+    fontWeight: 400,
+  },
+}));

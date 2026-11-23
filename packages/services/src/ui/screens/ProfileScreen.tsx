@@ -22,6 +22,7 @@ import { useOxy } from '../context/oxyRuntimeContext';
 import { getNormalizedUserHandle, logger } from '@oxy.so/core';
 import { extractErrorMessage } from '../utils/errorHandlers';
 import { profileCard } from '../data/account';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface ProfileScreenProps extends BaseScreenProps {
   userId: string;
@@ -32,6 +33,7 @@ const AVATAR_SIZE = 96;
 const INFO_ICON_SIZE = 18;
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigate }) => {
+  const themed = useThemedStyles();
   // Use useOxy() hook for OxyContext values. "Me" for own-profile detection
   // and the own-profile fallback is the ACTIVE account (the account switched
   // into), so previewing my profile while switched into an org/project/bot
@@ -111,15 +113,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
   if (error) {
     // The shared nav header owns back/close; the error body is just the alert.
     return (
-      <View style={styles.errorContent} className="px-space-32 gap-space-12 py-space-40">
+      <View style={[styles.container, styles.errorContent]}>
         <Ionicons name="alert-circle" size={48} color={bloomTheme.colors.error} />
-        <H2 style={styles.errorTitle} className="text-text text-center">
+        <Text role="heading" aria-level={2} style={[themed.text, styles.errorTitle]}>
           {t('profile.errorTitle') || 'Profile Error'}
-        </H2>
-        <Text style={styles.errorText} className="text-text">
-          {error}
         </Text>
-        <Text style={styles.errorSubtext} className="text-text-secondary">
+        <Text style={[themed.text2, styles.errorText]}>{error}</Text>
+        <Text style={[themed.mutedText, styles.errorSubtext]}>
           {t('profile.errorSubtext') ||
             "This could happen if the user doesn't exist or the profile service is unavailable."}
         </Text>
@@ -136,18 +136,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
         style={styles.scrollContainer}
       >
         <CoverHeader>
-          <View style={styles.avatarRow} className="px-screen-margin">
+          <View style={[styles.section, styles.avatarRow]}>
             <Skeleton.Circle size={AVATAR_SIZE} />
             <Skeleton.Box width={88} height={32} borderRadius={16} />
           </View>
-          <View className="px-screen-margin gap-space-8" style={styles.header}>
+          <View style={[styles.stack, styles.header]}>
             <Skeleton.Box width={180} height={28} />
             <Skeleton.Box width={110} height={18} />
             <Skeleton.Box width="100%" height={18} style={{ marginTop: 10 }} />
             <Skeleton.Box width="75%" height={18} />
           </View>
         </CoverHeader>
-        <View className="px-screen-margin gap-space-12" style={styles.details}>
+        <View style={[styles.stack2, styles.details]}>
           <Skeleton.Box width="65%" height={18} />
           <Skeleton.Box width="85%" height={18} />
         </View>
@@ -219,13 +219,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
     <View style={styles.scrollContainer}>
       <CoverHeader testID="profile-cover-header">
         {/* Avatar overlapping banner */}
-        <View style={styles.avatarRow} className="px-screen-margin">
+        <View style={[styles.section, styles.avatarRow]}>
           <View
             style={[
+              styles.container2,
               styles.avatarWrapper,
               { borderColor: surfaceFill, backgroundColor: surfaceFill },
             ]}
-            className="rounded-radius-max"
           >
             <Avatar
               // `getFileDownloadUrl` answers `null` for a reference it cannot
@@ -278,25 +278,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, navigat
           </View>
         </View>
         {/* Profile Info */}
-        <View style={styles.header} className="px-screen-margin">
-          <H2 style={styles.displayName} className="text-text">
+        <View style={[styles.section, styles.header]}>
+          <Text role="heading" aria-level={2} style={[themed.text2, styles.displayName]}>
             {displayName}
-          </H2>
+          </Text>
           {profile?.username && (
-            <Text style={styles.subText} className="text-text-secondary">
-              @{profile.username}
-            </Text>
+            <Text style={[themed.mutedText, styles.subText]}>@{profile.username}</Text>
           )}
           {/* Bio */}
-          {profile?.bio ? (
-            <Text style={styles.bio} className="text-text">
-              {profile.bio}
-            </Text>
-          ) : null}
+          {profile?.bio ? <Text style={[themed.text2, styles.bio]}>{profile.bio}</Text> : null}
         </View>
       </CoverHeader>
 
-      <View className="px-screen-margin" style={styles.details}>
+      <View style={[styles.section, styles.details]}>
         <View style={styles.metadataRow}>
           {metadata.map(({ key, icon, label }) => (
             <View key={key} style={styles.metadataEntry}>
@@ -414,6 +408,18 @@ const styles = StyleSheet.create({
   errorContent: { justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
   errorSubtext: { fontSize: 14, textAlign: 'center' },
+
+  container: { gap: 12, paddingHorizontal: 32, paddingVertical: 40 },
+  section: { paddingHorizontal: 20 },
+  stack: { gap: 8, paddingHorizontal: 20 },
+  stack2: { gap: 12, paddingHorizontal: 20 },
+  container2: { borderRadius: 9999 },
 });
 
 export default ProfileScreen;
+
+const useThemedStyles = createTokenStyles((t) => ({
+  text: { textAlign: 'center', color: t.foreground },
+  text2: { color: t.foreground },
+  mutedText: { color: t.mutedForeground },
+}));

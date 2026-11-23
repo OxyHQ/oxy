@@ -25,9 +25,6 @@ const registerHooks = jest.fn(() => () => {});
 jest.mock('../../src/ui/navigation/accountDialogManager', () => ({
   registerAccountDialogConsumerHooks: (...args: unknown[]) => registerHooks(...args),
 }));
-jest.mock('react-native-css/components', () =>
-  jest.requireActual('../../__tests__/__mocks__/react-native'),
-);
 
 beforeEach(() => {
   jest.clearAllMocks();

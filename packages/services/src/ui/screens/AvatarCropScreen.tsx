@@ -994,7 +994,7 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
         ? measureErrorMessage
         : t('editProfile.crop.noImage');
     return (
-      <View style={styles.container} className="px-screen-margin pb-space-24">
+      <View style={[viewStyles.section, styles.container]}>
         <View style={styles.emptyState}>
           <Text style={styles.emptyLabel}>{emptyMessage}</Text>
         </View>
@@ -1003,7 +1003,7 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
   }
 
   return (
-    <View style={styles.container} className="px-screen-margin pb-space-24">
+    <View style={[viewStyles.section, styles.container]}>
       <View style={styles.stage}>
         <Animated.View
           ref={startEntrance}
@@ -1056,10 +1056,7 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
                     aesthetic; the full-width row is `box-none` so only the pill
                     takes pointer events and the rest of the circle stays pannable. */}
         {showZoomControls ? (
-          <View
-            className="absolute bottom-4 left-0 right-0 items-center"
-            style={styles.footerPointerEvents}
-          >
+          <View style={[viewStyles.overlay, styles.footerPointerEvents]}>
             <HeaderActions
               actions={[
                 {
@@ -1106,3 +1103,8 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
 };
 
 export default AvatarCropScreen;
+
+const viewStyles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+  overlay: { position: 'absolute', right: 0, bottom: 16, left: 0, alignItems: 'center' },
+});

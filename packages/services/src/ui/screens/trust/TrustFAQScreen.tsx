@@ -11,6 +11,7 @@ import {
 } from '@oxy.so/bloom/accordion';
 import { Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const FAQ_KEYS = ['what', 'earn', 'lose', 'use', 'transfer', 'support'] as const;
 
@@ -23,6 +24,7 @@ const FAQ_KEYS = ['what', 'earn', 'lose', 'use', 'transfer', 'support'] as const
  * `LayoutAnimation` is used here.
  */
 const TrustFAQScreen: React.FC<BaseScreenProps> = () => {
+  const styles = useStyles();
   const { t } = useI18n();
 
   useSurfaceHeader({
@@ -58,7 +60,7 @@ const TrustFAQScreen: React.FC<BaseScreenProps> = () => {
 
   return (
     <>
-      <View className="px-screen-margin pt-space-20 pb-space-12">
+      <View style={styles.section}>
         <Search
           label={t('trust.faq.search') || 'Search FAQ...'}
           value={search}
@@ -68,9 +70,9 @@ const TrustFAQScreen: React.FC<BaseScreenProps> = () => {
         />
       </View>
 
-      <View className="px-screen-margin">
+      <View style={styles.section2}>
         {filteredFaqs.length === 0 ? (
-          <Text className="text-text-secondary text-center p-space-40">
+          <Text style={styles.mutedText}>
             {t('trust.faq.noResults', { query: search }) ||
               `No FAQ items found matching "${search}"`}
           </Text>
@@ -80,7 +82,7 @@ const TrustFAQScreen: React.FC<BaseScreenProps> = () => {
               <AccordionItem key={faq.id} value={faq.id}>
                 <AccordionTrigger>{faq.q}</AccordionTrigger>
                 <AccordionContent>
-                  <Text className="font-sans text-body text-text-secondary">{faq.a}</Text>
+                  <Text style={styles.mutedText2}>{faq.a}</Text>
                 </AccordionContent>
               </AccordionItem>
             ))}
@@ -92,3 +94,10 @@ const TrustFAQScreen: React.FC<BaseScreenProps> = () => {
 };
 
 export default React.memo(TrustFAQScreen);
+
+const useStyles = createTokenStyles((t) => ({
+  section: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
+  section2: { paddingHorizontal: 20 },
+  mutedText: { padding: 40, textAlign: 'center', color: t.mutedForeground },
+  mutedText2: { color: t.mutedForeground, lineHeight: 22, fontWeight: 400 },
+}));

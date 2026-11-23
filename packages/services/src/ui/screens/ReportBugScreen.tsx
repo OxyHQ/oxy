@@ -8,8 +8,10 @@ import { Text } from '@oxy.so/bloom/typography';
 import { toast } from '@oxy.so/bloom/toast';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 export default function ReportBugScreen() {
+  const styles = useStyles();
   const { t } = useI18n();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -33,7 +35,7 @@ export default function ReportBugScreen() {
   };
 
   return (
-    <View className="px-screen-margin pb-space-24 gap-space-16">
+    <View style={styles.container}>
       <Field
         label={t('help.reportBug.summary')}
         error={attempted && !title.trim() ? t('help.reportBug.summaryRequired') : undefined}
@@ -59,10 +61,15 @@ export default function ReportBugScreen() {
           maxLength={4000}
         />
       </Field>
-      <Text className="text-text-secondary">{t('help.reportBug.emailHint')}</Text>
+      <Text style={styles.mutedText}>{t('help.reportBug.emailHint')}</Text>
       <Button onPress={openDraft} disabled={opening}>
         {t('help.reportBug.continueEmail')}
       </Button>
     </View>
   );
 }
+
+const useStyles = createTokenStyles((t) => ({
+  container: { gap: 16, paddingHorizontal: 20, paddingBottom: 24 },
+  mutedText: { color: t.mutedForeground },
+}));

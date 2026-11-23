@@ -12,7 +12,6 @@
  * cannot contain `require()` per CLAUDE.md) and (b) defeated tree-shaking.
  */
 
-/// <reference path="../types/react-native-classname.d.ts" />
 /// <reference path="../types/react-native-web-style.d.ts" />
 
 // Must stay the first runtime import: core reads the platform from it.

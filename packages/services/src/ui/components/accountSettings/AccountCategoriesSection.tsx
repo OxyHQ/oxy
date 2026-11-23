@@ -1,7 +1,7 @@
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -89,7 +89,7 @@ export const AccountCategoriesSection: React.FC<AccountCategoriesSectionProps> =
   );
 
   return (
-    <View className="gap-space-8">
+    <View style={styles.stack}>
       <GroupedSection
         title={t('accounts.settings.categories.title')}
         footer={t('accounts.settings.categories.footer', { max: MAX_ACCOUNT_CATEGORIES })}
@@ -110,7 +110,7 @@ export const AccountCategoriesSection: React.FC<AccountCategoriesSectionProps> =
               showChevron={false}
               disabled={disabled}
               rightElement={
-                <View className="flex-row items-center gap-space-8">
+                <View style={styles.row}>
                   {index > 0 ? (
                     <Button
                       appearance="subtle"
@@ -182,3 +182,8 @@ export const AccountCategoriesSection: React.FC<AccountCategoriesSectionProps> =
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  stack: { gap: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+});

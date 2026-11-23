@@ -10,6 +10,7 @@ import {
   Animated,
   useWindowDimensions,
   type LayoutChangeEvent,
+  StyleSheet,
 } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { ExpoImage } from '../../components/ExpoImage';
@@ -290,14 +291,12 @@ const PhotoPickerCell = React.memo(function PhotoPickerCell(props: PhotoPickerCe
       <PressableScale
         onPress={onPress}
         onLongPress={onLongPress}
-        className="flex-1"
+        style={styles.fill}
         accessibilityRole="button"
         accessibilityLabel={a11yLabel}
         accessibilityState={{ selected: isSelected }}
       >
-        <View
-          className={`flex-1 rounded-radius-8 overflow-hidden bg-[#111111]${dim ? ' opacity-60' : ''}`}
-        >
+        <View style={[styles.thumb, dim ? styles.thumbDimmed : null]}>
           <ExpoImage
             source={{ uri: thumbUrl }}
             style={{ width: '100%', height: '100%' }}
@@ -325,13 +324,8 @@ const PhotoPickerCell = React.memo(function PhotoPickerCell(props: PhotoPickerCe
           />
         )}
         {isSelected && (
-          <View
-            className="absolute top-1.5 right-1.5 min-w-[22px] h-[22px] px-1.5 rounded-full items-center justify-center"
-            style={{ backgroundColor: primaryColor, pointerEvents: 'none' }}
-          >
-            <Text className="text-white text-[12px] font-bold leading-[14px]">
-              {selectionIndex > 0 ? String(selectionIndex) : ''}
-            </Text>
+          <View style={[styles.overlay, { backgroundColor: primaryColor, pointerEvents: 'none' }]}>
+            <Text style={styles.title}>{selectionIndex > 0 ? String(selectionIndex) : ''}</Text>
           </View>
         )}
       </PressableScale>
@@ -493,7 +487,7 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
   const listFooter = useMemo(() => {
     if (!loadingMore) return null;
     return (
-      <View className="py-space-16 items-center">
+      <View style={styles.container}>
         <SpinnerIcon size={16} color="#FFFFFF" />
       </View>
     );
@@ -515,7 +509,7 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
                 the FlatList gets a bounded scroll region inside the height-capped
                 root (the CSS flexbox `min-height:auto` trap; a no-op on native,
                 where Yoga already defaults min-height to 0). */}
-      <View className="flex-1 min-h-0 bg-black">
+      <View style={styles.surface}>
         {/* Photo grid — full-bleed black canvas CONTENT under the shared
                     Dialog nav bar (the Dialog reserves the bar's height above this
                     and its gradient fades a little further down; the top padding
@@ -524,7 +518,7 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
           /* Terminal load failure — a DISTINCT error surface (not the
                        empty state), centered in the immersive frame. Retry re-runs
                        the list query. */
-          <View className="flex-1 items-center justify-center">
+          <View style={styles.centered}>
             <FileLibraryError
               title={t('fileManagement.loadError.title')}
               description={t('fileManagement.loadError.description')}
@@ -536,16 +530,12 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
             />
           </View>
         ) : isEmpty && !loading ? (
-          <View className="flex-1 items-center justify-center px-space-32">
-            <View className="opacity-30 mb-space-16">
+          <View style={styles.centered2}>
+            <View style={styles.container2}>
               <MaterialCommunityIcons name="image-outline" size={64} color="#FFFFFF" />
             </View>
-            <Text className="text-white text-[17px] font-semibold text-center mb-1.5">
-              {t('fileManagement.photoPicker.emptyTitle')}
-            </Text>
-            <Text className="text-white text-[14px] font-normal text-center opacity-70 mb-space-24">
-              {t('fileManagement.photoPicker.emptySubtitle')}
-            </Text>
+            <Text style={styles.title2}>{t('fileManagement.photoPicker.emptyTitle')}</Text>
+            <Text style={styles.text}>{t('fileManagement.photoPicker.emptySubtitle')}</Text>
             {isOwner && allowUpload && (
               <Button
                 appearance="solid"
@@ -565,8 +555,8 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             numColumns={columns}
-            className="flex-1 min-h-0"
-            contentContainerClassName="pb-space-24"
+            style={styles.container3}
+            contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
@@ -591,3 +581,57 @@ const PhotoPickerView: React.FC<PhotoPickerViewProps> = ({
 };
 
 export default PhotoPickerView;
+
+const styles = StyleSheet.create({
+  thumb: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: '#111111',
+  },
+  thumbDimmed: { opacity: 0.6 },
+  fill: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  overlay: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    height: 22,
+    minWidth: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9999,
+    paddingHorizontal: 6,
+  },
+  title: { fontSize: 12, lineHeight: 14, fontWeight: 700, color: '#fff' },
+  container: { alignItems: 'center', paddingVertical: 16 },
+  surface: { minHeight: 0, flexGrow: 1, flexShrink: 1, flexBasis: '0%', backgroundColor: '#000' },
+  centered: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centered2: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  container2: { marginBottom: 16, opacity: 0.3 },
+  title2: { marginBottom: 6, textAlign: 'center', fontSize: 17, fontWeight: 600, color: '#fff' },
+  text: {
+    marginBottom: 24,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: 400,
+    color: '#fff',
+    opacity: 0.7,
+  },
+  container3: { minHeight: 0, flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  content: { paddingBottom: 24 },
+});

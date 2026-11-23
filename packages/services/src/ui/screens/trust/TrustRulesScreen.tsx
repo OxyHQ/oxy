@@ -13,6 +13,7 @@ import { useI18n } from '../../hooks/useI18n';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useAnswer } from '../../data/answer';
 import { reputationRules } from '../../data/trust';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /** Stable display order for rule category sections. */
 const CATEGORY_ORDER: ReputationCategory[] = [
@@ -26,6 +27,7 @@ const CATEGORY_ORDER: ReputationCategory[] = [
 ];
 
 const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
+  const styles = useStyles();
   const { oxyServices } = useOxy();
   const { t, locale } = useI18n();
 
@@ -68,15 +70,11 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
   return (
     <>
       {isLoading ? null : error ? (
-        <Text className="text-text-secondary text-base text-center px-screen-margin pt-space-40">
-          {error}
-        </Text>
+        <Text style={styles.mutedText}>{error}</Text>
       ) : rules.length === 0 ? (
-        <Text className="text-text-secondary text-base text-center px-screen-margin pt-space-40">
-          {t('trust.rules.empty') || 'No rules found.'}
-        </Text>
+        <Text style={styles.mutedText}>{t('trust.rules.empty') || 'No rules found.'}</Text>
       ) : (
-        <View className="px-screen-margin pb-space-24 pt-space-12">
+        <View style={styles.section}>
           {groupedRules.map(({ category, items }) => (
             <GroupedSection key={category} title={reputationCategoryLabel(locale, category)}>
               {items.map((rule) => (
@@ -105,3 +103,15 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
 };
 
 export default TrustRulesScreen;
+
+const useStyles = createTokenStyles((t) => ({
+  mutedText: {
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    textAlign: 'center',
+    fontSize: 16,
+    color: t.mutedForeground,
+    lineHeight: 24,
+  },
+  section: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 },
+}));

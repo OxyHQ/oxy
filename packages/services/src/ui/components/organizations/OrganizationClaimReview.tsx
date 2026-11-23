@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { skip, useAction, useEntity, useList, useStore, withStore } from '@oxy.so/bloom-data';
 import { isHttpRequestError } from '@oxy.so/core';
 import type { OrganizationClaimReview as OrganizationClaimReviewInput } from '@oxy.so/contracts';
@@ -56,7 +56,7 @@ function ReviewQueue() {
   if (requests.isLoading) return <ActivityIndicator />;
   if (requests.status === 'error')
     return (
-      <View className="gap-space-16 p-space-16">
+      <View style={styles.stack}>
         <Text accessibilityRole="alert">
           {t(
             isHttpRequestError(requests.error) && requests.error.status === 403
@@ -70,7 +70,7 @@ function ReviewQueue() {
   if (selected)
     return <ReviewDetail claimId={selected} key={selected} onClose={() => setSelected(null)} />;
   return (
-    <View className="gap-space-16 p-space-16">
+    <View style={styles.stack}>
       {requests.ids.length === 0 ? <Text>{t('organizationDirectory.review.empty')}</Text> : null}
       {requests.ids.map((id) => (
         <ReviewRow
@@ -155,7 +155,7 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
   const selfReview = detail.value?.claimantUserId === user?.id;
   const loaded = detail.status === 'success' && detail.value;
   return (
-    <View className="gap-space-16 p-space-16">
+    <View style={styles.stack}>
       {detail.isLoading ? <ActivityIndicator /> : null}
       {detail.status === 'error' ? (
         <>
@@ -232,3 +232,7 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  stack: { gap: 16, padding: 16 },
+});

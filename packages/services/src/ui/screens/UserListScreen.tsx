@@ -15,6 +15,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { logger, getNormalizedUserHandle, getAccountFallbackHandle } from '@oxy.so/core';
 import type { User, FollowGraphSort } from '@oxy.so/core';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 type ListMode = 'followers' | 'following';
 
@@ -39,6 +40,7 @@ const resolveUserId = (user: User): string =>
   user.id || (typeof user._id === 'string' ? user._id : '');
 
 const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, navigate }) => {
+  const themed = useThemedStyles();
   const { oxyServices, user: currentUser } = useOxy();
   const [users, setUsers] = useState<User[]>([]);
   const fetching = useRef(false);
@@ -206,23 +208,23 @@ const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, nav
     if (isLoading || (normalizedSearch && (hasMore || isLoadingMore) && !error)) return null;
     if (normalizedSearch)
       return (
-        <View className="px-space-24 py-space-24">
+        <View style={styles.section}>
           <Text>{t('userList.noSearchResults')}</Text>
         </View>
       );
     return (
-      <View style={styles.emptyContainer} className="px-space-32 gap-space-8">
+      <View style={[styles.stack, styles.emptyContainer]}>
         <Ionicons
           name={mode === 'followers' ? 'people-outline' : 'heart-outline'}
           size={EMPTY_ICON_SIZE}
           color={bloomTheme.colors.textSecondary}
         />
-        <H6 className="text-text text-center mt-space-8">
+        <Text role="heading" aria-level={6} style={themed.text}>
           {mode === 'followers'
             ? t('userList.noFollowers') || 'No followers yet'
             : t('userList.noFollowing') || 'Not following anyone'}
-        </H6>
-        <Text className="text-text-secondary text-sm text-center">
+        </Text>
+        <Text style={themed.mutedText}>
           {mode === 'followers'
             ? t('userList.noFollowersDesc') ||
               'When people follow this user, they will appear here.'
@@ -231,7 +233,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, nav
         </Text>
       </View>
     );
-  }, [isLoading, mode, bloomTheme, t, normalizedSearch, hasMore, isLoadingMore, error]);
+  }, [isLoading, mode, bloomTheme, t, normalizedSearch, hasMore, isLoadingMore, error, themed]);
 
   const title =
     mode === 'followers'
@@ -257,10 +259,10 @@ const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, nav
 
   if (error) {
     return (
-      <View className="flex-1 bg-bg">
-        <View style={styles.center} className="px-space-32 gap-space-16">
+      <View style={themed.surface}>
+        <View style={[styles.stack2, styles.center]}>
           <Ionicons name="alert-circle" size={ERROR_ICON_SIZE} color={bloomTheme.colors.error} />
-          <Text className="text-text-secondary text-base text-center">{error}</Text>
+          <Text style={themed.mutedText2}>{error}</Text>
           <Button appearance="solid" tone="accent" onPress={() => fetchUsers(0)}>
             {t('common.retry') || 'Retry'}
           </Button>
@@ -272,7 +274,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({ userId, mode, sort, nav
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       {searchOpen ? (
-        <View className="px-screen-margin pb-space-12" style={{ flexShrink: 0 }}>
+        <View style={[styles.section2, { flexShrink: 0 }]}>
           <Search
             label={t('userList.search')}
             placeholder={t('userList.searchPlaceholder')}
@@ -323,6 +325,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 80,
   },
+
+  section: { paddingHorizontal: 24, paddingVertical: 24 },
+  stack: { gap: 8, paddingHorizontal: 32 },
+  stack2: { gap: 16, paddingHorizontal: 32 },
+  section2: { paddingHorizontal: 20, paddingBottom: 12 },
 });
 
 export default UserListScreen;
+
+const useThemedStyles = createTokenStyles((t) => ({
+  text: { marginTop: 8, textAlign: 'center', color: t.foreground },
+  mutedText: { textAlign: 'center', fontSize: 14, color: t.mutedForeground, lineHeight: 20 },
+  surface: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', backgroundColor: t.background },
+  mutedText2: { textAlign: 'center', fontSize: 16, color: t.mutedForeground, lineHeight: 24 },
+}));

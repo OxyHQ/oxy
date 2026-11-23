@@ -17,8 +17,7 @@
  */
 
 import type React from 'react';
-import { ScrollView } from 'react-native';
-import { View } from 'react-native-css/components';
+import { ScrollView, View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiUserAddLine } from '@oxy.so/bloom/icons/RiUserAddLine';
@@ -37,6 +36,7 @@ import {
 import { useI18n } from '../../hooks/useI18n';
 import { resolveAccentHex } from '../authChooser/types';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /** The list scrolls past this height (`max-h-96`). */
 const LIST_MAX_HEIGHT = 384;
@@ -71,6 +71,7 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
   isLoading = false,
   signedOut = false,
 }) => {
+  const styles = useStyles();
   const theme = useTheme();
   const { t } = useI18n();
   // Whose route a row is only needs naming once someone holds more than one
@@ -126,8 +127,10 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
                       verified={current}
                       verifiedIcon={
                         <View
-                          className="items-center justify-center rounded-full border-2 border-background"
-                          style={{ width: 18, height: 18, backgroundColor: accent }}
+                          style={[
+                            styles.centered,
+                            { width: 18, height: 18, backgroundColor: accent },
+                          ]}
                         >
                           <RiCheckLine size="xs" fill="#ffffff" />
                         </View>
@@ -157,3 +160,13 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
     </OxyAuthScreen>
   );
 };
+
+const useStyles = createTokenStyles((t) => ({
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9999,
+    borderWidth: 2,
+    borderColor: t.background,
+  },
+}));

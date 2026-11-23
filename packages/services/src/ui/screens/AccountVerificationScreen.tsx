@@ -20,8 +20,10 @@ import { RiVerifiedBadgeLine } from '@oxy.so/bloom/icons/RiVerifiedBadgeLine';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/oxyRuntimeContext';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const AccountVerificationScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
+  const themed = useThemedStyles();
   // Use useOxy() hook for OxyContext values
   const { oxyServices } = useOxy();
   const { t } = useI18n();
@@ -84,14 +86,14 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({ onClose, goBack 
 
   return (
     <>
-      <View className="px-screen-margin pb-space-32">
+      <View style={styles.section}>
         {/* Hero */}
-        <View className="items-center py-space-24 gap-space-12">
+        <View style={styles.container}>
           <IconCircle icon={RiVerifiedBadgeLine} />
-          <H4 className="text-headerBold font-headerBold text-text text-center">
+          <Text role="heading" aria-level={4} style={themed.title}>
             {t('accountVerification.heroTitle') || 'Get a verified badge'}
-          </H4>
-          <Text className="font-sans text-body text-text-secondary text-center">
+          </Text>
+          <Text style={themed.mutedText}>
             {t('accountVerification.description') ||
               'Request a verified badge for your account. Verified accounts help establish authenticity and credibility.'}
           </Text>
@@ -99,7 +101,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({ onClose, goBack 
 
         {/* Benefits */}
         <BenefitList
-          className="mb-space-24"
+          style={styles.benefits}
           accessibilityLabel={
             t('accountVerification.sections.benefits') || 'What verification gives you'
           }
@@ -128,11 +130,11 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({ onClose, goBack 
         </BenefitList>
 
         {/* Verification request form */}
-        <Text className="text-sectionTitle font-sectionTitle text-text-secondary mb-space-12">
+        <Text style={themed.mutedText2}>
           {t('accountVerification.sections.request') || 'VERIFICATION REQUEST'}
         </Text>
 
-        <View className="gap-space-16 p-space-16 rounded-radius-20 bg-fill">
+        <View style={themed.surface}>
           <TextField>
             <TextFieldInput
               floatingLabel
@@ -175,7 +177,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({ onClose, goBack 
           tone="accent"
           size="lg"
           fullWidth
-          className="mt-space-24"
+          style={styles.button}
           onPress={handleSubmit}
           disabled={!canSubmit}
           loading={isSubmitting}
@@ -184,9 +186,9 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({ onClose, goBack 
           {t('accountVerification.submit') || 'Submit Request'}
         </Button>
 
-        <View className="flex-row items-start gap-space-8 mt-space-24">
+        <View style={styles.row}>
           <RiInformationLine size="sm" style={{ color: bloomTheme.colors.textTertiary }} />
-          <Text className="flex-1 font-sans text-caption text-text-tertiary">
+          <Text style={themed.mutedText3}>
             {t('accountVerification.note') ||
               'Note: Verification requests are reviewed manually and may take several days. We will notify you once your request has been reviewed.'}
           </Text>
@@ -200,9 +202,42 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({ onClose, goBack 
 // minimum height so the floating-label textarea has room. Colors/typography
 // come from the Bloom TextFieldInput chrome + token classes.
 const styles = StyleSheet.create({
+  benefits: { marginBottom: 24 },
   multiline: {
     minHeight: 96,
   },
+
+  section: { paddingHorizontal: 20, paddingBottom: 32 },
+  container: { alignItems: 'center', gap: 12, paddingVertical: 24 },
+  button: { marginTop: 24 },
+  row: { marginTop: 24, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
 });
 
 export default React.memo(AccountVerificationScreen);
+
+const useThemedStyles = createTokenStyles((t) => ({
+  title: {
+    textAlign: 'center',
+    fontSize: 28,
+    color: t.foreground,
+    lineHeight: 34,
+    fontWeight: 700,
+  },
+  mutedText: { textAlign: 'center', color: t.mutedForeground, lineHeight: 22, fontWeight: 400 },
+  mutedText2: {
+    marginBottom: 12,
+    fontSize: 20,
+    color: t.mutedForeground,
+    lineHeight: 26,
+    fontWeight: 600,
+  },
+  surface: { gap: 16, borderRadius: 20, backgroundColor: t.card, padding: 16 },
+  mutedText3: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    color: t.mutedForeground,
+    lineHeight: 14,
+    fontWeight: 400,
+  },
+}));

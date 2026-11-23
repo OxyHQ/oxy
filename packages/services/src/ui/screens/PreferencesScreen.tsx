@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Platform, View } from 'react-native';
+import { AccessibilityInfo, Platform, View, StyleSheet } from 'react-native';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -119,7 +119,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
 
   return (
     <>
-      <View className="px-screen-margin pb-space-24">
+      <View style={styles.section}>
         <GroupedSection title={t('preferences.sections.appearance') || 'Appearance'}>
           <GroupedSectionItem
             icon={<SettingsIcon name="theme-light-dark" color={bloomTheme.colors.primary} />}
@@ -192,3 +192,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
 };
 
 export default React.memo(PreferencesScreen);
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+});

@@ -33,6 +33,7 @@ import { OrganizationSettings } from '../organizations/OrganizationSettings';
 import { SettingsIcon } from '../SettingsIcon';
 import { AccountCategoriesSection, accountCategoriesEqual } from './AccountCategoriesSection';
 import { useApiErrorToast } from '../../hooks/useApiErrorToast';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const BIO_MAX = 160;
 const AVATAR_SIZE = 64;
@@ -127,6 +128,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
   navigate,
   onClose,
 }) => {
+  const styles = useStyles();
   const { colors } = useTheme();
   const { t } = useI18n();
   const showApiError = useApiErrorToast();
@@ -306,25 +308,23 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 
   if (!id) {
     return (
-      <View className="items-center justify-center px-screen-margin py-space-40">
-        <Text className="text-body font-body text-text-secondary text-center">
-          {t('accounts.settings.errors.missingAccount')}
-        </Text>
+      <View style={styles.centered}>
+        <Text style={styles.mutedText}>{t('accounts.settings.errors.missingAccount')}</Text>
       </View>
     );
   }
 
   if (accountView.isLoading || !node) {
-    return <View className="items-center py-space-32" />;
+    return <View style={styles.container} />;
   }
 
   const busy = update.isPending;
 
   return (
-    <View className="px-screen-margin pt-space-24 pb-space-32 gap-space-24">
+    <View style={styles.container2}>
       {canUpdate ? (
-        <View className="gap-space-16 p-space-16 rounded-radius-20 bg-fill">
-          <View className="flex-row items-center gap-space-16">
+        <View style={styles.surface}>
+          <View style={styles.row}>
             <Avatar source={avatarUri} name={storedName} size={AVATAR_SIZE} />
             <Button
               appearance="subtle"
@@ -335,7 +335,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
               {t('accounts.settings.picture.change')}
             </Button>
           </View>
-          <View className="gap-space-4">
+          <View style={styles.stack}>
             <TextField isInvalid={Boolean(displayNameError)}>
               <TextFieldInput
                 floatingLabel
@@ -346,13 +346,9 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
                 maxLength={accountNameMaxLength(node.account.kind)}
               />
             </TextField>
-            {displayNameError ? (
-              <Text className="text-caption font-caption text-negative px-space-4">
-                {displayNameError}
-              </Text>
-            ) : null}
+            {displayNameError ? <Text style={styles.text}>{displayNameError}</Text> : null}
           </View>
-          <View className="gap-space-4">
+          <View style={styles.stack}>
             <TextField>
               <TextFieldInput
                 floatingLabel
@@ -365,7 +361,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
                 textAlignVertical="top"
               />
             </TextField>
-            <Text className="text-caption font-caption text-text-tertiary px-space-4 text-right">
+            <Text style={styles.mutedText2}>
               {bio.length}/{BIO_MAX}
             </Text>
           </View>
@@ -379,7 +375,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
             disabled={busy || !canSave}
             loading={busy}
             accessibilityLabel={t('accounts.settings.save')}
-            className="w-full"
+            style={styles.button}
           >
             {t('accounts.settings.save')}
           </Button>
@@ -422,3 +418,34 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 };
 
 export default AccountSettings;
+
+const useStyles = createTokenStyles((t) => ({
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+  mutedText: {
+    textAlign: 'center',
+    fontSize: 15,
+    color: t.mutedForeground,
+    lineHeight: 22,
+    fontWeight: 400,
+  },
+  container: { alignItems: 'center', paddingVertical: 32 },
+  container2: { gap: 24, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
+  surface: { gap: 16, borderRadius: 20, backgroundColor: t.card, padding: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  stack: { gap: 4 },
+  text: { paddingHorizontal: 4, fontSize: 11, lineHeight: 14, fontWeight: 400 },
+  mutedText2: {
+    paddingHorizontal: 4,
+    textAlign: 'right',
+    fontSize: 11,
+    color: t.mutedForeground,
+    lineHeight: 14,
+    fontWeight: 400,
+  },
+  button: { width: '100%' },
+}));

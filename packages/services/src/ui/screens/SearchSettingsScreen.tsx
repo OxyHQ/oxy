@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -50,7 +50,7 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =>
 
   return (
     <>
-      <View className="px-screen-margin pb-space-24">
+      <View style={styles.section}>
         {/* SafeSearch */}
         <GroupedSection title={t('searchSettings.safeSearch.title') || 'SafeSearch'}>
           <GroupedSectionItem
@@ -98,3 +98,7 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =>
 };
 
 export default React.memo(SearchSettingsScreen);
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+});

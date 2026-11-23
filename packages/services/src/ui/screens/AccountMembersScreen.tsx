@@ -38,6 +38,7 @@ import {
 } from '../data/account';
 import { User } from '../data/user';
 import type { CachedUser } from '../data/userRecord';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const ASSIGNABLE_ROLES: AssignableRole[] = ['admin', 'editor', 'developer', 'billing', 'viewer'];
 
@@ -55,6 +56,7 @@ function MemberName({ userId }: { userId: string }) {
  * permissions. Receives the target `accountId` via navigation props.
  */
 const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, accountId }) => {
+  const styles = useStyles();
   const bloomTheme = useTheme();
   const colors = bloomTheme.colors;
   const { t, locale } = useI18n();
@@ -226,8 +228,8 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   if (!id) {
     return (
       <>
-        <View className="items-center justify-center px-screen-margin py-space-40">
-          <Text className="text-body font-body text-text-secondary text-center">
+        <View style={styles.centered}>
+          <Text style={styles.mutedText}>
             {t('accounts.members.errors.missingAccount') || 'No account selected.'}
           </Text>
         </View>
@@ -236,9 +238,9 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   }
 
   return (
-    <View className="px-screen-margin pt-space-16 pb-space-32 gap-space-24">
+    <View style={styles.container}>
       {!accountView.isLoading && !canRead ? (
-        <Text className="text-body font-body text-text-secondary text-center py-space-24">
+        <Text style={styles.mutedText2}>
           {t('accounts.members.errors.noPermission') ||
             'You do not have permission to view members.'}
         </Text>
@@ -246,10 +248,8 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
       {/* Invite form */}
       {canInvite ? (
-        <View className="gap-space-12 p-space-16 rounded-radius-20 bg-fill">
-          <Text className="text-body font-semibold text-text">
-            {t('accounts.members.invite.title')}
-          </Text>
+        <View style={styles.surface}>
+          <Text style={styles.title}>{t('accounts.members.invite.title')}</Text>
           <TextField isInvalid={!!inviteError}>
             <TextFieldInput
               floatingLabel
@@ -267,17 +267,10 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
             />
           </TextField>
           {inviteError ? (
-            <Text
-              className="text-caption font-caption px-space-4"
-              style={{ color: colors.negative }}
-            >
-              {inviteError}
-            </Text>
+            <Text style={[styles.text, { color: colors.negative }]}>{inviteError}</Text>
           ) : null}
 
-          <Text className="text-caption font-caption text-text-secondary px-space-4">
-            {t('accounts.members.invite.roleLabel') || 'Role'}
-          </Text>
+          <Text style={styles.mutedText3}>{t('accounts.members.invite.roleLabel') || 'Role'}</Text>
           <SegmentedControl
             type="radio"
             label={t('accounts.members.invite.roleLabel') || 'Role'}
@@ -299,7 +292,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
             disabled={inviteMutation.isPending || !inviteEmail}
             loading={inviteMutation.isPending}
             accessibilityLabel={t('accounts.members.invite.submit')}
-            className="w-full"
+            style={styles.button}
           >
             {t('accounts.members.invite.submit')}
           </Button>
@@ -307,11 +300,11 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
       ) : null}
 
       {canRead ? (
-        <View className="gap-space-12">
-          <Text className="text-body font-semibold text-text">Pending invitations</Text>
+        <View style={styles.stack}>
+          <Text style={styles.title}>Pending invitations</Text>
           {invitations.status === 'error' ? <Text>Could not load invitations.</Text> : null}
           {(invitations.value?.invitations ?? []).map((invitation) => (
-            <View key={invitation.id} className="gap-space-8 p-space-16 rounded-radius-20 bg-fill">
+            <View key={invitation.id} style={styles.surface2}>
               <Text>
                 {invitation.email} · {roleLabel(invitation.role)} · {invitation.status}
               </Text>
@@ -339,15 +332,15 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 
       {/* Member list */}
       {canRead ? (
-        <View className="gap-space-8">
+        <View style={styles.stack2}>
           {roster.isLoading ? (
-            <View className="items-center py-space-24">{null}</View>
+            <View style={styles.container2}>{null}</View>
           ) : members.length === 0 ? (
-            <Text className="text-body font-body text-text-secondary text-center py-space-24">
+            <Text style={styles.mutedText2}>
               {t('accounts.members.empty') || 'No members yet.'}
             </Text>
           ) : (
-            <View className="rounded-radius-20 bg-fill overflow-hidden">
+            <View style={styles.surface3}>
               {members.map((member, index) => {
                 const isOwner = member.role === 'owner';
                 const isLastOwner = isOwner && ownerCount <= 1;
@@ -366,45 +359,28 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                 return (
                   <View key={member._id}>
                     {index > 0 ? <Divider color={colors.border} spacing={0} /> : null}
-                    <View className="p-space-16 gap-space-8">
-                      <View className="flex-row items-center gap-space-8">
-                        <Text
-                          className="text-body font-bodyBold text-text flex-1"
-                          numberOfLines={1}
-                        >
+                    <View style={styles.stack3}>
+                      <View style={styles.row}>
+                        <Text style={styles.text2} numberOfLines={1}>
                           <MemberName userId={member.memberUserId} />
                         </Text>
                         {isOwner ? (
-                          <View
-                            className="px-space-8 py-space-4 rounded-radius-full"
-                            style={{ backgroundColor: colors.primarySubtle }}
-                          >
-                            <Text
-                              className="text-caption font-semibold"
-                              style={{ color: colors.primary }}
-                            >
+                          <View style={[styles.section, { backgroundColor: colors.primarySubtle }]}>
+                            <Text style={[styles.title2, { color: colors.primary }]}>
                               {roleLabel('owner')}
                             </Text>
                           </View>
                         ) : null}
                         {!isEditableHere ? (
-                          <View
-                            className="px-space-8 py-space-4 rounded-radius-full"
-                            style={{ backgroundColor: colors.card }}
-                          >
-                            <Text className="text-caption font-caption text-text-secondary">
+                          <View style={[styles.section, { backgroundColor: colors.card }]}>
+                            <Text style={styles.mutedText4}>
                               {t('accounts.members.inherited') || 'Inherited'}
                             </Text>
                           </View>
                         ) : null}
                         {member.status !== 'active' ? (
-                          <View
-                            className="px-space-8 py-space-4 rounded-radius-full"
-                            style={{ backgroundColor: colors.card }}
-                          >
-                            <Text className="text-caption font-caption capitalize text-text-secondary">
-                              {member.status}
-                            </Text>
+                          <View style={[styles.section, { backgroundColor: colors.card }]}>
+                            <Text style={styles.mutedText5}>{member.status}</Text>
                           </View>
                         ) : null}
                       </View>
@@ -426,14 +402,12 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                           ))}
                         </SegmentedControl>
                       ) : !isOwner ? (
-                        <Text className="text-caption font-caption text-text-secondary">
-                          {roleLabel(member.role)}
-                        </Text>
+                        <Text style={styles.mutedText4}>{roleLabel(member.role)}</Text>
                       ) : null}
 
                       {/* Actions */}
                       {canTransferToThis || canRemoveThisMember ? (
-                        <View className="flex-row gap-space-16 pt-space-4">
+                        <View style={styles.row2}>
                           {canTransferToThis ? (
                             <Button
                               appearance="plain"
@@ -444,14 +418,14 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                                 t('accounts.members.actions.transfer') || 'Transfer ownership'
                               }
                               onPress={() => confirmTransfer(member)}
-                              className="flex-row items-center gap-space-4"
+                              style={styles.button2}
                             >
                               <Ionicons
                                 name="swap-horizontal-outline"
                                 size={16}
                                 color={colors.icon}
                               />
-                              <Text className="text-caption font-semibold text-text-secondary">
+                              <Text style={styles.mutedText6}>
                                 {t('accounts.members.actions.transfer') || 'Transfer ownership'}
                               </Text>
                             </Button>
@@ -466,13 +440,10 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
                                 t('accounts.members.actions.remove') || 'Remove member'
                               }
                               onPress={() => confirmRemove(member)}
-                              className="flex-row items-center gap-space-4"
+                              style={styles.button2}
                             >
                               <Ionicons name="trash-outline" size={16} color={colors.error} />
-                              <Text
-                                className="text-caption font-semibold"
-                                style={{ color: colors.error }}
-                              >
+                              <Text style={[styles.title2, { color: colors.error }]}>
                                 {t('accounts.members.actions.remove') || 'Remove'}
                               </Text>
                             </Button>
@@ -492,3 +463,68 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
 };
 
 export default AccountMembersScreen;
+
+const useStyles = createTokenStyles((t) => ({
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+  mutedText: {
+    textAlign: 'center',
+    fontSize: 15,
+    color: t.mutedForeground,
+    lineHeight: 22,
+    fontWeight: 400,
+  },
+  container: { gap: 24, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
+  mutedText2: {
+    paddingVertical: 24,
+    textAlign: 'center',
+    fontSize: 15,
+    color: t.mutedForeground,
+    lineHeight: 22,
+    fontWeight: 400,
+  },
+  surface: { gap: 12, borderRadius: 20, backgroundColor: t.card, padding: 16 },
+  title: { fontWeight: 600, color: t.foreground, lineHeight: 22 },
+  text: { paddingHorizontal: 4, fontSize: 11, lineHeight: 14, fontWeight: 400 },
+  mutedText3: {
+    paddingHorizontal: 4,
+    fontSize: 11,
+    color: t.mutedForeground,
+    lineHeight: 14,
+    fontWeight: 400,
+  },
+  button: { width: '100%' },
+  stack: { gap: 12 },
+  surface2: { gap: 8, borderRadius: 20, backgroundColor: t.card, padding: 16 },
+  stack2: { gap: 8 },
+  container2: { alignItems: 'center', paddingVertical: 24 },
+  surface3: { overflow: 'hidden', borderRadius: 20, backgroundColor: t.card },
+  stack3: { gap: 8, padding: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  text2: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    fontSize: 15,
+    color: t.foreground,
+    lineHeight: 22,
+    fontWeight: 400,
+  },
+  section: { paddingHorizontal: 8, paddingVertical: 4 },
+  title2: { fontWeight: 600, lineHeight: 14 },
+  mutedText4: { fontSize: 11, color: t.mutedForeground, lineHeight: 14, fontWeight: 400 },
+  mutedText5: {
+    fontSize: 11,
+    color: t.mutedForeground,
+    textTransform: 'capitalize',
+    lineHeight: 14,
+    fontWeight: 400,
+  },
+  row2: { flexDirection: 'row', gap: 16, paddingTop: 4 },
+  button2: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  mutedText6: { fontWeight: 600, color: t.mutedForeground, lineHeight: 14 },
+}));

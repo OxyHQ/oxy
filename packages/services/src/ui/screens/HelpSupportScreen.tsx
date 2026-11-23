@@ -1,5 +1,5 @@
 import React, { useMemo, useContext } from 'react';
-import { View, Linking } from 'react-native';
+import { View, Linking, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { toast } from '@oxy.so/bloom/toast';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -53,7 +53,7 @@ const HelpSupportScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
   );
 
   return (
-    <View className="px-screen-margin pb-space-24">
+    <View style={styles.section}>
       {/* Help Options */}
       <GroupedSection title={t('help.options') || 'Get Help'}>
         {onAskAlia ? (
@@ -113,3 +113,7 @@ const HelpSupportScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
 };
 
 export default React.memo(HelpSupportScreen);
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+});

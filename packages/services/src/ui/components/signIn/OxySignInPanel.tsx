@@ -30,7 +30,6 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Text as RNText, StyleSheet, View } from 'react-native';
-import { View as CssView } from 'react-native-css/components';
 import { AuthMediaCarousel } from '@oxy.so/bloom/auth-card';
 import { Button } from '@oxy.so/bloom/button';
 import { Divider } from '@oxy.so/bloom/divider';
@@ -65,7 +64,13 @@ import { SubtleLink } from '../authChooser/primitives';
 import { SIGN_IN_SLIDES } from './artwork';
 import { InlineCommonsQr } from './InlineCommonsQr';
 import { OxyAccountPicker } from './OxyAccountPicker';
-import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthSplit, OxyAuthTerms } from './OxyAuthScreen';
+import {
+  OxyAuthScreen,
+  OxyAuthScreenHeader,
+  OxyAuthSplit,
+  OxyAuthTerms,
+  useAuthSplitColumns,
+} from './OxyAuthScreen';
 import { OxyEmailAccountChoice } from './OxyEmailAccountChoice';
 import {
   AccountFlowAction,
@@ -516,6 +521,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   // the dialog to that card; below `md` the dialog is a bottom sheet, which a
   // width does not touch.
   const splits = methods.commons === 'qr';
+  const splitColumns = useAuthSplitColumns();
   useSurfaceFrameWidth(host === 'dialog' && !showsPicker && splits ? SPLIT_WIDTH : null);
 
   if (showsPicker) {
@@ -552,7 +558,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     case 'check-email': {
       const request = step;
       form = (
-        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+        <OxyAuthScreen inSplit={splits}>
           <OxyAuthScreenHeader
             title={t('signin.checkEmail.title')}
             description={t('signin.checkEmail.description', { identifier: request.identifier })}
@@ -628,7 +634,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     case 'choose': {
       const request = step;
       form = (
-        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+        <OxyAuthScreen inSplit={splits}>
           <OxyAuthScreenHeader
             title={t('signin.emailAccounts.title')}
             description={t('signin.emailAccounts.description', {
@@ -662,7 +668,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     case 'password': {
       const request = step;
       form = (
-        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+        <OxyAuthScreen inSplit={splits}>
           <OxyAuthScreenHeader
             title={t('signin.password.title')}
             description={request.identifier}
@@ -710,7 +716,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     }
     case 'second-factor':
       form = (
-        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+        <OxyAuthScreen inSplit={splits}>
           <OxyAuthScreenHeader
             title={t('signin.secondFactor.title')}
             description={
@@ -794,17 +800,17 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       const divider = <Divider>{t('signin.orContinueWith')}</Divider>;
 
       form = (
-        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+        <OxyAuthScreen inSplit={splits}>
           <OxyAuthScreenHeader title={title} description={description} />
 
           {/* The Commons way in, then the email. On the web from `md` the QR
               beside the form IS the Commons way in; below `md` this screen is
               the phone a QR would be scanned with. */}
           {splits ? (
-            <CssView className="gap-6 md:hidden">
+            <View style={splitColumns ? styles.hidden : styles.commonsFirst}>
               {continueWithOxyButton}
               {divider}
-            </CssView>
+            </View>
           ) : null}
           {methods.commons === 'continue' ? (
             <View style={styles.stack}>
@@ -892,6 +898,8 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
 };
 
 const styles = StyleSheet.create({
+  hidden: { display: 'none' },
+  commonsFirst: { gap: 24 },
   stack: {
     gap: 12,
   },

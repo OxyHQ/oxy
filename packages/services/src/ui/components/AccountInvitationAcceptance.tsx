@@ -5,6 +5,7 @@ import { Button } from '@oxy.so/bloom/button';
 import type { AccountInvitationPreview } from '@oxy.so/core';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useOxy } from '../context/oxyRuntimeContext';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /** The link never grants access on navigation, preview, sign-in or account switching. */
 export function AccountInvitationAcceptance({ token }: { token: string }) {
@@ -12,6 +13,7 @@ export function AccountInvitationAcceptance({ token }: { token: string }) {
 }
 
 function InvitationContent({ token }: { token: string }) {
+  const styles = useStyles();
   const { oxyServices, user, canUsePrivateApi, openAccountDialog } = useOxy();
   const [preview, setPreview] = useState<AccountInvitationPreview | null>(null);
   const [error, setError] = useState('');
@@ -50,8 +52,8 @@ function InvitationContent({ token }: { token: string }) {
     }
   };
   return (
-    <View className="gap-space-16 p-space-24">
-      <Text className="text-title font-semibold text-text">Account invitation</Text>
+    <View style={styles.stack}>
+      <Text style={styles.title}>Account invitation</Text>
       {canUsePrivateApi && token && !preview && !error ? (
         <Text accessibilityRole="progressbar">Loading invitation…</Text>
       ) : null}
@@ -88,3 +90,8 @@ function InvitationContent({ token }: { token: string }) {
     </View>
   );
 }
+
+const useStyles = createTokenStyles((t) => ({
+  stack: { gap: 16, padding: 24 },
+  title: { fontWeight: 600, color: t.foreground },
+}));

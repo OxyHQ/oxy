@@ -1,5 +1,5 @@
 import type React from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
@@ -31,20 +31,10 @@ const FileLibraryError: React.FC<FileLibraryErrorProps> = ({
   titleColor,
   descriptionColor,
 }) => (
-  <View className="items-center py-[40px] px-[24px]">
+  <View style={styles.container}>
     <Ionicons name="cloud-offline-outline" size={64} color={iconColor} />
-    <Text
-      className="text-[24px] font-bold mt-[16px] mb-[8px] text-center"
-      style={{ color: titleColor }}
-    >
-      {title}
-    </Text>
-    <Text
-      className="text-[16px] text-center leading-[24px] mb-[32px]"
-      style={{ color: descriptionColor }}
-    >
-      {description}
-    </Text>
+    <Text style={[styles.title, { color: titleColor }]}>{title}</Text>
+    <Text style={[styles.text, { color: descriptionColor }]}>{description}</Text>
     <Button onPress={onRetry} accessibilityLabel={retryLabel}>
       {retryLabel}
     </Button>
@@ -52,3 +42,9 @@ const FileLibraryError: React.FC<FileLibraryErrorProps> = ({
 );
 
 export default FileLibraryError;
+
+const styles = StyleSheet.create({
+  container: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 40 },
+  title: { marginTop: 16, marginBottom: 8, textAlign: 'center', fontSize: 24, fontWeight: 700 },
+  text: { marginBottom: 32, textAlign: 'center', fontSize: 16, lineHeight: 24 },
+});

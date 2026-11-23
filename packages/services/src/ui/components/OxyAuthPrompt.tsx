@@ -56,7 +56,7 @@ export interface OxyAuthPromptProps {
  * ```tsx
  * if (!isAuthenticated) {
  *   return (
- *     <ThemedView className="flex-1">
+ *     <ThemedView style={{ flex: 1 }}>
  *       <Header options={{ title: 'Notifications' }} />
  *       <OxyAuthPrompt label="Notifications" />
  *     </ThemedView>
