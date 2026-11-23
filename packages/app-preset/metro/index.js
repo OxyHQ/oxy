@@ -46,6 +46,11 @@
  *   name; neither works alone. Needs `react-native-worklets` installed.
  * @param {boolean} [options.staticHydrationBoundary=false] Correct the app/document
  *   render boundary in Expo 58 static exports; guarded to reviewed router versions.
+ * @param {boolean} [options.baseFont=true] Give a React Native `Text` or
+ *   `TextInput` that names no family Bloom's base face ({@link withBaseFontText}).
+ *   `false` leaves React Native's own: the platform face (Roboto on Android, San
+ *   Francisco on iOS, react-native-web's system stack on the web), as an app on
+ *   app-preset 6.7 drew it.
  * @returns {import('metro-config').MetroConfig}
  */
 const { getDefaultConfig } = require('expo/metro-config');
@@ -549,7 +554,7 @@ function withWorkletsBundleMode(config, projectRoot) {
 }
 
 function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
-  const { workletsBundleMode = false, staticHydrationBoundary = false } = options;
+  const { workletsBundleMode = false, staticHydrationBoundary = false, baseFont = true } = options;
   const nativewind = usesNativeWind(projectRoot, options);
   const nativeWindConfig = createOxyMetroConfig(projectRoot, options);
   let config = withBloomSingleInstance(nativeWindConfig, projectRoot);
@@ -569,7 +574,7 @@ function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
   // imports reach no redirect beneath them. The completed module answers
   // NativeWind's redirect of `react-native`; without NativeWind there is none.
   if (nativewind) config = withCompleteReactNative(config, projectRoot);
-  return withBaseFontText(config, projectRoot, { nativewind });
+  return baseFont ? withBaseFontText(config, projectRoot, { nativewind }) : config;
 }
 
 module.exports = {

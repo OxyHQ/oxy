@@ -17,6 +17,12 @@
   `PlainTextInput.js`, the base-face hosts (`metro/base-font/hosts.*.js`, which
   NativeWind's `Text` now wraps as well). Bloom's and the language's texts name
   their family; a raw text draws Inter, or the document's family on the web.
+- `baseFont` (default `true`): `createOxyMetroConfig(root, { baseFont: false })`
+  leaves a React Native `Text` or `TextInput` that names no family as React
+  Native draws it, the platform face (Roboto on Android, San Francisco on iOS,
+  react-native-web's system stack on the web), as an app on 6.7 drew it. For an
+  app whose rebuild keeps its old look (Mention's raw texts); Bloom's `Text`
+  names Inter either way.
 
 - `BloomNativeWindTheme` (`@oxy.so/app-preset/nativewind-theme`): for an app
   that takes the Bloom without NativeWind while it still has some `className`.

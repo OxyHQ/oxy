@@ -496,6 +496,11 @@ so classes inside a scope follow its palette. The web needs neither. Once the co
 last class, the app drops `nativewind`, `react-native-css`, Tailwind,
 `css/base.css` and `BloomNativeWindTheme`.
 
+`baseFont: false` (6.9.0+) turns the base face off: a React Native `Text` or
+`TextInput` that names no family keeps React Native's own, the platform face
+(Roboto on Android, San Francisco on iOS, react-native-web's system stack on the
+web), as an app on 6.7 drew it. Bloom's `Text` names Inter either way.
+
 #### `react-native` on native: the complete NativeWind shim (4.1.0+)
 
 On native, NativeWind's resolver sends every `import … from 'react-native'`

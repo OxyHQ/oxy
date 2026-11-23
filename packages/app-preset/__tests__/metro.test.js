@@ -5,6 +5,8 @@ const path = require('node:path');
 const { after, before, test } = require('node:test');
 const Module = require('node:module');
 
+/** NativeWind's Text: what an app draws for a React Native Text that names no family, without the base face. */
+const CSS_TEXT = '/repo/node_modules/react-native-css/dist/commonjs/components/Text.js';
 const originalLoad = Module._load;
 const CSS_COMPONENTS_ENTRY =
   '/repo/node_modules/react-native-css/dist/commonjs/components/index.cjs';
@@ -27,10 +29,13 @@ before(() => {
               sourceExts: ['js', 'ts'],
               extraNodeModules: { existing: '/existing' },
               // Where NativeWind's resolver sends `react-native` on native.
+              // NativeWind's Text, as Metro resolves it.
               resolveRequest: (context, moduleName, platform) =>
                 moduleName === 'react-native' && platform !== 'web'
                   ? { type: 'sourceFile', filePath: CSS_COMPONENTS_ENTRY }
-                  : { context, moduleName, platform },
+                  : moduleName === 'react-native-css/components/Text'
+                    ? { type: 'sourceFile', filePath: CSS_TEXT }
+                    : { context, moduleName, platform },
             },
             transformer: { minifierConfig: { compress: { existing: true } } },
           };
@@ -339,4 +344,19 @@ test('NativeWind wraps only an app that depends on it', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('baseFont: false leaves a text that names no family React Native’s own', () => {
+  const projectRoot = '/repo/packages/frontend';
+  const app = '/repo/app/index.tsx';
+  const textOf = (options) =>
+    createOxyMetroConfig(projectRoot, { nativewind: true, ...options }).resolver.resolveRequest(
+      { originModulePath: app },
+      'react-native-css/components/Text',
+      'android',
+    ).filePath;
+  // The default draws the base face: the base-font host.
+  assert.match(textOf({}), /[/\\]metro[/\\]base-font[/\\]Text\.js$/);
+  // Off, the text is the app's own: the platform face (Roboto, San Francisco, the web's system stack).
+  assert.equal(textOf({ baseFont: false }), CSS_TEXT);
 });
