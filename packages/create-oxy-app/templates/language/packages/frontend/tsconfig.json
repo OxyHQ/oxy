@@ -1,0 +1,11 @@
+{
+  "extends": "@oxy.so/app-preset/tsconfig/frontend.json",
+  "compilerOptions": {
+    "types": ["jest"],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "dist", ".expo"]
+}
