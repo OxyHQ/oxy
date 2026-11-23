@@ -17,16 +17,15 @@ element was rendered before and after, light and dark, native and web); an app n
 ### Peers
 
 - **Added:** `@oxy.so/bloom-data` `>=0.1.0` (required; one instance per app, like Bloom) and
-  `expo-sqlite` `>=16.0.0 <59.0.0` (required: each account's durable copy on a device).
+  `expo-sqlite` `>=58.0.0 <59.0.0` (required: each account's durable copy on a device).
 - **Removed:** `@tanstack/react-query`, `@tanstack/react-query-persist-client`,
   `@tanstack/query-async-storage-persister`, `@tanstack/query-sync-storage-persister` and `zustand`.
   An app that uses React Query or zustand itself declares them itself.
-- **Changed:** `react` `>=18.0.0 <20.0.0` becomes `>=19.0.0 <20.0.0`.
 - **Changed:** `@oxy.so/bloom` `>=22.1.1` becomes `>=23.0.0`.
 - **Changed:** the floor is Expo SDK 58, the first SDK that ships what Bloom 23 needs
-  (`react-native-reanimated` 4.6+, `react-native-gesture-handler` 3.3+): `expo` and every Expo module
+  (`react-native-reanimated` 4.6+, `react-native-gesture-handler` 3.3+): `react` `>=18.0.0 <20.0.0` becomes `>=19.2.0 <20.0.0`; `expo` and every Expo module
   peer are `>=58.0.0 <59.0.0`, `react-native` becomes
-  `>=0.83.0 <0.89.0` (0.83 for react-native-macos, Astro's latest), `react` `>=19.2.0 <20.0.0`,
+  `>=0.83.0 <0.89.0` (0.83 for react-native-macos, Astro's latest),
   `react-native-reanimated` `>=4.6.0 <5.0.0` and `react-native-gesture-handler` `>=3.3.0 <4.0.0`.
   `compat/expo-58` (was `compat/expo-54`) checks that stack, with react-native-macos 0.83.
 - **Astro's macOS target stays on Services 14.** Expo SDK 58 needs React Native 0.87 entry points
