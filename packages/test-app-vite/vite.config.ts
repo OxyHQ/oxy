@@ -23,8 +23,13 @@ export default defineConfig(({ mode }) => ({
     tailwindcss(),
     viteReact(),
     // react-native-css rewrites `react-native` imports to its className-aware
-    // components; plugin-react 6 no longer runs Babel itself.
-    babel({ presets: [reactNativeCssBabel] }),
+    // components; plugin-react 6 no longer runs Babel itself. Only this app's
+    // own code takes it: Services (a workspace link here, in node_modules in an
+    // app) has no className and no react-native-css to resolve those imports.
+    babel({
+      presets: [reactNativeCssBabel],
+      exclude: [/[/\\]node_modules[/\\]/, /[/\\]packages[/\\]services[/\\]/],
+    }),
   ],
   resolve: {
     alias: [
