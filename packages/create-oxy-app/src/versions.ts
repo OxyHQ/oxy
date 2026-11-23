@@ -152,7 +152,7 @@ export const VERSIONS = {
   // yet; `scripts/pending-releases.mjs` lists each range until its release.
   oxyBloomLanguage: '^1.0.0', // @oxy.so/bloom-language (and its `/router`)
   oxyBloomLanguageCompiler: '^1.0.0', // @oxy.so/bloom-language-compiler — Metro + Jest pre-pass
-  oxyBloomData: '^1.0.0', // @oxy.so/bloom-data — one instance per app, like Bloom
+  oxyBloomData: '^0.1.0', // @oxy.so/bloom-data — one instance per app, like Bloom
   expoSqlite: '~58.0.15', // Services 15's required peer: each account's durable copy
   expoBlur: '~58.0.5', // a required peer of Bloom 23
   expoGlassEffect: '~58.0.5', // the language's glass on iOS (Liquid Glass)

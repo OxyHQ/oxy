@@ -14,7 +14,7 @@
   token fails the tests as it fails the build; `packages/frontend/AGENTS.md` points agents
   at Bloom's language docs. It has no NativeWind, Tailwind, react-native-css, `global.css`
   or `className`, and takes its own Oxy set: Bloom `^23.0.0`, Services `^15.0.0`, Core
-  `^7.49.0`, app-preset `^6.9.0`, bloom-language, its compiler and bloom-data `^1.0.0`.
+  `^7.49.0`, app-preset `^6.9.0`, bloom-language and its compiler `^1.0.0`, bloom-data `^0.1.0`.
 - `scripts/pending-releases.mjs`: the ranges the language template names before their
   release, the only E404s `assert-oxy-ranges-resolve.mjs` excuses. `verify-language-app.mjs`
   scaffolds a language app, installs it (optionally over local packs) and runs its

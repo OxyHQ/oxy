@@ -17,7 +17,7 @@ export const PENDING_RELEASES = Object.freeze({
   '@oxy.so/bloom': '^23.0.0',
   '@oxy.so/bloom-language': '^1.0.0',
   '@oxy.so/bloom-language-compiler': '^1.0.0',
-  '@oxy.so/bloom-data': '^1.0.0',
+  '@oxy.so/bloom-data': '^0.1.0',
   '@oxy.so/app-preset': '^6.9.0',
   '@oxy.so/services': '^15.0.0',
 });
