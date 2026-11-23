@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { VERSIONS } from '../versions';
+import { LANGUAGE_OXY_VERSIONS, VERSIONS, versionsFor } from '../versions';
+import { isPendingRelease, PENDING_RELEASES } from '../../scripts/pending-releases.mjs';
 
 const REPO_ROOT = path.join(__dirname, '..', '..', '..', '..');
 const SMOKE_WORKFLOW = path.join(REPO_ROOT, '.github', 'workflows', 'scaffold-smoke.yml');
@@ -156,5 +157,62 @@ describe('VERSIONS drift guard', () => {
       expect(workflow).toContain(`@oxy.so/${pkg}`);
       expect(workflow).toContain(tarballPrefix);
     }
+  });
+});
+
+describe('the language template’s pins', () => {
+  // Each Oxy package the language template names, with its key and workspace dir.
+  const LANGUAGE_OXY: Array<[string, string, string | null]> = [
+    ['@oxy.so/services', 'oxyServices', 'services'],
+    ['@oxy.so/core', 'oxyCore', 'core'],
+    ['@oxy.so/bloom', 'oxyBloom', null],
+    ['@oxy.so/app-preset', 'oxyAppPreset', 'app-preset'],
+    ['@oxy.so/bloom-language', 'oxyBloomLanguage', null],
+    ['@oxy.so/bloom-language-compiler', 'oxyBloomLanguageCompiler', null],
+    ['@oxy.so/bloom-data', 'oxyBloomData', null],
+  ];
+  const pins = versionsFor(true) as Record<string, string>;
+
+  test('the language set overrides only Oxy pins, with publishable ranges', () => {
+    expect(versionsFor(false)).toEqual({ ...VERSIONS });
+    for (const [key, range] of Object.entries(LANGUAGE_OXY_VERSIONS)) {
+      expect(key in VERSIONS).toBe(true);
+      expect(range).toMatch(/^\^\d+\.\d+\.\d+$/);
+    }
+  });
+
+  test('a pin ahead of this workspace, or of the Bloom catalog, is a listed pending release', () => {
+    for (const [name, key, dir] of LANGUAGE_OXY) {
+      const range = pins[key] as string;
+      const reached = dir
+        ? readWorkspacePackageVersion(dir)
+        : name === '@oxy.so/bloom'
+          ? readWorkspaceCatalogVersion(name)
+          : null;
+      const ahead = reached === null || compareVersions(range, reached) > 0;
+      const verdict = `${name}@${range}`;
+      expect({ verdict, excused: !ahead || isPendingRelease(name, range) }).toEqual({
+        verdict,
+        excused: true,
+      });
+    }
+  });
+
+  test('every pending release is a range the language template ships', () => {
+    const shipped = new Map(LANGUAGE_OXY.map(([name, key]) => [name, pins[key]]));
+    for (const [name, range] of Object.entries(PENDING_RELEASES as Record<string, string>)) {
+      expect({ name, range }).toEqual({ name, range: shipped.get(name) as string });
+    }
+  });
+
+  test('the resolve gate excuses only listed pending ranges', () => {
+    const script = readFileSync(
+      path.join(REPO_ROOT, 'packages/create-oxy-app/scripts/assert-oxy-ranges-resolve.mjs'),
+      'utf8',
+    );
+    expect(script).toContain("listed && error.code === 'E404'");
+    expect(isPendingRelease('@oxy.so/services', '^15.0.0')).toBe(true);
+    expect(isPendingRelease('@oxy.so/services', '^16.0.0')).toBe(false);
+    expect(isPendingRelease('@oxy.so/core', '^7.49.0')).toBe(false);
   });
 });
