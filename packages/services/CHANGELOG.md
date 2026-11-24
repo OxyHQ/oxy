@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.24.1
+
+### Fixed
+
+- A sheet holds Android Back only while it is open. The surface back bridge kept its `hardwareBackPress` listener registered after the first sheet closed, and a registered listener hands Back to JavaScript under native Back ownership, so every later Back in the app waited for the JavaScript thread instead of popping natively.
+
 ## 14.24.0
 
 ### Added
