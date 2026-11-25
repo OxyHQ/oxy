@@ -124,6 +124,10 @@ element was rendered before and after, light and dark, native and web); an app n
 - `SIGNED_OUT_DATA_ACCOUNT`, the store key of the signed-out viewer.
 - `supervisionState`, `useSeedFollowTargets` and the `AuthMethodsView` type.
 
+### Fixed
+
+- A returning signed-in session paints from the device's cache again when this app once recorded a sign-out (as in 14.24.2). The cached paint refused whenever the sign-out intent was stored, but that intent is not cleared when the device signs back in through another app, while the holder's own mint restores the session either way, so every cold boot of such an account waited for the registry classification and the mint before its first frame. The intent still stops the boot from creating a session on its own, a sign-out still deletes the cached profile, and the background check still signs out a session the server ended.
+
 ## 14.24.0
 
 ### Added
