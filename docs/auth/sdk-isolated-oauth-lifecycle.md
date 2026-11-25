@@ -87,8 +87,8 @@ moment." The provider's storage keeps the registry's last verdict for this
 clientId and the last profile the runtime held (`ui/session/cachedBoot.ts`). In
 account mode, with no OAuth return on the URL, when the last verdict was
 `device`, the auth store holds this app's own holder (`deviceId` +
-`deviceSecret`) with no recorded sign-out, and the cached profile is the account
-that session belongs to, the boot shows that account, plants a still-valid
+`deviceSecret`), and the cached profile is the account that session belongs to,
+the boot shows that account, plants a still-valid
 persisted token, and resolves auth before any network; the cached verdict stands
 in for the registry until it answers. In the background the classification is
 asked again and the holder mints (`requireServerVerdict` skips the warm token,
@@ -99,7 +99,12 @@ moment. No answer (offline, a timeout, a 5xx) keeps the cached session on screen
 and asks again on the lost-token backoff and on reconnect. Every first boot (no
 cache), every identity-mode boot, every OAuth return and every later sign-in
 (`ensureDeviceSessionLane` shares the in-flight lookup) still waits for the
-verdict.
+verdict. A recorded sign-out intent does not stop the paint: it keeps the boot
+from creating a session (the shared-adopt and identity-key lanes), while the
+holder's own mint resumes the device session either way, and the sign-out
+already deleted the cached profile. The intent survives the device signing back
+in through another app, so reading it held every later cold boot of a signed-in
+account behind the classification and the mint (Mention, Pixel 8a: 3 to 7 s).
 
 Classification has a 5-second bound before the existing device boot deadlines.
 Third-party clients complete an already pending OAuth callback or resolve signed

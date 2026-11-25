@@ -117,8 +117,14 @@ export function createCachedBootStore(
       ) {
         return null;
       }
-      // A recorded sign-out on this device restores nothing automatically.
-      if (await authStore.isAutomaticIdentitySignInSuppressed?.()) return null;
+      // The sign-out intent (`isAutomaticIdentitySignInSuppressed`) is not read
+      // here. It keeps the boot from CREATING a session on its own (the shared
+      // adopt and identity-key lanes), not from resuming this holder's: the
+      // device-secret mint runs either way. A sign-out deletes the cached
+      // profile, so nothing reaches this point after one, and the background
+      // check still ends the session if the server does. The flag is not cleared
+      // when the device signs back in through another app, so reading it here
+      // held every later cold boot of a signed-in account behind the network.
 
       const expiresAtMs = persisted.expiresAt ? new Date(persisted.expiresAt).getTime() : NaN;
       const warmToken =
