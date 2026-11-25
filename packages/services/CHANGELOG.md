@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.24.2
+
+### Fixed
+
+- A returning signed-in session paints from the device's cache again when this app once recorded a sign-out. The cached paint refused whenever the sign-out intent was stored, but that intent is not cleared when the device signs back in through another app, while the holder's own mint restores the session either way. Every cold boot of such an account waited for the registry classification and the mint before its first frame (Mention, Pixel 8a: about 3 s, and 6 to 7 s on a slow connection; 1.1 to 1.2 s with the paint). The intent still stops the boot from creating a session on its own, a sign-out still deletes the cached profile, and the background check still signs out a session the server ended.
+
 ## 14.24.1
 
 ### Fixed
