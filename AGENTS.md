@@ -25,7 +25,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Run each package's own `bun run test`; only `auth`, `ship` and `node` are `bun test`.
 - Shared versions live in `workspaces.catalog` as `"catalog:"`.
 - Pack with `bun pm pack`, never `npm pack`.
-- Anything that re-resolves passes `--minimum-release-age=0`.
+- Anything that re-resolves passes `--minimum-release-age=0`; first-party packages are exempt from the quarantine by exact name in `bunfig.toml`.
 - Publish by merging a version bump: Release packages runs on every push to main (shared `npm-release.yml`, OIDC) once CI passed on that SHA; never from a laptop — #publishing
 - TS strict; Biome formats and lints (`bun run lint`; SDK `src/` `--error-on-warnings`); commit `bun.lock` with its `package.json`; path-scope `git add`, never `git add -A` — #coding-standards
 
