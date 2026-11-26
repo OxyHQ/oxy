@@ -96,6 +96,23 @@ describe('oxy-doctor-web-budget', () => {
 });
 
 describe('isAvatarCatalogueChunk', () => {
+  test('a Bloom 23 motion blob is a payload: one track of samples or rows', () => {
+    for (const track of [
+      'matrix:{samples:240,decimals:5,columns:[[0,0]]}',
+      'points:{rows:12,decimals:2,columns:[[0,0]]}',
+      'translation:{samples:240,decimals:5,columns:[[0,0]]}',
+    ])
+      expect(
+        isAvatarCatalogueChunk(`__d(function(g,r,i,a,m,e,d){m.exports={${track}}},8,[]);\n`),
+      ).toBe(true);
+    // An app module exporting another object stays on the app lines.
+    expect(
+      isAvatarCatalogueChunk('__d(function(g,r,i,a,m,e,d){m.exports={matrix:{size:2}}},8,[]);\n'),
+    ).toBe(false);
+    expect(isAvatarCatalogueChunk('__d(function(g,r,i,a,m,e,d){m.exports={rows:1}},8,[]);\n')).toBe(
+      false,
+    );
+  });
   test('a wrapper bundled with other modules stays on the app lines', () => {
     expect(isAvatarCatalogueChunk(WRAPPER)).toBe(true);
     expect(isAvatarCatalogueChunk(WRAPPER + WRAPPER.replace(',2,', ',7,'))).toBe(false);
