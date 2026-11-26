@@ -5,6 +5,7 @@
   "dependencies": {
     "@oxy.so/core": "7.4.0",
     "@oxy.so/services": "13.6.0",
+    "@gemies/sdk": "10.0.0",
     "@gemies/server": "1.0.0",
     "@clarity.surf/sdk": "0.10.0",
     "@kaana.ai/sdk": "3.3.0",
