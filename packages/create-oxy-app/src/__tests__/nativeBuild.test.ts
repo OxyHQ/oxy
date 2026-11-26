@@ -2,8 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { existsSync, promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildRenderContext } from '../context';
-import { renderTree } from '../render';
+import { renderApp } from '../layers';
 
 /**
  * A generated app must build natively, locally, on its first `expo prebuild` +
@@ -21,10 +20,7 @@ import { renderTree } from '../render';
  * workflow is the gate that installs; these name the file in milliseconds.
  */
 
-const TEMPLATES = path.join(import.meta.dir, '..', '..', 'templates');
-
-const ctx = buildRenderContext({
-  targetDir: '',
+const config = {
   name: 'My App',
   slug: 'my-app',
   scheme: 'myapp',
@@ -33,17 +29,18 @@ const ctx = buildRenderContext({
   backend: false,
   deploy: false,
   demo: false,
+  language: false,
   install: false,
   git: false,
   register: false,
-});
+};
 
 let dir: string;
 let frontend: string;
 
 beforeAll(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), 'oxy-scaffold-native-'));
-  await renderTree(path.join(TEMPLATES, 'base'), dir, ctx);
+  await renderApp({ ...config, targetDir: dir });
   frontend = path.join(dir, 'packages', 'frontend');
 });
 

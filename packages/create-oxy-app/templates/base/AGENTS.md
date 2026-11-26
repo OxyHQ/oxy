@@ -9,7 +9,8 @@ Always **bun**; commit `bun.lock` with its `package.json`.
 - ONE `OxyProvider` from `@oxy.so/services` (web + native) with the registered `clientId` (`EXPO_PUBLIC_OXY_CLIENT_ID`); sign-in is the in-app `OxyAccountDialog`, never a redirect to an IdP.
 - All Expo config comes from `@oxy.so/app-preset`; fix the preset, never copy config back into the app.
 - `BloomProvider` owns theme and composition with `expoRouterScrollAdapter`; use Bloom screen/scroll owners, never hardcode brand colors or duplicate the gesture, safe-area and keyboard roots owned by `OxyProvider`.
-- Gate private API calls on `useAuth().canUsePrivateApi`; the root `Stack` alone swaps `(auth)`↔`(app)`.{{#backend}}
+- Gate private API calls on `useAuth().canUsePrivateApi`; {{^language}}the root `Stack` alone swaps `(auth)`↔`(app)`.{{/language}}{{#language}}the root layout's auth gate alone swaps `(auth)`↔`(app)`.
+- The frontend is written in the Bloom language; its rules are in `packages/frontend/AGENTS.md`.{{/language}}{{#backend}}
 - Backend auth is `@oxy.so/core/server` only (`OxyServer`, `createOxyAuthMiddleware`, `createOxyCors`, `createOxyRateLimit`, `server.middleware.socket()`); no app-local auth, bearer parsing or CORS. Call your own API via `oxyServices.createLinkedClient({ baseURL })`.
 
 ## Database (drizzle)

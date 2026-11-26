@@ -89,7 +89,9 @@ async function resolve(spec) {
     } catch (error) {
       const detail = `${error?.stdout ?? ''}${error?.stderr ?? ''}${error?.message ?? ''}`;
       if (detail.includes('E404')) {
-        throw new Error(`${spec} matches NO published version (E404)`);
+        throw Object.assign(new Error(`${spec} matches NO published version (E404)`), {
+          code: 'E404',
+        });
       }
       if (attempt === ATTEMPTS) {
         throw new Error(

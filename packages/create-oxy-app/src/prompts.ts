@@ -13,6 +13,8 @@ export interface CliArgs {
   backend: boolean;
   deploy: boolean;
   minimal: boolean;
+  /** `--language` (true), `--jsx` (false), or unsaid (asked, else JSX). */
+  language?: boolean;
   install: boolean;
   git: boolean;
   register: boolean;
@@ -57,6 +59,7 @@ export async function resolveConfig(args: CliArgs): Promise<ResolvedConfig> {
   let domain = args.domain ?? defaults.domain;
   let backend = args.backend;
   let deploy = args.deploy;
+  let language = args.language ?? false;
 
   if (interactive) {
     const answers = await p.group(
@@ -70,6 +73,21 @@ export async function resolveConfig(args: CliArgs): Promise<ResolvedConfig> {
           p.confirm({ message: 'Include an Express + Socket.IO backend?', initialValue: backend }),
         deploy: () =>
           p.confirm({ message: 'Include the AWS deploy workflow?', initialValue: deploy }),
+        language: () =>
+          args.language === undefined
+            ? p.select({
+                message: 'How is the frontend written?',
+                initialValue: 'jsx',
+                options: [
+                  { value: 'jsx', label: 'JSX', hint: 'React components, NativeWind' },
+                  {
+                    value: 'language',
+                    label: 'Bloom language',
+                    hint: 'views as functions, modifier chains, no NativeWind',
+                  },
+                ],
+              })
+            : Promise.resolve(language ? 'language' : 'jsx'),
       },
       { onCancel: bail },
     );
@@ -79,6 +97,7 @@ export async function resolveConfig(args: CliArgs): Promise<ResolvedConfig> {
     domain = answers.domain.trim();
     backend = answers.backend;
     deploy = answers.deploy;
+    language = answers.language === 'language';
   }
 
   // The deploy workflow only makes sense alongside the backend it deploys.
@@ -98,6 +117,7 @@ export async function resolveConfig(args: CliArgs): Promise<ResolvedConfig> {
     backend,
     deploy,
     demo: !args.minimal,
+    language,
     install: args.install,
     git: args.git,
     register: args.register,

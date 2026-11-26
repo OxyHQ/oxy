@@ -126,14 +126,14 @@ describe('base template bunfig.toml', () => {
   });
 });
 
-describe('base template composition root', () => {
+describe('JSX template composition root', () => {
   test('renders one Bloom root with routing and delegates native roots to Oxy', async () => {
     const templateFile = path.join(
       __dirname,
       '..',
       '..',
       'templates',
-      'base',
+      'jsx',
       'packages',
       'frontend',
       'app',

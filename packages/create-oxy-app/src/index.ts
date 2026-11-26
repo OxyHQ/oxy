@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { parseArgs } from 'node:util';
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
-import { buildRenderContext } from './context';
-import { renderTree } from './render';
+import { renderApp } from './layers';
 import { resolveConfig, type CliArgs } from './prompts';
 import { initGit } from './steps/git';
 import { installDeps } from './steps/install';
@@ -27,7 +25,9 @@ ${pc.bold('Options:')}
   --domain <domain>    Backend API domain
   --no-backend         Skip the Express + Socket.IO backend
   --no-deploy          Skip the AWS deploy workflow
-  --minimal            Skip the example authenticated screen
+  --language           Write the frontend in the Bloom language (no NativeWind)
+  --jsx                Write the frontend as JSX with NativeWind (the default)
+  --minimal            Skip the example authenticated screen (JSX only)
   --no-install         Do not run \`bun install\`
   --no-git             Do not initialize a git repository
   --no-register        Do not register an Oxy client
@@ -55,6 +55,8 @@ async function main(): Promise<void> {
       domain: { type: 'string' },
       'no-backend': { type: 'boolean' },
       'no-deploy': { type: 'boolean' },
+      language: { type: 'boolean' },
+      jsx: { type: 'boolean' },
       minimal: { type: 'boolean' },
       'no-install': { type: 'boolean' },
       'no-git': { type: 'boolean' },
@@ -69,6 +71,11 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (values.language && values.jsx) {
+    process.stderr.write('Choose one of --language and --jsx.\n');
+    process.exit(1);
+  }
+
   const args: CliArgs = {
     dir: positionals[0],
     name: values.name,
@@ -79,6 +86,7 @@ async function main(): Promise<void> {
     backend: !values['no-backend'],
     deploy: !values['no-deploy'],
     minimal: Boolean(values.minimal),
+    language: values.language ? true : values.jsx ? false : undefined,
     install: !values['no-install'],
     git: !values['no-git'],
     register: !values['no-register'],
@@ -96,19 +104,7 @@ async function main(): Promise<void> {
 
   await fs.mkdir(config.targetDir, { recursive: true });
 
-  const ctx = buildRenderContext(config);
-  const templatesRoot = path.resolve(__dirname, '..', 'templates');
-
-  await renderTree(path.join(templatesRoot, 'base'), config.targetDir, ctx);
-  if (config.backend) {
-    await renderTree(path.join(templatesRoot, 'backend'), config.targetDir, ctx);
-  }
-  if (config.deploy) {
-    await renderTree(path.join(templatesRoot, 'deploy'), config.targetDir, ctx);
-  }
-  if (config.demo) {
-    await renderTree(path.join(templatesRoot, 'demo'), config.targetDir, ctx);
-  }
+  await renderApp(config);
 
   p.log.success(`Created ${pc.bold(config.name)} in ${pc.cyan(config.targetDir)}`);
 

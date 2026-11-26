@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { VERSIONS } from '../versions';
+import { LANGUAGE_OXY_VERSIONS, VERSIONS, versionsFor } from '../versions';
 
 const REPO_ROOT = path.join(__dirname, '..', '..', '..', '..');
 const SMOKE_WORKFLOW = path.join(REPO_ROOT, '.github', 'workflows', 'scaffold-smoke.yml');
@@ -155,6 +155,47 @@ describe('VERSIONS drift guard', () => {
       expect(workflow).toContain(`packages/$package`);
       expect(workflow).toContain(`@oxy.so/${pkg}`);
       expect(workflow).toContain(tarballPrefix);
+    }
+  });
+});
+
+describe('the language template’s pins', () => {
+  // Each Oxy package the language template names, with its key and workspace dir.
+  const LANGUAGE_OXY: Array<[string, string, string | null]> = [
+    ['@oxy.so/services', 'oxyServices', 'services'],
+    ['@oxy.so/core', 'oxyCore', 'core'],
+    ['@oxy.so/bloom', 'oxyBloom', null],
+    ['@oxy.so/app-preset', 'oxyAppPreset', 'app-preset'],
+    ['@oxy.so/bloom-language', 'oxyBloomLanguage', null],
+    ['@oxy.so/bloom-language-compiler', 'oxyBloomLanguageCompiler', null],
+    ['@oxy.so/bloom-data', 'oxyBloomData', null],
+  ];
+  const pins = versionsFor(true) as Record<string, string>;
+
+  test('the language set overrides only Oxy pins, with publishable ranges', () => {
+    expect(versionsFor(false)).toEqual({ ...VERSIONS });
+    for (const [key, range] of Object.entries(LANGUAGE_OXY_VERSIONS)) {
+      expect(key in VERSIONS).toBe(true);
+      expect(range).toMatch(/^\^\d+\.\d+\.\d+$/);
+    }
+  });
+
+  // Bloom's language packages and bloom-data are built in the Bloom repository;
+  // the scaffold smoke's resolve gate checks their ranges against npm.
+  test('no pin is ahead of this workspace or of the Bloom catalog', () => {
+    for (const [name, key, dir] of LANGUAGE_OXY) {
+      const range = pins[key] as string;
+      const reached = dir
+        ? readWorkspacePackageVersion(dir)
+        : name === '@oxy.so/bloom'
+          ? readWorkspaceCatalogVersion(name)
+          : null;
+      if (reached === null) continue;
+      const verdict = `${name}@${range}`;
+      expect({ verdict, ahead: compareVersions(range, reached) > 0 }).toEqual({
+        verdict,
+        ahead: false,
+      });
     }
   });
 });

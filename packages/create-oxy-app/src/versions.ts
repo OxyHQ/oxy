@@ -147,9 +147,47 @@ export const VERSIONS = {
   drizzleOrm: '0.45.2', // drizzle-orm
   postgres: '3.4.9', // postgres (postgres.js driver)
   drizzleKit: '0.31.10', // drizzle-kit — devDependency; generates migrations only
+
+  // --- The Bloom language template (`--language`) ---
+  // Named only by `templates/language`.
+  oxyBloomLanguage: '^1.0.0', // @oxy.so/bloom-language (and its `/router`)
+  oxyBloomLanguageCompiler: '^1.0.0', // @oxy.so/bloom-language-compiler — Metro + Jest pre-pass
+  oxyBloomData: '^0.1.0', // @oxy.so/bloom-data — one instance per app, like Bloom
+  expoBlur: '~58.0.5', // a required peer of Bloom 23
+  expoGlassEffect: '~58.0.5', // the language's glass on iOS (Liquid Glass)
+  pagerView: '9.0.7', // react-native-pager-view — Bloom's swiped tab pager on Android
+  jest: '^30.5.2',
+  jestExpo: '~58.0.14', // jest-expo — SDK 58's own
+  jestTypes: '^30.0.0', // @types/jest
+  testingLibraryReactNative: '^14.1.0', // @testing-library/react-native
+  testRenderer: '^1.3.1', // test-renderer — @testing-library/react-native 14's renderer
 } as const;
 
 export type VersionKey = keyof typeof VERSIONS;
+
+/**
+ * The Oxy set the language template takes in place of the one above. Its
+ * frontend is the Bloom language on Bloom without NativeWind, which needs
+ * Bloom 23, app-preset 6.9 (a Metro config without NativeWind when the app does
+ * not list it) and Services 15 (its data in `@oxy.so/bloom-data`, the store the
+ * template's own entities live in). Services 15 peers on Core 7, and the root
+ * overrides force one Core over the whole tree, the backend included.
+ *
+ * The same pairing rules as the JSX set hold (see the Oxy SDK note above):
+ * Bloom inside Services' Bloom peer (`>=22.1.1` as of 15.0.0), Core inside its
+ * Core peer (`^7.49.0`).
+ */
+export const LANGUAGE_OXY_VERSIONS = {
+  oxyServices: '^15.0.0',
+  oxyCore: '^7.49.0',
+  oxyBloom: '^23.0.0',
+  oxyAppPreset: '^6.9.0',
+} as const satisfies Partial<Record<VersionKey, string>>;
+
+/** The pins a template renders with: the JSX set, or the language template's over it. */
+export function versionsFor(language: boolean): Record<VersionKey, string> {
+  return language ? { ...VERSIONS, ...LANGUAGE_OXY_VERSIONS } : { ...VERSIONS };
+}
 
 /** Bun version pinned across CI + Dockerfiles for reproducible installs. */
 export const BUN_VERSION = '1.4.3';
