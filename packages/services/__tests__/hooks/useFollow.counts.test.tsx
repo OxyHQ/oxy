@@ -1,23 +1,17 @@
 /**
- * Single-user count fetch is driven by React Query, not a manual useEffect.
- *
- * The hook previously kicked off the follower/following count fetch from a
- * render-phase `useEffect` whenever the counts were missing. That was migrated
- * to a gated `useQuery` (AGENTS.md anti-useEffect rule) that owns ONLY the fetch
- * lifecycle; the Zustand store stays the canonical home for the count values, so
- * components keep reading `followerCount` / `followingCount` through the granular
- * selectors. These tests pin the migrated behaviour:
- *  - counts are fetched once on mount when missing,
- *  - the resolved values land in the store and are surfaced by the hook,
- *  - the query does NOT refetch once the counts are present (no loop / no
- *    duplicate network calls).
+ * Single-user counts are a gated bloom-data read (`followCounts`), not a
+ * manual useEffect. The counts live on the person (`User._count`), so
+ * components read `followerCount` / `followingCount` from the same record a
+ * profile read fills. These tests pin the behaviour:
+ *  - counts are read once on mount when missing,
+ *  - the answer lands on `User` and is surfaced by the hook,
+ *  - the read does NOT happen once the counts are present (it is skipped).
  */
-import type { ReactNode } from 'react';
-import { createElement } from 'react';
 import { renderHook as rtlRenderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { Store } from '@oxy.so/bloom-data';
+import { dataWrapper, openTestStore } from '../helpers/dataStore';
 
-const getUserById = jest.fn(async () => ({ _count: { followers: 7, following: 3 } }));
+const getUserById = jest.fn(async (id: string) => ({ id, _count: { followers: 7, following: 3 } }));
 
 const oxyServicesStub = {
   follows: {
@@ -48,18 +42,15 @@ jest.mock('@oxy.so/core', () => ({
 }));
 
 import { useFollow } from '../../src/ui/hooks/useFollow';
-import { useFollowStore } from '../../src/ui/stores/followStore';
+import { setFollowCounts } from '../../src/ui/data/follow';
 
-const renderHook: typeof rtlRenderHook = ((render, options) => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client }, children);
-  return rtlRenderHook(render, { wrapper, ...options });
-}) as typeof rtlRenderHook;
+let store: Store;
+const renderHook: typeof rtlRenderHook = ((render, options) =>
+  rtlRenderHook(render, { wrapper: dataWrapper(store), ...options })) as typeof rtlRenderHook;
 
-describe('useFollow single-user — count fetch via React Query', () => {
+describe('useFollow single-user — count read through bloom-data', () => {
   beforeEach(() => {
-    useFollowStore.getState().resetFollowState();
+    store = openTestStore();
     getUserById.mockClear();
     ctx = { oxyServices: oxyServicesStub, canUsePrivateApi: true, user: { id: 'me' } };
   });
@@ -80,8 +71,7 @@ describe('useFollow single-user — count fetch via React Query', () => {
 
   it('does not refetch once counts are already present in the store', async () => {
     // Seed counts before mount → the query gate is false → no network call.
-    useFollowStore.getState().setFollowerCount('u2', 11);
-    useFollowStore.getState().setFollowingCount('u2', 22);
+    setFollowCounts('u2', { followers: 11, following: 22 });
 
     const { result, rerender } = renderHook(() => useFollow('u2'));
 
@@ -94,7 +84,7 @@ describe('useFollow single-user — count fetch via React Query', () => {
   });
 
   it('fetches counts when only one side is missing', async () => {
-    useFollowStore.getState().setFollowerCount('u3', 5);
+    setFollowCounts('u3', { followers: 5 });
 
     const { result } = renderHook(() => useFollow('u3'));
 
@@ -104,7 +94,7 @@ describe('useFollow single-user — count fetch via React Query', () => {
     });
 
     if (!('followerCount' in result.current)) throw new Error('expected single-user shape');
-    // fetchUserCounts reconciles both sides from the API response.
+    // The read reconciles both sides from the API response.
     expect(result.current.followerCount).toBe(7);
     expect(getUserById).toHaveBeenCalledTimes(1);
   });

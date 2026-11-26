@@ -14,7 +14,6 @@ import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { API_URL, OXY_CLIENT_ID } from '@/lib/config';
-import { queryClient } from '@/lib/queryClient';
 import { THEME_PERSIST_KEY, themeStorage } from '@/lib/themePersistence';
 import { LocaleProvider } from '@/lib/i18n';
 import { ErrorFallback } from '@/components/error-fallback';
@@ -41,9 +40,9 @@ export default function RootLayout() {
       storage={themeStorage}
     >
       <ConnectionStatusToasts />
-      {/* OxyProvider owns the gesture, safe-area and keyboard roots, the QueryClient
-          and session authority. Keep one of each below Bloom's composition root. */}
-      <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} queryClient={queryClient}>
+      {/* OxyProvider owns the gesture, safe-area and keyboard roots and session
+          authority. Keep one of each below Bloom's composition root. */}
+      <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID}>
         <AppImageResolver>
           <LocaleProvider>
             <AuthRouter />

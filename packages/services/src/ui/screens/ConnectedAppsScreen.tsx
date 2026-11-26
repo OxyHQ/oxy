@@ -15,6 +15,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useConnectedApps } from '../hooks/queries/useAccountQueries';
 import { useRevokeConnectedApp } from '../hooks/mutations/useAccountMutations';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const APP_ICON_SIZE = 40;
 
@@ -44,20 +45,19 @@ const formatRelative = (iso: string): string => {
  *
  * Fetches via `useConnectedApps` (drives `GET /auth/grants`) and exposes a
  * "Revoke" action that hits `DELETE /auth/grants/:applicationId`. Each revoke
- * invalidates the connected-apps query so the list refreshes immediately.
+ * reads the connected apps again so the list refreshes immediately.
  */
 const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
+  const themed = useThemedStyles();
   const bloomTheme = useTheme();
   const { t } = useI18n();
 
   useSurfaceHeader({ title: t('connectedApps.title') || 'Connected apps' });
   const { isAuthenticated } = useOxy();
-  const {
-    data: apps,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useConnectedApps({ enabled: isAuthenticated });
+  const connected = useConnectedApps({ enabled: isAuthenticated });
+  const { isLoading, refresh } = connected;
+  const apps = connected.value?.apps;
+  const isRefreshing = connected.isFetching && !isLoading;
   const revokeMutation = useRevokeConnectedApp();
   const [revokingAppId, setRevokingAppId] = useState<string | null>(null);
 
@@ -77,7 +77,7 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
       }
       setRevokingAppId(app.applicationId);
       try {
-        await revokeMutation.mutateAsync(app.applicationId);
+        await revokeMutation.run(app.applicationId);
         toast.success(
           t('connectedApps.toasts.revoked', { name: app.name }) || `Revoked access for ${app.name}`,
         );
@@ -93,14 +93,14 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
 
   const renderEmpty = useCallback(
     () => (
-      <View className="flex-1 items-center justify-center py-space-32">
-        <Text className="text-text-secondary text-center p-space-40">
+      <View style={styles.centered}>
+        <Text style={themed.mutedText}>
           {t('connectedApps.empty.subtitle') ||
             'Apps you authorize to sign in with your Oxy account will appear here'}
         </Text>
       </View>
     ),
-    [t],
+    [t, themed],
   );
 
   const renderItem = useCallback(
@@ -129,20 +129,19 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
   );
 
   return (
-    <View className="flex-1 bg-bg">
+    <View style={themed.surface}>
       {
         <FlatList
           data={apps ?? []}
           keyExtractor={(item) => item.applicationId}
           renderItem={renderItem}
-          contentContainerClassName="px-screen-margin py-space-16"
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.content, styles.listContent]}
           ListEmptyComponent={isLoading ? undefined : renderEmpty}
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching}
+              refreshing={isRefreshing}
               onRefresh={() => {
-                void refetch();
+                void refresh();
               }}
               tintColor={bloomTheme.colors.primary}
             />
@@ -161,6 +160,21 @@ const styles = StyleSheet.create({
   listContent: {
     flexGrow: 1,
   },
+
+  centered: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+  },
+  content: { paddingHorizontal: 20, paddingVertical: 16 },
 });
 
 export default React.memo(ConnectedAppsScreen);
+
+const useThemedStyles = createTokenStyles((t) => ({
+  mutedText: { padding: 40, textAlign: 'center', color: t.mutedForeground },
+  surface: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', backgroundColor: t.background },
+}));

@@ -4,7 +4,7 @@ import { View, Animated, Platform, useWindowDimensions } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { Button } from '@oxy.so/bloom/button';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { H4 } from '@oxy.so/bloom/typography';
+import { H4, Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -17,6 +17,7 @@ import PaymentReviewStep from '../components/payment/PaymentReviewStep';
 import PaymentSuccessStep from '../components/payment/PaymentSuccessStep';
 import { PAYMENT_METHODS } from '../components/payment/constants';
 import type { PaymentItem, PaymentGatewayResult, CardDetails } from '../components/payment/types';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 export type { PaymentItem, PaymentGatewayResult };
 
@@ -35,6 +36,7 @@ const getUniqueItemTypes = (items: PaymentItem[]) => {
 };
 
 const PaymentGatewayScreen: React.FC<PaymentGatewayScreenProps> = (props) => {
+  const styles = useStyles();
   const {
     navigate,
     goBack,
@@ -187,9 +189,11 @@ const PaymentGatewayScreen: React.FC<PaymentGatewayScreenProps> = (props) => {
   // Validate amount
   if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
     return (
-      <View className="items-center justify-center px-screen-margin gap-space-24 py-space-40">
+      <View style={styles.centered}>
         <Ionicons name="alert-circle-outline" size={48} color={bloomTheme.colors.error} />
-        <H4 className="text-text text-center">{t('payment.errors.invalidAmount')}</H4>
+        <Text role="heading" aria-level={4} style={styles.text}>
+          {t('payment.errors.invalidAmount')}
+        </Text>
         <Button
           appearance="solid"
           tone="accent"
@@ -276,7 +280,19 @@ const PaymentGatewayScreen: React.FC<PaymentGatewayScreenProps> = (props) => {
     }
   };
 
-  return <View className="p-space-16">{renderCurrentStep()}</View>;
+  return <View style={styles.section}>{renderCurrentStep()}</View>;
 };
 
 export default PaymentGatewayScreen;
+
+const useStyles = createTokenStyles((t) => ({
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+  text: { textAlign: 'center', color: t.foreground },
+  section: { padding: 16 },
+}));

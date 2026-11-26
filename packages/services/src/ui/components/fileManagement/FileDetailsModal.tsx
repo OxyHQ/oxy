@@ -10,6 +10,7 @@ import type { FileMetadata } from '@oxy.so/core';
 import { useI18n } from '../../hooks/useI18n';
 import { formatFileSize, getFileIcon } from '../../utils/fileManagement';
 import { FileAppAccessSection } from './FileAppAccessSection';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface FileDetailsModalProps {
   /** The presenting surface's controls (from `surfaces.present`). */
@@ -34,54 +35,39 @@ export const FileDetailsModal: React.FC<FileDetailsModalProps> = ({
   onDelete,
   isOwner,
 }) => {
+  const styles = useStyles();
   const { t } = useI18n();
   const { colors } = useTheme();
 
   return (
     <View>
-      <Card appearance="subtle" className="p-[18px] items-center">
-        <View className="mb-space-16">
+      <Card appearance="subtle" style={styles.card}>
+        <View style={styles.section}>
           <Ionicons name={getFileIcon(file.contentType)} size={64} color={colors.primary} />
         </View>
 
-        <Text className="text-text text-[20px] font-bold text-center mb-space-24">
-          {file.filename}
-        </Text>
+        <Text style={styles.title}>{file.filename}</Text>
 
-        <View className="w-full mb-space-32">
-          <View className="flex-row justify-between items-start mb-space-12 flex-wrap">
-            <Text className="text-text-secondary text-[16px] font-medium flex-1 min-w-[100px]">
-              {t('fileManagement.size')}:
-            </Text>
-            <Text className="text-text text-[16px] flex-[2] text-right">
-              {formatFileSize(file.length)}
-            </Text>
+        <View style={styles.container}>
+          <View style={styles.row}>
+            <Text style={styles.mutedText}>{t('fileManagement.size')}:</Text>
+            <Text style={styles.text}>{formatFileSize(file.length)}</Text>
           </View>
 
-          <View className="flex-row justify-between items-start mb-space-12 flex-wrap">
-            <Text className="text-text-secondary text-[16px] font-medium flex-1 min-w-[100px]">
-              {t('fileManagement.details.type')}:
-            </Text>
-            <Text className="text-text text-[16px] flex-[2] text-right">{file.contentType}</Text>
+          <View style={styles.row}>
+            <Text style={styles.mutedText}>{t('fileManagement.details.type')}:</Text>
+            <Text style={styles.text}>{file.contentType}</Text>
           </View>
 
-          <View className="flex-row justify-between items-start mb-space-12 flex-wrap">
-            <Text className="text-text-secondary text-[16px] font-medium flex-1 min-w-[100px]">
-              {t('fileManagement.details.uploaded')}:
-            </Text>
-            <Text className="text-text text-[16px] flex-[2] text-right">
-              {new Date(file.uploadDate).toLocaleString()}
-            </Text>
+          <View style={styles.row}>
+            <Text style={styles.mutedText}>{t('fileManagement.details.uploaded')}:</Text>
+            <Text style={styles.text}>{new Date(file.uploadDate).toLocaleString()}</Text>
           </View>
 
           {file.metadata?.description && (
-            <View className="flex-row justify-between items-start mb-space-12 flex-wrap">
-              <Text className="text-text-secondary text-[16px] font-medium flex-1 min-w-[100px]">
-                {t('fileManagement.details.description')}:
-              </Text>
-              <Text className="text-text text-[16px] flex-[2] text-right">
-                {file.metadata.description}
-              </Text>
+            <View style={styles.row}>
+              <Text style={styles.mutedText}>{t('fileManagement.details.description')}:</Text>
+              <Text style={styles.text}>{file.metadata.description}</Text>
             </View>
           )}
         </View>
@@ -127,3 +113,40 @@ type PresentFileDetailsOptions = Omit<FileDetailsModalProps, 'surface'>;
 export function presentFileDetails(options: PresentFileDetailsOptions): void {
   void surfaces.present((surface) => <FileDetailsModal surface={surface} {...options} />);
 }
+
+const useStyles = createTokenStyles((t) => ({
+  card: { alignItems: 'center', padding: 18 },
+  section: { marginBottom: 16 },
+  title: {
+    marginBottom: 24,
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: 700,
+    color: t.foreground,
+  },
+  container: { marginBottom: 32, width: '100%' },
+  row: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  mutedText: {
+    minWidth: 100,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    fontSize: 16,
+    fontWeight: 500,
+    color: t.mutedForeground,
+  },
+  text: {
+    flexGrow: 2,
+    flexShrink: 1,
+    flexBasis: '0%',
+    textAlign: 'right',
+    fontSize: 16,
+    color: t.foreground,
+  },
+}));

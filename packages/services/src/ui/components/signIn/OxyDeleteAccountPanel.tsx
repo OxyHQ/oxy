@@ -61,8 +61,8 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({
   }
 
   const fallback = accountSecurityFallback(security, t('deleteAccount.title'), t);
-  if (fallback || !security.methods.data) return fallback;
-  const { hasEmail, totpEnabled } = security.methods.data;
+  if (fallback || !security.methods.value) return fallback;
+  const { hasEmail, totpEnabled } = security.methods.value;
 
   const username = user?.username ?? '';
 

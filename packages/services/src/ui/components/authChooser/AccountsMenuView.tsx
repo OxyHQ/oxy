@@ -1,7 +1,7 @@
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { View } from 'react-native-css/components';
+import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -35,6 +35,7 @@ import {
   type Theme,
   type Translate,
 } from './types';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /** Duration of the disclosure chevron rotation. */
 const SWITCH_REVEAL_MS = 240;
@@ -73,6 +74,7 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
   storage,
   menu,
 }) => {
+  const themed = useThemedStyles();
   const [expanded, setExpanded] = useState(false);
   const [summaryHovered, setSummaryHovered] = useState(false);
   // Bloom owns the grouped surface; the dialog owns measured size transitions.
@@ -167,7 +169,7 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
             </PressableScale>
           ) : null}
           <PressableScale
-            className={`flex-1 min-w-0 flex-row items-center gap-space-12 py-space-12${busy ? ' opacity-60' : ''}`}
+            style={[themed.switchTrigger, busy ? themed.busy : null]}
             onPress={toggleExpanded}
             disabled={busy}
             accessibilityRole="button"
@@ -229,14 +231,10 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
         usage={accountStorageUsage(storage, theme.colors, t)}
         formatValue={formatStorageSize}
         labels={{ freeSpace: t('accountMenu.storage.free') }}
-        fallback={
-          <Text className="text-bodySmall text-text-secondary">
-            {t('accountMenu.storage.unavailable')}
-          </Text>
-        }
+        fallback={<Text style={themed.mutedText}>{t('accountMenu.storage.unavailable')}</Text>}
         footer={
           shouldShowStorageActions(storage) ? (
-            <View className="flex-row justify-end gap-space-8">
+            <View style={themed.row}>
               <StorageChip
                 label={t('accountMenu.storage.getStorage')}
                 onPress={menu.onUpgradeStorage}
@@ -326,11 +324,11 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
       </GroupedSection>
 
       {/* FOOTER. */}
-      <View className="flex-row items-center justify-center gap-space-12 px-space-12 pt-space-12 pb-space-8">
+      <View style={themed.row2}>
         <Button appearance="plain" size="sm" linkTone="secondary" onPress={menu.onPrivacy}>
           {t('accountMenu.privacy')}
         </Button>
-        <Text className="text-bodySmall text-text-tertiary">·</Text>
+        <Text style={themed.mutedText}>·</Text>
         <Button appearance="plain" size="sm" linkTone="secondary" onPress={menu.onTerms}>
           {t('accountMenu.terms')}
         </Button>
@@ -356,21 +354,22 @@ const PrincipalHeaderRow: React.FC<{
   theme: Theme;
   t: Translate;
 }> = ({ principal, removing, disabled, onSignOut, theme, t }) => {
+  const themed = useThemedStyles();
   const signOutLabel = t('accountSwitcher.principal.signOut', { name: principal.displayName });
   return (
-    <View className="flex-row items-center gap-space-12 px-space-12 pt-space-12 pb-space-8">
+    <View style={themed.row3}>
       <Avatar
         source={principal.avatarUrl ?? undefined}
         variant="thumb"
         name={principal.displayName}
         size={PRINCIPAL_AVATAR_SIZE}
       />
-      <View className="flex-1 min-w-0">
-        <Text className="text-caption font-semibold text-text" numberOfLines={1}>
+      <View style={themed.container}>
+        <Text style={themed.title} numberOfLines={1}>
           {principal.displayName}
         </Text>
         {principal.handle ? (
-          <Text className="text-caption text-text-tertiary" numberOfLines={1}>
+          <Text style={themed.mutedText2} numberOfLines={1}>
             {`@${principal.handle}`}
           </Text>
         ) : null}
@@ -428,6 +427,7 @@ const ContextRow: React.FC<{
   theme,
   t,
 }) => {
+  const themed = useThemedStyles();
   const unavailable = !context.canActivate;
   const rowDisabled = disabled || unavailable;
   const removeLabel = t('accountSwitcher.context.remove', {
@@ -435,8 +435,8 @@ const ContextRow: React.FC<{
     person: principalName,
   });
   return (
-    <View className="flex-row items-center">
-      <View className="flex-1 min-w-0">
+    <View style={themed.row4}>
+      <View style={themed.container}>
         <GroupedSectionItem
           title={context.displayName}
           description={
@@ -517,3 +517,40 @@ const StorageChip: React.FC<{ label: string; onPress: () => void }> = ({ label, 
 );
 
 export default AccountsMenuView;
+
+const useThemedStyles = createTokenStyles((t) => ({
+  mutedText: { color: t.mutedForeground, lineHeight: 18, fontWeight: 400 },
+  row: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  row2: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  row3: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  container: { minWidth: 0, flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  title: { fontWeight: 600, color: t.foreground, lineHeight: 14 },
+  mutedText2: { color: t.mutedForeground, lineHeight: 14, fontWeight: 400 },
+  row4: { flexDirection: 'row', alignItems: 'center' },
+  switchTrigger: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  busy: { opacity: 0.6 },
+}));

@@ -41,7 +41,7 @@ export const applicationRecognition = pgTable(
     applicationId: text()
       .primaryKey()
       .references(() => applications.id, { onDelete: 'cascade' }),
-    /** The Android application id (`earth.mention.app`), or NULL when the app declares no Android build. */
+    /** The Android application id (`org.mention.app`), or NULL when the app declares no Android build. */
     androidPackageName: text(),
     /** Lowercase hex SHA-256 digests of the signing certificates Play reports for it. */
     androidSigningCertSha256: text().array().notNull().default(sql`'{}'::text[]`),

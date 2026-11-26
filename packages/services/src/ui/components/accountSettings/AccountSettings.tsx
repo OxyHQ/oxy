@@ -2,7 +2,7 @@ import type React from 'react';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skip, useAction, useRecord } from '@oxy.so/bloom-data';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -26,16 +26,14 @@ import {
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
 import { pickAvatarFile } from '../../hooks/useAvatarPicker';
-import {
-  clearedFieldsFromAccountUpdate,
-  upsertCachedUser,
-  type ClearableUserField,
-} from '../../hooks/queries/userCache';
+import { accountNode, archiveAccount, updateAccount } from '../../data/account';
+import { clearedFieldsFromAccountUpdate, type ClearableUserField } from '../../data/userRecord';
 import type { BaseScreenProps } from '../../types/navigation';
 import { OrganizationSettings } from '../organizations/OrganizationSettings';
 import { SettingsIcon } from '../SettingsIcon';
 import { AccountCategoriesSection, accountCategoriesEqual } from './AccountCategoriesSection';
 import { useApiErrorToast } from '../../hooks/useApiErrorToast';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const BIO_MAX = 160;
 const AVATAR_SIZE = 64;
@@ -101,17 +99,17 @@ export interface AccountSettingsProps {
  * session's account list, then read fresh. `node` is `null` until it resolves.
  */
 export function useAccountSettingsNode(accountId: string) {
-  const { oxyServices, canUsePrivateApi, user, accounts } = useOxy();
-  const query = useQuery({
-    queryKey: ['accounts', 'detail', accountId, user?.id, canUsePrivateApi],
-    initialData: canUsePrivateApi
-      ? accounts?.find((account) => account.accountId === accountId)
-      : undefined,
-    initialDataUpdatedAt: 0,
-    queryFn: () => oxyServices.accounts.get(accountId),
-    enabled: canUsePrivateApi && accountId.length > 0,
-  });
-  return { query, node: canUsePrivateApi && query.isSuccess ? query.data : null };
+  const { oxyServices, canUsePrivateApi, accounts } = useOxy();
+  const view = useRecord(
+    accountNode,
+    ...(canUsePrivateApi && accountId.length > 0 ? ([oxyServices, accountId] as const) : [skip]),
+  );
+  // Until it is read, the node the session's account list holds.
+  const seed = canUsePrivateApi
+    ? accounts?.find((account) => account.accountId === accountId)
+    : undefined;
+  const node = canUsePrivateApi && view.status !== 'error' ? (view.value ?? seed ?? null) : null;
+  return { view, node };
 }
 
 /**
@@ -130,13 +128,13 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
   navigate,
   onClose,
 }) => {
+  const styles = useStyles();
   const { colors } = useTheme();
   const { t } = useI18n();
   const showApiError = useApiErrorToast();
   const { oxyServices, user, accounts, switchToAccount, showBottomSheet } = useOxy();
-  const queryClient = useQueryClient();
   const id = accountId;
-  const { query: accountQuery, node } = useAccountSettingsNode(id);
+  const { view: accountView, node } = useAccountSettingsNode(id);
   const account = node?.account;
   const permissions = node?.callerMembership?.permissions ?? [];
   const isImplicitOwner = node ? node.relationship !== 'member' : false;
@@ -170,49 +168,57 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
     setSeeded(true);
   }
 
-  const updateMutation = useMutation({
-    mutationKey: ['accounts', 'update', id],
-    mutationFn: (input: UpdateAccountInput) => oxyServices.accounts.update(id, input),
-    onSuccess: (updatedNode, input) => {
-      const cleared = clearedFieldsFromAccountUpdate(input);
-      upsertCachedUser(queryClient, updatedNode.account, user?.id, {
-        cleared: cleared.length > 0 ? cleared : undefined,
-      });
-      onUpdated?.(updatedNode.account, { cleared });
-      queryClient.invalidateQueries({ queryKey: ['accounts', 'detail', id] });
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      toast.success(t('accounts.settings.toasts.saved'));
-    },
-    onError: (error) => {
-      showApiError(error, 'accounts.settings.toasts.saveFailed');
-    },
-  });
-
-  const archiveMutation = useMutation({
-    mutationKey: ['accounts', 'archive', id],
-    mutationFn: async (target: AccountNode) => {
-      await archive?.beforeArchive?.(target);
-      await oxyServices.accounts.archive(id);
-      return target;
-    },
-    onSuccess: async (target) => {
-      // If we archived the account we're currently signed in AS, switch back to
-      // the personal account so the app isn't left as an archived identity.
-      if (user?.id === id) {
-        const personal = accounts.find((entry) => entry.relationship === 'self');
-        if (personal) {
-          await switchToAccount(personal.accountId).catch(() => undefined);
-        }
+  const update = useAction(updateAccount);
+  const { run: runUpdate } = update;
+  const save = useCallback(
+    async (input: UpdateAccountInput) => {
+      try {
+        const updatedNode = await runUpdate(oxyServices, id, input);
+        if (!updatedNode) return;
+        onUpdated?.(updatedNode.account, { cleared: clearedFieldsFromAccountUpdate(input) });
+        toast.success(t('accounts.settings.toasts.saved'));
+      } catch (error) {
+        showApiError(error, 'accounts.settings.toasts.saveFailed');
       }
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      toast.success(archive?.successMessage ?? t('accounts.settings.toasts.archived'));
-      if (archive?.onArchived) archive.onArchived(target);
-      else onClose?.();
     },
-    onError: (error) => {
-      showApiError(error, 'accounts.settings.toasts.archiveFailed');
+    [runUpdate, oxyServices, id, onUpdated, t, showApiError],
+  );
+
+  const archiving = useAction(archiveAccount);
+  const { run: runArchive } = archiving;
+  const archiveNode = useCallback(
+    async (target: AccountNode) => {
+      try {
+        const beforeArchive = archive?.beforeArchive;
+        await runArchive(oxyServices, id, beforeArchive ? () => beforeArchive(target) : undefined);
+        // If we archived the account we're currently signed in AS, switch back to
+        // the personal account so the app isn't left as an archived identity.
+        if (user?.id === id) {
+          const personal = accounts.find((entry) => entry.relationship === 'self');
+          if (personal) {
+            await switchToAccount(personal.accountId).catch(() => undefined);
+          }
+        }
+        toast.success(archive?.successMessage ?? t('accounts.settings.toasts.archived'));
+        if (archive?.onArchived) archive.onArchived(target);
+        else onClose?.();
+      } catch (error) {
+        showApiError(error, 'accounts.settings.toasts.archiveFailed');
+      }
     },
-  });
+    [
+      runArchive,
+      oxyServices,
+      id,
+      archive,
+      user?.id,
+      accounts,
+      switchToAccount,
+      t,
+      onClose,
+      showApiError,
+    ],
+  );
 
   const handleArchive = useCallback(async () => {
     if (!node) return;
@@ -231,8 +237,8 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
       showApiError(error, 'accounts.settings.toasts.archiveFailed');
       return;
     }
-    if (confirmed) archiveMutation.mutate(node);
-  }, [archive, archiveMutation, node, showApiError, t]);
+    if (confirmed) void archiveNode(node);
+  }, [archive, archiveNode, node, showApiError, t]);
 
   const handleDisplayNameChange = useCallback(
     (value: string) => {
@@ -267,14 +273,14 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 
   const handleSave = useCallback(() => {
     if (!canSave) return;
-    updateMutation.mutate({
+    void save({
       name: { displayName: trimmedName },
       // `null` is Oxy's clear; an empty string would store one.
       bio: trimmedBio ? trimmedBio : null,
       // Whole and IN ORDER — element 0 is the primary, and `[]` is the clear.
       ...(categoriesChanged ? { accountCategories: categories } : null),
     });
-  }, [canSave, categories, categoriesChanged, trimmedBio, trimmedName, updateMutation]);
+  }, [canSave, categories, categoriesChanged, trimmedBio, trimmedName, save]);
 
   // The picture is written on its own, as the personal profile's is: the shared
   // picker uploads the crop, and the account takes it (or `null`, its clear).
@@ -284,11 +290,11 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
         avatar: account?.avatar,
         displayName: storedName,
       });
-      if (avatar !== undefined) updateMutation.mutate({ avatar });
+      if (avatar !== undefined) await save({ avatar });
     } catch (error) {
       showApiError(error, 'accounts.settings.toasts.saveFailed');
     }
-  }, [account?.avatar, oxyServices, showApiError, storedName, updateMutation]);
+  }, [account?.avatar, oxyServices, showApiError, storedName, save]);
 
   const avatarUri = useMemo(
     () => (account?.avatar ? oxyServices.assets.publicUrl(account.avatar, 'thumb') : undefined),
@@ -302,25 +308,23 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 
   if (!id) {
     return (
-      <View className="items-center justify-center px-screen-margin py-space-40">
-        <Text className="text-body font-body text-text-secondary text-center">
-          {t('accounts.settings.errors.missingAccount')}
-        </Text>
+      <View style={styles.centered}>
+        <Text style={styles.mutedText}>{t('accounts.settings.errors.missingAccount')}</Text>
       </View>
     );
   }
 
-  if (accountQuery.isLoading || !node) {
-    return <View className="items-center py-space-32" />;
+  if (accountView.isLoading || !node) {
+    return <View style={styles.container} />;
   }
 
-  const busy = updateMutation.isPending;
+  const busy = update.isPending;
 
   return (
-    <View className="px-screen-margin pt-space-24 pb-space-32 gap-space-24">
+    <View style={styles.container2}>
       {canUpdate ? (
-        <View className="gap-space-16 p-space-16 rounded-radius-20 bg-fill">
-          <View className="flex-row items-center gap-space-16">
+        <View style={styles.surface}>
+          <View style={styles.row}>
             <Avatar source={avatarUri} name={storedName} size={AVATAR_SIZE} />
             <Button
               appearance="subtle"
@@ -331,7 +335,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
               {t('accounts.settings.picture.change')}
             </Button>
           </View>
-          <View className="gap-space-4">
+          <View style={styles.stack}>
             <TextField isInvalid={Boolean(displayNameError)}>
               <TextFieldInput
                 floatingLabel
@@ -342,13 +346,9 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
                 maxLength={accountNameMaxLength(node.account.kind)}
               />
             </TextField>
-            {displayNameError ? (
-              <Text className="text-caption font-caption text-negative px-space-4">
-                {displayNameError}
-              </Text>
-            ) : null}
+            {displayNameError ? <Text style={styles.fieldError}>{displayNameError}</Text> : null}
           </View>
-          <View className="gap-space-4">
+          <View style={styles.stack}>
             <TextField>
               <TextFieldInput
                 floatingLabel
@@ -361,7 +361,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
                 textAlignVertical="top"
               />
             </TextField>
-            <Text className="text-caption font-caption text-text-tertiary px-space-4 text-right">
+            <Text style={styles.mutedText2}>
               {bio.length}/{BIO_MAX}
             </Text>
           </View>
@@ -375,7 +375,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
             disabled={busy || !canSave}
             loading={busy}
             accessibilityLabel={t('accounts.settings.save')}
-            className="w-full"
+            style={styles.button}
           >
             {t('accounts.settings.save')}
           </Button>
@@ -408,7 +408,7 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
               archive?.title ? archive.description : t('accounts.settings.archive.subtitle')
             }
             destructive
-            disabled={archiveMutation.isPending}
+            disabled={archiving.isPending}
             onPress={() => void handleArchive()}
           />
         </GroupedSection>
@@ -418,3 +418,41 @@ export const AccountSettings: React.FC<AccountSettingsProps> = ({
 };
 
 export default AccountSettings;
+
+const useStyles = createTokenStyles((t) => ({
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+  mutedText: {
+    textAlign: 'center',
+    fontSize: 15,
+    color: t.mutedForeground,
+    lineHeight: 22,
+    fontWeight: 400,
+  },
+  container: { alignItems: 'center', paddingVertical: 32 },
+  container2: { gap: 24, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32 },
+  surface: { gap: 16, borderRadius: 20, backgroundColor: t.card, padding: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  stack: { gap: 4 },
+  // A field error, in Bloom's error role.
+  fieldError: {
+    paddingHorizontal: 4,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: 400,
+    color: t.destructive,
+  },
+  mutedText2: {
+    paddingHorizontal: 4,
+    textAlign: 'right',
+    fontSize: 11,
+    color: t.mutedForeground,
+    lineHeight: 14,
+    fontWeight: 400,
+  },
+  button: { width: '100%' },
+}));

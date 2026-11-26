@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
-import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skip } from '@oxy.so/bloom-data';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import type { PurchaseApproval, SafetyPerson, ReauthProof } from '@oxy.so/contracts';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import { useSupervision, supervisionQueryKeys } from '../hooks/queries/useSupervision';
+import { useSupervision } from '../hooks/queries/useSupervision';
 import { useSignInMethods } from '../hooks/queries/useAuthMethods';
-import { useAuthStore } from '../stores/authStore';
+import { activeRuntime } from '../runtime/activeRuntime';
+import { useAnswer } from '../data/answer';
+import {
+  purchaseApproval,
+  purchaseApprovals,
+  purchaseMerchants,
+  supervisionContacts,
+  supervisionPeople,
+} from '../data/supervision';
 import { ReauthStep } from '../components/signIn/ReauthStep';
 import { AccountFlowNote, AccountFlowNotice } from '../components/signIn/accountFlowParts';
 import { OxyAuthLoading } from '../components/signIn/OxyAuthScreen';
@@ -31,8 +39,7 @@ function SupervisionBody({
   childAccountId,
 }: BaseScreenProps) {
   const { oxyServices, user, activeSessionId } = useOxy(),
-    { t, locale } = useI18n(),
-    client = useQueryClient();
+    { t, locale } = useI18n();
   const state = useSupervision(),
     methods = useSignInMethods();
   const mounted = useRef(true);
@@ -56,68 +63,52 @@ function SupervisionBody({
     ),
     [cursor, setCursor] = useState<string | undefined>();
   const accountId = user?.id ?? '';
-  const own = state.data?.self;
+  const sessionId = activeSessionId ?? '';
+  const stateFailed = state.status === 'error';
+  const own = state.value?.self;
   const childId =
     selectedChild ??
     (own?.status !== 'ended' ? own?.childAccountId : null) ??
-    state.data?.children[0]?.childAccountId ??
+    state.value?.children[0]?.childAccountId ??
     null;
   const guardianForChild =
-    state.data?.children.some((child) => child.childAccountId === childId) ?? false;
-  const contacts = useQuery({
-    queryKey: ['oxy', 'safety', 'contacts', accountId, activeSessionId, childId],
-    queryFn: () => {
-      if (!childId) throw new Error('Select an account');
-      return oxyServices.safety.contacts(childId);
-    },
-    enabled: !!childId && !state.isError,
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-  });
-  const purchases = useQuery({
-    queryKey: ['oxy', 'safety', 'purchases', accountId, activeSessionId, cursor],
-    queryFn: () => oxyServices.safety.purchaseApprovals({ cursor }),
-    enabled: !!state.data && !state.isError,
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-  });
-  const detail = useQuery({
-    queryKey: ['oxy', 'safety', 'purchase', accountId, activeSessionId, purchaseId],
-    queryFn: () => {
-      if (!purchaseId) throw new Error('Select a purchase');
-      return oxyServices.safety.purchaseApproval(purchaseId);
-    },
-    enabled: !!purchaseId && !state.isError,
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-  });
-  const merchants = useQuery({
-    queryKey: [
-      'oxy',
-      'safety',
-      'purchase-merchants',
-      accountId,
-      activeSessionId,
-      detail.data?.id,
-      detail.data?.merchantAccountIds,
-    ],
-    queryFn: () => {
-      if (!detail.data) throw new Error('Select a purchase');
-      return oxyServices.safety.people({ accountIds: detail.data.merchantAccountIds });
-    },
-    enabled: !!detail.data && !detail.isError && !state.isError,
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-  });
+    state.value?.children.some((child) => child.childAccountId === childId) ?? false;
+  const contacts = useAnswer(
+    supervisionContacts,
+    ...(childId && !stateFailed
+      ? ([oxyServices, accountId, sessionId, childId] as const)
+      : ([skip] as const)),
+  );
+  const purchases = useAnswer(
+    purchaseApprovals,
+    ...(state.value && !stateFailed
+      ? ([oxyServices, accountId, sessionId, cursor] as const)
+      : ([skip] as const)),
+  );
+  const detail = useAnswer(
+    purchaseApproval,
+    ...(purchaseId && !stateFailed
+      ? ([oxyServices, accountId, sessionId, purchaseId] as const)
+      : ([skip] as const)),
+  );
+  const detailFailed = detail.status === 'error';
+  const merchants = useAnswer(
+    purchaseMerchants,
+    ...(detail.value && !detailFailed && !stateFailed
+      ? ([
+          oxyServices,
+          accountId,
+          sessionId,
+          detail.value.id,
+          detail.value.merchantAccountIds,
+        ] as const)
+      : ([skip] as const)),
+  );
   const merchantsReady =
-    !merchants.isError &&
-    !!detail.data &&
-    detail.data.merchantAccountIds.every((id) =>
-      merchants.data?.items.some(
+    merchants.status !== 'error' &&
+    !!detail.value &&
+    detail.value.merchantAccountIds.every((id) =>
+      merchants.value?.items.some(
         (person) => person.accountId === id && (person.displayName || person.username),
       ),
     );
@@ -126,54 +117,34 @@ function SupervisionBody({
       [
         ...new Set([
           accountId,
-          ...(state.data?.children.map((child) => child.childAccountId) ?? []),
+          ...(state.value?.children.map((child) => child.childAccountId) ?? []),
           ...(own?.guardianAccountId ? [own.guardianAccountId] : []),
-          ...(state.data?.invitations.flatMap((invitation) => [
+          ...(state.value?.invitations.flatMap((invitation) => [
             invitation.childAccountId,
             invitation.guardianAccountId,
           ]) ?? []),
-          ...(contacts.data?.items.map((contact) => contact.contactAccountId) ?? []),
+          ...(contacts.value?.items.map((contact) => contact.contactAccountId) ?? []),
         ]),
       ].filter(Boolean),
-    [accountId, state.data, own?.guardianAccountId, contacts.data],
+    [accountId, state.value, own?.guardianAccountId, contacts.value],
   );
-  const chunks = useMemo(
-    () =>
-      Array.from({ length: Math.ceil(identityIds.length / 100) }, (_, index) =>
-        identityIds.slice(index * 100, index * 100 + 100),
-      ),
-    [identityIds],
+  const identities = useAnswer(
+    supervisionPeople,
+    ...(identityIds.length > 0 && !stateFailed
+      ? ([oxyServices, accountId, sessionId, identityIds] as const)
+      : ([skip] as const)),
   );
-  const identities = useQueries({
-    queries: chunks.map((ids) => ({
-      queryKey: ['oxy', 'safety', 'people', accountId, activeSessionId, ids],
-      queryFn: () => oxyServices.safety.people({ accountIds: ids }),
-      staleTime: 0,
-      gcTime: 0,
-      retry: false,
-      enabled: !state.isError,
-    })),
-  });
-  const people = new Map(
-    identities
-      .flatMap((query) => (query.isError ? [] : (query.data?.items ?? [])))
-      .map((person) => [person.accountId, person]),
-  );
+  const people = new Map((identities.value ?? []).map((person) => [person.accountId, person]));
   const label = (id: string | null | undefined) => {
     const person = id ? people.get(id) : undefined;
     return (
       person?.displayName ?? (person?.username ? `@${person.username}` : t('supervision.account'))
     );
   };
-  const active = () => mounted.current && useAuthStore.getState().user?.id === accountId;
-  const refreshed = async () => {
-    await Promise.all([
-      client.invalidateQueries({ queryKey: supervisionQueryKeys.all }),
-      client.invalidateQueries({ queryKey: ['oxy', 'safety', 'contacts'] }),
-      client.invalidateQueries({ queryKey: ['oxy', 'safety', 'purchases'] }),
-      client.invalidateQueries({ queryKey: ['oxy', 'safety', 'purchase'] }),
-    ]);
-  };
+  const active = () => mounted.current && activeRuntime()?.getSnapshot().account?.id === accountId;
+  // A change reads again what it can have changed and this screen shows.
+  const refreshed = () =>
+    Promise.all([state.refresh(), contacts.refresh(), purchases.refresh(), detail.refresh()]);
   const run = async (work: () => Promise<unknown>) => {
     if (busy) return;
     setBusy(true);
@@ -190,18 +161,18 @@ function SupervisionBody({
       if (active()) setBusy(false);
     }
   };
-  if (state.isError)
+  if (stateFailed)
     return (
       <View style={styles.section}>
         <AccountFlowNotice type="error">{t('supervision.loadError')}</AccountFlowNotice>
-        <Button onPress={() => void state.refetch()}>{t('supervision.retry')}</Button>
+        <Button onPress={() => void state.refresh()}>{t('supervision.retry')}</Button>
       </View>
     );
-  if (!state.data) return <OxyAuthLoading />;
+  if (!state.value) return <OxyAuthLoading />;
   if (confirmation) {
     if (
-      methods.isError ||
-      (!methods.isLoading && !methods.data?.hasEmail && !methods.data?.hasPassword)
+      methods.status === 'error' ||
+      (!methods.isLoading && !methods.value?.hasEmail && !methods.value?.hasPassword)
     )
       return (
         <View style={styles.section}>
@@ -212,15 +183,15 @@ function SupervisionBody({
           </Button>
         </View>
       );
-    if (!methods.data) return <OxyAuthLoading />;
+    if (!methods.value) return <OxyAuthLoading />;
     return (
       <View style={styles.screen}>
         <ReauthStep
           title={confirmation.title}
           description={confirmation.description}
           action={confirmation.purchase ? 'supervision_purchase' : 'supervision'}
-          allowPassword={methods.data.hasPassword}
-          totpEnabled={methods.data.totpEnabled}
+          allowPassword={methods.value.hasPassword}
+          totpEnabled={methods.value.totpEnabled}
           submitLabel={t('supervision.confirm')}
           secondary={{ label: t('common.cancel'), onPress: () => setConfirmation(null) }}
           onSubmit={async (reauth) => {
@@ -289,7 +260,7 @@ function SupervisionBody({
         ) : (
           <>
             <Text>{t('supervision.notActive')}</Text>
-            {state.data.children.length === 0 ? (
+            {state.value.children.length === 0 ? (
               <Button onPress={() => setAddingGuardian(!addingGuardian)}>
                 {t('supervision.invite')}
               </Button>
@@ -298,11 +269,11 @@ function SupervisionBody({
         )}
         {addingGuardian ? <PersonPicker exclude={[accountId]} onSelect={selectGuardian} /> : null}
       </View>
-      {state.data.invitations.length ? (
+      {state.value.invitations.length ? (
         <View style={styles.section}>
           <Text style={styles.heading}>{t('supervision.pending')}</Text>
           <AccountFlowNote>{t('supervision.pendingDescription')}</AccountFlowNote>
-          {state.data.invitations.map((invitation) => (
+          {state.value.invitations.map((invitation) => (
             <View key={invitation.id} style={styles.row}>
               <Text>
                 {label(invitation.childAccountId)} → {label(invitation.guardianAccountId)}
@@ -344,10 +315,10 @@ function SupervisionBody({
           ))}
         </View>
       ) : null}
-      {state.data.children.length ? (
+      {state.value.children.length ? (
         <View style={styles.section}>
           <Text style={styles.heading}>{t('supervision.children')}</Text>
-          {state.data.children.map((child) => (
+          {state.value.children.map((child) => (
             <Button
               key={child.childAccountId}
               appearance={child.childAccountId === childId ? 'solid' : 'plain'}
@@ -365,10 +336,10 @@ function SupervisionBody({
         <View style={styles.section}>
           <Text style={styles.heading}>{t('supervision.contacts', { name: label(childId) })}</Text>
           <AccountFlowNote>{t('supervision.contactsDescription')}</AccountFlowNote>
-          {contacts.isError ? (
+          {contacts.status === 'error' ? (
             <AccountFlowNotice type="error">{t('supervision.loadError')}</AccountFlowNotice>
           ) : (
-            contacts.data?.items.map((contact) => (
+            contacts.value?.items.map((contact) => (
               <View key={contact.contactAccountId} style={styles.row}>
                 <Text>{label(contact.contactAccountId)}</Text>
                 {guardianForChild ? (
@@ -395,7 +366,7 @@ function SupervisionBody({
               </View>
             ))
           )}
-          {contacts.data?.items.length === 0 ? <Text>{t('supervision.noContacts')}</Text> : null}
+          {contacts.value?.items.length === 0 ? <Text>{t('supervision.noContacts')}</Text> : null}
           {guardianForChild ? (
             <>
               <Button onPress={() => setAddingContact(!addingContact)}>
@@ -426,10 +397,10 @@ function SupervisionBody({
       ) : null}
       <View style={styles.section}>
         <Text style={styles.heading}>{t('supervision.purchases')}</Text>
-        {purchases.isError ? (
+        {purchases.status === 'error' ? (
           <AccountFlowNotice type="error">{t('supervision.loadError')}</AccountFlowNotice>
         ) : (
-          purchases.data?.items.map((purchase) => (
+          purchases.value?.items.map((purchase) => (
             <Button key={purchase.id} appearance="plain" onPress={() => setPurchaseId(purchase.id)}>
               {purchase.summary} ·{' '}
               {formatApprovalAmount(purchase.amountMinor, purchase.currency, locale)} ·{' '}
@@ -437,9 +408,9 @@ function SupervisionBody({
             </Button>
           ))
         )}
-        {purchases.data?.items.length === 0 ? <Text>{t('supervision.noPurchases')}</Text> : null}
-        {purchases.data?.nextCursor ? (
-          <Button onPress={() => setCursor(purchases.data?.nextCursor ?? undefined)}>
+        {purchases.value?.items.length === 0 ? <Text>{t('supervision.noPurchases')}</Text> : null}
+        {purchases.value?.nextCursor ? (
+          <Button onPress={() => setCursor(purchases.value?.nextCursor ?? undefined)}>
             {t('supervision.more')}
           </Button>
         ) : null}
@@ -449,20 +420,20 @@ function SupervisionBody({
           </Button>
         ) : null}
         {purchaseId ? (
-          detail.isError ? (
+          detailFailed ? (
             <AccountFlowNotice type="error">{t('supervision.loadError')}</AccountFlowNotice>
-          ) : detail.data ? (
+          ) : detail.value ? (
             <>
-              <PurchaseEvidence purchase={detail.data} />
-              {detail.data.status === 'pending' &&
-              state.data.children.some(
-                (child) => child.childAccountId === detail.data?.childAccountId,
+              <PurchaseEvidence purchase={detail.value} />
+              {detail.value.status === 'pending' &&
+              state.value.children.some(
+                (child) => child.childAccountId === detail.value?.childAccountId,
               ) ? (
                 <View style={styles.row}>
                   <Button
                     disabled={!merchantsReady}
                     onPress={() => {
-                      const purchase = detail.data;
+                      const purchase = detail.value;
                       if (purchase)
                         setConfirmation({
                           title: t('supervision.approvePurchase'),
@@ -496,7 +467,7 @@ function SupervisionBody({
                   <Button
                     appearance="plain"
                     onPress={() => {
-                      const purchase = detail.data;
+                      const purchase = detail.value;
                       if (purchase)
                         setConfirmation({
                           title: t('supervision.rejectPurchase'),
@@ -529,21 +500,14 @@ function SupervisionBody({
 function PurchaseEvidence({ purchase }: { purchase: PurchaseApproval }) {
   const { oxyServices, user, activeSessionId } = useOxy(),
     { t, locale } = useI18n();
-  const names = useQuery({
-    queryKey: [
-      'oxy',
-      'safety',
-      'purchase-merchants',
-      user?.id,
-      activeSessionId,
-      purchase.id,
-      purchase.merchantAccountIds,
-    ],
-    queryFn: () => oxyServices.safety.people({ accountIds: purchase.merchantAccountIds }),
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-  });
+  const names = useAnswer(
+    purchaseMerchants,
+    oxyServices,
+    user?.id ?? '',
+    activeSessionId ?? '',
+    purchase.id,
+    purchase.merchantAccountIds,
+  );
   const money = (amount: number) => formatApprovalAmount(amount, purchase.currency, locale);
   return (
     <View style={styles.section} testID="supervision-purchase-evidence">
@@ -558,10 +522,10 @@ function PurchaseEvidence({ purchase }: { purchase: PurchaseApproval }) {
           </Text>
           <Text>{money(line.lineAmountMinor)}</Text>
           <Text>
-            {(!names.isError
-              ? (names.data?.items.find((item) => item.accountId === line.merchantAccountId)
+            {(names.status !== 'error'
+              ? (names.value?.items.find((item) => item.accountId === line.merchantAccountId)
                   ?.displayName ??
-                names.data?.items.find((item) => item.accountId === line.merchantAccountId)
+                names.value?.items.find((item) => item.accountId === line.merchantAccountId)
                   ?.username)
               : null) ?? `${t('supervision.merchantUnavailable')} (${line.merchantAccountId})`}
           </Text>

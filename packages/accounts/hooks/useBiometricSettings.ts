@@ -44,9 +44,9 @@ export function useBiometricSettings() {
   const [supportedTypes, setSupportedTypes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Load privacy settings using TanStack Query hook
+  // Load privacy settings through the SDK's read
   const {
-    data: privacySettings,
+    value: privacySettings,
     isLoading: isLoadingPrivacy,
     error: privacyError,
   } = usePrivacySettings(user?.id, {
@@ -136,7 +136,7 @@ export function useBiometricSettings() {
       if (!value) {
         try {
           setError(null);
-          await updatePrivacyMutation.mutateAsync({
+          await updatePrivacyMutation.run({
             settings: { biometricLogin: false },
             userId: user.id,
           });
@@ -193,7 +193,7 @@ export function useBiometricSettings() {
         }
 
         // Save the setting using mutation
-        await updatePrivacyMutation.mutateAsync({
+        await updatePrivacyMutation.run({
           settings: { biometricLogin: true },
           userId: user.id,
         });

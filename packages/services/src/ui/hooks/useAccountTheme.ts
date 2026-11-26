@@ -10,18 +10,18 @@
  *   chosen here is written back to the account for the other Oxy apps.
  * - `app`: the mode stays on this device; nothing is written to the account.
  *
- * The source is a local preference, never sent anywhere. On web it is read
- * synchronously, so the first paint already knows it; on native it resolves
- * from AsyncStorage right after mount. Bloom's own persistence still paints the
+ * The source is a local preference, never sent anywhere. It is held in a
+ * `@oxy.so/bloom-data` model in the device's own store, read from the device's
+ * key-value data right after mount. Bloom's own persistence still paints the
  * last theme instantly on cold boot, so the account theme lands without a flash
  * once the session resolves.
  */
 
 import { useCallback, useEffect } from 'react';
-import { create } from 'zustand';
+import { model, useModel, withStore } from '@oxy.so/bloom-data';
 import { logger, type User } from '@oxy.so/core';
 import { useBloomTheme, type AppColorName, type ThemeMode } from '@oxy.so/bloom/theme';
-import { createPlatformStorage, isReactNative } from '../utils/storageHelpers';
+import { deviceStorage } from '../data/deviceStorage';
 import { resolveAccountColor, useAccountColor } from './useAccountColor';
 import { useAuth } from './useAuth';
 import { useUpdateProfile } from './mutations/useAccountMutations';
@@ -45,47 +45,33 @@ function toPortableMode(mode: ThemeMode): PortableThemeMode {
   return mode === 'light' || mode === 'dark' ? mode : 'system';
 }
 
-/** Web reads `localStorage` synchronously; native resolves in `hydrate`. */
-function readInitialSource(): { source: ThemeSource; hydrated: boolean } {
-  if (isReactNative() || typeof window === 'undefined') {
-    return { source: 'account', hydrated: false };
-  }
-  try {
-    return {
-      source: normalizeSource(window.localStorage?.getItem(THEME_SOURCE_KEY)),
-      hydrated: true,
-    };
-  } catch {
-    // A sandboxed document's storage getter throws: no stored choice.
-    return { source: 'account', hydrated: true };
-  }
+/**
+ * This device's theme source, in memory: `undefined` until the stored choice is
+ * known. The choice itself is kept in the device's key-value data.
+ */
+const ThemeSourceChoice = model<ThemeSource>('oxy.theme-source');
+
+function setThemeSource(source: ThemeSource): void {
+  const device = deviceStorage();
+  withStore(device.store, () => ThemeSourceChoice.set(source));
+  void device.setItem(THEME_SOURCE_KEY, source).catch(() => undefined);
 }
 
-interface ThemeSourceState {
-  source: ThemeSource;
-  /** True once the stored source is known (at once on web). */
-  hydrated: boolean;
-  setSource: (source: ThemeSource) => void;
-  hydrate: () => Promise<void>;
-}
-
-const useThemeSourceStore = create<ThemeSourceState>((set, get) => ({
-  ...readInitialSource(),
-  setSource(source) {
-    set({ source, hydrated: true });
-    void createPlatformStorage()
-      .then((storage) => storage.setItem(THEME_SOURCE_KEY, source))
-      .catch(() => undefined);
-  },
-  async hydrate() {
-    if (get().hydrated) return;
-    const stored = await createPlatformStorage()
-      .then((storage) => storage.getItem(THEME_SOURCE_KEY))
-      .catch(() => null);
+async function readThemeSource(): Promise<void> {
+  const device = deviceStorage();
+  if (withStore(device.store, () => ThemeSourceChoice.get()) !== undefined) return;
+  const stored = await device.getItem(THEME_SOURCE_KEY).catch(() => null);
+  withStore(device.store, () => {
     // A choice made while storage was being read wins over the stored one.
-    if (!get().hydrated) set({ source: normalizeSource(stored), hydrated: true });
-  },
-}));
+    if (ThemeSourceChoice.get() === undefined) ThemeSourceChoice.set(normalizeSource(stored));
+  });
+}
+
+/** The device's theme source (`account` until known), and whether the stored one is known. */
+function useThemeSource(): { source: ThemeSource; hydrated: boolean } {
+  const chosen = useModel(ThemeSourceChoice, deviceStorage().store);
+  return { source: chosen ?? 'account', hydrated: chosen !== undefined };
+}
 
 /**
  * Apply the account theme to Bloom: the colour always (through
@@ -99,15 +85,13 @@ export function useAccountTheme({
   canUse?: (name: AppColorName) => boolean;
 } = {}): void {
   const { isAuthenticated, user } = useAuth();
-  const source = useThemeSourceStore((state) => state.source);
-  const hydrated = useThemeSourceStore((state) => state.hydrated);
-  const hydrate = useThemeSourceStore((state) => state.hydrate);
+  const { source, hydrated } = useThemeSource();
   const { setMode } = useBloomTheme();
   useAccountColor({ canUse });
 
   useEffect(() => {
-    void hydrate();
-  }, [hydrate]);
+    void readThemeSource();
+  }, []);
 
   const accountMode = user?.themePreference?.mode;
   useEffect(() => {
@@ -135,18 +119,17 @@ export interface AccountThemeControls {
 export function useAccountThemeControls(): AccountThemeControls {
   const { user, canUsePrivateApi } = useAuth();
   const { mode, colorPreset, setMode } = useBloomTheme();
-  const { mutateAsync } = useUpdateProfile();
-  const storedSource = useThemeSourceStore((state) => state.source);
-  const setSource = useThemeSourceStore((state) => state.setSource);
+  const { run: updateProfile } = useUpdateProfile();
+  const { source: storedSource } = useThemeSource();
   const source: ThemeSource = canUsePrivateApi ? storedSource : 'app';
 
   const persist = useCallback(
     async (next: { mode: ThemeMode; colorPreset: AppColorName }) => {
-      await mutateAsync({
+      await updateProfile({
         themePreference: { mode: toPortableMode(next.mode), colorPreset: next.colorPreset },
       });
     },
-    [mutateAsync],
+    [updateProfile],
   );
 
   const changeThemeMode = useCallback(
@@ -162,7 +145,7 @@ export function useAccountThemeControls(): AccountThemeControls {
     !!accountTheme && resolveAccountColor({ themePreference: accountTheme }) !== null;
   const changeThemeSource = useCallback(
     (nextSource: ThemeSource) => {
-      setSource(nextSource);
+      setThemeSource(nextSource);
       // An existing account theme is applied by `useAccountTheme`; only an
       // account without one is seeded, from what the viewer sees now.
       if (nextSource !== 'account' || !canUsePrivateApi || hasAccountTheme) return;
@@ -170,7 +153,7 @@ export function useAccountThemeControls(): AccountThemeControls {
         logger.error('Failed to seed the account theme', error);
       });
     },
-    [setSource, canUsePrivateApi, hasAccountTheme, persist, mode, colorPreset],
+    [canUsePrivateApi, hasAccountTheme, persist, mode, colorPreset],
   );
 
   return { source, changeThemeSource, changeThemeMode };

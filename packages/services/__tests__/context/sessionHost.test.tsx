@@ -8,7 +8,6 @@
  * call" and "the request carried the host's token" are read off the wire.
  */
 import { act, render, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OxyServices } from '@oxy.so/core';
 import type { OxyHostSnapshot, OxyHostToken, OxySessionHost } from '@oxy.so/core/host';
 
@@ -152,18 +151,15 @@ function Capture({ oxy }: { oxy: OxyServices }) {
 
 function renderHosted(session: { host: OxySessionHost } | { unknownContract: true }) {
   const oxy = new OxyServices({ baseURL: API, enableCache: false });
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
-    <QueryClientProvider client={queryClient}>
-      <OxyHostedRuntimeProvider
-        session={session}
-        oxyServices={oxy}
-        clientId="app-client"
-        platformStorage={createMemoryStorage()}
-      >
-        <Capture oxy={oxy} />
-      </OxyHostedRuntimeProvider>
-    </QueryClientProvider>,
+    <OxyHostedRuntimeProvider
+      session={session}
+      oxyServices={oxy}
+      clientId="app-client"
+      platformStorage={createMemoryStorage()}
+    >
+      <Capture oxy={oxy} />
+    </OxyHostedRuntimeProvider>,
   );
   return { oxy, view };
 }
@@ -495,20 +491,18 @@ describe('OxyProvider host mode', () => {
     const onChange = jest.fn();
     const oxy = new OxyServices({ baseURL: API, enableCache: false });
     const view = render(
-      <QueryClientProvider client={new QueryClient()}>
-        <OxyHostedRuntimeProvider
-          session={{ host: fake.host }}
-          oxyServices={oxy}
-          clientId="app-client"
-          platformStorage={createMemoryStorage()}
+      <OxyHostedRuntimeProvider
+        session={{ host: fake.host }}
+        oxyServices={oxy}
+        clientId="app-client"
+        platformStorage={createMemoryStorage()}
+      >
+        <AccountLanguageBoundary
+          language={{ supportedLocales: ['en-US', 'es-ES'], fallbackLocale: 'en-US', onChange }}
         >
-          <AccountLanguageBoundary
-            language={{ supportedLocales: ['en-US', 'es-ES'], fallbackLocale: 'en-US', onChange }}
-          >
-            <span>Files</span>
-          </AccountLanguageBoundary>
-        </OxyHostedRuntimeProvider>
-      </QueryClientProvider>,
+          <span>Files</span>
+        </AccountLanguageBoundary>
+      </OxyHostedRuntimeProvider>,
     );
 
     await waitFor(() => expect(view.getByText('Files')).toBeTruthy());

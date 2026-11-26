@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -62,7 +62,7 @@ const EditProfileScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
   const goToField = (fieldType: ProfileFieldType) => navigate?.('EditProfileField', { fieldType });
 
   return (
-    <View className="px-screen-margin pt-space-16 pb-space-24">
+    <View style={styles.section}>
       {/* Profile card */}
       <ProfileSummaryCard
         displayName={displayName}
@@ -155,3 +155,7 @@ const EditProfileScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
 };
 
 export default EditProfileScreen;
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 },
+});

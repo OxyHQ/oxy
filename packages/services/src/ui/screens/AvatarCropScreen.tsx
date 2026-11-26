@@ -46,7 +46,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { skip, useRecord } from '@oxy.so/bloom-data';
 import { ExpoImage } from '../components/ExpoImage';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { logger } from '@oxy.so/core';
@@ -56,7 +56,7 @@ import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSurfaceHeader, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
 import { toast } from '@oxy.so/bloom/toast';
 import type { BaseScreenProps } from '../types/navigation';
-import { getImageSize } from '../utils/imageSize';
+import { avatarCropSource, imageSize } from '../data/files';
 
 /** Component name used in `logger` context for filtered diagnostics. */
 const LOG_COMPONENT = 'AvatarCropScreen';
@@ -138,27 +138,6 @@ function clampTranslation(
 interface ImageNaturalSize {
   width: number;
   height: number;
-}
-
-/**
- * Measure an image's intrinsic size via `getImageSize` (expo-image on a
- * device), as a Promise so it can be a React Query `queryFn` (no component
- * state / effects). Rejects on a load failure or degenerate dimensions so the
- * query surfaces `isError`. Mirrors the `measurePhotoDimensions` helper the
- * photo grid uses.
- */
-async function measureImageSize(uri: string): Promise<ImageNaturalSize> {
-  let size: ImageNaturalSize;
-  try {
-    size = await getImageSize(uri);
-  } catch {
-    throw new Error('Image measurement failed');
-  }
-  const { width, height } = size;
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    throw new Error('Image reported invalid dimensions');
-  }
-  return { width, height };
 }
 
 /**
@@ -352,60 +331,47 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
   // download URL is usually private, so it must be resolved through the SDK
   // (which throws on failure). Resolving it HERE — not in the source list — is
   // what keeps the list from lingering on screen for the round-trip: this screen
-  // shows its own spinner on the dark canvas while the URL resolves. A React
-  // Query read (not an effect) so it stays declarative and cached.
+  // shows its own spinner on the dark canvas while the URL resolves. A
+  // bloom-data read (not an effect), held in memory only: the URL expires.
   const shouldResolveFile = !imageUri && !!imageFileId;
-  const sourceQuery = useQuery({
-    queryKey: ['avatarCropSource', imageFileId],
-    enabled: shouldResolveFile,
-    staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
-    queryFn: async () => {
-      if (!imageFileId) {
-        throw new Error('No file id to resolve for cropping');
-      }
-      const resolved = await oxyServices.assets.url(imageFileId);
-      if (!resolved) {
-        throw new Error('No download URL returned for the selected image');
-      }
-      return resolved;
-    },
-  });
+  const source = useRecord(
+    avatarCropSource,
+    ...(shouldResolveFile && imageFileId
+      ? ([oxyServices, imageFileId] as const)
+      : ([skip] as const)),
+  );
+  const sourceFailed = source.status === 'error';
 
   // The URL the cropper actually loads: the passed `imageUri`, else the URL the
-  // file-ID query resolved. While it resolves, `effectiveUri` is undefined and
+  // file-ID read resolved. While it resolves, `effectiveUri` is undefined and
   // the stage shows its own spinner (never the empty state).
-  const effectiveUri = imageUri ?? sourceQuery.data;
-  const isResolvingSource = shouldResolveFile && !sourceQuery.data && !sourceQuery.isError;
-  const sourceErrorMessage = sourceQuery.isError
+  const effectiveUri = imageUri ?? source.value?.url;
+  const isResolvingSource = shouldResolveFile && !source.value && !sourceFailed;
+  const sourceErrorMessage = sourceFailed
     ? t('changeAvatar.errors.loadImageFailed') || 'Could not load the selected image'
     : null;
 
   // Natural size of the source image. Known up front (device/camera sources pass
-  // the dimensions) OR measured lazily from `effectiveUri` via a React Query read
-  // (no effect) — the same getImageSize→useQuery pattern the photo grid uses.
+  // the dimensions) OR measured lazily from `effectiveUri` (no effect), the
+  // same measurement the photo grid uses.
   const hasPassedDimensions = !!(sourceWidth && sourceHeight);
-  const measureQuery = useQuery({
-    queryKey: ['avatarCropMeasure', effectiveUri],
-    enabled: !!effectiveUri && !hasPassedDimensions,
-    queryFn: () => {
-      if (!effectiveUri) {
-        throw new Error('No image to measure');
-      }
-      return measureImageSize(effectiveUri);
-    },
-    staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
-    placeholderData: keepPreviousData,
-  });
+  const measured = useRecord(
+    imageSize,
+    ...(effectiveUri && !hasPassedDimensions ? ([effectiveUri] as const) : ([skip] as const)),
+  );
+  const measuredWidth = measured.value?.width;
+  const measuredHeight = measured.value?.height;
   const naturalSize = useMemo<ImageNaturalSize | null>(() => {
     if (sourceWidth && sourceHeight) return { width: sourceWidth, height: sourceHeight };
-    return measureQuery.data ?? null;
-  }, [sourceWidth, sourceHeight, measureQuery.data]);
+    return measuredWidth && measuredHeight
+      ? { width: measuredWidth, height: measuredHeight }
+      : null;
+  }, [sourceWidth, sourceHeight, measuredWidth, measuredHeight]);
   /** Measurement failed (bad dimensions / getSize error) — surfaced via the empty UI. */
-  const measureErrorMessage = measureQuery.isError
-    ? t('editProfile.toasts.cropMeasureFailed') || 'Could not measure the image'
-    : null;
+  const measureErrorMessage =
+    measured.status === 'error'
+      ? t('editProfile.toasts.cropMeasureFailed') || 'Could not measure the image'
+      : null;
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [zoomLabel, setZoomLabel] = useState('1.0');
@@ -1028,7 +994,7 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
         ? measureErrorMessage
         : t('editProfile.crop.noImage');
     return (
-      <View style={styles.container} className="px-screen-margin pb-space-24">
+      <View style={[viewStyles.section, styles.container]}>
         <View style={styles.emptyState}>
           <Text style={styles.emptyLabel}>{emptyMessage}</Text>
         </View>
@@ -1037,7 +1003,7 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
   }
 
   return (
-    <View style={styles.container} className="px-screen-margin pb-space-24">
+    <View style={[viewStyles.section, styles.container]}>
       <View style={styles.stage}>
         <Animated.View
           ref={startEntrance}
@@ -1090,10 +1056,7 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
                     aesthetic; the full-width row is `box-none` so only the pill
                     takes pointer events and the rest of the circle stays pannable. */}
         {showZoomControls ? (
-          <View
-            className="absolute bottom-4 left-0 right-0 items-center"
-            style={styles.footerPointerEvents}
-          >
+          <View style={[viewStyles.overlay, styles.footerPointerEvents]}>
             <HeaderActions
               actions={[
                 {
@@ -1140,3 +1103,8 @@ const AvatarCropScreen: React.FC<AvatarCropScreenProps> = ({
 };
 
 export default AvatarCropScreen;
+
+const viewStyles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+  overlay: { position: 'absolute', right: 0, bottom: 16, left: 0, alignItems: 'center' },
+});

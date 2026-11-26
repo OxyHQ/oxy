@@ -11,6 +11,7 @@ import type { FileMetadata } from '@oxy.so/core';
 import { formatFileSize } from '../../utils/fileManagement';
 import { getImageSize } from '../../utils/imageSize';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface FileViewerProps {
   file: FileMetadata;
@@ -63,6 +64,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
   deleteLabel,
   isOwner,
 }) => {
+  const styles = useStyles();
   const { colors } = useTheme();
   const isImage = file.contentType.startsWith('image/');
   const isText =
@@ -193,7 +195,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
   }, [file, colors]);
 
   return (
-    <View className={`flex-1 relative ${isImage && fileContent ? '' : 'bg-bg'}`}>
+    <View style={[styles.viewer, isImage && fileContent ? null : styles.viewerBackground]}>
       {/* Blurred Background Image - only for images */}
       {isImage && fileContent && (
         <>
@@ -205,10 +207,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             transition={120}
             cachePolicy="memory-disk"
           />
-          <View
-            className="absolute top-0 left-0 right-0 bottom-0"
-            style={{ backgroundColor: colors.overlay, zIndex: 1 }}
-          />
+          <View style={[styles.overlay, { backgroundColor: colors.overlay, zIndex: 1 }]} />
         </>
       )}
 
@@ -218,8 +217,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
         tone="neutral"
         iconOnly
         accessibilityLabel="Back"
-        className="absolute top-[12px] left-[12px]"
-        style={{ zIndex: 10 }}
+        style={[styles.button, { zIndex: 10 }]}
         onPress={onClose}
         icon={<MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />}
       />
@@ -230,22 +228,17 @@ export const FileViewer: React.FC<FileViewerProps> = ({
         tone="neutral"
         iconOnly
         accessibilityLabel="Download"
-        className="absolute top-[12px] right-[12px]"
-        style={{ zIndex: 10 }}
+        style={[styles.button2, { zIndex: 10 }]}
         onPress={() => onDownload(file.id, file.filename)}
         icon={<MaterialCommunityIcons name="download" size={20} color={colors.primary} />}
       />
 
       {/* File Content */}
-      <ScrollView
-        className="flex-1 relative"
-        style={{ zIndex: 2 }}
-        contentContainerClassName="grow px-[12px] pt-0 pb-[8px]"
-      >
+      <ScrollView style={[styles.container, { zIndex: 2 }]} contentContainerStyle={styles.content}>
         {loadingFileContent ? (
-          <View className="flex-1 justify-center items-center">
+          <View style={styles.centered}>
             <SpinnerIcon size={32} color={colors.primary} />
-            <Text className="text-text text-[16px] mt-[16px]">Loading file content...</Text>
+            <Text style={styles.text}>Loading file content...</Text>
           </View>
         ) : isImage && fileContent ? (
           <View
@@ -258,11 +251,13 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             }}
           >
             <View
-              className="rounded-[24px] overflow-hidden self-center"
-              style={{
-                width: imageDisplaySize.width,
-                height: imageDisplaySize.height,
-              }}
+              style={[
+                styles.container2,
+                {
+                  width: imageDisplaySize.width,
+                  height: imageDisplaySize.height,
+                },
+              ]}
             >
               <ExpoImage
                 source={{ uri: fileContent }}
@@ -281,66 +276,50 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             </View>
           </View>
         ) : isText && fileContent ? (
-          <View
-            className="bg-card flex-1 rounded-[18px] p-[12px] min-h-[180px]"
-            style={{ maxHeight: '80%' }}
-          >
-            <ScrollView className="flex-1" nestedScrollEnabled>
-              <Text
-                className="text-text text-[14px] leading-[20px]"
-                style={{ fontFamily: 'monospace' }}
-              >
-                {fileContent}
-              </Text>
+          <View style={[styles.surface, { maxHeight: '80%' }]}>
+            <ScrollView style={styles.fill} nestedScrollEnabled>
+              <Text style={[styles.text2, { fontFamily: 'monospace' }]}>{fileContent}</Text>
             </ScrollView>
           </View>
         ) : isPDF && fileContent ? (
-          <View className="flex-1 justify-center items-center py-[32px] px-[24px]">
+          <View style={styles.centered2}>
             <MaterialCommunityIcons name="file-pdf-box" size={64} color={colors.textSecondary} />
-            <Text className="text-text text-[24px] font-bold mt-[16px] mb-[8px] text-center">
-              PDF Preview Not Available
-            </Text>
-            <Text className="text-text-secondary text-[16px] text-center leading-[24px] mb-[32px]">
+            <Text style={styles.title}>PDF Preview Not Available</Text>
+            <Text style={styles.mutedText}>
               PDF files cannot be previewed in this viewer.{'\n'}
               Download the file to view its contents.
             </Text>
             <Button onPress={() => onDownload(file.id, file.filename)}>Download PDF</Button>
           </View>
         ) : isVideo && fileContent ? (
-          <View className="flex-1 justify-center items-center py-[32px] px-[24px]">
+          <View style={styles.centered2}>
             <MaterialCommunityIcons name="video-outline" size={64} color={colors.textSecondary} />
-            <Text className="text-text text-[24px] font-bold mt-[16px] mb-[8px] text-center">
-              Video Playback Not Available
-            </Text>
-            <Text className="text-text-secondary text-[16px] text-center leading-[24px] mb-[32px]">
+            <Text style={styles.title}>Video Playback Not Available</Text>
+            <Text style={styles.mutedText}>
               Video playback is not supported in this viewer.{'\n'}
               Download the file to view it.
             </Text>
             <Button onPress={() => onDownload(file.id, file.filename)}>Download Video</Button>
           </View>
         ) : isAudio && fileContent ? (
-          <View className="flex-1 justify-center items-center py-[32px] px-[24px]">
+          <View style={styles.centered2}>
             <MaterialCommunityIcons
               name="music-note-outline"
               size={64}
               color={colors.textSecondary}
             />
-            <Text className="text-text text-[24px] font-bold mt-[16px] mb-[8px] text-center">
-              Audio Playback Not Available
-            </Text>
-            <Text className="text-text-secondary text-[16px] text-center leading-[24px] mb-[32px]">
+            <Text style={styles.title}>Audio Playback Not Available</Text>
+            <Text style={styles.mutedText}>
               Audio playback is not supported in this viewer.{'\n'}
               Download the file to listen to it.
             </Text>
             <Button onPress={() => onDownload(file.id, file.filename)}>Download Audio</Button>
           </View>
         ) : (
-          <View className="flex-1 justify-center items-center py-[32px] px-[24px]">
+          <View style={styles.centered2}>
             <MaterialCommunityIcons name="file-outline" size={64} color={colors.textSecondary} />
-            <Text className="text-text text-[24px] font-bold mt-[16px] mb-[8px] text-center">
-              Preview Not Available
-            </Text>
-            <Text className="text-text-secondary text-[16px] text-center leading-[24px] mb-[32px]">
+            <Text style={styles.title}>Preview Not Available</Text>
+            <Text style={styles.mutedText}>
               This file type cannot be previewed.{'\n'}
               Download the file to view its contents.
             </Text>
@@ -350,12 +329,9 @@ export const FileViewer: React.FC<FileViewerProps> = ({
       </ScrollView>
 
       {/* File Details Section - at bottom */}
-      <View
-        className="bg-card mx-[12px] mt-[8px] mb-[12px] rounded-[18px] overflow-hidden relative"
-        style={{ zIndex: 2 }}
-      >
-        <View className="flex-row items-center justify-between px-[12px] pt-[10px] pb-[6px]">
-          <Text className="text-text text-[18px] font-semibold flex-1">File Details</Text>
+      <View style={[styles.surface2, { zIndex: 2 }]}>
+        <View style={styles.row}>
+          <Text style={styles.title2}>File Details</Text>
           <Button
             appearance="plain"
             tone="neutral"
@@ -375,7 +351,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
 
         {showFileDetailsInViewer && (
           <>
-            <View className="px-[12px] pb-[8px]">
+            <View style={styles.section}>
               <GroupedSection>
                 {fileDetailItems.map((item) => (
                   <GroupedSectionItem
@@ -396,7 +372,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
             </View>
 
             {isOwner && (
-              <View className="flex-row gap-[12px] mt-[8px] px-[12px] pb-[10px]">
+              <View style={styles.row2}>
                 <Button
                   tone="danger"
                   style={{ flex: 1 }}
@@ -415,3 +391,84 @@ export const FileViewer: React.FC<FileViewerProps> = ({
     </View>
   );
 };
+
+const useStyles = createTokenStyles((t) => ({
+  viewer: { position: 'relative', flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  viewerBackground: { backgroundColor: t.background },
+  overlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  button: { position: 'absolute', top: 12, left: 12 },
+  button2: { position: 'absolute', top: 12, right: 12 },
+  container: { position: 'relative', flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  content: { flexGrow: 1, paddingHorizontal: 12, paddingTop: 0, paddingBottom: 8 },
+  centered: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: { marginTop: 16, fontSize: 16, color: t.foreground },
+  container2: { alignSelf: 'center', overflow: 'hidden', borderRadius: 24 },
+  surface: {
+    minHeight: 180,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    borderRadius: 18,
+    backgroundColor: t.card,
+    padding: 12,
+  },
+  fill: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  text2: { fontSize: 14, lineHeight: 20, color: t.foreground },
+  centered2: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  title: {
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: 700,
+    color: t.foreground,
+  },
+  mutedText: {
+    marginBottom: 32,
+    textAlign: 'center',
+    fontSize: 16,
+    lineHeight: 24,
+    color: t.mutedForeground,
+  },
+  surface2: {
+    position: 'relative',
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 12,
+    overflow: 'hidden',
+    borderRadius: 18,
+    backgroundColor: t.card,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  title2: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    fontSize: 18,
+    fontWeight: 600,
+    color: t.foreground,
+  },
+  section: { paddingHorizontal: 12, paddingBottom: 8 },
+  row2: { marginTop: 8, flexDirection: 'row', gap: 12, paddingHorizontal: 12, paddingBottom: 10 },
+}));

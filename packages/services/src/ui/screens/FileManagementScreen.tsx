@@ -7,7 +7,7 @@ import type React from 'react';
 import { type ComponentRef, useState, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, useWindowDimensions } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
-import { useQueryClient } from '@tanstack/react-query';
+import { useStore, withStore } from '@oxy.so/bloom-data';
 import { ExpoImage } from '../components/ExpoImage';
 import type { FileManagementScreenProps } from '../types/fileManagement';
 import { toast } from '@oxy.so/bloom/toast';
@@ -15,19 +15,14 @@ import { surfaces } from '@oxy.so/bloom/surfaces';
 import Ionicons from '../icons/Ionicons';
 import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import type { FileMetadata } from '@oxy.so/core';
-import { queryKeys } from '../hooks/queries/queryKeys';
-import {
-  useUserFilesInfinite,
-  removeFileFromCache,
-  patchFileMetadataInCache,
-} from '../hooks/queries/useFileQueries';
+import { useUploadFile, useUserFilesInfinite } from '../hooks/queries/useFileQueries';
+import { patchUserFileMetadata, refreshUserFiles, removeUserFile } from '../data/files';
 import { useSurfaceHeader, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
 import JustifiedPhotoGrid from '../components/photogrid/JustifiedPhotoGrid';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useI18n } from '../hooks/useI18n';
 import { useReduceMotion } from '../hooks/useReduceMotion';
-import { useUploadFile } from '../hooks/mutations/useAccountMutations';
 import { formatFileSize, getFileIcon } from '../utils/fileManagement';
 import { useResolvedFileUrls, fileThumbSource } from '../hooks/useResolvedFileUrls';
 import { FileViewer } from '../components/fileManagement/FileViewer';
@@ -80,37 +75,43 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
   // against `user`, so switching shows/manages that account's files.
   const { user, oxyServices } = useOxy();
   const { t } = useI18n();
-  const queryClient = useQueryClient();
+  const store = useStore();
   const uploadFileMutation = useUploadFile();
 
-  // Files are owned by the ACTIVE account. `targetUserId` scopes the query key,
+  // Files are owned by the ACTIVE account. `targetUserId` keys the listing,
   // so switching accounts (or an explicit `userId` prop) shows that account's
   // library with no manual reset.
   const targetUserId = userId || user?.id;
 
-  // The file list is React Query's, NOT a store: infinite-paginated, fetched on
-  // mount + on owner change, edited optimistically via cache helpers. The
-  // rendered list is the flattened pages.
+  // The library is a bloom-data listing (`data/files.ts`), NOT local state:
+  // read a page at a time, on mount and on owner change, and edited at once by
+  // the helpers below before the server is read again.
   const filesQuery = useUserFilesInfinite(targetUserId);
-  const files = useMemo(
-    () => filesQuery.data?.pages.flatMap((page) => page.files) ?? [],
-    [filesQuery.data],
-  );
+  const files = filesQuery.files;
   // No owner resolved yet counts as pending to avoid an incorrect empty state.
   const isLoadingFiles = !targetUserId || filesQuery.isLoading;
-  const isRefreshingFiles = filesQuery.isRefetching;
-  const isFetchingMore = filesQuery.isFetchingNextPage;
-  const hasMoreFiles = filesQuery.hasNextPage ?? false;
-  // Terminal load failure with nothing cached — render a DISTINCT error state
+  const isRefreshingFiles = filesQuery.isRefreshing;
+  const isFetchingMore = filesQuery.isFetchingMore;
+  const hasMoreFiles = filesQuery.hasMore;
+  // Terminal load failure with nothing held — render a DISTINCT error state
   // (not the empty state) so a failed load never looks like an empty library.
   const hasLoadError = filesQuery.isError && files.length === 0;
   const invalidateFiles = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.files.list(targetUserId) });
-  }, [queryClient, targetUserId]);
-  // A removal changes the library AND the trash (`files.all` holds both).
+    if (targetUserId) {
+      withStore(store, () => refreshUserFiles(oxyServices, targetUserId, ['library']));
+    }
+  }, [store, oxyServices, targetUserId]);
+  // A removal changes the library AND the trash.
   const invalidateAllFiles = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.files.all });
-  }, [queryClient]);
+    if (targetUserId) withStore(store, () => refreshUserFiles(oxyServices, targetUserId));
+  }, [store, oxyServices, targetUserId]);
+  // Takes a file out of the held library at once.
+  const dropFromLibrary = useCallback(
+    (fileId: string) => {
+      if (targetUserId) withStore(store, () => removeUserFile(targetUserId, fileId));
+    },
+    [store, targetUserId],
+  );
 
   const { width: windowWidth } = useWindowDimensions();
   // Prefer an explicit sheet width from the router; fall back to the window
@@ -531,9 +532,9 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           if (outcome === 'deleted') toast.success(t('fileManagement.toasts.deleteSuccess'));
         }
 
-        // Remove from the library cache, then reconcile both lists (the file
+        // Remove from the held library, then reconcile both lists (the file
         // is now in the trash) against the server.
-        removeFileFromCache(queryClient, targetUserId, fileId);
+        dropFromLibrary(fileId);
         invalidateAllFiles();
       } catch (error: unknown) {
         const status = errorStatus(error);
@@ -557,7 +558,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         setDeletingId(null);
       }
     },
-    [files, oxyServices, queryClient, targetUserId, invalidateAllFiles, confirmStillUsed, t],
+    [files, oxyServices, dropFromLibrary, invalidateAllFiles, confirmStillUsed, t],
   );
 
   const confirmBulkDelete = useCallback(async () => {
@@ -579,7 +580,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         confirmStillUsed(filename)(uses),
       );
       for (const fileId of [...result.trashed, ...result.deleted]) {
-        removeFileFromCache(queryClient, targetUserId, fileId);
+        dropFromLibrary(fileId);
       }
 
       if (result.trashed.length > 0) {
@@ -601,16 +602,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     } catch (error: unknown) {
       toast.error(getErrorMessage(error) || t('fileManagement.toasts.bulkDeleteError'));
     }
-  }, [
-    selectedIds,
-    files,
-    oxyServices,
-    queryClient,
-    targetUserId,
-    invalidateAllFiles,
-    confirmStillUsed,
-    t,
-  ]);
+  }, [selectedIds, files, oxyServices, dropFromLibrary, invalidateAllFiles, confirmStillUsed, t]);
 
   const handleBulkVisibilityChange = useCallback(
     async (visibility: 'private' | 'public' | 'unlisted') => {
@@ -636,10 +628,10 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           toast.success(
             t('fileManagement.toasts.visibilitySuccess', { count: successful, visibility }),
           );
-          // Reflect the new visibility in the cached files.
-          for (const fileId of selectedIds) {
-            patchFileMetadataInCache(queryClient, targetUserId, fileId, { visibility });
-          }
+          // Reflect the new visibility in the held files.
+          withStore(store, () => {
+            for (const fileId of selectedIds) patchUserFileMetadata(fileId, { visibility });
+          });
         }
         if (failed > 0) {
           toast.error(t('fileManagement.toasts.visibilityFailed', { count: failed }));
@@ -650,7 +642,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         toast.error(getErrorMessage(error) || t('fileManagement.toasts.visibilityError'));
       }
     },
-    [selectedIds, oxyServices, queryClient, targetUserId, invalidateFiles, t],
+    [selectedIds, oxyServices, store, invalidateFiles, t],
   );
 
   const handleVisibilityChange = useCallback(async () => {
@@ -809,20 +801,22 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
       return (
         <PressableScale
           key={photo.id}
-          className="rounded-[6px] overflow-hidden relative"
-          style={{
-            width,
-            height,
-            ...(selectMode && selectedIds.has(photo.id)
-              ? { borderWidth: 2, borderColor: colors.primary }
-              : {}),
-            ...(selectMode && multiSelect && selectedIds.size > 0 && !selectedIds.has(photo.id)
-              ? { opacity: 0.4 }
-              : {}),
-          }}
+          style={[
+            styles.container,
+            {
+              width,
+              height,
+              ...(selectMode && selectedIds.has(photo.id)
+                ? { borderWidth: 2, borderColor: colors.primary }
+                : {}),
+              ...(selectMode && multiSelect && selectedIds.size > 0 && !selectedIds.has(photo.id)
+                ? { opacity: 0.4 }
+                : {}),
+            },
+          ]}
           onPress={() => handleFileOpen(photo)}
         >
-          <View className="w-full h-full relative rounded-[6px] overflow-hidden">
+          <View style={styles.container2}>
             <ExpoImage
               source={{ uri: downloadUrl }}
               style={screenStyles.justifiedPhotoImage}
@@ -835,10 +829,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
               accessibilityLabel={photo.filename}
             />
             {selectMode && (
-              <View
-                className="absolute top-[4px] right-[4px] rounded-[12px] p-[2px]"
-                style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-              >
+              <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
                 <Ionicons
                   name={selectedIds.has(photo.id) ? 'checkmark-circle' : 'ellipse-outline'}
                   size={20}
@@ -984,7 +975,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         // Hide action buttons when selecting (in selectMode or bulk operations mode)
         rightElement:
           !selectMode && selectedIds.size === 0 ? (
-            <View className="flex-row items-center gap-1.5 ml-3">
+            <View style={styles.row}>
               {hasPreview ? (
                 <Button
                   appearance="subtle"
@@ -1049,7 +1040,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
       title={t('fileManagement.loadError.title')}
       description={t('fileManagement.loadError.description')}
       retryLabel={t('fileManagement.retry')}
-      onRetry={() => filesQuery.refetch()}
+      onRetry={() => filesQuery.refresh()}
       iconColor={colors.error}
       titleColor={colors.text}
       descriptionColor={colors.textSecondary}
@@ -1065,15 +1056,12 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     if (photos.length === 0) {
       if (hasLoadError) return renderLoadError();
       return (
-        <View className="items-center py-[40px] px-[24px]">
+        <View style={styles.container3}>
           <Ionicons name="images-outline" size={64} color={colors.textTertiary} />
-          <Text className="text-[24px] font-bold mt-[16px] mb-[8px]" style={{ color: colors.text }}>
+          <Text style={[styles.title, { color: colors.text }]}>
             {t('fileManagement.emptyPhotos.title')}
           </Text>
-          <Text
-            className="text-[16px] text-center leading-[24px] mb-[32px]"
-            style={{ color: colors.textSecondary }}
-          >
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
             {' '}
             {user?.id === targetUserId
               ? t('fileManagement.emptyPhotos.ownDescription')
@@ -1091,13 +1079,13 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     return (
       <ScrollView
         ref={photoScrollViewRef}
-        className="flex-1"
-        contentContainerClassName="p-[10px]"
+        style={styles.fill}
+        contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshingFiles}
             onRefresh={() => {
-              void filesQuery.refetch();
+              void filesQuery.refresh();
             }}
             tintColor={colors.primary}
           />
@@ -1108,7 +1096,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           const distanceFromBottom =
             contentSize.height - (contentOffset.y + layoutMeasurement.height);
           if (distanceFromBottom < 200 && !isFetchingMore && hasMoreFiles) {
-            filesQuery.fetchNextPage();
+            void filesQuery.more();
           }
         }}
         scrollEventThrottle={250}
@@ -1130,15 +1118,12 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     hasLoadError ? (
       renderLoadError()
     ) : (
-      <View className="items-center py-[40px] px-[24px]">
+      <View style={styles.container3}>
         <Ionicons name="folder-open-outline" size={64} color={colors.textTertiary} />
-        <Text className="text-[24px] font-bold mt-[16px] mb-[8px]" style={{ color: colors.text }}>
+        <Text style={[styles.title, { color: colors.text }]}>
           {t('fileManagement.emptyFiles.title')}
         </Text>
-        <Text
-          className="text-[16px] text-center leading-[24px] mb-[32px]"
-          style={{ color: colors.textSecondary }}
-        >
+        <Text style={[styles.text, { color: colors.textSecondary }]}>
           {user?.id === targetUserId
             ? t('fileManagement.emptyFiles.ownDescription')
             : t('fileManagement.emptyFiles.otherDescription')}
@@ -1291,7 +1276,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         loadingMore={isFetchingMore}
         loading={isLoadingFiles}
         loadError={hasLoadError}
-        onRetry={() => filesQuery.refetch()}
+        onRetry={() => filesQuery.refresh()}
         reduceMotion={reduceMotion}
         getThumbUrl={thumbSourceFor}
         primaryColor={colors.primary}
@@ -1300,8 +1285,8 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         // Long-press preview surfaces the file-detail panel on the stack.
         onPreviewPhoto={(file) => showFileDetailsModal(file)}
         onUpload={handleFileUpload}
-        onRefresh={() => filesQuery.refetch()}
-        onLoadMore={() => filesQuery.fetchNextPage()}
+        onRefresh={() => filesQuery.refresh()}
+        onLoadMore={() => filesQuery.more()}
         t={t}
       />
     );
@@ -1332,7 +1317,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
   // If upload preview is showing, render it inline instead of the file list
   if (showUploadPreview) {
     return (
-      <View className="flex-1">
+      <View style={styles.fill}>
         <UploadPreview
           pendingFiles={pendingFiles}
           onConfirm={handleConfirmUpload}
@@ -1345,13 +1330,12 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
   }
 
   return (
-    <View className="flex-1">
-      <View className="flex-row items-center justify-between px-[12px] py-[12px] gap-[12px]">
+    <View style={styles.fill}>
+      <View style={styles.row2}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="flex-1"
-          style={{ maxWidth: '80%' }}
+          style={[styles.fill, { maxWidth: '80%' }]}
         >
           <SegmentedControl
             type="radio"
@@ -1409,7 +1393,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             }
           }}
           trailing={
-            <View className="flex-row items-center gap-1">
+            <View style={styles.row3}>
               <MaterialCommunityIcons
                 name={
                   sortBy === 'date'
@@ -1456,7 +1440,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
       {/* Search Bar */}
       {files.length > 0 &&
         (viewMode === 'all' || files.some((f) => f.contentType.startsWith('image/'))) && (
-          <View className="mx-[12px] mb-[12px]">
+          <View style={styles.section}>
             <Search
               label={
                 viewMode === 'photos'
@@ -1472,21 +1456,12 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
 
       {/* File Stats */}
       {files.length > 0 && (
-        <View
-          className="flex-row px-[14px] py-[10px] mx-[12px] mb-[12px] rounded-[18px]"
-          style={{ backgroundColor: colors.card }}
-        >
-          <View className="flex-1 items-center py-[4px]">
-            <Text
-              className="text-[20px] font-extrabold leading-[24px]"
-              style={{ color: colors.text, letterSpacing: -0.5 }}
-            >
+        <View style={[styles.row4, { backgroundColor: colors.card }]}>
+          <View style={styles.container4}>
+            <Text style={[styles.title2, { color: colors.text, letterSpacing: -0.5 }]}>
               {filteredFiles.length}
             </Text>
-            <Text
-              className="text-[12px] font-medium mt-[2px]"
-              style={{ color: colors.textSecondary, letterSpacing: 0.2 }}
-            >
+            <Text style={[styles.text2, { color: colors.textSecondary, letterSpacing: 0.2 }]}>
               {searchQuery.length > 0
                 ? t('fileManagement.found')
                 : filteredFiles.length === 1
@@ -1498,32 +1473,20 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                     : t('fileManagement.files')}
             </Text>
           </View>
-          <View className="flex-1 items-center py-[4px]">
-            <Text
-              className="text-[20px] font-extrabold leading-[24px]"
-              style={{ color: colors.text, letterSpacing: -0.5 }}
-            >
+          <View style={styles.container4}>
+            <Text style={[styles.title2, { color: colors.text, letterSpacing: -0.5 }]}>
               {formatFileSize(filteredFiles.reduce((total, file) => total + file.length, 0))}
             </Text>
-            <Text
-              className="text-[12px] font-medium mt-[2px]"
-              style={{ color: colors.textSecondary, letterSpacing: 0.2 }}
-            >
+            <Text style={[styles.text2, { color: colors.textSecondary, letterSpacing: 0.2 }]}>
               {searchQuery.length > 0 ? t('fileManagement.size') : t('fileManagement.totalSize')}
             </Text>
           </View>
           {searchQuery.length > 0 && (
-            <View className="flex-1 items-center py-[4px]">
-              <Text
-                className="text-[20px] font-extrabold leading-[24px]"
-                style={{ color: colors.text, letterSpacing: -0.5 }}
-              >
+            <View style={styles.container4}>
+              <Text style={[styles.title2, { color: colors.text, letterSpacing: -0.5 }]}>
                 {files.length}
               </Text>
-              <Text
-                className="text-[12px] font-medium mt-[2px]"
-                style={{ color: colors.textSecondary, letterSpacing: 0.2 }}
-              >
+              <Text style={[styles.text2, { color: colors.textSecondary, letterSpacing: 0.2 }]}>
                 {t('fileManagement.total')}
               </Text>
             </View>
@@ -1544,8 +1507,8 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           refreshing={isRefreshingFiles}
           colors={colors}
           t={t}
-          onRefresh={() => filesQuery.refetch()}
-          onLoadMore={() => filesQuery.fetchNextPage()}
+          onRefresh={() => filesQuery.refresh()}
+          onLoadMore={() => filesQuery.more()}
           onClearSearch={() => setSearchQuery('')}
           renderEmptyState={renderEmptyState}
         />
@@ -1558,3 +1521,48 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
 };
 
 export default FileManagementScreen;
+
+const styles = StyleSheet.create({
+  container: { position: 'relative', overflow: 'hidden', borderRadius: 6 },
+  container2: {
+    position: 'relative',
+    height: '100%',
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 6,
+  },
+  overlay: { position: 'absolute', top: 4, right: 4, borderRadius: 12, padding: 2 },
+  row: { marginLeft: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  container3: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 40 },
+  title: { marginTop: 16, marginBottom: 8, fontSize: 24, fontWeight: 700 },
+  text: { marginBottom: 32, textAlign: 'center', fontSize: 16, lineHeight: 24 },
+  fill: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  content: { padding: 10 },
+  row2: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  row3: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  section: { marginHorizontal: 12, marginBottom: 12 },
+  row4: {
+    marginHorizontal: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  container4: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0%',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  title2: { fontSize: 20, lineHeight: 24, fontWeight: 800 },
+  text2: { marginTop: 2, fontSize: 12, fontWeight: 500 },
+});

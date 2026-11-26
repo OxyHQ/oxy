@@ -219,7 +219,7 @@ it('respects a surface that cannot be dismissed by system back while loading', (
   );
   act(() => __invokeTopSurfaceBackForTests());
   expect(dismiss).not.toHaveBeenCalled();
-  expect(stack.store.getState().closing).toBe(false);
+  expect(stack.getState().closing).toBe(false);
 });
 
 it('renders an already registered screen without requesting it again', () => {

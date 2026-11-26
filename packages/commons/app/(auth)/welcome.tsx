@@ -16,6 +16,7 @@ import {
   type ConsentLink,
 } from '@/lib/legal';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 const ROTATING_TEXT_KEYS = [
   'auth.welcome.rotating.humanId',
@@ -206,7 +207,7 @@ export default function WelcomeScreen() {
         </View>
 
         <View className="flex-row gap-space-12">
-          <Button appearance="outline" tone="neutral" onPress={handleDecline} className="flex-1">
+          <Button appearance="outline" tone="neutral" onPress={handleDecline} style={{ flex: 1 }}>
             {t('auth.welcome.decline')}
           </Button>
 
@@ -215,7 +216,7 @@ export default function WelcomeScreen() {
             tone="accent"
             onPress={handleContinue}
             disabled={!termsAccepted}
-            className="flex-1"
+            style={{ flex: 1 }}
           >
             {t('auth.welcome.accept')}
           </Button>
@@ -224,7 +225,7 @@ export default function WelcomeScreen() {
         <Button
           appearance="plain"
           tone="neutral"
-          className="mt-space-20"
+          style={{ marginTop: SPACING['space-20'] }}
           onPress={handleRestore}
           accessibilityLabel={t('auth.welcome.restore')}
         >

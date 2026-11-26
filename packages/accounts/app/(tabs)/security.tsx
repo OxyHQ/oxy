@@ -3,14 +3,8 @@ import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { ScreenHeader } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
-import {
-  OxySignInSecurityPanel,
-  useOxy,
-  useSignInMethods,
-  useUserDevices,
-  useRecentSecurityActivity,
-} from '@oxy.so/services';
-import type { DeviceRecord } from '@/utils/device-utils';
+import { OxySignInSecurityPanel, useOxy, useSignInMethods } from '@oxy.so/services';
+import { useDeviceRecords, useRecentSecurityEvents } from '@/hooks/useAccountRows';
 import { useTranslation } from '@/lib/i18n';
 import { useBiometricSettings } from '@/hooks/useBiometricSettings';
 import { SecurityRecommendationsSection } from '@/components/security/security-recommendations-section';
@@ -37,16 +31,15 @@ export default function SecurityScreen() {
   // How a personal account without a key signs in, for the recommendations;
   // the same query the sign-in & security panel below reads.
   const keylessPerson = !user?.publicKey && (!user?.kind || user.kind === 'personal');
-  const { data: signInMethods } = useSignInMethods({ enabled: keylessPerson });
+  const { value: signInMethods } = useSignInMethods({ enabled: keylessPerson });
 
-  // Fetch devices using TanStack Query hook — the `(tabs)` layout guarantees
-  // an authenticated session by the time this hook mounts.
-  const { data: rawDevices, isLoading: loading } = useUserDevices();
-  const devices = (rawDevices ?? []) as DeviceRecord[];
+  // The account's devices — the `(tabs)` layout guarantees an authenticated
+  // session by the time this hook mounts.
+  const { devices, isLoading: loading } = useDeviceRecords();
 
   // Fetch security activity
-  const { data: securityActivities = [], isLoading: securityActivityLoading } =
-    useRecentSecurityActivity(10);
+  const { events: securityActivities, isLoading: securityActivityLoading } =
+    useRecentSecurityEvents(10);
 
   // Biometric settings
   const {

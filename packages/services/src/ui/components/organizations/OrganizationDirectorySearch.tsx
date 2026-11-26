@@ -6,9 +6,9 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Organization, OrganizationType } from '@oxy.so/contracts';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { skip, useAction, useEntity, useList, useStore, withStore } from '@oxy.so/bloom-data';
+import type { Organization as OrganizationRecord, OrganizationType } from '@oxy.so/contracts';
 import {
   createOrganizationCheck,
   organizationClaimInputCheck,
@@ -23,6 +23,13 @@ import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useI18n } from '../../hooks/useI18n';
 import { useOxyRuntime } from '../../runtime/runtimeContext';
+import {
+  claimOrganization,
+  createOrganization,
+  Organization,
+  organizationSearch,
+  refreshOrganizationClaims,
+} from '../../data/organizations';
 import { OrganizationTypePicker } from './OrganizationTypePicker';
 
 /** Finding an existing identity never grants ownership or silently creates an account. */
@@ -74,10 +81,9 @@ function OrganizationDirectorySearchContent({
   const runtime = useOxyRuntime();
   const { oxyServices, user, activeSessionId, canUsePrivateApi } = useOxy();
   const { t } = useI18n();
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<Organization | null>(null);
+  const [selected, setSelected] = useState<OrganizationRecord | null>(null);
   const [adding, setAdding] = useState(false);
   const [type, setType] = useState<OrganizationType>('business');
   const [evidence, setEvidence] = useState('');
@@ -153,68 +159,70 @@ function OrganizationDirectorySearchContent({
     const timer = setTimeout(() => setQuery(search.trim()), 300);
     return () => clearTimeout(timer);
   }, [search]);
-  const results = useInfiniteQuery({
-    queryKey: ['oxy', 'organizations', 'search', query],
-    queryFn: ({ pageParam }) =>
-      oxyServices.organizations.search({
-        query,
-        limit: 20,
-        ...(pageParam ? { cursor: pageParam } : {}),
-      }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
-    enabled: query.length > 0,
-    retry: false,
-  });
-  const claim = useMutation({
-    // A lost response does not prove this non-idempotent claim was not sent.
-    retry: false,
-    mutationFn: (key: object) => {
+  const results = useList(
+    organizationSearch,
+    ...(query.length > 0 ? ([oxyServices, query] as const) : ([skip] as const)),
+  );
+  const store = useStore();
+  const claim = useAction(claimOrganization);
+  const create = useAction(createOrganization);
+  // A claim or a new directory entry changes what the directory and the
+  // person's claims show.
+  const refreshDirectory = () =>
+    Promise.all([
+      results.refresh(),
+      withStore(store, () => refreshOrganizationClaims(oxyServices)),
+    ]);
+  const submitClaim = async (key: object) => {
+    try {
+      // A lost response does not prove this non-idempotent claim was not sent:
+      // an action is never retried.
+      await claim.run(oxyServices, () => {
+        const operation = operations.current.get(key);
+        if (!operation || !currentOwner(operation) || !operation.accountId || !operation.evidence)
+          throw new Error('An active organization and personal session are required');
+        return {
+          accountId: operation.accountId,
+          input: parseContract(organizationClaimInputCheck, {
+            evidenceReference: operation.evidence,
+          }),
+        };
+      });
       const operation = operations.current.get(key);
-      if (!operation || !currentOwner(operation) || !operation.accountId || !operation.evidence)
-        throw new Error('An active organization and personal session are required');
-      return oxyServices.organizations.claim(
-        operation.accountId,
-        parseContract(organizationClaimInputCheck, { evidenceReference: operation.evidence }),
-      );
-    },
-    onSuccess: (_result, key) => {
-      const operation = operations.current.get(key);
-      if (operation && currentOwner(operation))
-        return queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
-    },
-    onSettled: (_result, _error, key) => {
+      if (operation && currentOwner(operation)) await refreshDirectory();
+    } catch {
+      // `claim.error` shows it.
+    } finally {
       operations.current.delete(key);
       if (pending.current.claim === key) pending.current.claim = null;
-    },
-  });
-  const create = useMutation({
-    // The directory creation endpoint does not carry an idempotency key.
-    retry: false,
-    mutationFn: (key: object) => {
-      const operation = operations.current.get(key);
-      if (!operation || !currentOwner(operation)) throw new Error('A personal session is required');
-      return oxyServices.organizations.create(
-        parseContract(createOrganizationCheck, {
+    }
+  };
+  const submitCreate = async (key: object) => {
+    try {
+      // The directory creation endpoint does not carry an idempotency key.
+      const organization = await create.run(oxyServices, () => {
+        const operation = operations.current.get(key);
+        if (!operation || !currentOwner(operation))
+          throw new Error('A personal session is required');
+        return parseContract(createOrganizationCheck, {
           name: operation.name,
           organizationType: operation.type,
-        }),
-      );
-    },
-    onSuccess: (organization, key) => {
+        });
+      });
       const operation = operations.current.get(key);
-      if (!operation || !currentOwner(operation)) return;
+      if (!organization || !operation || !currentOwner(operation)) return;
       if (lifecycle.current.active) {
         setSelected(organization);
         setAdding(false);
       }
-      void queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
-    },
-    onSettled: (_result, _error, key) => {
+      void refreshDirectory();
+    } catch {
+      // `create.error` shows it.
+    } finally {
       operations.current.delete(key);
       if (pending.current.create === key) pending.current.create = null;
-    },
-  });
+    }
+  };
   const reset = () => {
     setSelected(null);
     setAdding(false);
@@ -226,7 +234,7 @@ function OrganizationDirectorySearchContent({
   if (selected)
     return (
       <GroupedSection title={selected.name}>
-        <View className="gap-space-16 p-space-16">
+        <View style={styles.stack}>
           <Text>{t(`organizationDirectory.${selected.claimStatus}`)}</Text>
           {selected.status === 'inactive' ? (
             <Text>{t('organizationDirectory.inactive')}</Text>
@@ -243,7 +251,7 @@ function OrganizationDirectorySearchContent({
                 />
               </TextField>
               <Text>{t('organizationDirectory.evidenceHint')}</Text>
-              {claim.isSuccess ? (
+              {claim.data ? (
                 <Text accessibilityRole="alert">{t('organizationDirectory.claimSent')}</Text>
               ) : (
                 <Button
@@ -254,13 +262,7 @@ function OrganizationDirectorySearchContent({
                         ? capture({ accountId: selected.accountId, evidence })
                         : {};
                     pending.current.claim = key;
-                    try {
-                      claim.mutate(key);
-                    } catch (error) {
-                      pending.current.claim = null;
-                      operations.current.delete(key);
-                      throw error;
-                    }
+                    void submitClaim(key);
                   }}
                   disabled={
                     !personalReady ||
@@ -273,7 +275,7 @@ function OrganizationDirectorySearchContent({
                   {t('organizationDirectory.claim')}
                 </Button>
               )}
-              {claim.isError ? (
+              {claim.error ? (
                 <Text accessibilityRole="alert">{t('organizationDirectory.claimFailed')}</Text>
               ) : null}
             </>
@@ -287,7 +289,7 @@ function OrganizationDirectorySearchContent({
       </GroupedSection>
     );
   return (
-    <View className="gap-space-16">
+    <View style={styles.stack2}>
       <TextField>
         <TextFieldInput
           label={t('organizationDirectory.search')}
@@ -299,43 +301,31 @@ function OrganizationDirectorySearchContent({
           maxLength={200}
         />
       </TextField>
-      {query && results.isPending ? <ActivityIndicator /> : null}
-      {results.isError ? (
+      {query && results.isLoading ? <ActivityIndicator /> : null}
+      {results.status === 'error' ? (
         <View>
           <Text accessibilityRole="alert">{t('organizationDirectory.failed')}</Text>
-          <Button onPress={() => results.refetch()}>{t('organizationDirectory.retry')}</Button>
+          <Button onPress={() => results.refresh()}>{t('organizationDirectory.retry')}</Button>
         </View>
       ) : null}
-      {results.data ? (
+      {results.list ? (
         <GroupedSection title={t('organizationDirectory.title')}>
-          {results.data.pages
-            .flatMap((page) => page.items)
-            .map((organization) => (
-              <GroupedSectionItem
-                key={organization.accountId}
-                title={organization.name}
-                description={[
-                  organization.websiteUrl,
-                  organization.countryCode,
-                  t(`organizationDirectory.${organization.claimStatus}`),
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-                icon={<Avatar source={organization.avatar} name={organization.name} size={40} />}
-                onPress={() => setSelected(organization)}
-              />
-            ))}
-          {results.data.pages[0].items.length === 0 ? (
-            <Text>{t('organizationDirectory.empty')}</Text>
-          ) : null}
-          {results.hasNextPage ? (
-            <Button onPress={() => results.fetchNextPage()} disabled={results.isFetchingNextPage}>
+          {results.ids.map((id) => (
+            <OrganizationRow
+              key={id}
+              accountId={id}
+              onSelect={() => setSelected(withStore(store, () => Organization.get(id)) ?? null)}
+            />
+          ))}
+          {results.ids.length === 0 ? <Text>{t('organizationDirectory.empty')}</Text> : null}
+          {results.hasMore ? (
+            <Button onPress={() => results.more()} disabled={results.isFetching}>
               {t('organizationDirectory.loadMore')}
             </Button>
           ) : null}
         </GroupedSection>
       ) : null}
-      {results.isSuccess && query === search.trim() ? (
+      {results.status === 'success' && query === search.trim() ? (
         <>
           <Text>{t('organizationDirectory.newAccountHint')}</Text>
           <Button
@@ -364,12 +354,15 @@ function OrganizationDirectorySearchContent({
           {validationError ? (
             <Text accessibilityRole="alert">{t('organizationDirectory.invalid')}</Text>
           ) : null}
-          {create.isError ? (
+          {create.error ? (
             <Text accessibilityRole="alert">{t('organizationDirectory.saveFailed')}</Text>
           ) : null}
           <Button
             disabled={
-              !personalReady || create.isPending || !results.isSuccess || query !== search.trim()
+              !personalReady ||
+              create.isPending ||
+              results.status !== 'success' ||
+              query !== search.trim()
             }
             loading={create.isPending}
             onPress={() => {
@@ -385,13 +378,7 @@ function OrganizationDirectorySearchContent({
               if (pending.current.create) return;
               const key = capture({ name: search.trim(), type });
               pending.current.create = key;
-              try {
-                create.mutate(key);
-              } catch (error) {
-                pending.current.create = null;
-                operations.current.delete(key);
-                throw error;
-              }
+              void submitCreate(key);
             }}
           >
             {t('organizationDirectory.addDirectory')}
@@ -401,3 +388,28 @@ function OrganizationDirectorySearchContent({
     </View>
   );
 }
+
+function OrganizationRow({ accountId, onSelect }: { accountId: string; onSelect: () => void }) {
+  const { t } = useI18n();
+  const organization = useEntity(Organization, accountId);
+  if (!organization) return null;
+  return (
+    <GroupedSectionItem
+      title={organization.name}
+      description={[
+        organization.websiteUrl,
+        organization.countryCode,
+        t(`organizationDirectory.${organization.claimStatus}`),
+      ]
+        .filter(Boolean)
+        .join(' · ')}
+      icon={<Avatar source={organization.avatar} name={organization.name} size={40} />}
+      onPress={onSelect}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  stack: { gap: 16, padding: 16 },
+  stack2: { gap: 16 },
+});

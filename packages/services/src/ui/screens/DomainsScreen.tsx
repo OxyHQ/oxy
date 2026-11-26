@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skip, useAction, useEntity, useList } from '@oxy.so/bloom-data';
 import type { DomainVerificationInstructions, VerifiedDomain } from '@oxy.so/contracts';
 import { Button } from '@oxy.so/bloom/button';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -13,10 +13,17 @@ import { Text } from '@oxy.so/bloom/typography';
 import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useOxy } from '../context/oxyRuntimeContext';
-import { queryKeys } from '../hooks/queries/queryKeys';
+import {
+  Domain,
+  domains as verifiedDomains,
+  removeDomain,
+  requestDomainVerification,
+  verifyDomain,
+} from '../data/domains';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useApiErrorToast } from '../hooks/useApiErrorToast';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /**
  * DomainsScreen — prove that the signed-in identity controls a web domain.
@@ -27,52 +34,25 @@ import { useApiErrorToast } from '../hooks/useApiErrorToast';
  * (`/identity/domains`).
  */
 const DomainsScreen: React.FC<BaseScreenProps> = () => {
+  const themed = useThemedStyles();
   const { t } = useI18n();
   const showApiError = useApiErrorToast();
   useSurfaceHeader({ title: t('domains.title') });
   const bloomTheme = useTheme();
-  const queryClient = useQueryClient();
   const { oxyServices, user, isAuthenticated } = useOxy();
 
   const [domain, setDomain] = useState('');
   const [invalid, setInvalid] = useState(false);
   const [pending, setPending] = useState<DomainVerificationInstructions | null>(null);
 
-  const listKey = queryKeys.domains.list(user?.id);
-  const domains = useQuery({
-    queryKey: listKey,
-    enabled: isAuthenticated && Boolean(user?.id),
-    queryFn: () => oxyServices.identity.domains.list(),
-  });
-
-  const request = useMutation({
-    mutationFn: (name: string) => oxyServices.identity.domains.requestVerification(name),
-    onSuccess: (instructions) => {
-      setPending(instructions);
-      setDomain('');
-    },
-    onError: (error) => showApiError(error, 'domains.errors.request'),
-  });
-
-  const verify = useMutation({
-    mutationFn: (name: string) => oxyServices.identity.domains.verify(name),
-    onSuccess: (result) => {
-      if (!result.verified) {
-        toast.error(t('domains.errors.notYet'));
-        return;
-      }
-      setPending(null);
-      toast.success(t('domains.verified', { domain: result.domain.domain }));
-      void queryClient.invalidateQueries({ queryKey: listKey });
-    },
-    onError: (error) => showApiError(error, 'domains.errors.notYet'),
-  });
-
-  const remove = useMutation({
-    mutationFn: (name: string) => oxyServices.identity.domains.remove(name),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: listKey }),
-    onError: (error) => showApiError(error, 'domains.errors.remove'),
-  });
+  const domains = useList(
+    verifiedDomains,
+    ...(isAuthenticated && user?.id ? [oxyServices] : [skip]),
+  );
+  const request = useAction(requestDomainVerification);
+  const verify = useAction(verifyDomain);
+  const remove = useAction(removeDomain);
+  const runRemove = remove.run;
 
   const confirmRemove = useCallback(
     async (item: VerifiedDomain) => {
@@ -83,9 +63,12 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
         cancelLabel: t('common.cancel') || 'Cancel',
         destructive: true,
       });
-      if (confirmed) remove.mutate(item.domain);
+      if (!confirmed) return;
+      runRemove(oxyServices, item.domain).catch((error: unknown) =>
+        showApiError(error, 'domains.errors.remove'),
+      );
     },
-    [remove, t],
+    [runRemove, oxyServices, showApiError, t],
   );
 
   const submit = () => {
@@ -96,22 +79,44 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
       setInvalid(true);
       return;
     }
-    request.mutate(name);
+    request.run(oxyServices, name).then(
+      (instructions) => {
+        if (!instructions) return;
+        setPending(instructions);
+        setDomain('');
+      },
+      (error: unknown) => showApiError(error, 'domains.errors.request'),
+    );
+  };
+
+  const confirmVerified = (name: string) => {
+    verify.run(oxyServices, name).then(
+      (result) => {
+        if (!result) return;
+        if (!result.verified) {
+          toast.error(t('domains.errors.notYet'));
+          return;
+        }
+        setPending(null);
+        toast.success(t('domains.verified', { domain: result.domain.domain }));
+      },
+      (error: unknown) => showApiError(error, 'domains.errors.notYet'),
+    );
   };
 
   return (
-    <View className="px-screen-margin pb-space-24">
+    <View style={styles.section}>
       {pending ? (
         <GroupedSection title={t('domains.instructions.title', { domain: pending.domain })}>
-          <View className="px-space-16 py-space-12" style={styles.instructions}>
-            <Text className="text-text-secondary">{t('domains.instructions.dns')}</Text>
+          <View style={[styles.section2, styles.instructions]}>
+            <Text style={themed.mutedText}>{t('domains.instructions.dns')}</Text>
             <Text selectable testID="domains-dns-name">
               {pending.dns.name}
             </Text>
             <Text selectable testID="domains-dns-value">
               {pending.dns.value}
             </Text>
-            <Text className="text-text-secondary">{t('domains.instructions.wellKnown')}</Text>
+            <Text style={themed.mutedText}>{t('domains.instructions.wellKnown')}</Text>
             <Text selectable testID="domains-wellknown-url">
               {pending.wellKnown.url}
             </Text>
@@ -123,7 +128,7 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
               tone="action"
               loading={verify.isPending}
               disabled={verify.isPending}
-              onPress={() => verify.mutate(pending.domain)}
+              onPress={() => confirmVerified(pending.domain)}
               testID="domains-verify"
             >
               {t('domains.instructions.verify')}
@@ -140,7 +145,7 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
         </GroupedSection>
       ) : (
         <GroupedSection title={t('domains.add.title')}>
-          <View className="px-space-16 py-space-12" style={styles.instructions}>
+          <View style={[styles.section2, styles.instructions]}>
             <TextFieldLabel>{t('domains.add.label')}</TextFieldLabel>
             <TextField disabled={request.isPending} invalid={invalid}>
               <TextFieldInput
@@ -176,23 +181,15 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
       )}
 
       <GroupedSection title={t('domains.list.title')}>
-        {(domains.data ?? []).length === 0 ? (
-          <Text className="text-text-secondary px-space-16 py-space-12">
-            {t('domains.list.empty')}
-          </Text>
+        {domains.ids.length === 0 ? (
+          <Text style={themed.mutedText2}>{t('domains.list.empty')}</Text>
         ) : (
-          (domains.data ?? []).map((item) => (
-            <GroupedSectionItem
-              key={item.domain}
-              icon={<SettingsIcon name="web" color={bloomTheme.colors.success} />}
-              title={item.domain}
-              description={
-                item.method === 'dns-txt' ? t('domains.method.dns') : t('domains.method.wellKnown')
-              }
-              onPress={() => void confirmRemove(item)}
+          domains.ids.map((id) => (
+            <DomainRow
+              key={id}
+              id={id}
               disabled={remove.isPending}
-              destructive
-              showChevron={false}
+              onRemove={(item) => void confirmRemove(item)}
             />
           ))
         )}
@@ -201,11 +198,46 @@ const DomainsScreen: React.FC<BaseScreenProps> = () => {
   );
 };
 
+interface DomainRowProps {
+  id: string;
+  disabled: boolean;
+  onRemove: (item: VerifiedDomain) => void;
+}
+
+/** One verified domain, read from `Domain`. */
+const DomainRow: React.FC<DomainRowProps> = ({ id, disabled, onRemove }) => {
+  const { t } = useI18n();
+  const bloomTheme = useTheme();
+  const item = useEntity(Domain, id);
+  if (!item) return null;
+  return (
+    <GroupedSectionItem
+      icon={<SettingsIcon name="web" color={bloomTheme.colors.success} />}
+      title={item.domain}
+      description={
+        item.method === 'dns-txt' ? t('domains.method.dns') : t('domains.method.wellKnown')
+      }
+      onPress={() => onRemove(item)}
+      disabled={disabled}
+      destructive
+      showChevron={false}
+    />
+  );
+};
+
 // Layout-only: the vertical rhythm between the stacked instruction lines.
 const styles = StyleSheet.create({
   instructions: {
     gap: 8,
   },
+
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+  section2: { paddingHorizontal: 16, paddingVertical: 12 },
 });
 
 export default React.memo(DomainsScreen);
+
+const useThemedStyles = createTokenStyles((t) => ({
+  mutedText: { color: t.mutedForeground },
+  mutedText2: { paddingHorizontal: 16, paddingVertical: 12, color: t.mutedForeground },
+}));

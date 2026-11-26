@@ -45,14 +45,6 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   useOxy: () => ({ currentLanguage: 'en-US' }),
   useOptionalOxy: () => ({ currentLanguage: 'en-US' }),
 }));
-jest.mock('../../src/ui/hooks/queryClient', () => {
-  const { QueryClient } = jest.requireActual('@tanstack/react-query');
-  return {
-    __esModule: true,
-    createQueryClient: () => new QueryClient(),
-    attachQueryPersistence: () => ({ restored: Promise.resolve(), unsubscribe: () => {} }),
-  };
-});
 
 import OxyProvider from '../../src/ui/components/OxyProvider';
 

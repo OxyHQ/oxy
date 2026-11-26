@@ -12,7 +12,6 @@
  * cannot contain `require()` per CLAUDE.md) and (b) defeated tree-shaking.
  */
 
-/// <reference path="../types/react-native-classname.d.ts" />
 /// <reference path="../types/react-native-web-style.d.ts" />
 
 // Must stay the first runtime import: core reads the platform from it.
@@ -37,9 +36,6 @@ export { LogoIcon } from './components/logo/LogoIcon';
 export { LogoText } from './components/logo/LogoText';
 export { RequireOxyAuth } from './components/RequireOxyAuth';
 export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './components/RequireOxyAuth';
-// `OxyProvider`'s `accountQueries`: the app's per-account offline cache.
-export type { AccountQueriesConfig, AccountQueryMeta } from './hooks/accountQueryPersistence';
-export type { PersistedRootBound } from './hooks/persistedQueryCache';
 export { default as FollowButton } from './components/FollowButton';
 export { default as PeableButton } from './components/PeableButton';
 export type { PeableButtonProps } from './components/PeableButton';
@@ -62,9 +58,6 @@ export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 // Route screens live at `@oxy.so/services/screens`; a static export here defeats
 // the lazy route registry and moves the screens back into the initial chunk.
 
-// Stores
-export { useAuthStore } from './stores/authStore';
-
 // Error handlers (pure functions)
 export {
   handleAuthError,
@@ -74,4 +67,5 @@ export {
 } from './utils/errorHandlers';
 export type { HandleAuthErrorOptions } from './utils/errorHandlers';
 
-export { useSupervision, supervisionQueryKeys } from './hooks/queries/useSupervision';
+export { useSupervision } from './hooks/queries/useSupervision';
+export { supervisionState } from './data/supervision';

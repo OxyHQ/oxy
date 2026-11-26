@@ -80,7 +80,7 @@ resolves the caller with `OxyCallerPolicy` (one copy in `@oxy.so/services`
 
 1. The package comes from `Binder.getCallingUid()` → `getPackagesForUid`, never
    from anything the caller sends.
-2. It must be on the Oxy allow-list: Mention `earth.mention.app`, Alia
+2. It must be on the Oxy allow-list: Mention `org.mention.app`, Alia
    `onl.alia.app`, Gemies `ai.gemies.app`, Allo `you.allo.app`, Homiio `com.homiio.app`, CrowdSource
    `so.oxy.crowdsource`, Peable `to.peable.app` / Orbit `to.peable.orbit`, Atlas
    `so.oxy.atlas`, Dropsea `so.oxy.dropsea`, GoWay `to.goway.app`, Move
@@ -90,8 +90,11 @@ resolves the caller with `OxyCallerPolicy` (one copy in `@oxy.so/services`
    `co.mercaria.app` / `.dashboard` / `.pos`, Schedio `com.schedio.app`, Syra
    `fm.syra.app` / `fm.syra.studio`, Authenticator `so.oxy.authenticator`,
    Accounts `so.oxy.accounts`, Commons `so.oxy.commons`, each with its `.dev`
-   variant. An app's id is its own product domain reversed; the ones already on
-   Google Play (`earth.mention.app`, `so.oxy.commons`) keep theirs.
+   variant. An app's id is its own product domain reversed: Commons, already on
+   Google Play as `so.oxy.commons`, keeps its id, and Mention moved from
+   `earth.mention.app` to `org.mention.app` (mention.org) in its 2.2.0, a new
+   Play app; `earth.mention.app` stays listed only until the internal-testing
+   builds that carry it are replaced.
 3. It must be signed with the provider's own certificate:
    `hasSigningCertificate(pkg, sha256, CERT_INPUT_SHA256)` on API 28+,
    `checkSignatures` below.

@@ -60,12 +60,11 @@ session.
 chain of modifiers whose values are Bloom tokens, on Bloom without NativeWind. Routes are
 `layout()` and `screen()` from `@oxy.so/bloom-language/router`, app data is
 `@oxy.so/bloom-data`, Metro runs the language compiler (`withBloomLanguage`) and
-`bun run test` runs Jest through it. Its packages are listed in
-`scripts/pending-releases.mjs` until they are released; until then prove it against local
-packs:
+`bun run test` runs Jest through it. Prove it against the registry, or against local packs:
 
 ```bash
 bun run build
+node scripts/verify-language-app.mjs /tmp/notes-app           # from npm
 node scripts/verify-language-app.mjs /tmp/notes-app ./packs   # oxy.so-<name>-<version>.tgz
 ```
 

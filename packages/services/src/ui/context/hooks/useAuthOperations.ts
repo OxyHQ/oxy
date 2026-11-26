@@ -31,7 +31,6 @@ export interface UseAuthOperationsOptions {
    * it, so this hook holds no copy of anything to fall out of step.
    */
   runtime: OxyRuntime;
-  saveActiveSessionId: (sessionId: string) => Promise<void>;
   clearSessionState: () => Promise<void>;
   /** Used only by `performSignIn`'s same-user duplicate-session dedup (legacy session-validate path; unrelated to the SessionClient device-account set). */
   switchSession: (sessionId: string) => Promise<User>;
@@ -97,7 +96,6 @@ export const useAuthOperations = ({
   ensureDeviceSessionLane,
   store,
   runtime,
-  saveActiveSessionId,
   clearSessionState,
   switchSession,
   sessionClient,
@@ -263,7 +261,6 @@ export const useAuthOperations = ({
         runtime.mergeSessions(allDeviceSessions, { merge: true });
         runtime.setAccount(fullUser);
       });
-      await saveActiveSessionId(sessionResponse.sessionId);
       onAuthStateChange?.(fullUser);
       if (
         deviceRegistrationCommitted &&
@@ -279,7 +276,6 @@ export const useAuthOperations = ({
       onAuthStateChange,
       oxyServices,
       runtime,
-      saveActiveSessionId,
       sessionClient,
       store,
       switchSession,

@@ -1,7 +1,29 @@
-import { useCallback } from 'react';
-import { useAssetStore } from '../stores/assetStore';
+import { useCallback, useMemo } from 'react';
+import { useEntities, useListState, useModel, useStore, withStore } from '@oxy.so/bloom-data';
 import type { OxyServices } from '@oxy.so/core';
 import type { Asset, AssetMetadata, AssetRecord, AssetVariant, UploadedAsset } from '@oxy.so/core';
+import {
+  Asset as HeldAsset,
+  AssetActivity,
+  addAssetLink,
+  assetsByApp,
+  assetsByEntity,
+  clearAssetErrors,
+  HELD_ASSETS_KEY,
+  HeldAssets,
+  IDLE_ASSET_ACTIVITY,
+  isAssetLinkedTo,
+  mergeAsset,
+  removeAsset,
+  removeAssetLink,
+  removeUploadProgress,
+  resetAssets,
+  setAssetError,
+  setAssetLoading,
+  setUploadProgress,
+} from '../data/assets';
+
+const NO_IDS: readonly string[] = [];
 
 // Create a singleton instance for the hook
 let oxyInstance: OxyServices | null = null;
@@ -11,34 +33,42 @@ export const setOxyAssetInstance = (instance: OxyServices) => {
 };
 
 /**
- * Hook for managing assets with Zustand store integration
+ * Hook for managing assets, held in the signed-in account's store
+ * (`data/assets.ts`).
  */
 export const useAssets = () => {
-  const {
-    assets,
-    uploadProgress,
-    loading,
-    errors,
-    mergeAsset,
-    setAssets,
-    removeAsset,
-    setUploadProgress,
-    removeUploadProgress,
-    addLink,
-    removeLink,
-    setUploading,
-    setLinking,
-    setDeleting,
-    setUploadError,
-    setLinkError,
-    setDeleteError,
-    clearErrors,
-    getAssetsByApp,
-    getAssetsByEntity,
-    getAssetUsageCount,
-    isAssetLinked,
-    reset,
-  } = useAssetStore();
+  const store = useStore();
+  const held = useListState(HeldAssets, HELD_ASSETS_KEY);
+  const records = useEntities(HeldAsset, held?.ids ?? NO_IDS);
+  const assets = useMemo(
+    () => records.filter((asset): asset is Asset => asset !== undefined),
+    [records],
+  );
+  const activity = useModel(AssetActivity) ?? IDLE_ASSET_ACTIVITY;
+  const { uploadProgress, loading, errors } = activity;
+
+  const clearErrors = useCallback(() => withStore(store, clearAssetErrors), [store]);
+  const reset = useCallback(() => withStore(store, resetAssets), [store]);
+  const getAssetsByApp = useCallback((app: string) => assetsByApp(assets, app), [assets]);
+  const getAssetsByEntity = useCallback(
+    (app: string, entityType: string, entityId: string) =>
+      assetsByEntity(assets, app, entityType, entityId),
+    [assets],
+  );
+  const getAssetUsageCount = useCallback(
+    (assetId: string) => assets.find((asset) => asset.id === assetId)?.usageCount ?? 0,
+    [assets],
+  );
+  const isAssetLinked = useCallback(
+    (assetId: string, app: string, entityType: string, entityId: string) =>
+      isAssetLinkedTo(
+        assets.find((asset) => asset.id === assetId),
+        app,
+        entityType,
+        entityId,
+      ),
+    [assets],
+  );
 
   // Upload asset with progress tracking
   const upload = useCallback(
@@ -48,50 +78,53 @@ export const useAssets = () => {
       }
 
       try {
-        clearErrors();
-        setUploading(true);
+        withStore(store, () => {
+          clearAssetErrors();
+          setAssetLoading('uploading', true);
+        });
 
         const result = await oxyInstance.assets.upload(file, { metadata });
 
         // Update progress with final status
         if (result?.file) {
           const fileId = result.file.id;
-          setUploadProgress(fileId, {
-            fileId,
-            uploaded: file.size,
-            total: file.size,
-            percentage: 100,
-            status: 'complete',
-          });
+          withStore(store, () =>
+            setUploadProgress(fileId, {
+              fileId,
+              uploaded: file.size,
+              total: file.size,
+              percentage: 100,
+              status: 'complete',
+            }),
+          );
 
           // Remove progress after a short delay
           setTimeout(() => {
-            removeUploadProgress(fileId);
+            withStore(store, () => removeUploadProgress(fileId));
           }, 2000);
         }
 
-        // Add asset to store
+        // Hold the asset
         if (result.file) {
-          mergeAsset(result.file);
-          return result.file;
+          const uploaded = result.file;
+          withStore(store, () => mergeAsset(uploaded));
+          return uploaded;
         }
 
         return null;
       } catch (error: unknown) {
-        setUploadError((error instanceof Error ? error.message : null) || 'Upload failed');
+        withStore(store, () =>
+          setAssetError(
+            'upload',
+            (error instanceof Error ? error.message : null) || 'Upload failed',
+          ),
+        );
         throw error;
       } finally {
-        setUploading(false);
+        withStore(store, () => setAssetLoading('uploading', false));
       }
     },
-    [
-      clearErrors,
-      setUploading,
-      setUploadProgress,
-      removeUploadProgress,
-      mergeAsset,
-      setUploadError,
-    ],
+    [store],
   );
 
   // Link asset to entity
@@ -102,8 +135,10 @@ export const useAssets = () => {
       }
 
       try {
-        clearErrors();
-        setLinking(true);
+        withStore(store, () => {
+          clearAssetErrors();
+          setAssetLoading('linking', true);
+        });
 
         // Auto-detect visibility for avatars and profile banners
         const visibility =
@@ -117,26 +152,30 @@ export const useAssets = () => {
           { visibility },
         );
 
-        if (result.file) {
-          mergeAsset(result.file);
-        } else {
-          // If API doesn't return full file, update store optimistically
-          addLink(assetId, {
-            app,
-            entityType,
-            entityId,
-            createdBy: '', // Will be filled by server
-            createdAt: new Date().toISOString(),
-          });
-        }
+        withStore(store, () => {
+          if (result.file) {
+            mergeAsset(result.file);
+          } else {
+            // The API did not return the file: record the link it accepted.
+            addAssetLink(assetId, {
+              app,
+              entityType,
+              entityId,
+              createdBy: '', // Will be filled by server
+              createdAt: new Date().toISOString(),
+            });
+          }
+        });
       } catch (error: unknown) {
-        setLinkError((error instanceof Error ? error.message : null) || 'Link failed');
+        withStore(store, () =>
+          setAssetError('link', (error instanceof Error ? error.message : null) || 'Link failed'),
+        );
         throw error;
       } finally {
-        setLinking(false);
+        withStore(store, () => setAssetLoading('linking', false));
       }
     },
-    [clearErrors, setLinking, mergeAsset, addLink, setLinkError],
+    [store],
   );
 
   // Unlink asset from entity
@@ -147,25 +186,31 @@ export const useAssets = () => {
       }
 
       try {
-        clearErrors();
-        setLinking(true);
+        withStore(store, () => {
+          clearAssetErrors();
+          setAssetLoading('linking', true);
+        });
 
         const result = await oxyInstance.assets.unlink(assetId, { app, entityType, entityId });
 
-        if (result.file) {
-          mergeAsset(result.file);
-        } else {
-          // Update store optimistically
-          removeLink(assetId, app, entityType, entityId);
-        }
+        withStore(store, () => {
+          if (result.file) {
+            mergeAsset(result.file);
+          } else {
+            // The API did not return the file: drop the link it removed.
+            removeAssetLink(assetId, app, entityType, entityId);
+          }
+        });
       } catch (error: unknown) {
-        setLinkError((error instanceof Error ? error.message : null) || 'Unlink failed');
+        withStore(store, () =>
+          setAssetError('link', (error instanceof Error ? error.message : null) || 'Unlink failed'),
+        );
         throw error;
       } finally {
-        setLinking(false);
+        withStore(store, () => setAssetLoading('linking', false));
       }
     },
-    [clearErrors, setLinking, mergeAsset, removeLink, setLinkError],
+    [store],
   );
 
   // Get asset URL
@@ -187,12 +232,13 @@ export const useAssets = () => {
       }
       const result = await oxyInstance.assets.get(assetId);
       if (result.file) {
-        mergeAsset(result.file);
-        return result.file;
+        const file = result.file;
+        withStore(store, () => mergeAsset(file));
+        return file;
       }
       throw new Error('Asset not found');
     },
-    [mergeAsset],
+    [store],
   );
 
   // Delete asset
@@ -203,19 +249,26 @@ export const useAssets = () => {
       }
 
       try {
-        clearErrors();
-        setDeleting(true);
+        withStore(store, () => {
+          clearAssetErrors();
+          setAssetLoading('deleting', true);
+        });
 
         await oxyInstance.assets.delete(assetId, { force });
-        removeAsset(assetId);
+        withStore(store, () => removeAsset(assetId));
       } catch (error: unknown) {
-        setDeleteError((error instanceof Error ? error.message : null) || 'Delete failed');
+        withStore(store, () =>
+          setAssetError(
+            'delete',
+            (error instanceof Error ? error.message : null) || 'Delete failed',
+          ),
+        );
         throw error;
       } finally {
-        setDeleting(false);
+        withStore(store, () => setAssetLoading('deleting', false));
       }
     },
-    [clearErrors, setDeleting, removeAsset, setDeleteError],
+    [store],
   );
 
   // Restore asset from trash
@@ -226,10 +279,11 @@ export const useAssets = () => {
       }
       const result = await oxyInstance.assets.restore(assetId);
       if (result.file) {
-        mergeAsset(result.file);
+        const file = result.file;
+        withStore(store, () => mergeAsset(file));
       }
     },
-    [mergeAsset],
+    [store],
   );
 
   // Get variants
@@ -243,7 +297,7 @@ export const useAssets = () => {
 
   return {
     // State
-    assets: Object.values(assets),
+    assets,
     uploadProgress,
     loading,
     errors,

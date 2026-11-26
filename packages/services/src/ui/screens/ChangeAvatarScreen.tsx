@@ -26,7 +26,7 @@
 
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { Linking, Platform, View } from 'react-native';
+import { Linking, Platform, View, StyleSheet } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import {
@@ -320,9 +320,9 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss, subj
   const canUseCamera = Platform.OS !== 'web';
 
   return (
-    <View className="px-screen-margin pt-space-8 pb-space-24 gap-space-16">
+    <View style={styles.container}>
       <View
-        className="items-center"
+        style={styles.container2}
         accessible
         accessibilityRole="image"
         accessibilityLabel={t('changeAvatar.a11y.currentPhoto')}
@@ -390,3 +390,8 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss, subj
 };
 
 export default ChangeAvatarScreen;
+
+const styles = StyleSheet.create({
+  container: { gap: 16, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
+  container2: { alignItems: 'center' },
+});

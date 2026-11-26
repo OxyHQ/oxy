@@ -18,7 +18,7 @@ import { toast } from '@oxy.so/bloom';
 
 export function ProfileDemo() {
   const { isAuthenticated, oxyServices } = useAuth();
-  const { data: currentUser, isLoading } = useCurrentUser();
+  const { value: currentUser, isLoading } = useCurrentUser();
   const updateProfile = useUpdateProfile();
   const uploadAvatar = useUploadAvatar();
 
@@ -29,7 +29,7 @@ export function ProfileDemo() {
   const [lookupInput, setLookupInput] = useState('');
   const [lookupUsername, setLookupUsername] = useState('');
 
-  const { data: lookedUpUser, isLoading: lookupLoading } = useUserByUsername(lookupUsername || '');
+  const { value: lookedUpUser, isLoading: lookupLoading } = useUserByUsername(lookupUsername || '');
 
   if (!isAuthenticated) {
     return (
@@ -45,7 +45,7 @@ export function ProfileDemo() {
 
   const handleUpdateProfile = async () => {
     try {
-      await updateProfile.mutateAsync({
+      await updateProfile.run({
         username: username || undefined,
         bio: bio || undefined,
       });
@@ -61,7 +61,7 @@ export function ProfileDemo() {
     const preview = URL.createObjectURL(file);
     setAvatarPreview(preview);
     try {
-      await uploadAvatar.mutateAsync({
+      await uploadAvatar.run({
         uri: preview,
         name: file.name,
         type: file.type,
@@ -279,7 +279,7 @@ function Profile() {
   const updateProfile = useUpdateProfile();
   const uploadAvatar = useUploadAvatar();
 
-  await updateProfile.mutateAsync({ username: 'new-name' });
+  await updateProfile.run({ username: 'new-name' });
   await uploadAvatar.mutateAsync(file);
 }`}
           </pre>

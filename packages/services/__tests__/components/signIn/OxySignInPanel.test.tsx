@@ -150,8 +150,6 @@ const oxyServices = {
 };
 const handleWebSession = jest.fn(async (_session: unknown) => undefined);
 const openAccountDialog = jest.fn();
-const invalidateQueries = jest.fn();
-
 jest.mock('../../../src/ui/context/oxyRuntimeContext', () => ({
   __esModule: true,
   useOxy: () => ({
@@ -173,11 +171,6 @@ jest.mock('../../../src/ui/hooks/useI18n', () => {
     }),
   };
 });
-
-jest.mock('@tanstack/react-query', () => ({
-  __esModule: true,
-  useQueryClient: () => ({ invalidateQueries }),
-}));
 
 jest.mock('react-native-qrcode-svg', () => ({
   __esModule: true,
@@ -975,14 +968,13 @@ describe('a returning device — the account picker', () => {
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
   });
 
-  it('on a page, a switch resets every account-scoped query before continuing', async () => {
+  it('on a page, a switch continues at once: the next account has its own store to read', async () => {
     controller.chooseContext.mockResolvedValueOnce('switched');
     snapshot = makeSnapshot({ directory: directory('ctx-alice'), hasSession: true });
     renderPanel({ host: 'page' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Alice' }));
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(invalidateQueries).toHaveBeenCalledTimes(1);
   });
 
   it('a pair that cannot be activated falls back to signing in as it explicitly', async () => {

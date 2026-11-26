@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { useInfiniteSecurityActivity } from '@oxy.so/services';
+import { useEntities } from '@oxy.so/bloom-data';
+import { SecurityEvent, useInfiniteSecurityActivity } from '@oxy.so/services';
 import type { SecurityActivity } from '@oxy.so/core';
 import { useTranslation } from '@/lib/i18n';
 import {
@@ -71,29 +72,13 @@ export function useActivityGroups(): UseActivityGroupsResult {
   const { t, locale } = useTranslation();
   const formatters = useDayFormatters(locale);
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch,
-  } = useInfiniteSecurityActivity({
-    limit: PAGE_SIZE,
-  });
-
-  const activities = useMemo<SecurityActivity[]>(() => {
-    if (!data?.pages) return [];
-    const all: SecurityActivity[] = [];
-    for (const page of data.pages) {
-      for (const event of page.data) {
-        all.push(event);
-      }
-    }
-    return all;
-  }, [data]);
+  const view = useInfiniteSecurityActivity({ limit: PAGE_SIZE });
+  const rows = useEntities(SecurityEvent, view.ids);
+  // Every page read so far, in server order.
+  const activities = useMemo<SecurityActivity[]>(
+    () => rows.filter((row): row is SecurityActivity => row !== undefined),
+    [rows],
+  );
 
   /** Group sorted activities by day bucket, preserving server order. */
   const groups = useMemo<ActivityGroup[]>(() => {
@@ -139,12 +124,13 @@ export function useActivityGroups(): UseActivityGroupsResult {
     groups,
     activities,
     formatters,
-    isLoading,
-    isError,
-    error,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch,
+    isLoading: view.isLoading,
+    isError: view.status === 'error',
+    error: view.error instanceof Error ? view.error : null,
+    fetchNextPage: () => void view.more(),
+    hasNextPage: view.hasMore,
+    // A read with rows on screen: the next page (or a refresh).
+    isFetchingNextPage: view.isFetching && !view.isLoading,
+    refetch: view.refresh,
   };
 }

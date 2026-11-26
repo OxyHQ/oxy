@@ -23,9 +23,6 @@ export { default as OxyProvider } from './components/OxyProvider';
 export { default as OxySignInButton } from './components/OxySignInButton';
 export { default as OxyAuthPrompt } from './components/OxyAuthPrompt';
 export type { OxyAuthPromptProps } from './components/OxyAuthPrompt';
-// The account cache's declaration, for an app's `accountQueries` (types only).
-export type { AccountQueriesConfig, AccountQueryMeta } from './hooks/accountQueryPersistence';
-export type { PersistedRootBound } from './hooks/persistedQueryCache';
 export { LogoIcon } from './components/logo/LogoIcon';
 export { LogoText } from './components/logo/LogoText';
 export { default as FollowButton } from './components/FollowButton';
@@ -73,12 +70,12 @@ export type { AuthState, AuthActions, SignInOutcome, UseAuthReturn } from './hoo
 export { createDeferredProductAnalytics } from './analytics/productAnalytics';
 export type { OxyProductEvent, ProductAnalytics } from './analytics/productAnalytics';
 export { useFollow, useFollowerCounts, useSeedFollowStatuses } from './hooks/useFollow';
-export { useFollowTarget } from './hooks/useFollowTarget';
-export { useSupervision, supervisionQueryKeys } from './hooks/queries/useSupervision';
+export { useFollowTarget, useSeedFollowTargets } from './hooks/useFollowTarget';
+export { useSupervision } from './hooks/queries/useSupervision';
+export { supervisionState } from './data/supervision';
 export type { UseFollowTargetResult } from './hooks/useFollowTarget';
 export {
   useUserProfile,
-  useUserProfiles,
   useCurrentUser,
   useUserById,
   useUserByUsername,
@@ -91,11 +88,8 @@ export { useOxyEvent } from './hooks/useOxyEvent';
 // viewer's currency, a "Syncing..." badge) without the root barrel's screens:
 // mercaria.co shipped ~225 KB gzip of account screens on first paint because
 // its review upload could only get `useUploadFile` from the root.
-export {
-  useUpdateProfile,
-  useUploadAvatar,
-  useUploadFile,
-} from './hooks/mutations/useAccountMutations';
+export { useUpdateProfile, useUploadAvatar } from './hooks/mutations/useAccountMutations';
+export { useUploadFile } from './hooks/queries/useFileQueries';
 export { useFileDownloadUrl } from './hooks/useFileDownloadUrl';
 export { useMutationStatus } from './hooks/useMutationStatus';
 export type { MutationStatus } from './hooks/useMutationStatus';
@@ -116,35 +110,23 @@ export {
 } from './components/followRules';
 export type { FollowDuration, FollowMenuItem } from './components/followRules';
 
-// Query keys, cache invalidation and the canonical user-cache upsert
+// The user merge rules
 export {
-  queryKeys,
-  invalidateAccountQueries,
-  invalidateUserQueries,
-  invalidateSessionQueries,
-  invalidateDeviceQueries,
-  invalidatePrivacyQueries,
-  invalidateSecurityQueries,
-  invalidateStorageQueries,
-  invalidatePaymentsQueries,
-  invalidateConnectedAppsQueries,
-  invalidateAuthMethodsQueries,
-} from './hooks/queries/queryKeys';
-export {
-  upsertCachedUser,
-  upsertCachedUsers,
   CLEARABLE_USER_FIELDS,
   clearedFieldsFromProfileUpdate,
   clearedFieldsFromAccountUpdate,
-} from './hooks/queries/userCache';
+} from './data/userRecord';
 export type {
   CacheableUser,
   ClearableUserField,
   UpsertCachedUserOptions,
-} from './hooks/queries/userCache';
+} from './data/userRecord';
 
-// Stores
-export { useAuthStore } from './stores/authStore';
+// The people every app entity refers to (`refs: { user: User }`), held once per
+// account in `@oxy.so/bloom-data`; the session opens the account's store.
+export { User, storeUsers } from './data/user';
+export type { UserRecord } from './data/userRecord';
+export { SIGNED_OUT_DATA_ACCOUNT } from './data/accountData';
 
 // Error handler utilities
 export {

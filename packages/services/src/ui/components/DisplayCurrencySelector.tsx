@@ -30,9 +30,9 @@ export function DisplayCurrencySelector() {
           </SegmentedControlItem>
         ))}
       </SegmentedControl>
-      {error && (
+      {error ? (
         <Text accessibilityLiveRegion="polite">{t('preferences.displayCurrency.saveFailed')}</Text>
-      )}
+      ) : null}
     </View>
   );
 }

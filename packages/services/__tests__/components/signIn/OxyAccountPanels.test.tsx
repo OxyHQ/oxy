@@ -102,15 +102,10 @@ jest.mock('../../../src/ui/hooks/accountDialogSnapshot', () => ({
   useAccountDialogSnapshot: () => snapshot,
 }));
 
+const refreshMethods = jest.fn(async () => undefined);
 jest.mock('../../../src/ui/hooks/queries/useAuthMethods', () => ({
   __esModule: true,
-  useSignInMethods: () => ({ data: methods }),
-}));
-
-const invalidateQueries = jest.fn();
-jest.mock('@tanstack/react-query', () => ({
-  __esModule: true,
-  useQueryClient: () => ({ invalidateQueries }),
+  useSignInMethods: () => ({ value: methods, refresh: refreshMethods }),
 }));
 
 const copyText = jest.fn(async (_text: string) => undefined);
@@ -678,7 +673,8 @@ describe('the authenticator app', () => {
       emailCode: { verificationId: 'r-1', code: '111111' },
     });
     expect(codes.querySelector('pre')?.textContent).toBe(BACKUP_CODES.join('\n'));
-    expect(invalidateQueries).toHaveBeenCalled();
+    // The account's sign-in methods are read again after the write.
+    expect(refreshMethods).toHaveBeenCalled();
     expect(screen.getByTestId('totp-progress').getAttribute('aria-label')).toBe(
       'Step 2 of 2, Save your backup codes',
     );

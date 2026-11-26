@@ -166,19 +166,19 @@ const setLanguage = jest.fn(async (locale: string): Promise<void> => {
 
 // Account writer: `{ languages }` sets the ordered account locales; the derived
 // `currentLanguage` then follows `languages[0]`.
-const updateProfileMutateAsync = jest.fn(
-  async (updates: { languages?: string[] }): Promise<void> => {
-    const languages = updates.languages;
-    if (languages && languages.length > 0) {
-      __setOxyState({ currentLanguage: languages[0], currentLanguages: languages });
-    }
-  },
-);
+const updateProfileRun = jest.fn(async (updates: { languages?: string[] }): Promise<void> => {
+  const languages = updates.languages;
+  if (languages && languages.length > 0) {
+    __setOxyState({ currentLanguage: languages[0], currentLanguages: languages });
+  }
+});
 
 export function __resetOxyState(): void {
   state = makeDefaultState();
   setLanguage.mockClear();
-  updateProfileMutateAsync.mockClear();
+  updateProfileRun.mockClear();
+  oxyRuntime.getSnapshot.mockClear();
+  oxyRuntime.setError.mockClear();
   emit();
   oxyEventHandlers.clear();
 }
@@ -186,9 +186,9 @@ export function __resetOxyState(): void {
 /** Exposes the locale writer spies for call assertions. */
 export function __getLanguageMocks(): {
   setLanguage: jest.Mock;
-  updateProfileMutateAsync: jest.Mock;
+  updateProfileRun: jest.Mock;
 } {
-  return { setLanguage, updateProfileMutateAsync };
+  return { setLanguage, updateProfileRun };
 }
 
 function subscribe(listener: () => void): () => void {
@@ -207,21 +207,19 @@ export const useOxy = (): MockOxyState & { setLanguage: jest.Mock } => {
   return { ...snapshot, setLanguage };
 };
 
-export function useUpdateProfile(): { mutateAsync: jest.Mock; isPending: boolean } {
-  return { mutateAsync: updateProfileMutateAsync, isPending: false };
+export function useUpdateProfile(): { run: jest.Mock; isPending: boolean } {
+  return { run: updateProfileRun, isPending: false };
 }
 
-/** Reactive selector plus the imperative methods used by auth consumers. */
-export const useAuthStore = Object.assign(
-  <T>(selector: (snapshot: MockOxyState) => T): T => {
-    const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-    return selector(snapshot);
-  },
-  {
-    setState: jest.fn(),
-    getState: jest.fn(() => ({ isAuthenticated: false })),
-  },
-);
+/**
+ * The provider's runtime, as code read after an await sees it: the session now
+ * (signed in once the mock state is) and the error setter.
+ */
+export const oxyRuntime = {
+  getSnapshot: jest.fn(() => ({ account: state.isAuthenticated ? (state.user ?? {}) : null })),
+  setError: jest.fn(),
+};
+export const useOxyRuntime = (): typeof oxyRuntime => oxyRuntime;
 
 /**
  * Error funnel stub — mirrors the real signature: it invokes the caller's
@@ -238,7 +236,7 @@ export const handleAuthError = jest.fn(
 );
 
 /** Hydration hook — a no-op in tests. */
-export const useCurrentUser = (): { data: undefined } => ({ data: undefined });
+export const useCurrentUser = (): { value: undefined } => ({ value: undefined });
 
 /** Brand mark — a marker element; the real SVG needs the native renderer. */
 export const LogoIcon = (): ReactElement =>

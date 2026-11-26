@@ -1,15 +1,19 @@
-import { createStore, type StoreApi } from 'zustand/vanilla';
+import { model, Store, useModel, withStore } from '@oxy.so/bloom-data';
 import type { RouteName } from './routes';
 
 /**
  * Per-surface route history — the NAV-WITHIN axis.
  *
- * Bloom's surface stack owns DEPTH (a surface presented on top of another). This
- * store owns the ORTHOGONAL axis: the route history INSIDE one SDK surface. Each
+ * Bloom's surface stack owns DEPTH (a surface presented on top of another). The
+ * nav stack owns the ORTHOGONAL axis: the route history INSIDE one SDK surface. Each
  * SDK surface holds its own {@link SurfaceNavStack}; `navigate`/`replace`/`goBack`
  * mutate it and the SAME Bloom surface re-renders its content from the new top
  * frame. It is the per-surface reincarnation of the old global
  * `bottomSheetStore`'s `history` + `currentStep`.
+ *
+ * The history is one `@oxy.so/bloom-data` model value in the surface's own
+ * store (not an account's: an account switch inside a surface keeps its
+ * history), read by `SurfaceScreen` with `useSurfaceNavState`.
  *
  * `closing`/`closeResult` model a pending dismissal: the surface's `SurfaceScreen`
  * watches them and calls the Bloom surface's `dismiss(result)` from an effect —
@@ -36,8 +40,14 @@ export interface NavStackState {
   closeResult: unknown;
 }
 
+/** A surface's route history. */
+const NavStack = model<NavStackState>('oxy.surface-nav-stack');
+
 export interface SurfaceNavStack {
-  store: StoreApi<NavStackState>;
+  /** The surface's own store, which holds its route history. */
+  store: Store;
+  /** The route history now. */
+  getState(): NavStackState;
   /** Drill in: push a new frame. */
   navigate(route: RouteName, props?: Record<string, unknown>): void;
   /** Swap the top frame in place (no history entry). */
@@ -88,15 +98,28 @@ export function createSurfaceNavStack(
   route: RouteName,
   props?: Record<string, unknown>,
 ): SurfaceNavStack {
-  const store = createStore<NavStackState>(() => ({
-    frames: [makeFrame(route, props)],
-    direction: 'none',
-    closing: false,
-    closeResult: undefined,
-  }));
+  const store = new Store();
+  const getState = (): NavStackState => withStore(store, () => NavStack.get()) as NavStackState;
+  const setState = (
+    change: Partial<NavStackState> | ((state: NavStackState) => Partial<NavStackState>),
+  ): void =>
+    withStore(store, () =>
+      NavStack.set((current) => {
+        const state = current as NavStackState;
+        return { ...state, ...(typeof change === 'function' ? change(state) : change) };
+      }),
+    );
+  withStore(store, () =>
+    NavStack.set({
+      frames: [makeFrame(route, props)],
+      direction: 'none',
+      closing: false,
+      closeResult: undefined,
+    }),
+  );
 
   const getTop = (): NavFrame => {
-    const { frames } = store.getState();
+    const { frames } = getState();
     return frames[frames.length - 1];
   };
 
@@ -114,15 +137,15 @@ export function createSurfaceNavStack(
     // Dismissing the whole surface abandons EVERY pending sub-flow — settle each
     // promise so an awaiting caller (the avatar picker) never hangs.
     while (flowStack.length) flowStack.pop()?.resolve(undefined);
-    if (store.getState().closing) return;
-    store.setState({ closing: true, closeResult: result });
+    if (getState().closing) return;
+    setState({ closing: true, closeResult: result });
   };
 
   const goBack = (): boolean => {
-    const { frames } = store.getState();
+    const { frames } = getState();
     const current = frames[frames.length - 1];
     if (current.step > 0) {
-      store.setState({
+      setState({
         frames: [...frames.slice(0, -1), { ...current, step: current.step - 1 }],
         direction: 'backward',
       });
@@ -130,7 +153,7 @@ export function createSurfaceNavStack(
     }
     if (frames.length <= 1) return false;
     const nextLength = frames.length - 1;
-    store.setState({ frames: frames.slice(0, -1), direction: 'backward' });
+    setState({ frames: frames.slice(0, -1), direction: 'backward' });
     // Backing out past a sub-flow's entry frame cancels it (resolve undefined).
     // A single pop crosses at most one boundary, but loop for safety.
     while (flowStack.length && nextLength <= flowStack[flowStack.length - 1].returnLength) {
@@ -141,27 +164,28 @@ export function createSurfaceNavStack(
 
   return {
     store,
+    getState,
     getTop,
     requestDismiss,
     goBack,
     navigate(nextRoute, nextProps) {
-      store.setState((state) => ({
+      setState((state) => ({
         frames: [...state.frames, makeFrame(nextRoute, nextProps)],
         direction: 'forward',
       }));
     },
     replace(nextRoute, nextProps) {
-      store.setState((state) => ({
+      setState((state) => ({
         frames: [...state.frames.slice(0, -1), makeFrame(nextRoute, nextProps)],
         direction: 'forward',
       }));
     },
     canGoBack() {
-      const { frames } = store.getState();
+      const { frames } = getState();
       return frames.length > 1 || (frames[frames.length - 1]?.step ?? 0) > 0;
     },
     setStep(step) {
-      store.setState((state) => {
+      setState((state) => {
         const frames = state.frames.slice();
         const index = frames.length - 1;
         const direction =
@@ -175,8 +199,8 @@ export function createSurfaceNavStack(
       });
     },
     beginFlow(nextRoute, nextProps) {
-      const returnLength = store.getState().frames.length;
-      store.setState((state) => ({
+      const returnLength = getState().frames.length;
+      setState((state) => ({
         frames: [...state.frames, makeFrame(nextRoute, nextProps)],
         direction: 'forward',
       }));
@@ -191,7 +215,7 @@ export function createSurfaceNavStack(
         requestDismiss(result);
         return;
       }
-      store.setState((state) => ({
+      setState((state) => ({
         frames: state.frames.slice(0, flow.returnLength),
         direction: 'backward',
       }));
@@ -201,4 +225,9 @@ export function createSurfaceNavStack(
       while (flowStack.length) flowStack.pop()?.resolve(undefined);
     },
   };
+}
+
+/** A surface's route history, re-rendering when it changes. */
+export function useSurfaceNavState(navStack: SurfaceNavStack): NavStackState {
+  return useModel(NavStack, navStack.store) as NavStackState;
 }

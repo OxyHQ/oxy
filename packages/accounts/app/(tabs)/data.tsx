@@ -32,7 +32,7 @@ export default function DataScreen() {
 
   // OxyServices integration — auth is enforced by the `(tabs)` layout.
   const { user, isLoading: oxyLoading, oxyServices, showBottomSheet } = useOxy();
-  const { data: privacySettings, isLoading: privacyLoading } = usePrivacySettings(user?.id, {
+  const { value: privacySettings, isLoading: privacyLoading } = usePrivacySettings(user?.id, {
     enabled: !!user?.id,
   });
   const updatePrivacyMutation = useUpdatePrivacySettings();
@@ -53,7 +53,7 @@ export default function DataScreen() {
 
       setPendingPrivacyKey(key);
       try {
-        await updatePrivacyMutation.mutateAsync({
+        await updatePrivacyMutation.run({
           settings: { [key]: value },
           userId: user.id,
         });

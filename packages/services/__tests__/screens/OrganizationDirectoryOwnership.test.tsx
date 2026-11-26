@@ -1,17 +1,17 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import {
-  dehydrate,
-  hydrate,
-  onlineManager,
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query';
+  actionStatus,
+  DataProvider,
+  environment,
+  type PersistBatch,
+  type Persister,
+  Store,
+} from '@oxy.so/bloom-data';
 import { OxyServices } from '@oxy.so/core';
 jest.mock('@oxy.so/core/session', () => jest.requireActual('../../../core/src/session/index'), {
   virtual: true,
 });
 import { createOxyRuntime } from '../../src/ui/runtime/createOxyRuntime';
-import { attachQueryPersistence } from '../../src/ui/hooks/queryClient';
 
 const oxy = new OxyServices({ baseURL: 'https://identity.example' });
 let user = { id: 'alice', kind: 'personal' };
@@ -60,16 +60,17 @@ const organization = {
 };
 const originalFetch = global.fetch;
 let fetchMock: jest.Mock;
-let client: QueryClient;
+let store: Store;
+let searchSpy: jest.SpyInstance;
 
 beforeEach(() => {
-  onlineManager.setOnline(true);
+  environment.setOnline(true);
   user = { id: 'alice', kind: 'personal' };
   sessionId = 'session-alice';
   runtime.setAccount(user as never);
   runtime.setActiveSessionId(sessionId);
   oxy.session.setAccessToken(token('alice'));
-  jest
+  searchSpy = jest
     .spyOn(oxy.organizations, 'search')
     .mockResolvedValue({ items: [organization], nextCursor: null } as never);
   fetchMock = jest.fn(async () => ({
@@ -87,14 +88,12 @@ beforeEach(() => {
     }),
   }));
   global.fetch = fetchMock as never;
-  client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  store = new Store();
 });
 afterEach(() => {
-  onlineManager.setOnline(true);
+  environment.setOnline(true);
   cleanup();
-  client.clear();
+  void store.close();
   global.fetch = originalFetch;
   jest.restoreAllMocks();
 });
@@ -102,9 +101,9 @@ afterAll(() => oxy.dispose());
 
 function tree() {
   return (
-    <QueryClientProvider client={client}>
+    <DataProvider store={store}>
       <OrganizationDirectorySearch key={user.id} onCreateAccount={jest.fn()} />
-    </QueryClientProvider>
+    </DataProvider>
   );
 }
 async function startPausedClaim() {
@@ -116,17 +115,24 @@ async function startPausedClaim() {
   fireEvent.change(screen.getByLabelText('organizationDirectory.evidence'), {
     target: { value: 'private-case:alice' },
   });
-  act(() => onlineManager.setOnline(false));
+  act(() => environment.setOnline(false));
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
-  await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.isPaused).toBe(true));
+  await waitFor(() => expect(actionStatus(store).paused).toBe(1));
   return view;
 }
 async function resume() {
   await act(async () => {
-    onlineManager.setOnline(true);
-    await client.resumePausedMutations();
+    environment.setOnline(true);
   });
+  await settled();
 }
+/** Every call the store's actions made has ended. */
+async function settled() {
+  await act(async () => {});
+  await waitFor(() => expect(actionStatus(store)).toEqual({ pending: 0, paused: 0 }));
+}
+/** The directory search was read again: a claim or creation was published. */
+const searchesAfter = (count: number) => expect(searchSpy).toHaveBeenCalledTimes(count);
 
 it('does not send a paused claim after A changes to B', async () => {
   const view = await startPausedClaim();
@@ -189,62 +195,25 @@ it.each(['same subject, new session', 'A to B to A', 'bearer changes before proj
   },
 );
 
-it('does not put claim evidence or owner identifiers in dehydrated mutation variables', async () => {
+it('keeps a paused claim in memory only: nothing of it reaches the durable copy', async () => {
+  const writes: PersistBatch[] = [];
+  const persister: Persister = {
+    open: async () => {},
+    readRecords: async () => [],
+    readList: async () => null,
+    write: async (batch) => {
+      writes.push(batch);
+    },
+    close: async () => {},
+    destroy: async () => {},
+  };
+  store = new Store({ persister });
   await startPausedClaim();
-  const state = dehydrate(client);
-  expect(state.mutations).toHaveLength(1);
-  expect(state.mutations[0].state.variables).toEqual({});
-  const serialized = JSON.stringify(state);
+  await act(() => store.flush());
+  const serialized = JSON.stringify(writes);
   expect(serialized).not.toContain('private-case:alice');
   expect(serialized).not.toContain('session-alice');
   expect(serialized).not.toContain(token('alice'));
-});
-
-it('does not write claim evidence or owner identifiers to the shared persister', async () => {
-  const storage = {
-    getItem: jest.fn(async () => null),
-    setItem: jest.fn(async (_key: string, _value: string) => {}),
-    removeItem: jest.fn(async () => {}),
-  };
-  const persistence = attachQueryPersistence(client, storage as never);
-  try {
-    await persistence.restored;
-    await startPausedClaim();
-    await waitFor(
-      () =>
-        expect(
-          storage.setItem.mock.calls.some(
-            ([, value]) => JSON.parse(value).clientState.mutations.length === 1,
-          ),
-        ).toBe(true),
-      { timeout: 3000 },
-    );
-    const writes = storage.setItem.mock.calls.map(([, value]) => value);
-    expect(writes.some((value) => JSON.parse(value).clientState.mutations.length === 1)).toBe(true);
-    const serialized = writes.join('');
-    expect(serialized).not.toContain('private-case:alice');
-    expect(serialized).not.toContain('session-alice');
-    expect(serialized).not.toContain(token('alice'));
-  } finally {
-    persistence.unsubscribe();
-  }
-});
-
-it('cannot replay a restored mutation without its in-memory operation', async () => {
-  await startPausedClaim();
-  const saved = dehydrate(client);
-  cleanup();
-  client.clear();
-  const restored = new QueryClient();
-  try {
-    hydrate(restored, saved);
-    act(() => onlineManager.setOnline(true));
-    await restored.resumePausedMutations();
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(restored.getMutationCache().getAll()[0]?.state.status).toBe('error');
-  } finally {
-    restored.clear();
-  }
 });
 
 it('does not publish a late claim after A to B to A', async () => {
@@ -255,7 +224,6 @@ it('does not publish a late claim after A to B to A', async () => {
         release = resolve;
       }),
   );
-  const invalidate = jest.spyOn(client, 'invalidateQueries');
   const view = render(tree());
   fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
     target: { value: 'Acme' },
@@ -266,7 +234,6 @@ it('does not publish a late claim after A to B to A', async () => {
   });
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-  const mutation = client.getMutationCache().getAll()[0];
   act(() => {
     oxy.session.setAccessToken(token('bob'));
     runtime.batch(() => {
@@ -295,10 +262,10 @@ it('does not publish a late claim after A to B to A', async () => {
         },
       }),
     });
-    await waitFor(() => expect(mutation.state.status).not.toBe('pending'));
+    await waitFor(() => expect(actionStatus(store).pending).toBe(0));
   });
   expect(screen.queryByText('organizationDirectory.claimSent')).toBeNull();
-  expect(invalidate).not.toHaveBeenCalled();
+  searchesAfter(1);
 });
 
 it('refuses a claim when the installed bearer has a known different subject', async () => {
@@ -316,7 +283,7 @@ it('refuses a claim when the installed bearer has a known different subject', as
   act(() => oxy.session.setAccessToken(token('bob')));
   expect(screen.queryByLabelText('organizationDirectory.evidence')).toBeNull();
   act(() => retained());
-  await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+  await settled();
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
@@ -349,12 +316,9 @@ it('does not replay a paused creation after the owner changes', async () => {
   });
   await screen.findByRole('button', { name: 'Acme' });
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.addDirectory' }));
-  act(() => onlineManager.setOnline(false));
+  act(() => environment.setOnline(false));
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.addDirectory' }));
-  await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.isPaused).toBe(true));
-  const state = JSON.stringify(dehydrate(client).mutations);
-  expect(state).not.toContain('Acme');
-  expect(state).not.toContain('session-alice');
+  await waitFor(() => expect(actionStatus(store).paused).toBe(1));
   act(() => {
     user = { id: 'bob', kind: 'personal' };
     sessionId = 'session-bob';
@@ -369,8 +333,7 @@ it('does not replay a paused creation after the owner changes', async () => {
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it('does not retry a non-idempotent claim even if the host enables mutation retries', async () => {
-  client.setDefaultOptions({ queries: { retry: false }, mutations: { retry: 2, retryDelay: 0 } });
+it('never retries a non-idempotent claim', async () => {
   fetchMock.mockRejectedValue(new Error('network failure'));
   render(tree());
   fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
@@ -436,7 +399,6 @@ it('does not publish a late creation after the observed account changes', async 
         release = resolve;
       }),
   );
-  const invalidate = jest.spyOn(client, 'invalidateQueries');
   const view = render(tree());
   fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
     target: { value: 'Acme' },
@@ -445,7 +407,6 @@ it('does not publish a late creation after the observed account changes', async 
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.addDirectory' }));
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.addDirectory' }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-  const mutation = client.getMutationCache().getAll()[0];
   act(() => {
     user = { id: 'bob', kind: 'personal' };
     sessionId = 'session-bob';
@@ -463,10 +424,10 @@ it('does not publish a late creation after the observed account changes', async 
       headers: { get: () => 'application/json' },
       json: async () => ({ data: organization }),
     });
-    await waitFor(() => expect(mutation.state.status).not.toBe('pending'));
+    await waitFor(() => expect(actionStatus(store).pending).toBe(0));
   });
   expect(screen.queryByText('organizationDirectory.unclaimed')).toBeNull();
-  expect(invalidate).not.toHaveBeenCalled();
+  searchesAfter(1);
 });
 
 it('keeps a claim pending across a same-context token refresh and accepts its response', async () => {
@@ -477,7 +438,6 @@ it('keeps a claim pending across a same-context token refresh and accepts its re
         release = resolve;
       }),
   );
-  const invalidate = jest.spyOn(client, 'invalidateQueries');
   render(tree());
   fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
     target: { value: 'Acme' },
@@ -512,7 +472,7 @@ it('keeps a claim pending across a same-context token refresh and accepts its re
     });
   });
   await screen.findByText('organizationDirectory.claimSent');
-  expect(invalidate).toHaveBeenCalledTimes(1);
+  await waitFor(() => searchesAfter(2));
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
@@ -542,11 +502,10 @@ it('does not send a claim when the account changes during auth preflight', async
     });
     fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
     await waiting;
-    const mutation = client.getMutationCache().getAll()[0];
     await act(async () => {
       oxy.session.setAccessToken(token('bob'));
       finish?.(token('bob'));
-      await waitFor(() => expect(mutation.state.status).toBe('error'));
+      await waitFor(() => expect(actionStatus(store).pending).toBe(0));
     });
     expect(fetchMock).not.toHaveBeenCalled();
   } finally {
@@ -558,7 +517,7 @@ it('does not replay a paused claim after leaving the screen, even if the owner r
   const view = await startPausedClaim();
   view.unmount();
   await resume();
-  await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+  await settled();
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
@@ -577,7 +536,6 @@ it('does not cancel a claim already in HTTP preflight when the screen unmounts',
     began?.();
     return refresh;
   });
-  const invalidate = jest.spyOn(client, 'invalidateQueries');
   try {
     const view = render(tree());
     fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
@@ -590,14 +548,13 @@ it('does not cancel a claim already in HTTP preflight when the screen unmounts',
     fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
     await waiting;
     expect(fetchMock).not.toHaveBeenCalled();
-    const mutation = client.getMutationCache().getAll()[0];
     view.unmount();
     await act(async () => {
       finish?.(token('alice'));
-      await waitFor(() => expect(mutation.state.status).toBe('success'));
+      await waitFor(() => expect(actionStatus(store).pending).toBe(0));
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(invalidate).not.toHaveBeenCalled();
+    searchesAfter(1);
   } finally {
     oxy.http.setAuthRefreshHandler(null);
   }
@@ -676,16 +633,16 @@ it('rejects a retained claim handler after an observed A to B to A transition', 
     view.rerender(tree());
   });
   act(() => retained());
-  await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+  await settled();
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
 it('rejects a retained new-account callback after an observed A to B to A transition', async () => {
   const onCreate = jest.fn();
   const view = render(
-    <QueryClientProvider client={client}>
+    <DataProvider store={store}>
       <OrganizationDirectorySearch onCreateAccount={onCreate} />
-    </QueryClientProvider>,
+    </DataProvider>,
   );
   fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
     target: { value: 'Acme' },
@@ -705,9 +662,9 @@ it('rejects a retained new-account callback after an observed A to B to A transi
       runtime.setActiveSessionId(sessionId);
     });
     view.rerender(
-      <QueryClientProvider client={client}>
+      <DataProvider store={store}>
         <OrganizationDirectorySearch onCreateAccount={onCreate} />
-      </QueryClientProvider>,
+      </DataProvider>,
     );
   });
   act(() => retained());
@@ -731,7 +688,7 @@ it('rejects a retained handler after bearer A to B to A before runtime projectio
     oxy.session.setAccessToken(token('alice'));
   });
   act(() => retained());
-  await waitFor(() => expect(client.getMutationCache().getAll()[0]?.state.status).toBe('error'));
+  await settled();
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
@@ -772,7 +729,7 @@ it('sends one claim for synchronous presses and unlocks after failure', async ()
     fireEvent.click(button);
     fireEvent.click(button);
   });
-  expect(client.getMutationCache().getAll()).toHaveLength(1);
+  expect(actionStatus(store).pending).toBe(1);
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
   await act(async () => {
     rejectFirst?.(new Error('offline'));
@@ -802,7 +759,7 @@ it('sends one creation for synchronous presses and unlocks after failure', async
     fireEvent.click(button);
     fireEvent.click(button);
   });
-  expect(client.getMutationCache().getAll()).toHaveLength(1);
+  expect(actionStatus(store).pending).toBe(1);
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
   await act(async () => {
     rejectFirst?.(new Error('offline'));
@@ -844,7 +801,6 @@ it('does not let an in-flight claim under A block a fresh claim under B', async 
   });
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-  const oldMutation = client.getMutationCache().getAll()[0];
   act(() => {
     user = { id: 'bob', kind: 'personal' };
     sessionId = 'session-bob';
@@ -881,7 +837,7 @@ it('does not let an in-flight claim under A block a fresh claim under B', async 
         },
       }),
     });
-    await waitFor(() => expect(oldMutation.state.status).not.toBe('pending'));
+    await waitFor(() => expect(actionStatus(store).pending).toBe(0));
   });
 });
 
@@ -893,7 +849,6 @@ it('suppresses local completion effects after unmount without claiming remote ca
         release = resolve;
       }),
   );
-  const invalidate = jest.spyOn(client, 'invalidateQueries');
   const view = render(tree());
   fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
     target: { value: 'Acme' },
@@ -904,7 +859,6 @@ it('suppresses local completion effects after unmount without claiming remote ca
   });
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.claim' }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-  const mutation = client.getMutationCache().getAll()[0];
   view.unmount();
   await act(async () => {
     release?.({
@@ -921,8 +875,8 @@ it('suppresses local completion effects after unmount without claiming remote ca
         },
       }),
     });
-    await waitFor(() => expect(mutation.state.status).toBe('success'));
+    await waitFor(() => expect(actionStatus(store).pending).toBe(0));
   });
-  expect(invalidate).not.toHaveBeenCalled();
+  searchesAfter(1);
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });

@@ -30,6 +30,7 @@ import { AccountCategoriesSection } from '../components/accountSettings/AccountC
 import { toast } from '@oxy.so/bloom/toast';
 import { describeApiError } from '../utils/apiErrorMessage';
 import { checkUsernameDraft, describeUsernameRefusal } from '../utils/usernamePolicy';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
@@ -110,6 +111,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   parentAccountId,
   navigate,
 }) => {
+  const styles = useStyles();
   const bloomTheme = useTheme();
   const { oxyServices, createAccount, switchToAccount, user, canUsePrivateApi } = useOxy();
   const { t } = useI18n();
@@ -341,7 +343,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   const title = t('accounts.create.title') || 'Create account';
 
   return (
-    <View className="gap-space-16 px-screen-margin pt-space-16 pb-space-32">
+    <View style={styles.container}>
       {user?.kind === 'personal' && !parentId ? (
         <GroupedSection title={t('supervision.title')}>
           <GroupedSectionItem
@@ -414,9 +416,9 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
 
           {/* Details — a grouped section card hosting the form fields */}
           <GroupedSection title={t('accounts.create.detailsSection') || 'Details'}>
-            <View className="p-space-16 gap-space-16">
+            <View style={styles.stack}>
               {/* Username */}
-              <View className="gap-space-8">
+              <View style={styles.stack2}>
                 <TextField isInvalid={usernameIsInvalid}>
                   <TextFieldInput
                     floatingLabel
@@ -431,7 +433,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                   />
                 </TextField>
                 {usernameStatus === 'checking' || usernameMessage ? (
-                  <View className="flex-row items-center gap-space-4 px-space-4">
+                  <View style={styles.row}>
                     {usernameStatus === 'checking' ? (
                       <ActivityIndicator size="small" color={bloomTheme.colors.primary} />
                     ) : usernameStatus === 'available' ? (
@@ -444,16 +446,14 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                       <Ionicons name="alert-circle" size={16} color={bloomTheme.colors.negative} />
                     ) : null}
                     {usernameMessage ? (
-                      <Text className="text-caption font-caption" style={{ color: statusColor }}>
-                        {usernameMessage}
-                      </Text>
+                      <Text style={[styles.text, { color: statusColor }]}>{usernameMessage}</Text>
                     ) : null}
                   </View>
                 ) : null}
               </View>
 
               {/* Display Name */}
-              <View className="gap-space-4">
+              <View style={styles.stack3}>
                 <TextField isInvalid={Boolean(displayNameError)}>
                   <TextFieldInput
                     floatingLabel
@@ -465,14 +465,12 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                   />
                 </TextField>
                 {displayNameError ? (
-                  <Text className="text-caption font-caption text-negative px-space-4">
-                    {displayNameError}
-                  </Text>
+                  <Text style={styles.fieldError}>{displayNameError}</Text>
                 ) : null}
               </View>
 
               {/* Bio */}
-              <View className="gap-space-4">
+              <View style={styles.stack3}>
                 <TextField>
                   <TextFieldInput
                     floatingLabel
@@ -485,7 +483,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                     textAlignVertical="top"
                   />
                 </TextField>
-                <Text className="text-caption font-caption text-text-tertiary px-space-4 text-right">
+                <Text style={styles.mutedText}>
                   {bio.length}/{BIO_MAX}
                 </Text>
               </View>
@@ -500,7 +498,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
             disabled={!canCreate}
             loading={isCreating}
             accessibilityLabel={title}
-            className="w-full"
+            style={styles.button}
           >
             {title}
           </Button>
@@ -511,3 +509,29 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
 };
 
 export default CreateAccountScreen;
+
+const useStyles = createTokenStyles((t) => ({
+  container: { gap: 16, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
+  stack: { gap: 16, padding: 16 },
+  stack2: { gap: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
+  text: { fontSize: 11, lineHeight: 14, fontWeight: 400 },
+  stack3: { gap: 4 },
+  // A field error, in Bloom's error role.
+  fieldError: {
+    paddingHorizontal: 4,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: 400,
+    color: t.destructive,
+  },
+  mutedText: {
+    paddingHorizontal: 4,
+    textAlign: 'right',
+    fontSize: 11,
+    color: t.mutedForeground,
+    lineHeight: 14,
+    fontWeight: 400,
+  },
+  button: { width: '100%' },
+}));

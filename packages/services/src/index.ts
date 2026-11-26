@@ -21,7 +21,6 @@
  * ```
  */
 
-/// <reference path="./types/react-native-classname.d.ts" />
 /// <reference path="./types/react-native-web-style.d.ts" />
 
 // Must stay the first runtime import: core reads the platform from it.
@@ -91,23 +90,6 @@ export type {
 } from './ui/session/setupSignIn';
 
 // ---------------------------------------------------------------------------
-// Zustand stores
-// ---------------------------------------------------------------------------
-export { useAuthStore } from './ui/stores/authStore';
-export {
-  useAssetStore,
-  useAssets as useAssetsStore,
-  useAsset,
-  useUploadProgress,
-  useAssetLoading,
-  useAssetErrors,
-  useAssetsByApp,
-  useAssetsByEntity,
-  useAssetUsageCount,
-  useIsAssetLinked,
-} from './ui/stores/assetStore';
-
-// ---------------------------------------------------------------------------
 // Session / asset hooks
 // ---------------------------------------------------------------------------
 export { useAssets, setOxyAssetInstance } from './ui/hooks/useAssets';
@@ -121,7 +103,6 @@ export type { UseStorageOptions, UseStorageResult } from './ui/hooks/useStorage'
 // ---------------------------------------------------------------------------
 export {
   useUserProfile,
-  useUserProfiles,
   useCurrentUser,
   useUserById,
   useUserByUsername,
@@ -166,7 +147,7 @@ export type {
 } from './ui/hooks/queries/paymentTypes';
 
 // ---------------------------------------------------------------------------
-// Mutation hooks (TanStack Query — updates)
+// Mutation hooks (bloom-data actions)
 // ---------------------------------------------------------------------------
 export {
   useUpdateProfile,
@@ -176,8 +157,8 @@ export {
   useUpdateNotificationPreferences,
   useUpdateUserPreferences,
   useRevokeConnectedApp,
-  useUploadFile,
 } from './ui/hooks/mutations/useAccountMutations';
+export { useUploadFile } from './ui/hooks/queries/useFileQueries';
 export {
   useSwitchSession,
   useLogoutSession,
@@ -185,57 +166,36 @@ export {
   useUpdateDeviceName,
   useRemoveDevice,
 } from './ui/hooks/mutations/useServicesMutations';
-export {
-  createProfileMutation,
-  createGenericMutation,
-} from './ui/hooks/mutations/mutationFactory';
-export type {
-  ProfileMutationConfig,
-  GenericMutationConfig,
-} from './ui/hooks/mutations/mutationFactory';
 
-// Stable mutation keys for the offline queue
-export { mutationKeys } from './ui/hooks/mutations/mutationKeys';
-
-// ---------------------------------------------------------------------------
-// Query keys + cache invalidation helpers
-// ---------------------------------------------------------------------------
-// Consumers (Mention, Homiio, Alia, accounts) use these to invalidate cached
-// data after writes that touch shared backend state. Keep nominal — no
-// `export *` — and never drop a public symbol without a major version bump.
+// The user merge rules' public half. Every person an app reads goes through
+// `storeUsers` (below), which MERGES into the one held, so a sparse source can
+// never strip a field an authoritative read already stored. A write that
+// DELIBERATELY empties a field ("remove my picture") says so with
+// `storeUsers(user, { cleared: [...] })`: the payload cannot express it.
 export {
-  queryKeys,
-  invalidateAccountQueries,
-  invalidateUserQueries,
-  invalidateSessionQueries,
-  invalidateDeviceQueries,
-  invalidatePrivacyQueries,
-  invalidateSecurityQueries,
-  invalidateStorageQueries,
-  invalidatePaymentsQueries,
-  invalidateConnectedAppsQueries,
-  invalidateAuthMethodsQueries,
-} from './ui/hooks/queries/queryKeys';
-
-// Canonical user-cache upsert. MERGE-upserts a (possibly partial) user into the
-// SDK's user query cache under both keys it owns (by-id + viewer-scoped
-// by-username). Consumers route ALL cache seeds (feed / list / search / profile
-// hydration) through this so a sparse source can never strip a field an
-// authoritative fetch already stored. A write that DELIBERATELY empties a field
-// ("remove my picture") says so with `{ cleared: [...] }` — the payload cannot
-// express it, see the module docs.
-export {
-  upsertCachedUser,
-  upsertCachedUsers,
   CLEARABLE_USER_FIELDS,
   clearedFieldsFromProfileUpdate,
   clearedFieldsFromAccountUpdate,
-} from './ui/hooks/queries/userCache';
+} from './ui/data/userRecord';
 export type {
   CacheableUser,
   ClearableUserField,
   UpsertCachedUserOptions,
-} from './ui/hooks/queries/userCache';
+} from './ui/data/userRecord';
+
+// The people every app entity refers to (`refs: { user: User }`), held once per
+// account in `@oxy.so/bloom-data`; the session opens the account's store.
+export { User, storeUsers } from './ui/data/user';
+export type { UserRecord } from './ui/data/userRecord';
+export { SIGNED_OUT_DATA_ACCOUNT } from './ui/data/accountData';
+// The rows the session, device, security-activity and domain list hooks name by
+// id: read one with `useEntity(Session, id)`.
+export { Session, DeviceSession, Device } from './ui/data/sessions';
+export type { DeviceSessionsExtra } from './ui/data/sessions';
+export { SecurityEvent } from './ui/data/security';
+export type { SecurityActivityPageExtra } from './ui/data/security';
+export { Domain } from './ui/data/domains';
+export type { AuthMethodsView } from './ui/hooks/queries/useAuthMethods';
 
 // Mutation status aggregator (for "Syncing..." indicators)
 export { useMutationStatus } from './ui/hooks/useMutationStatus';
@@ -334,9 +294,6 @@ export type {
 // wall before the device-first cold boot resolves. Opens the ONE account dialog.
 export { RequireOxyAuth } from './ui/components/RequireOxyAuth';
 export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './ui/components/RequireOxyAuth';
-// `OxyProvider`'s `accountQueries`: the app's per-account offline cache.
-export type { AccountQueriesConfig, AccountQueryMeta } from './ui/hooks/accountQueryPersistence';
-export type { PersistedRootBound } from './ui/hooks/persistedQueryCache';
 
 export { default as FollowButton } from './ui/components/FollowButton';
 export type {
@@ -361,22 +318,21 @@ export type { FollowTargetButtonProps } from './ui/components/FollowTargetButton
 export type { FollowVerb, FollowLabels } from './ui/components/followLabels';
 export { useFollowErrorMessage } from './ui/components/followLabels';
 export type { FollowErrorCode } from './ui/utils/followErrors';
-export { useFollowTarget } from './ui/hooks/useFollowTarget';
+export { useFollowTarget, useSeedFollowTargets } from './ui/hooks/useFollowTarget';
 export type { UseFollowTargetResult } from './ui/hooks/useFollowTarget';
 export {
-  useFollowTargetStore,
   UNKNOWN_FOLLOW_STATUS,
   // The answer to "does the user follow this at all". Documented in
   // docs/FOLLOWS.md and, until now, not exported — so the one line of that
   // guide most likely to be reached for did not resolve.
   isFollowedGlobally,
   withApplicationMode,
-  // Whether a cached status is safe to act on without a round trip — list rows
+  // Whether a held status is safe to act on without a round trip — list rows
   // often carry globalState without relationshipId.
   isCompleteFollowStatus,
   followRecordToStatus,
   followRecordsToStatusMap,
-} from './ui/stores/followTargetStore';
+} from './ui/data/follow';
 export { default as PeableButton } from './ui/components/PeableButton';
 export type { PeableButtonProps } from './ui/components/PeableButton';
 /** @deprecated Use `PeableButton` instead. */

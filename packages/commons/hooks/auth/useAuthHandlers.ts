@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 import type { OxyServices, User } from '@oxy.so/core';
 import { KeyManager } from '@oxy.so/core/crypto';
 import { logger } from '@oxy.so/core';
-import { useAuthStore } from '@oxy.so/services';
+import { useOxyRuntime } from '@oxy.so/services';
 import { requestNotificationPermission } from '@oxy.so/services/notifications';
 import { isNetworkOrTimeoutError, extractAuthErrorMessage } from '@/utils/auth/errorUtils';
 import { registerVaultPushToken, vaultChannelCopy } from '@/lib/notifications/push-registration';
@@ -54,6 +54,8 @@ export function useAuthHandlers({
   const router = useRouter();
   const { t } = useTranslation();
   const [isRequestingNotifications, setIsRequestingNotifications] = useState(false);
+  // Read after an await: the session as it stands now, not as this render saw it.
+  const runtime = useOxyRuntime();
 
   // Constants for retry logic
   const SIGN_IN_RETRY_DELAY_MS = 500;
@@ -72,8 +74,7 @@ export function useAuthHandlers({
    */
   const waitForAuthState = useCallback(async (): Promise<boolean> => {
     // Check initial state from store
-    const initialAuthState = useAuthStore.getState();
-    if (initialAuthState.isAuthenticated) {
+    if (runtime.getSnapshot().account !== null) {
       return true;
     }
 
@@ -81,8 +82,7 @@ export function useAuthHandlers({
     const startTime = Date.now();
     return new Promise<boolean>((resolve) => {
       const checkAuth = () => {
-        const authState = useAuthStore.getState();
-        if (authState.isAuthenticated) {
+        if (runtime.getSnapshot().account !== null) {
           resolve(true);
           return;
         }
@@ -102,7 +102,7 @@ export function useAuthHandlers({
 
       checkAuth();
     });
-  }, []);
+  }, [runtime]);
 
   /**
    * Handle sign-in with retry logic
@@ -216,7 +216,7 @@ export function useAuthHandlers({
   const handleRequestNotifications = useCallback(async () => {
     if (!isAuthenticated) {
       const signedIn = await completeSignIn({ navigateOnSuccess: false });
-      if (!signedIn || !useAuthStore.getState().isAuthenticated) {
+      if (!signedIn || runtime.getSnapshot().account === null) {
         return;
       }
     }
@@ -255,7 +255,7 @@ export function useAuthHandlers({
     }
 
     router.replace('/(tabs)/(id)');
-  }, [isAuthenticated, router, setAuthError, completeSignIn, oxyServices, t]);
+  }, [isAuthenticated, router, setAuthError, completeSignIn, oxyServices, t, runtime]);
 
   /**
    * "Not now": finish onboarding without the system prompt. Signs in first when
@@ -266,14 +266,14 @@ export function useAuthHandlers({
   const handleSkipNotifications = useCallback(async () => {
     if (!isAuthenticated) {
       const signedIn = await completeSignIn({ navigateOnSuccess: false });
-      if (!signedIn || !useAuthStore.getState().isAuthenticated) {
+      if (!signedIn || runtime.getSnapshot().account === null) {
         return;
       }
     }
     // "Not now" is an answer too: the ID tab does not ask again.
     await markNotificationOfferAnswered();
     router.replace('/(tabs)/(id)');
-  }, [isAuthenticated, router, completeSignIn]);
+  }, [isAuthenticated, router, completeSignIn, runtime]);
 
   return {
     handleSignIn,

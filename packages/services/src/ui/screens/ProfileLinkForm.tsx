@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
@@ -76,7 +76,7 @@ export function ProfileLinkForm({ surface, link, existingUrls }: ProfileLinkForm
   };
 
   return (
-    <Card className="gap-space-16 p-space-16">
+    <Card style={styles.card}>
       <Field
         label={t('editProfile.items.links.form.urlLabel') || 'Link'}
         error={error ? errorMessage(error) : undefined}
@@ -109,7 +109,7 @@ export function ProfileLinkForm({ surface, link, existingUrls }: ProfileLinkForm
           />
         </TextField>
       </Field>
-      <View className="flex-row justify-between items-center gap-space-8">
+      <View style={styles.row}>
         {link ? (
           <Button appearance="plain" tone="danger" onPress={remove}>
             {t('editProfile.items.links.form.remove') || 'Remove'}
@@ -117,7 +117,7 @@ export function ProfileLinkForm({ surface, link, existingUrls }: ProfileLinkForm
         ) : (
           <View />
         )}
-        <View className="flex-row gap-space-8">
+        <View style={styles.row2}>
           <Button appearance="subtle" tone="neutral" onPress={() => surface.dismiss()}>
             {t('common.cancel') || 'Cancel'}
           </Button>
@@ -129,3 +129,9 @@ export function ProfileLinkForm({ surface, link, existingUrls }: ProfileLinkForm
     </Card>
   );
 }
+
+const styles = StyleSheet.create({
+  card: { gap: 16, padding: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  row2: { flexDirection: 'row', gap: 8 },
+});

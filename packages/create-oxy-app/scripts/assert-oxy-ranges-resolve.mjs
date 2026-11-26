@@ -17,17 +17,12 @@
  * `dependencies`, `devDependencies`, `peerDependencies`, `overrides` and
  * `resolutions`. A registry that cannot be reached fails the run too: a gate that
  * passes when it could not check is not a gate.
- *
- * The one exception is a range listed in `pending-releases.mjs` (the language
- * template's packages before their release): its E404 is reported as pending,
- * not as a failure. Only an E404 of exactly that `name@range` is excused.
  */
 import { execFile } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { assertPublishedBloomPair } from './assert-bloom-pair.mjs';
-import { isPendingRelease } from './pending-releases.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -122,22 +117,13 @@ async function main() {
   }
 
   const failures = [];
-  const pending = [];
   const resolved = new Map();
   for (const [spec, sites] of specs) {
-    const at = spec.lastIndexOf('@');
-    const listed = isPendingRelease(spec.slice(0, at), spec.slice(at + 1));
     try {
       const version = await resolve(spec);
       resolved.set(spec, version);
-      const note = listed ? '   released: remove it from scripts/pending-releases.mjs' : '';
-      console.log(`ok  ${spec} -> ${version}   (${sites.join(', ')})${note}`);
+      console.log(`ok  ${spec} -> ${version}   (${sites.join(', ')})`);
     } catch (error) {
-      if (listed && error.code === 'E404') {
-        pending.push(spec);
-        console.log(`pending ${spec}   not released yet (scripts/pending-releases.mjs)`);
-        continue;
-      }
       failures.push(`${error.message}   named by ${sites.join(', ')}`);
       console.log(`FAIL ${spec}`);
     }
@@ -166,12 +152,6 @@ async function main() {
     process.exit(1);
   }
 
-  if (pending.length > 0) {
-    console.log(
-      `${resolved.size} generated @oxy.so ranges resolve; ${pending.length} await their release: ${pending.join(', ')}`,
-    );
-    return;
-  }
   console.log(
     `all ${specs.size} generated @oxy.so ranges resolve and the published Services/Bloom pair is compatible`,
   );

@@ -40,13 +40,13 @@ describe('LocaleProvider', () => {
       currentLanguages: ['en-US', 'fr-FR'],
     });
     const { result } = renderHook(() => useLocale(), { wrapper: Wrapper });
-    const { updateProfileMutateAsync, setLanguage } = __getLanguageMocks();
+    const { updateProfileRun, setLanguage } = __getLanguageMocks();
 
     await act(async () => {
       await result.current.setLocale('fr-FR');
     });
 
-    expect(updateProfileMutateAsync).toHaveBeenCalledWith({
+    expect(updateProfileRun).toHaveBeenCalledWith({
       languages: ['fr-FR', 'en-US'],
     });
     expect(setLanguage).not.toHaveBeenCalled();
@@ -56,14 +56,14 @@ describe('LocaleProvider', () => {
   it('stores a guest override via the SDK when signed out', async () => {
     __setOxyState({ isAuthenticated: false, currentLanguage: 'en-US' });
     const { result } = renderHook(() => useLocale(), { wrapper: Wrapper });
-    const { updateProfileMutateAsync, setLanguage } = __getLanguageMocks();
+    const { updateProfileRun, setLanguage } = __getLanguageMocks();
 
     await act(async () => {
       await result.current.setLocale('es-ES');
     });
 
     expect(setLanguage).toHaveBeenCalledWith('es-ES');
-    expect(updateProfileMutateAsync).not.toHaveBeenCalled();
+    expect(updateProfileRun).not.toHaveBeenCalled();
     expect(result.current.locale).toBe('es-ES');
   });
 

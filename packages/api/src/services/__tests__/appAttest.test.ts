@@ -17,7 +17,7 @@ import {
   verifyAppAttestAttestation,
 } from '../appAttest';
 
-const APP_ID = 'ABCDE12345.earth.mention.app';
+const APP_ID = 'ABCDE12345.org.mention.app';
 const CLIENT_DATA = 'r'.repeat(43);
 const NOW = new Date();
 const world = createTestAppAttestWorld(NOW);
@@ -98,9 +98,9 @@ describe('verifyAppAttestAttestation', () => {
     expect(reason(() => attestation(undefined, { appId: 'ABCDE12345.earth.other' }))).toBe(
       'rp_id_mismatch',
     );
-    expect(
-      reason(() => attestation(undefined, {}, { appId: 'ZZZZZ99999.earth.mention.app' })),
-    ).toBe('rp_id_mismatch');
+    expect(reason(() => attestation(undefined, {}, { appId: 'ZZZZZ99999.org.mention.app' }))).toBe(
+      'rp_id_mismatch',
+    );
     expect(reason(() => attestation(undefined, {}, { counter: 1 }))).toBe('counter');
   });
 

@@ -15,6 +15,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { addLocale, removeLocale, setPrimaryLocale } from '../hooks/useLanguageManagement';
 import { useUpdateProfile } from '../hooks/mutations/useAccountMutations';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface LanguageSelectorScreenProps extends BaseScreenProps {}
 
@@ -37,6 +38,7 @@ const CATALOG_BY_CODE: ReadonlyMap<string, SupportedLanguage> = new Map(
  * when signed out the ordered selection is stored on-device.
  */
 const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
+  const themed = useThemedStyles();
   const { user, isAuthenticated, currentLanguage, currentLanguages, setLanguages } = useOxy();
   const { t } = useI18n();
   const bloomTheme = useTheme();
@@ -96,10 +98,10 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
       setIsSubmitting(true);
       try {
         if (isAuthenticated && user?.id) {
-          const saved = await updateProfile.mutateAsync({ languages: next });
+          const saved = await updateProfile.run({ languages: next });
           if (
-            saved.languages?.length !== next.length ||
-            next.some((locale, index) => saved.languages?.[index] !== locale)
+            saved?.languages?.length !== next.length ||
+            next.some((locale, index) => saved?.languages?.[index] !== locale)
           ) {
             toast.error(t('language.saveFailed'));
             return;
@@ -162,8 +164,8 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
   );
 
   return (
-    <View className="pt-space-24 pb-space-24 px-screen-margin">
-      <View className="mb-space-16">
+    <View style={styles.section}>
+      <View style={styles.section2}>
         <Search
           value={query}
           onChangeText={setQuery}
@@ -190,10 +192,8 @@ const LanguageSelectorScreen: React.FC<LanguageSelectorScreenProps> = () => {
               }
               rightElement={
                 isPrimary ? (
-                  <View className="bg-fill-secondary rounded-full px-space-8 py-space-2">
-                    <Text className="text-primary" style={styles.primaryBadge}>
-                      {t('language.primary')}
-                    </Text>
+                  <View style={themed.surface}>
+                    <Text style={[themed.text, styles.primaryBadge]}>{t('language.primary')}</Text>
                   </View>
                 ) : canRemove ? (
                   <Button
@@ -259,7 +259,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+
+  section: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24 },
+  section2: { marginBottom: 16 },
 });
 
 // Export memoized component to prevent unnecessary re-renders
 export default React.memo(LanguageSelectorScreen);
+
+const useThemedStyles = createTokenStyles((t) => ({
+  surface: {
+    borderRadius: 9999,
+    backgroundColor: t.muted,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  text: { color: t.primary },
+}));

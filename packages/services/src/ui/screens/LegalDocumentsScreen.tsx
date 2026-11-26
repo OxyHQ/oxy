@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Linking } from 'react-native';
+import { View, Linking, StyleSheet } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -102,7 +102,7 @@ const LegalDocumentsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, init
 
   // Default: show the full list of policies & guidelines.
   return (
-    <View className="px-screen-margin py-space-16">
+    <View style={styles.section}>
       <GroupedSection title={t('legal.policies') || 'Policies & Guidelines'}>
         <GroupedSectionItem
           icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.success} />}
@@ -163,3 +163,7 @@ const LegalDocumentsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, init
 };
 
 export default React.memo(LegalDocumentsScreen);
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingVertical: 16 },
+});

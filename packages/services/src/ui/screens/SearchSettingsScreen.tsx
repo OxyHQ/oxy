@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -29,17 +29,20 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =>
 
   const privacyQuery = usePrivacySettings(user?.id);
   const updateSettings = useUpdatePrivacySettings();
-  const privacy = privacyQuery.data ?? user?.privacySettings;
+  const privacy = privacyQuery.value ?? user?.privacySettings;
   const settings: SearchSettings = {
     safeSearch: privacy?.autoFilter ?? true,
     searchPersonalization: privacy?.dataSharing ?? true,
   };
   const isSaving = updateSettings.isPending;
-  const isLoading = !user?.id || privacyQuery.isPending;
+  const isLoading = !user?.id || privacyQuery.isLoading;
   const toggle = (key: keyof SearchSettings) => {
     if (isSaving || isLoading) return;
     const field = key === 'safeSearch' ? 'autoFilter' : 'dataSharing';
-    updateSettings.mutate({ userId: user.id, settings: { [field]: !settings[key] } });
+    // A failure is told to the person by the hook, and rolled back.
+    updateSettings
+      .run({ userId: user.id, settings: { [field]: !settings[key] } })
+      .catch(() => undefined);
   };
   useEffect(() => {
     if (privacyQuery.error) toast.error(t('privacySettings.loadError'));
@@ -47,7 +50,7 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =>
 
   return (
     <>
-      <View className="px-screen-margin pb-space-24">
+      <View style={styles.section}>
         {/* SafeSearch */}
         <GroupedSection title={t('searchSettings.safeSearch.title') || 'SafeSearch'}>
           <GroupedSectionItem
@@ -95,3 +98,7 @@ const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =>
 };
 
 export default React.memo(SearchSettingsScreen);
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+});

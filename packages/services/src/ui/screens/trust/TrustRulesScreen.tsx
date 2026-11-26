@@ -1,6 +1,5 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
@@ -12,7 +11,9 @@ import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useI18n } from '../../hooks/useI18n';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import { queryKeys } from '../../hooks/queries/queryKeys';
+import { useAnswer } from '../../data/answer';
+import { reputationRules } from '../../data/trust';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /** Stable display order for rule category sections. */
 const CATEGORY_ORDER: ReputationCategory[] = [
@@ -26,6 +27,7 @@ const CATEGORY_ORDER: ReputationCategory[] = [
 ];
 
 const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
+  const styles = useStyles();
   const { oxyServices } = useOxy();
   const { t, locale } = useI18n();
 
@@ -35,13 +37,10 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
   });
   const bloomTheme = useTheme();
 
-  const rulesQuery = useQuery({
-    queryKey: queryKeys.reputation.rules(),
-    queryFn: () => oxyServices.reputation.rules(),
-    staleTime: 10 * 60 * 1000,
-  });
-  const rules: ReputationRule[] = Array.isArray(rulesQuery.data) ? rulesQuery.data : [];
-  const isLoading = rulesQuery.isPending;
+  const rulesQuery = useAnswer(reputationRules, oxyServices);
+  const held = rulesQuery.value;
+  const rules: readonly ReputationRule[] = Array.isArray(held) ? held : [];
+  const isLoading = rulesQuery.isLoading;
   const error = rulesQuery.error
     ? (rulesQuery.error instanceof Error ? rulesQuery.error.message : null) ||
       'Failed to load rules'
@@ -71,15 +70,11 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
   return (
     <>
       {isLoading ? null : error ? (
-        <Text className="text-text-secondary text-base text-center px-screen-margin pt-space-40">
-          {error}
-        </Text>
+        <Text style={styles.mutedText}>{error}</Text>
       ) : rules.length === 0 ? (
-        <Text className="text-text-secondary text-base text-center px-screen-margin pt-space-40">
-          {t('trust.rules.empty') || 'No rules found.'}
-        </Text>
+        <Text style={styles.mutedText}>{t('trust.rules.empty') || 'No rules found.'}</Text>
       ) : (
-        <View className="px-screen-margin pb-space-24 pt-space-12">
+        <View style={styles.section}>
           {groupedRules.map(({ category, items }) => (
             <GroupedSection key={category} title={reputationCategoryLabel(locale, category)}>
               {items.map((rule) => (
@@ -108,3 +103,15 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
 };
 
 export default TrustRulesScreen;
+
+const useStyles = createTokenStyles((t) => ({
+  mutedText: {
+    paddingHorizontal: 20,
+    paddingTop: 40,
+    textAlign: 'center',
+    fontSize: 16,
+    color: t.mutedForeground,
+    lineHeight: 24,
+  },
+  section: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 },
+}));

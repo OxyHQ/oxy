@@ -16,7 +16,8 @@
  *   2. The surface resolves with the cropped JPEG, with `{ removed: true }` when
  *      the user removed their photo, or `undefined` when they cancelled.
  *   3. A crop is uploaded as a NEW file via `oxyServices.assets.upload` and set as
- *      the avatar; a removal clears the avatar field.
+ *      the avatar through the `updateProfile` action; a removal clears the avatar
+ *      field.
  *
  * `expo-image-manipulator` is required for the crop step and `expo-image-picker`
  * for the device/camera sources (both declared as optional peers in the
@@ -26,16 +27,14 @@
 import { useCallback } from 'react';
 import type { OxyServices } from '@oxy.so/core';
 import { translate, updateAvatarVisibility } from '@oxy.so/core';
-import type { QueryClient } from '@tanstack/react-query';
 import { toast } from '@oxy.so/bloom/toast';
-import { updateProfileWithAvatar } from '../utils/avatarUtils';
+import { updateProfile } from '../data/account';
 import { openWithinOrPresent } from '../navigation/surfaces';
 
 interface UseAvatarPickerOptions {
   oxyServices: OxyServices;
   currentLanguage: string | null | undefined;
   activeSessionId: string | null;
-  queryClient: QueryClient;
 }
 
 /** Upload result shape returned by oxyServices.assets.upload (single-file path). */
@@ -100,7 +99,6 @@ export function useAvatarPicker({
   oxyServices,
   currentLanguage,
   activeSessionId,
-  queryClient,
 }: UseAvatarPickerOptions) {
   const openAvatarPicker = useCallback(async () => {
     const locale = currentLanguage ?? undefined;
@@ -108,13 +106,9 @@ export function useAvatarPicker({
       const fileId = await pickAvatarFile(oxyServices);
       if (fileId === undefined) return;
       // `''` clears the field on `updateMe`, so the profile falls back to the
-      // user's initials.
-      await updateProfileWithAvatar(
-        { avatar: fileId ?? '' },
-        oxyServices,
-        activeSessionId,
-        queryClient,
-      );
+      // user's initials. The provider calls this outside the data tree, so the
+      // action acts on the active account's store.
+      await updateProfile(oxyServices, activeSessionId, { avatar: fileId ?? '' });
       toast.success(
         translate(
           locale,
@@ -125,7 +119,7 @@ export function useAvatarPicker({
       const message = e instanceof Error ? e.message : undefined;
       toast.error(message || translate(locale, 'editProfile.toasts.updateAvatarFailed'));
     }
-  }, [activeSessionId, currentLanguage, oxyServices, queryClient]);
+  }, [activeSessionId, currentLanguage, oxyServices]);
 
   return { openAvatarPicker };
 }

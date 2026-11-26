@@ -10,8 +10,8 @@ import { toast } from '@oxy.so/bloom/toast';
 import { Text } from '@oxy.so/bloom/typography';
 import type { FileApplicationAccess } from '@oxy.so/core';
 import { useI18n } from '../../hooks/useI18n';
-import { useFileAppAccess } from '../../hooks/queries/useFileQueries';
-import { useRevokeFileAppAccess } from '../../hooks/mutations/useAccountMutations';
+import { useFileAppAccess, useRevokeFileAppAccess } from '../../hooks/queries/useFileQueries';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const APP_ICON_SIZE = 32;
 
@@ -28,9 +28,13 @@ interface FileAppAccessSectionProps {
  * revoke fails. Shown only on the owner's own file.
  */
 export const FileAppAccessSection: React.FC<FileAppAccessSectionProps> = ({ fileId }) => {
+  const styles = useStyles();
   const { t } = useI18n();
   const { colors } = useTheme();
-  const { data: apps, isLoading, isError } = useFileAppAccess(fileId);
+  const access = useFileAppAccess(fileId);
+  const apps = access.value?.apps;
+  const isLoading = access.isLoading;
+  const isError = access.status === 'error';
   const revoke = useRevokeFileAppAccess();
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
@@ -46,7 +50,7 @@ export const FileAppAccessSection: React.FC<FileAppAccessSectionProps> = ({ file
       if (!confirmed) return;
       setRevokingId(app.applicationId);
       try {
-        await revoke.mutateAsync({ fileId, applicationId: app.applicationId });
+        await revoke.run({ fileId, applicationId: app.applicationId });
         toast.success(t('fileManagement.appAccess.toasts.revoked', { name: app.name }));
       } catch {
         toast.error(t('fileManagement.appAccess.toasts.revokeFailed', { name: app.name }));
@@ -61,23 +65,15 @@ export const FileAppAccessSection: React.FC<FileAppAccessSectionProps> = ({ file
     app.via.map((via) => t(`fileManagement.appAccess.via.${via}`)).join(' · ');
 
   return (
-    <View className="w-full mb-space-24">
-      <Text className="text-text text-[16px] font-semibold mb-space-4">
-        {t('fileManagement.appAccess.title')}
-      </Text>
-      <Text className="text-text-secondary text-[14px] mb-space-12">
-        {t('fileManagement.appAccess.description')}
-      </Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>{t('fileManagement.appAccess.title')}</Text>
+      <Text style={styles.mutedText}>{t('fileManagement.appAccess.description')}</Text>
       {isLoading ? (
         <ActivityIndicator color={colors.primary} />
       ) : isError ? (
-        <Text className="text-text-secondary text-[14px]">
-          {t('fileManagement.appAccess.loadError')}
-        </Text>
+        <Text style={styles.mutedText2}>{t('fileManagement.appAccess.loadError')}</Text>
       ) : !apps || apps.length === 0 ? (
-        <Text className="text-text-secondary text-[14px]">
-          {t('fileManagement.appAccess.empty')}
-        </Text>
+        <Text style={styles.mutedText2}>{t('fileManagement.appAccess.empty')}</Text>
       ) : (
         <GroupedSection>
           {apps.map((app) => (
@@ -109,3 +105,10 @@ export const FileAppAccessSection: React.FC<FileAppAccessSectionProps> = ({ file
     </View>
   );
 };
+
+const useStyles = createTokenStyles((t) => ({
+  container: { marginBottom: 24, width: '100%' },
+  title: { marginBottom: 4, fontSize: 16, fontWeight: 600, color: t.foreground },
+  mutedText: { marginBottom: 12, fontSize: 14, color: t.mutedForeground },
+  mutedText2: { fontSize: 14, color: t.mutedForeground },
+}));

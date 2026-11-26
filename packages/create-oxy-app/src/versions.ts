@@ -97,6 +97,7 @@ export const VERSIONS = {
   // device credential (`oxy-doctor` fails an app missing any of them).
   expoCrypto: '~58.0.7',
   expoSecureStore: '~58.0.2',
+  expoSqlite: '~58.0.15', // expo-sqlite — each account's bloom-data copy on a device (Services 15)
   expoFileSystem: '~58.0.10',
   expoAppIntegrity: '~58.0.2', // @expo/app-integrity
   netinfo: '12.0.1', // @react-native-community/netinfo
@@ -152,7 +153,6 @@ export const VERSIONS = {
   oxyBloomLanguage: '^1.0.0', // @oxy.so/bloom-language (and its `/router`)
   oxyBloomLanguageCompiler: '^1.0.0', // @oxy.so/bloom-language-compiler — Metro + Jest pre-pass
   oxyBloomData: '^0.1.0', // @oxy.so/bloom-data — one instance per app, like Bloom
-  expoSqlite: '~58.0.15', // Services 15's required peer: each account's durable copy
   expoBlur: '~58.0.5', // a required peer of Bloom 23
   expoGlassEffect: '~58.0.5', // the language's glass on iOS (Liquid Glass)
   pagerView: '9.0.7', // react-native-pager-view — Bloom's swiped tab pager on Android
@@ -175,8 +175,7 @@ export type VersionKey = keyof typeof VERSIONS;
  *
  * The same pairing rules as the JSX set hold (see the Oxy SDK note above):
  * Bloom inside Services' Bloom peer (`>=22.1.1` as of 15.0.0), Core inside its
- * Core peer (`^7.49.0`). The unpublished ranges are listed in
- * `scripts/pending-releases.mjs` until they are released.
+ * Core peer (`^7.49.0`).
  */
 export const LANGUAGE_OXY_VERSIONS = {
   oxyServices: '^15.0.0',

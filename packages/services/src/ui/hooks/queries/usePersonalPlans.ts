@@ -1,31 +1,22 @@
-import { useQuery } from '@tanstack/react-query';
-import { authenticatedApiCall } from '@oxy.so/core';
+import { skip } from '@oxy.so/bloom-data';
 import { useOxy } from '../../context/oxyRuntimeContext';
+import { useAnswer } from '../../data/answer';
+import { personalPlanSubscriptions, personalPlans } from '../../data/payments';
 
-/** Public discovery; deliberately outside persisted customer payment queries. */
+/** Public discovery; deliberately outside the account's private billing reads. */
 export function usePersonalPlans() {
   const { oxyServices } = useOxy();
-  return useQuery({
-    queryKey: ['personal-plan-catalogue'],
-    queryFn: () => oxyServices.billing.personalPlans(),
-    staleTime: 0,
-  });
+  return useAnswer(personalPlans, oxyServices);
 }
 
 /** Account and session partitioning plus a server-side expected-subject fence. */
 export function usePersonalPlanSubscriptions() {
   const { oxyServices, user, isAuthenticated, activeSessionId } = useOxy();
   const accountId = user?.id;
-  return useQuery({
-    queryKey: ['personal-plan-sources', accountId, activeSessionId],
-    queryFn: () => {
-      if (!accountId) throw new Error('Authentication required');
-      return authenticatedApiCall(oxyServices, activeSessionId, () =>
-        oxyServices.billing.productSubscriptions(accountId),
-      );
-    },
-    enabled: isAuthenticated && !!accountId,
-    staleTime: 0,
-    gcTime: 0,
-  });
+  return useAnswer(
+    personalPlanSubscriptions,
+    ...(isAuthenticated && accountId
+      ? ([oxyServices, accountId, activeSessionId ?? null] as const)
+      : [skip]),
+  );
 }

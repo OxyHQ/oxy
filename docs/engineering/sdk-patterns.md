@@ -4,8 +4,8 @@
 
 ## useCurrentUser Pattern (services)
 
-- `queryFn` must be pure — never call `useAuthStore.setUser()` inside a `queryFn`.
-- Side effects on fresh query data belong in a `useEffect` on `query.data` outside the queryFn.
+- A source's `load` must be pure: it returns the record and never writes the session (`activeRuntime()?.setAccount`).
+- `useCurrentUser` mirrors the read profile into the session in a `useEffect`, never while an action is in flight and never over a newer `updatedAt`.
 
 ## Public rendition URL identity (core)
 
@@ -83,23 +83,19 @@ The regression is covered by `httpServiceCacheInvalidation.test.ts`.
 - **Web `{uri}` upload descriptors:** the browser's `FormData` can't read bytes from a `{uri}` object (only RN's can). On web, `oxy.assets.upload` materializes `{uri}` → `Blob` via `fetch` before appending (core ≥3.10.1); the API rejects 0-byte uploads with `400 Empty file`. Never persist/append an empty file.
 - **Large uploads never go through the API.** api.oxy.so's proxy refuses any body over 100 MB, so `oxy.assets.upload` sends a file over `ASSET_MULTIPART_UPLOAD_MAX_BYTES` (64 MiB) by presigned PUT (hash → `/assets/init` → PUT → `/assets/complete`) and maps the answer to `/assets/upload`'s shape; the API refuses a multipart file over 90 MiB with 413 `USE_PRESIGNED_UPLOAD`. An SVG always takes the API path (sanitized). On RN a size-less descriptor is read once into a NATIVE Blob through RN's `XMLHttpRequest` to learn its size — never Expo's `fetch`, whose `.blob()` and Blob bodies copy the bytes into the JS heap — hashed through `FileReader.readAsArrayBuffer` (RN's Blob has no `arrayBuffer`) and PUT through `XMLHttpRequest`.
 
-## Offline Mutation Queue (services)
+## Data (services)
 
-- React Query `networkMode: 'offlineFirst'` with stable `mutationKey` on all mutations
-- `useMutationStatus` aggregator hook surfaces "Syncing…" indicators across the app
-
-## Offline-First Persistence (services)
-
-- `@tanstack/react-query-persist-client` wired in `@oxy.so/services` (AsyncStorage; localStorage-backed on web).
-- The SDK-managed shared persister writes its whitelisted queries and mutations not owned by an account; account mutation policy can exclude records from that shared blob. It uses a 30-day TTL and 1s throttle, with v1 cache cleanup on startup.
-- `OxyProvider` awaits `restored` before exposing the QueryClient → first paint serves cached data, not a loading spinner.
-- Per-account data: `accountQueries` roots, or ONE query marked `meta: { persist: 'account' }` (`AccountQueryMeta`; no declaration). Stored per account, dropped on a switch, deleted on sign-out; a painted cold boot resolves auth only after it is restored (`whenReady`). A persister serializes only when one of ITS queries changes. Mark the reads that shape a returning user's first paint, never lists — `accountQueryPersistence.ts`.
-- Apps whose queries are viewer-dependent but mostly ephemeral can opt into `accountQueries: { roots: [], memoryOnlyRoots: 'all', persistMarkedQueries: true, clearUnregisteredMutations: true }`. Only explicitly marked queries survive a restart; SDK memory-only roots stay off disk. Registered paused mutations use per-account storage, while unregistered mutations are neither persisted nor retained across transitions. Removing mutation records does not cancel running requests or callbacks: scope their effects to their originating account. The app still owns its sockets, local stores and databases. A host-provided `QueryClient` skips the provider's shared-cache persistence.
-- **When a persisted cache is dropped.** Restored queries are served before any refetch, so a blob is read only in the shape it was written in. By default the stamp is the build (`OXY_BUILD_ID`): every deploy starts every person from the network, safe for an app that never says when its data changes shape (Inbox crashed on a forgotten hand-kept buster). An app may declare `accountQueries.dataVersion`: then both caches survive deploys and are dropped when that string or `@oxy.so/services`' version changes (`persistedBuster`, `persistedDataVersion.ts`, kept equal to the package version by a test). The app must change it with any change to the shape of what it persists, including a dependency's data it stores; tie it to a check in the app, never to memory.
-- **Persisted roots stay in memory** (`gcTime: Infinity`, set before restoring): a snapshot is written from memory, so a collected query would leave storage too. A root that grows with use (one query per conversation) declares `accountQueries.bounds[root] = { maxQueries, trim?, revive? }`: only its newest `maxQueries` are written, each through `trim`; `revive` gives restored data its type back (JSON keeps no `Date`); unwatched ones past the cap leave memory.
-- `memoryOnlyMutationKeys` opts exact mutation keys into account ownership without persisting them, even if also listed in `mutationKeys`. It excludes matching records from both caches and removes them on an account transition. A previously persisted operation for a newly memory-only key is not restored, and a later snapshot can overwrite it; audit any existing queue before enabling this option. It does not cancel execution or callbacks; a paused operation has no durable replay. Existing blobs are not immediately erased, and unkeyed or differently keyed legacy mutations are not covered.
-- `useOnlineStatus()` hook in `@oxy.so/services` — built on `useSyncExternalStore` over `onlineManager`; use for offline banners in app UIs.
-- TanStack Query must use a consistent `^5.x` major version across services, console, and test-app-expo — check each workspace's `package.json` for the pinned range.
+- Services keeps its data in `@oxy.so/bloom-data`, never in React Query or zustand (15.0.0). A family's entities, lists, models, sources and actions live in `src/ui/data/<family>.ts`; hooks keep their names and return bloom-data views (`RecordView`, `ListView`, `ActionView`).
+- Sources and actions are module constants that take the API client first (`load: (request, oxy, id) => …`); hooks pass `useOxy().oxyServices`. Every person a read returns goes into `User` (`storeUsers`/`userWriter`), and a record that embeds a person refers to `User` (`refs`), so one edit shows everywhere.
+- Each account has its own store, opened by the session on every subject change before anybody is woken (`data/accountData.ts`); signed out is a store of its own. A switch wipes nothing by hand, and a late answer for the account that was left is dropped. Sign-out and `clearAllAccountData()` delete the account's store and its file.
+- The durable copy is the SDK's: one SQLite file per account on a device (`expo-sqlite`), one IndexedDB database on the web (`data/persister*.ts`). A screen reads it as it opens; nothing waits for a global restore, so `RequireOxyAuth` renders a signed-in subtree at once.
+- Every read spreads `sdkRead` (`data/readOptions.ts`): the retry rule, the backoff and no refetch on focus. React Query's `enabled` is `skip`, its `staleTime` is `stale`.
+- A write is an action: `optimistic` is a layer over the server copy, `settle` writes the server's answer, a failure drops exactly its layer, and offline it waits as `paused`. `useMutationStatus()` reports the account's actions (`pending`, `paused`, `total`, `isOffline`, `isSyncing`).
+- One value per key that is not a record by id (a subscription, a page shown on its own, the account's sign-in methods under `ACCOUNT`) is an answer (`data/answer.ts`, read with `useAnswer`).
+- Code outside React reaches the session through `activeRuntime()` (the mounted provider's runtime), never a copy of it.
+- `useOnlineStatus()` reads bloom-data's `environment`, which `OxyProvider` feeds from NetInfo and AppState on native; on web the browser feeds it. Use it for offline banners in app UIs.
+- The SDK's device key-value data (language, cached boot, campaign attribution) is a model in the device's own store; it moves off AsyncStorage read-through, key by key, and the SDK's dead keys (the 14.x query caches among them) are deleted once (`data/deviceStorage.ts`). AsyncStorage stays a required peer: core and protocol load it on a device.
+- An app that uses React Query itself mounts its own `QueryClientProvider` above `OxyProvider`; Services neither provides nor invalidates one.
 
 ## useSessionSocket (services)
 

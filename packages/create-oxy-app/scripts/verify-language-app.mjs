@@ -10,8 +10,7 @@
  * packs directory, every `@oxy.so/*` tarball in it (`oxy.so-<name>-<version>.tgz`,
  * from `npm pack` or `bun pm pack`) replaces that package over the whole tree,
  * through the root `overrides` and `resolutions`, as the scaffold smoke does
- * with HEAD packs; without one the app installs from npm. Packs are how the
- * template is proved before its packages are released (`pending-releases.mjs`).
+ * with HEAD packs; without one the app installs from npm.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';

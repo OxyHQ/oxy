@@ -12,7 +12,7 @@ The Expo, React Native, and React Native Web SDK for the Oxy platform. Ships `Ox
 
 ## What it is
 
-`@oxy.so/services` is the all-in-one mobile SDK. Drop `OxyProvider` at the root of your Expo app and you get sign-in, account management, multi-account switching, file uploads, security screens, and the bottom-sheet navigation system the official Oxy apps use. Authentication state, mutations, and offline queueing are wired through TanStack Query with `networkMode: 'offlineFirst'` and `AsyncStorage`-backed persistence.
+`@oxy.so/services` is the all-in-one mobile SDK. Drop `OxyProvider` at the root of your Expo app and you get sign-in, account management, multi-account switching, file uploads, security screens, and the bottom-sheet navigation system the official Oxy apps use. Its data lives in `@oxy.so/bloom-data`: one store per account, on disk, with writes that show at once and wait for the network when there is none.
 
 Web apps use this same package through `react-native-web` — there is no separate web auth SDK. For server / edge runtimes see [`@oxy.so/core`](/developers/docs/core).
 
@@ -61,13 +61,13 @@ function Shell() {
 }
 ```
 
-`GestureHandlerRootView` is required for the bottom-sheet pan gestures. The provider awaits `restored` (TanStack Query persist-client over `AsyncStorage`) before exposing the QueryClient — cached data renders on first paint.
+`GestureHandlerRootView` is required for the bottom-sheet pan gestures. Nothing waits on a cache: each account's data is in its own `@oxy.so/bloom-data` store, and a screen reads its disk copy as it opens, so held data renders on first paint.
 
 ## Core concepts
 
 ### OxyProvider + useOxy
 
-`OxyProvider` owns the HTTP client, the QueryClient, the device-first session cold boot, and the unified account dialog, plus the bottom-sheet route registry, Inter font loader, and image resolver. `useOxy()` returns the full context value; for narrower surfaces use `useAuth()`, `useCurrentUser()`, or the query/mutation hooks directly.
+`OxyProvider` owns the HTTP client, each account's bloom-data store, the device-first session cold boot, and the unified account dialog, plus the bottom-sheet route registry, Inter font loader, and image resolver. `useOxy()` returns the full context value; for narrower surfaces use `useAuth()`, `useCurrentUser()`, or the query/mutation hooks directly.
 
 ### Bottom-sheet navigation
 
@@ -118,18 +118,18 @@ function Header() {
 import { useUpdateProfile } from '@oxy.so/services';
 
 function UsernameField() {
-  const { mutateAsync, isPending } = useUpdateProfile();
+  const { run, isPending } = useUpdateProfile();
   return (
     <TextField
       defaultValue={user?.username}
-      onSubmitEditing={(e) => mutateAsync({ username: e.nativeEvent.text })}
+      onSubmitEditing={(e) => run({ username: e.nativeEvent.text })}
       editable={!isPending}
     />
   );
 }
 ```
 
-`useUpdateProfile` mutates optimistically and clears the SDK's HTTP cache for `users/me`, `session/user/`, and `profiles/username/` so the new value is visible everywhere immediately.
+`useUpdateProfile` writes optimistically onto the person in `User` and the session, so every surface showing them follows at once, and settles with the server's answer (or drops exactly its change when the write fails).
 
 ### Aggregate mutation status (the "Syncing..." pill)
 
@@ -137,10 +137,9 @@ function UsernameField() {
 import { useMutationStatus } from '@oxy.so/services';
 
 function SyncBadge() {
-  const status = useMutationStatus(); // 'idle' | 'syncing' | 'error'
-  if (status === 'syncing') return <Pill label="Syncing…" />;
-  if (status === 'error') return <Pill label="Sync failed" />;
-  return null;
+  const { isSyncing, isOffline } = useMutationStatus();
+  if (!isSyncing) return null;
+  return <Pill label={isOffline ? 'Waiting for network…' : 'Syncing…'} />;
 }
 ```
 
@@ -149,8 +148,8 @@ function SyncBadge() {
 ```tsx
 import { useUploadFile } from '@oxy.so/services';
 
-const { mutateAsync, isPending } = useUploadFile();
-await mutateAsync({ uri: pickedAsset.uri, type: 'image/jpeg', name: 'photo.jpg' });
+const { run, isPending } = useUploadFile();
+await run({ file: { uri: pickedAsset.uri, type: 'image/jpeg', name: 'photo.jpg' } });
 ```
 
 On React Native (Expo 56), uploads route through `XMLHttpRequest` — `fetch` rejects RN file descriptors for multipart bodies.

@@ -1,7 +1,6 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
-import { View } from 'react-native-css/components';
+import { type StyleProp, View, type ViewStyle } from 'react-native';
 import { RiLoginBoxLine } from '@oxy.so/bloom/icons/RiLoginBoxLine';
 import { RiMoreLine } from '@oxy.so/bloom/icons/RiMoreLine';
 import { Button } from '@oxy.so/bloom/button';
@@ -49,12 +48,6 @@ export interface ProfileButtonProps {
    * anchored popover, so popover placement no longer applies.
    */
   placement?: 'up' | 'down' | 'auto';
-  /**
-   * Extra className applied to the outer trigger. Kept for NativeWind consumers
-   * that layer utility classes on top; the component's own layout is driven by
-   * `StyleSheet` so it renders correctly with or without NativeWind.
-   */
-  className?: string;
   /** Extra style applied to the outer trigger. */
   style?: StyleProp<ViewStyle>;
 }
@@ -68,7 +61,6 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
   onNavigateProfile,
   menuItems,
   menuSections,
-  className,
   style,
 }) => {
   const { user, isAuthenticated, isAuthResolved, isPrivateApiPending, signIn } = useAuth();
@@ -110,7 +102,6 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <View
-        className={className}
         style={style}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
@@ -135,7 +126,6 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
     <Button
       appearance="plain"
       tone="neutral"
-      className={className}
       accessibilityLabel={label}
       onPress={
         signedIn

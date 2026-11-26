@@ -1,6 +1,4 @@
 import type { ReactNode, RefObject } from 'react';
-import type { QueryClient } from '@tanstack/react-query';
-import type { AccountQueriesConfig } from '../hooks/accountQueryPersistence';
 import type { RouteName } from '../navigation/routes';
 import type { User } from '@oxy.so/core';
 import type { ClientSession } from '@oxy.so/core';
@@ -151,17 +149,6 @@ export interface OxyProviderProps {
    * @default 'popup'
    */
   webAuthMode?: WebAuthMode;
-  queryClient?: QueryClient;
-  /**
-   * The app's private, per-account data, persisted offline by the SDK: stored
-   * per account, discarded by every new build, dropped from memory on an
-   * account switch and deleted on sign-out. `RequireOxyAuth` waits for the
-   * signed-in account's cache to restore, so another account's rows never
-   * render. Works with the SDK's client or one passed as `queryClient`.
-   * A single query opts in with `meta: { persist: 'account' }` and needs no
-   * declaration here (`AccountQueryMeta`).
-   */
-  accountQueries?: AccountQueriesConfig;
   /**
    * Convenience: wrap the whole app subtree in `<RequireOxyAuth prompt=...>`.
    * `off` (default) renders children unconditionally; `soft` adds a dismissible

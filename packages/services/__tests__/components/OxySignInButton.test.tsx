@@ -54,6 +54,8 @@ const mockRuntime = () => ({
   startWebOAuthSignIn,
   startNativeOAuthSignIn,
   currentLanguage: 'en-US',
+  isAuthenticated: false,
+  isLoading: false,
 });
 
 jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
@@ -62,17 +64,6 @@ jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
   // The button's label goes through `useI18n()`, the one hook that reads the
   // runtime optionally.
   useOptionalOxy: () => mockRuntime(),
-}));
-
-jest.mock('../../src/ui/stores/authStore', () => ({
-  __esModule: true,
-  useAuthStore: (selector: (s: { isAuthenticated: boolean; isLoading: boolean }) => unknown) =>
-    selector({ isAuthenticated: false, isLoading: false }),
-}));
-
-jest.mock('zustand/react/shallow', () => ({
-  __esModule: true,
-  useShallow: (fn: unknown) => fn,
 }));
 
 jest.mock('../../src/ui/navigation/accountDialogManager', () => ({

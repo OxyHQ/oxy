@@ -1,36 +1,31 @@
 ---
 title: Offline & sync
-description: How @oxy.so/services persists queries, queues mutations, and reflects online status.
+description: How @oxy.so/services keeps each account's data on disk, runs writes offline, and reflects online status.
 order: 3
 ---
 
 # Offline & sync
 
-`@oxy.so/services` is offline-first out of the box. Every mutation is queued, every important read is cached on disk, and the UI knows when the network goes down. Nothing here is opt-in — wiring up `OxyProvider` lights up all of it.
+`@oxy.so/services` is offline-first out of the box. Its data lives in `@oxy.so/bloom-data`: every read is held in the signed-in account's store and copied to disk, every write shows at once and waits for the network when there is none, and the UI knows when the network goes down. Nothing here is opt-in — wiring up `OxyProvider` lights up all of it.
 
-## Persisted query cache
+## Each account's store
 
-The provider configures `@tanstack/react-query-persist-client` over `AsyncStorage`:
+The session opens one bloom-data store per account, on every account change and before anything is woken (`data/accountData.ts`):
 
-| Setting | Value |
-|---------|-------|
-| Persisted query keys | `accounts`, `users`, `sessions`, `devices`, `privacy` |
-| Mutations | always persisted |
-| TTL | 30 days |
-| Throttle | 1s |
-| Cache key | versioned (`v2`); legacy `v1` is cleaned up on first run |
+| | |
+|---|---|
+| Durable copy | one SQLite file per account on a device (`expo-sqlite`), one IndexedDB database on the web, memory where neither exists |
+| Signed out | a store of its own (`SIGNED_OUT_DATA_ACCOUNT`), so public reads never reach an account's |
+| Account switch | the next account's store opens; an answer that lands for the account that was left is dropped. Nothing is wiped by hand |
+| Sign-out | the account's store and its file are deleted (`clearAllAccountData()` does the same on demand) |
 
-The provider awaits `restored` before exposing the QueryClient so the first paint serves cached data, not a loading spinner. You don't need to special-case this — just render the same hooks you always would.
+A screen reads the disk copy as it opens and then the network when the copy is stale, so held data renders on first paint without a global restore. The SDK's reads keep their staleness, their gating (`skip`) and one retry rule (`data/readOptions.ts`).
 
-## Mutation queue
+An app keeps its own per-account data the same way: entities, lists and sources of its own in the store `useStore()` returns (or `currentStore()` outside React). See bloom-data's documentation.
 
-Every mutation hook uses:
+## Writes
 
-```ts
-{ networkMode: 'offlineFirst', mutationKey: ['stable', 'key'] }
-```
-
-Pending mutations sit in the persisted queue and replay automatically when the network returns. Reuse the same mutation hook from multiple places — the stable `mutationKey` makes the cache dedup them.
+Every write hook (`useUpdateProfile`, `useLogoutSession`, …) is a bloom-data action and returns an `ActionView` (`run`, `isPending`, `error`, `data`, `reset`). A write shows at once as an optimistic layer; when the server answers, its answer replaces the layer, and when it fails, exactly that layer is dropped. Offline, the write waits for the network (counted as `paused`) and runs when it is back; if the account is left meanwhile, it is dropped.
 
 ## Reading sync status
 
@@ -38,13 +33,13 @@ Pending mutations sit in the persisted queue and replay automatically when the n
 import { useMutationStatus } from '@oxy.so/services';
 
 function SyncPill() {
-  const status = useMutationStatus(); // 'idle' | 'syncing' | 'error'
-  if (status === 'idle') return null;
-  return <Pill tone={status === 'error' ? 'destructive' : 'neutral'}>{status}</Pill>;
+  const { isSyncing, isOffline } = useMutationStatus();
+  if (!isSyncing) return null;
+  return <Pill tone="neutral">{isOffline ? 'Waiting for network' : 'Syncing'}</Pill>;
 }
 ```
 
-`useMutationStatus` aggregates the mutation cache so a single component can drive a status indicator.
+`useMutationStatus()` reports the signed-in account's writes: `pending` (running), `paused` (waiting for the network), `total`, `isOffline` and `isSyncing`.
 
 ## Reading online state
 
@@ -62,7 +57,11 @@ function OfflineBanner() {
 }
 ```
 
-`useOnlineStatus()` is built on `useSyncExternalStore` over TanStack Query's `onlineManager` — no `useEffect`, no polling.
+`useOnlineStatus()` reads bloom-data's `environment` through `useSyncExternalStore` — no `useEffect`, no polling. `OxyProvider` reports NetInfo (online) and AppState (in front) to it on native; on web it listens to the browser itself.
+
+## Device key-value data
+
+What the SDK keeps for the device rather than an account (the language, the cached boot, campaign attribution) is a model in the device's own bloom-data store behind the same `StorageInterface`. It moves off AsyncStorage (localStorage on the web) read-through: the first read of a key copies its old value and deletes the old key, so only the SDK's keys move and an app's own keys are never touched. The SDK's dead keys (the session ids it wrote and never read, and the 14.x React Query caches `oxy_query_cache_v3` and `oxy_account_queries:<account>`) are deleted once.
 
 ## What about the HTTP cache?
 

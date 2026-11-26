@@ -46,8 +46,14 @@ export default defineConfig(({ mode }) => ({
     reactNativeWeb(),
     react(),
     // react-native-css rewrites `react-native` imports to its className-aware
-    // components; plugin-react 6 no longer runs Babel itself.
-    babel({ presets: [reactNativeCssBabel] }),
+    // components; plugin-react 6 no longer runs Babel itself. Only Auth's own
+    // sources: the `@oxy.so/services` workspace build (like Bloom in
+    // node_modules) passes no className and does not depend on react-native-css,
+    // so a rewritten import there would not resolve.
+    babel({
+      presets: [reactNativeCssBabel],
+      exclude: [/[\\/]node_modules[\\/]/, /[\\/]packages[\\/]services[\\/]/],
+    }),
   ],
   resolve: {
     alias: [

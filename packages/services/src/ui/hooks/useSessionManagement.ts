@@ -1,50 +1,36 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { isDev, type ApiError, type User } from '@oxy.so/core';
 import type { ClientSession } from '@oxy.so/core';
 import { fetchSessionsWithFallback } from '../utils/sessionHelpers';
-import { getStorageKeys, type StorageInterface } from '../utils/storageHelpers';
 import { handleAuthError, isInvalidSessionError } from '../utils/errorHandlers';
 import type { OxyServices } from '@oxy.so/core';
-import type { QueryClient } from '@tanstack/react-query';
 import { isSessionChangedError } from '../utils/sessionChangedError';
-import { clearQueryCache } from './queryClient';
 import { isWebBrowser } from '../utils/isWebBrowser';
-import { resetSessionScopedStores } from '../stores/resetSessionScopedStores';
 import type { OxyRuntime } from '../runtime';
 
 export interface UseSessionManagementOptions {
   oxyServices: OxyServices;
   /** The one owner of `sessions` / `activeSessionId` / the signed-in account. */
   runtime: OxyRuntime;
-  storage: StorageInterface | null;
-  storageKeyPrefix?: string;
   onAuthStateChange?: (user: User | null) => void;
   onError?: (error: ApiError) => void;
   setAuthError?: (message: string | null) => void;
   logger?: (message: string, error?: unknown) => void;
-  queryClient?: QueryClient | null;
 }
 
 export interface UseSessionManagementResult {
-  /** Persist the projected session-id list. Handed to the runtime as its projection sink. */
-  saveSessionIds: (sessionIds: string[]) => void;
-  saveActiveSessionId: (sessionId: string) => Promise<void>;
   /**
    * The legacy `validateSession`-keyed switch. Reachable from exactly ONE
    * caller: `performSignIn`'s same-user duplicate-session dedup. The switch a
    * consumer sees on the context is the `SessionClient` one in `OxyContext`.
    */
   switchSession: (sessionId: string) => Promise<User>;
-  /** Tear down the local session: runtime projection, caches, storage, tokens. */
+  /** Tear down the local session: the runtime projection and the tokens. */
   clearSessionState: () => Promise<void>;
-  storageKeys: ReturnType<typeof getStorageKeys>;
 }
 
-const DEFAULT_SAVE_ERROR_MESSAGE = 'Failed to save session data';
-const CLEAR_STORAGE_ERROR = 'Failed to clear storage';
-
 /**
- * Session persistence and the one legacy switch left, over the runtime.
+ * Session teardown and the one legacy switch left, over the runtime.
  *
  * This hook used to hold its OWN `sessions` / `activeSessionId` React state
  * plus six refs mirroring them so its callbacks could avoid widening their
@@ -54,75 +40,23 @@ const CLEAR_STORAGE_ERROR = 'Failed to clear storage';
  * nothing once there was nothing local to mirror.
  *
  * `refreshSessions`, `trackRemovedSession` and `isRefreshInFlight` are deleted
- * outright — every one of them was dropped unread at the single call site.
+ * outright — every one of them was dropped unread at the single call site. The
+ * session ids and the active session id it stored are gone too: nothing read
+ * them.
  */
 export const useSessionManagement = ({
   oxyServices,
   runtime,
-  storage,
-  storageKeyPrefix,
   onAuthStateChange,
   onError,
   setAuthError,
   logger,
-  queryClient,
 }: UseSessionManagementOptions): UseSessionManagementResult => {
-  const storageKeys = useMemo(() => getStorageKeys(storageKeyPrefix), [storageKeyPrefix]);
   const runtimeRef = useRef(runtime);
   runtimeRef.current = runtime;
 
-  const saveSessionIds = useCallback(
-    (sessionIds: string[]): void => {
-      if (!storage) return;
-      const uniqueIds = Array.from(new Set(sessionIds));
-      storage.setItem(storageKeys.sessionIds, JSON.stringify(uniqueIds)).catch((error: unknown) => {
-        if (logger) {
-          logger(DEFAULT_SAVE_ERROR_MESSAGE, error);
-        } else if (isDev()) {
-          console.warn('Failed to save session IDs:', error);
-        }
-      });
-    },
-    [logger, storage, storageKeys.sessionIds],
-  );
-
-  const saveActiveSessionId = useCallback(
-    async (sessionId: string): Promise<void> => {
-      if (!storage) return;
-      try {
-        await storage.setItem(storageKeys.activeSessionId, sessionId);
-      } catch (error) {
-        handleAuthError(error, {
-          defaultMessage: DEFAULT_SAVE_ERROR_MESSAGE,
-          code: 'SESSION_PERSISTENCE_ERROR',
-          onError,
-          setAuthError,
-          logger,
-        });
-      }
-    },
-    [logger, onError, setAuthError, storage, storageKeys.activeSessionId],
-  );
-
-  const clearSessionStorage = useCallback(async (): Promise<void> => {
-    if (!storage) return;
-    try {
-      await storage.removeItem(storageKeys.activeSessionId);
-      await storage.removeItem(storageKeys.sessionIds);
-    } catch (error) {
-      handleAuthError(error, {
-        defaultMessage: CLEAR_STORAGE_ERROR,
-        code: 'STORAGE_ERROR',
-        onError,
-        setAuthError,
-        logger,
-      });
-    }
-  }, [logger, onError, setAuthError, storage, storageKeys.activeSessionId, storageKeys.sessionIds]);
-
   const clearSessionState = useCallback(async (): Promise<void> => {
     runtimeRef.current.clearSession();
-    resetSessionScopedStores();
 
     // Clear the access token on the client instance. Without this the token
     // store retained the stale bearer until the next 401, leaving the instance
@@ -132,23 +66,8 @@ export const useSessionManagement = ({
     // logged-out state everywhere.
     oxyServices.session.clear();
 
-    if (queryClient) {
-      queryClient.clear();
-    }
-
-    if (storage) {
-      try {
-        await clearQueryCache(storage);
-      } catch (error) {
-        if (logger) {
-          logger('Failed to clear persisted query cache', error);
-        }
-      }
-    }
-
-    await clearSessionStorage();
     onAuthStateChange?.(null);
-  }, [clearSessionStorage, onAuthStateChange, oxyServices, queryClient, storage, logger]);
+  }, [onAuthStateChange, oxyServices]);
 
   const switchSession = useCallback(
     async (sessionId: string): Promise<User> => {
@@ -179,7 +98,6 @@ export const useSessionManagement = ({
           activeRuntime.setActiveSessionId(sessionId);
           activeRuntime.setAccount(user);
         });
-        await saveActiveSessionId(sessionId);
         onAuthStateChange?.(user);
 
         try {
@@ -220,14 +138,11 @@ export const useSessionManagement = ({
         throw error instanceof Error ? error : new Error('Failed to switch session');
       }
     },
-    [logger, onAuthStateChange, onError, oxyServices, saveActiveSessionId, setAuthError],
+    [logger, onAuthStateChange, onError, oxyServices, setAuthError],
   );
 
   return {
-    saveSessionIds,
-    saveActiveSessionId,
     switchSession,
     clearSessionState,
-    storageKeys,
   };
 };

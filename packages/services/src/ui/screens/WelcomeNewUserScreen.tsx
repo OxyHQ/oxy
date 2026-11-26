@@ -19,6 +19,7 @@ import {
   isValidAccountName,
   type User,
 } from '@oxy.so/core';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const GAP = 12;
 const INNER_GAP = 8;
@@ -34,6 +35,7 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
   theme,
   newUser,
 }) => {
+  const themed = useThemedStyles();
   // Use useOxy() hook for OxyContext values. The greeting/avatar identity is
   // the ACTIVE account (the personal user during onboarding, but read through
   // `user` so this stays correct everywhere), with the freshly
@@ -208,7 +210,7 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
     }
     setSavingName(true);
     try {
-      await updateProfileMutation.mutateAsync({ name: { first: f, last: lastName.trim() } });
+      await updateProfileMutation.run({ name: { first: f, last: lastName.trim() } });
       animateToStepCallback(currentStep + 1);
     } catch {
       // `useUpdateProfile` already told the person why, in their language.
@@ -340,14 +342,10 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
       <Animated.View style={{ opacity: fadeAnim, transform: [{ translateX: slideAnim }] }}>
         <View style={[styles.scrollInner, styles.contentContainer]}>
           <View style={[styles.header, styles.sectionSpacing]}>
-            <H1 style={styles.title} className="text-text">
+            <Text role="heading" aria-level={1} style={[themed.text, styles.title]}>
               {step.title}
-            </H1>
-            {step.body && (
-              <Text style={styles.body} className="text-text-secondary">
-                {step.body}
-              </Text>
-            )}
+            </Text>
+            {step.body && <Text style={[themed.mutedText, styles.body]}>{step.body}</Text>}
           </View>
           {Array.isArray(step.bullets) && step.bullets.length > 0 && (
             <View style={[styles.bulletContainer, styles.sectionSpacing]}>
@@ -359,9 +357,7 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
                     color={colors.primary}
                     style={{ marginTop: 6 }}
                   />
-                  <Text style={styles.bulletText} className="text-text-secondary">
-                    {b}
-                  </Text>
+                  <Text style={[themed.mutedText, styles.bulletText]}>{b}</Text>
                 </View>
               ))}
             </View>
@@ -496,3 +492,8 @@ const createStyles = () => {
 };
 
 export default WelcomeNewUserScreen;
+
+const useThemedStyles = createTokenStyles((t) => ({
+  text: { color: t.foreground },
+  mutedText: { color: t.mutedForeground },
+}));

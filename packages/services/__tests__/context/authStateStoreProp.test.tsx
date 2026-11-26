@@ -7,7 +7,6 @@
  * never consulted (no adopt, no publish) and no background credential is made.
  */
 import { act, render, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import type { AuthStateStore, PersistedAuthState } from '@oxy.so/core/session';
 import type { User } from '@oxy.so/core';
@@ -163,17 +162,15 @@ describe.each([
     const store = handingOverStore();
     const services = stubServices();
     render(
-      <QueryClientProvider client={new QueryClient()}>
-        <OxyRuntimeProvider
-          oxyServices={services as never}
-          baseURL={API}
-          clientId="oxyos_client"
-          authStateStore={store}
-          backgroundSession
-        >
-          <Capture />
-        </OxyRuntimeProvider>
-      </QueryClientProvider>,
+      <OxyRuntimeProvider
+        oxyServices={services as never}
+        baseURL={API}
+        clientId="oxyos_client"
+        authStateStore={store}
+        backgroundSession
+      >
+        <Capture />
+      </OxyRuntimeProvider>,
     );
     await waitFor(() => expect(captured?.isAuthResolved).toBe(true));
     expect(captured?.isAuthenticated).toBe(false);
@@ -239,16 +236,14 @@ describe('OxyProvider authStateStore that keeps nothing', () => {
       clear: jest.fn(async () => undefined),
     };
     render(
-      <QueryClientProvider client={new QueryClient()}>
-        <OxyRuntimeProvider
-          oxyServices={services as never}
-          baseURL={API}
-          clientId="oxyos_client"
-          authStateStore={store}
-        >
-          <Capture />
-        </OxyRuntimeProvider>
-      </QueryClientProvider>,
+      <OxyRuntimeProvider
+        oxyServices={services as never}
+        baseURL={API}
+        clientId="oxyos_client"
+        authStateStore={store}
+      >
+        <Capture />
+      </OxyRuntimeProvider>,
     );
     await waitFor(() => expect(captured?.isAuthResolved).toBe(true));
     await act(async () => {
@@ -296,16 +291,14 @@ describe('OxyProvider authStateStore: how the sign-in happened', () => {
   async function commitWith(store: AuthStateStore | undefined, setup?: unknown) {
     Platform.OS = 'android';
     render(
-      <QueryClientProvider client={new QueryClient()}>
-        <OxyRuntimeProvider
-          oxyServices={stubServices() as never}
-          baseURL={API}
-          clientId="oxyos_client"
-          {...(store ? { authStateStore: store } : {})}
-        >
-          <Capture />
-        </OxyRuntimeProvider>
-      </QueryClientProvider>,
+      <OxyRuntimeProvider
+        oxyServices={stubServices() as never}
+        baseURL={API}
+        clientId="oxyos_client"
+        {...(store ? { authStateStore: store } : {})}
+      >
+        <Capture />
+      </OxyRuntimeProvider>,
     );
     await waitFor(() => expect(captured?.isAuthResolved).toBe(true));
     await act(async () => {

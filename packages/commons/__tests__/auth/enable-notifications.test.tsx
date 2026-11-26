@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { act, renderHook } from '@testing-library/react';
 import { __getMockRouter } from '@/__mocks__/expo-router';
-import { requestNotificationPermission, useAuthStore } from '@/__mocks__/oxy-services';
+import { oxyRuntime, requestNotificationPermission } from '@/__mocks__/oxy-services';
 
 jest.mock('@/lib/i18n', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock(
@@ -58,7 +58,7 @@ function renderHandlers(signIn: jest.Mock, isAuthenticated = false) {
 describe('the notifications onboarding step', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useAuthStore.getState.mockReturnValue({ isAuthenticated: true });
+    oxyRuntime.getSnapshot.mockReturnValue({ account: { id: 'signed-in' } });
     globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
       cb(0);
       return 0;

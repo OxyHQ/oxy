@@ -144,8 +144,8 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
       // The proof depends on what the account has: wait for it rather than
       // guess (an authenticator left out would only fail the confirmation).
       const fallback = accountSecurityFallback(security, t('linkCommons.confirmTitle'), t);
-      if (fallback || !security.methods.data) return fallback;
-      const { hasEmail, totpEnabled } = security.methods.data;
+      if (fallback || !security.methods.value) return fallback;
+      const { hasEmail, totpEnabled } = security.methods.value;
       return (
         <ReauthStep
           title={t('linkCommons.confirmTitle')}

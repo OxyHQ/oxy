@@ -33,7 +33,7 @@ A comprehensive TypeScript UI library for the Oxy API providing authentication, 
 - **Cross-Platform**: Works in Expo and React Native (iOS, Android, Web)
 - **Multi-Session Support**: Manage multiple user sessions simultaneously
 - **TypeScript First**: Full type safety and IntelliSense support
-- **Performance Optimized**: Automatic caching with TanStack Query
+- **Offline First**: Each account's data is kept in its own `@oxy.so/bloom-data` store, on disk
 - **Production Ready**: Error handling, retry logic, and security best practices
 
 ## Architecture
@@ -121,7 +121,7 @@ bun add @oxy.so/services @oxy.so/core
 
 ### Peer Dependencies
 
-The native modules `@oxy.so/services` needs on iOS and Android (Expo SDK 54 to 58;
+The native modules `@oxy.so/services` needs on iOS and Android (Expo SDK 58;
 `package.json` has the exact ranges):
 
 ```bash
@@ -211,8 +211,9 @@ function App() {
 }
 ```
 
-Style text with Bloom's NativeWind font classes (`font-sans`, `font-mono`, …)
-rather than raw `fontFamily` strings.
+Set text in Bloom's `Text` (it names Bloom's font family) rather than raw `fontFamily`
+strings. Services needs no NativeWind: it styles through React Native styles and Bloom's
+colour tokens.
 
 ## Usage Patterns
 
@@ -706,7 +707,7 @@ try {
 
 ## Payment & Storage Query Hooks
 
-The following React Query hooks are exported from the package root:
+The following hooks are exported from the package root. Each returns a bloom-data `RecordView`: the answer is `value`, and `refresh()` reads it again.
 
 ```typescript
 import {
@@ -718,7 +719,7 @@ import {
 } from '@oxy.so/services';
 ```
 
-Typed returns are defined in `ui/hooks/queries/paymentTypes.ts` (`Subscription`, `Payment`, `Wallet`, `WalletTransaction`). The `payments` query namespace is whitelisted for offline persistence alongside `accounts`, `users`, `sessions`, `devices`, and `privacy`.
+Typed returns are defined in `ui/hooks/queries/paymentTypes.ts` (`Subscription`, `Payment`, `Wallet`, `WalletTransaction`). The answers are held in the signed-in account's store (`data/payments.ts`), so another account never sees them.
 
 ## Sign-In Token Planting
 

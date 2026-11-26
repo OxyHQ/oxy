@@ -11,6 +11,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { createPlatformStorage } from '../utils/storageHelpers';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface HistoryItem {
   id: string;
@@ -20,6 +21,7 @@ interface HistoryItem {
 }
 
 const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
+  const styles = useStyles();
   // History is scoped to the ACTIVE account so a switch into an org/project/bot
   // shows that account's history, not the device-session owner's.
   const { user } = useOxy();
@@ -112,7 +114,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
 
   return (
     <>
-      <View className="px-screen-margin pb-space-24">
+      <View style={styles.section}>
         <GroupedSection title={t('history.actions') || 'Actions'}>
           <GroupedSectionItem
             icon={<SettingsIcon name="clock-outline" color={bloomTheme.colors.warning} />}
@@ -133,9 +135,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
         </GroupedSection>
         <GroupedSection title={t('history.recent') || 'Recent History'}>
           {isLoading ? null : history.length === 0 ? (
-            <Text className="text-text-secondary text-center p-space-40">
-              {t('history.empty') || 'No history yet'}
-            </Text>
+            <Text style={styles.mutedText}>{t('history.empty') || 'No history yet'}</Text>
           ) : (
             history.map((item) => (
               <GroupedSectionItem
@@ -160,3 +160,8 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
 };
 
 export default React.memo(HistoryViewScreen);
+
+const useStyles = createTokenStyles((t) => ({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+  mutedText: { padding: 40, textAlign: 'center', color: t.mutedForeground },
+}));

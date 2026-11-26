@@ -8,24 +8,17 @@
  * "Maximum update depth exceeded", which the app ErrorBoundary surfaced as a
  * render crash. It only fired once `userIds` was non-empty (populated map), i.e.
  * exactly the production `[] -> populated` transition the multi-mode
- * FollowButton drives. This test fails (throws) against the old selector and
- * passes with the flat-snapshot fix.
+ * FollowButton drives. The members are now read from `User` (`useEntities`),
+ * which returns the same array while no member changed.
  */
-import type { ReactNode } from 'react';
-import { createElement } from 'react';
 import { renderHook as rtlRenderHook, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { Store } from '@oxy.so/bloom-data';
+import { dataWrapper, openTestStore } from '../helpers/dataStore';
 
-// `useFollow` calls `useQuery` (single-user count fetch) which requires a
-// QueryClient in context, so every render must be wrapped — even in multi-user
-// mode, where the query is disabled. A fresh client per render keeps tests
-// isolated. Retries off so a (disabled) query never schedules background work.
-const renderHook: typeof rtlRenderHook = ((render, options) => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client }, children);
-  return rtlRenderHook(render, { wrapper, ...options });
-}) as typeof rtlRenderHook;
+// Each test reads its own account store, as `OxyProvider` gives one per account.
+let store: Store;
+const renderHook: typeof rtlRenderHook = ((render, options) =>
+  rtlRenderHook(render, { wrapper: dataWrapper(store), ...options })) as typeof rtlRenderHook;
 
 const oxyServicesStub = {
   follows: {
@@ -64,11 +57,11 @@ jest.mock('@oxy.so/core', () => ({
 }));
 
 import { useFollow } from '../../src/ui/hooks/useFollow';
-import { useFollowStore } from '../../src/ui/stores/followStore';
+import { setFollowStatus } from '../../src/ui/data/follow';
 
 describe('useFollow multi-user mode — no infinite render loop', () => {
   beforeEach(() => {
-    useFollowStore.getState().resetFollowState();
+    store = openTestStore();
     ctx = { oxyServices: oxyServicesStub, canUsePrivateApi: false, user: { id: 'me' } };
   });
 
@@ -92,8 +85,8 @@ describe('useFollow multi-user mode — no infinite render loop', () => {
 
     // Store churn from per-member buttons writing status while multi is mounted.
     act(() => {
-      useFollowStore.getState().setFollowingStatus('u1', true);
-      useFollowStore.getState().setFollowingStatus('u2', false);
+      setFollowStatus('u1', true);
+      setFollowStatus('u2', false);
     });
     rerender({ ids: ['u1', 'u2', 'u3'] });
     expect('followAllUsers' in result.current).toBe(true);
@@ -120,21 +113,21 @@ describe('useFollow multi-user mode — no infinite render loop', () => {
 
     // Following only one member keeps the aggregate false.
     act(() => {
-      useFollowStore.getState().setFollowingStatus('u1', true);
+      setFollowStatus('u1', true);
     });
     rerender({ ids: ['u1', 'u2'] });
     expect('allFollowing' in result.current && result.current.allFollowing).toBe(false);
 
     // Following every member flips the aggregate to true.
     act(() => {
-      useFollowStore.getState().setFollowingStatus('u2', true);
+      setFollowStatus('u2', true);
     });
     rerender({ ids: ['u1', 'u2'] });
     expect('allFollowing' in result.current && result.current.allFollowing).toBe(true);
 
     // Unfollowing one member reverts the aggregate to false.
     act(() => {
-      useFollowStore.getState().setFollowingStatus('u1', false);
+      setFollowStatus('u1', false);
     });
     rerender({ ids: ['u1', 'u2'] });
     expect('allFollowing' in result.current && result.current.allFollowing).toBe(false);
@@ -153,8 +146,8 @@ describe('useFollow multi-user mode — no infinite render loop', () => {
 
     // Seed both members as followed → aggregate is true.
     act(() => {
-      useFollowStore.getState().setFollowingStatus('u1', true);
-      useFollowStore.getState().setFollowingStatus('u2', true);
+      setFollowStatus('u1', true);
+      setFollowStatus('u2', true);
     });
     rerender({ ids: ['u1', 'u2'] });
     expect('allFollowing' in result.current && result.current.allFollowing).toBe(true);

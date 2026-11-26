@@ -2,7 +2,7 @@ import { reconcileRetiredRing } from './identity/retiredRing';
 import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { useOxy, useAuthStore, handleAuthError } from '@oxy.so/services';
+import { useOxy, useOxyRuntime, handleAuthError } from '@oxy.so/services';
 import {
   KeyManager,
   RecoveryPhraseService,
@@ -104,8 +104,9 @@ export interface UseIdentityResult {
  */
 
 export const useIdentity = (): UseIdentityResult => {
-  const { oxyServices, isAuthenticated } = useOxy();
-  const accountId = useAuthStore((state) => state.user?.id);
+  const { oxyServices, isAuthenticated, user } = useOxy();
+  const runtime = useOxyRuntime();
+  const accountId = user?.id;
   const { signIn } = useBiometricSignIn();
   const queryClient = useQueryClient();
 
@@ -230,7 +231,7 @@ export const useIdentity = (): UseIdentityResult => {
         handleAuthError(error, {
           defaultMessage: 'Failed to create identity',
           code: REGISTER_ERROR_CODE,
-          setAuthError: (msg: string) => useAuthStore.setState({ error: msg }),
+          setAuthError: (msg: string) => runtime.setError(msg),
           logger: __DEV__ ? console.warn : undefined,
         });
       }
@@ -240,7 +241,7 @@ export const useIdentity = (): UseIdentityResult => {
     } finally {
       inFlightCreateIdentity = null;
     }
-  }, [setSynced, queryClient]);
+  }, [setSynced, queryClient, runtime]);
 
   /**
    * After an import: sign in if the key already has an account. A key with no
@@ -376,7 +377,7 @@ export const useIdentity = (): UseIdentityResult => {
           handleAuthError(error, {
             defaultMessage: 'Failed to import identity',
             code: REGISTER_ERROR_CODE,
-            setAuthError: (msg: string) => useAuthStore.setState({ error: msg }),
+            setAuthError: (msg: string) => runtime.setError(msg),
             logger: __DEV__ ? console.warn : undefined,
           });
         }
@@ -385,7 +386,7 @@ export const useIdentity = (): UseIdentityResult => {
         inFlightImportIdentity = null;
       }
     },
-    [oxyServices, signIn, setSynced, queryClient, signInIfRegistered],
+    [oxyServices, signIn, setSynced, queryClient, signInIfRegistered, runtime],
   );
 
   const importIdentityFromPrivateKey = useCallback(
@@ -471,7 +472,7 @@ export const useIdentity = (): UseIdentityResult => {
           handleAuthError(error, {
             defaultMessage: 'Failed to import identity',
             code: REGISTER_ERROR_CODE,
-            setAuthError: (msg: string) => useAuthStore.setState({ error: msg }),
+            setAuthError: (msg: string) => runtime.setError(msg),
             logger: __DEV__ ? console.warn : undefined,
           });
         }
@@ -480,7 +481,7 @@ export const useIdentity = (): UseIdentityResult => {
         inFlightImportPrivateKey = null;
       }
     },
-    [oxyServices, signIn, setSynced, queryClient, signInIfRegistered],
+    [oxyServices, signIn, setSynced, queryClient, signInIfRegistered, runtime],
   );
 
   // Thin passthroughs. Both now THROW `IdentityUnavailableError` when storage is

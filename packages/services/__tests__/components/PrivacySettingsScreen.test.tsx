@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, Store } from '@oxy.so/bloom-data';
 import { toast } from '@oxy.so/bloom/toast';
 import PrivacySettingsScreen from '../../src/ui/screens/PrivacySettingsScreen';
 import SearchSettingsScreen from '../../src/ui/screens/SearchSettingsScreen';
@@ -28,26 +28,25 @@ beforeEach(() => {
   jest.clearAllMocks();
   saved = { isPrivateAccount: false, autoFilter: true, dataSharing: true };
 });
+/** Each mount is a fresh start: nothing of an earlier read is held. */
 function mount(Screen = PrivacySettingsScreen) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  const view = render(
-    <QueryClientProvider client={client}>
+  return render(
+    <DataProvider store={new Store()}>
       <Screen />
-    </QueryClientProvider>,
+    </DataProvider>,
   );
-  return { ...view, client };
 }
 const checked = (index: number) =>
   (screen.getAllByRole('switch')[index] as HTMLInputElement).checked;
-async function ready(client: QueryClient) {
-  await waitFor(() => expect(client.isFetching()).toBe(0));
+/** The settings were read and the switches show them. */
+async function ready() {
+  await waitFor(() => expect(privacy.settings).toHaveBeenCalled());
+  await screen.findAllByRole('switch');
 }
 
-test('privacy changes survive reopening with a fresh query cache', async () => {
+test('privacy changes survive reopening with nothing held', async () => {
   const view = mount();
-  await ready(view.client);
+  await ready();
   fireEvent.click(screen.getAllByRole('switch')[0]);
   await waitFor(() =>
     expect(privacy.updateSettings).toHaveBeenCalledWith({ isPrivateAccount: true }, 'owner'),
@@ -60,8 +59,8 @@ test('privacy changes survive reopening with a fresh query cache', async () => {
 });
 test('failed saves roll back and display a toast', async () => {
   privacy.updateSettings.mockRejectedValueOnce(new Error('Save failed'));
-  const view = mount();
-  await ready(view.client);
+  mount();
+  await ready();
   fireEvent.click(screen.getAllByRole('switch')[0]);
   // The person's words for what failed, never the server's English `message`.
   await waitFor(() => expect(toast.error).toHaveBeenCalledWith('actionErrors.updatePrivacy'));
@@ -69,13 +68,13 @@ test('failed saves roll back and display a toast', async () => {
   await waitFor(() => expect(checked(0)).toBe(false));
 });
 test('search uses the privacy endpoint and retains both changes', async () => {
-  const view = mount(SearchSettingsScreen);
-  await ready(view.client);
+  mount(SearchSettingsScreen);
+  await ready();
   fireEvent.click(screen.getAllByRole('switch')[0]);
   await waitFor(() =>
     expect(privacy.updateSettings).toHaveBeenCalledWith({ autoFilter: false }, 'owner'),
   );
-  await waitFor(() => expect(view.client.isMutating()).toBe(0));
+  await waitFor(() => expect(checked(0)).toBe(false));
   fireEvent.click(screen.getAllByRole('switch')[1]);
   await waitFor(() =>
     expect(privacy.updateSettings).toHaveBeenCalledWith({ dataSharing: false }, 'owner'),

@@ -14,7 +14,6 @@ import { AppsApi } from '../../../core/src/api/apps';
  */
 
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { User } from '@oxy.so/core';
 
 // Neutralize the mount-time network effects so the provider settles
@@ -65,7 +64,7 @@ jest.mock('../../src/ui/session', () => {
 });
 
 import { OxyRuntimeProvider, useOxy, type OxyContextState } from '../../src/ui/context/OxyContext';
-import { useAuthStore } from '../../src/ui/stores/authStore';
+import { activeRuntime } from '../../src/ui/runtime/activeRuntime';
 
 /**
  * Captures the live context so the test can drive the provider's OWN
@@ -89,16 +88,11 @@ function requireContext(sink: { current: OxyContextState | null }): OxyContextSt
 }
 
 const renderProvider = (sink: { current: OxyContextState | null }): RenderResult => {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  // Only baseURL is passed: the provider builds its own instance.
   return render(
-    <QueryClientProvider client={queryClient}>
-      {/* Only baseURL is passed: the provider builds its own instance. */}
-      <OxyRuntimeProvider baseURL="https://api.oxy.so" clientId="oxy_test_registered">
-        <Capture sink={sink} />
-      </OxyRuntimeProvider>
-    </QueryClientProvider>,
+    <OxyRuntimeProvider baseURL="https://api.oxy.so" clientId="oxy_test_registered">
+      <Capture sink={sink} />
+    </OxyRuntimeProvider>,
   );
 };
 
@@ -114,7 +108,7 @@ describe('OxyRuntimeProvider after its access token is cleared', () => {
     } as never);
   });
   afterEach(() => {
-    useAuthStore.getState().logout();
+    activeRuntime()?.clearSession();
     mockHasDeviceCredential = true;
     jest.restoreAllMocks();
   });
@@ -128,7 +122,7 @@ describe('OxyRuntimeProvider after its access token is cleared', () => {
 
     act(() => {
       providerInstance.session.setAccessToken('access-before-transient-loss');
-      useAuthStore.getState().loginSuccess(user);
+      activeRuntime()?.setAccount(user);
     });
     await waitFor(() => expect(requireContext(sink).canUsePrivateApi).toBe(true));
 
@@ -169,7 +163,7 @@ describe('OxyRuntimeProvider after its access token is cleared', () => {
 
     act(() => {
       providerInstance.session.setAccessToken('access-before-revocation');
-      useAuthStore.getState().loginSuccess(user);
+      activeRuntime()?.setAccount(user);
     });
     await waitFor(() => expect(requireContext(sink).isAuthenticated).toBe(true));
 

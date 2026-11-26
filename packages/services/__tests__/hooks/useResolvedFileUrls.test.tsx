@@ -11,16 +11,17 @@
  *    is the locally-picked uri.
  */
 
-import type { ReactNode } from 'react';
+import { createElement, type ReactNode } from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, type Store } from '@oxy.so/bloom-data';
 import type { FileMetadata } from '@oxy.so/core';
+import type { AssetUrlBatchResolver } from '../../src/ui/data/files';
 import {
   isOptimisticFile,
   fileThumbSource,
   useResolvedFileUrls,
-  type AssetUrlBatchResolver,
 } from '../../src/ui/hooks/useResolvedFileUrls';
+import { openTestStore } from '../helpers/dataStore';
 
 const makeFile = (
   over: Partial<FileMetadata> & Pick<FileMetadata, 'id' | 'contentType'>,
@@ -34,9 +35,11 @@ const makeFile = (
   ...over,
 });
 
-const makeWrapper = (queryClient: QueryClient) =>
+/** The signed-in account's store: an account switch gives the tree another one. */
+let accountStore: Store;
+const makeWrapper = () =>
   function Wrapper({ children }: { children: ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return createElement(DataProvider, { store: accountStore }, children);
   };
 
 describe('isOptimisticFile', () => {
@@ -92,16 +95,8 @@ describe('fileThumbSource', () => {
 });
 
 describe('useResolvedFileUrls', () => {
-  let queryClient: QueryClient;
-
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: 0 } },
-    });
-  });
-
-  afterEach(() => {
-    queryClient.clear();
+    accountStore = openTestStore();
   });
 
   it('resolves image/video files via one batch call with per-file variants, excluding temp- and documents', async () => {
@@ -121,7 +116,7 @@ describe('useResolvedFileUrls', () => {
     ];
 
     const { result } = renderHook(() => useResolvedFileUrls(oxyServices, files, 'viewer-a'), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: makeWrapper(),
     });
 
     await waitFor(() => expect(getFileDownloadUrls).toHaveBeenCalledTimes(1));
@@ -157,7 +152,7 @@ describe('useResolvedFileUrls', () => {
     ];
 
     renderHook(() => useResolvedFileUrls(oxyServices, files), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: makeWrapper(),
     });
 
     expect(getFileDownloadUrls).not.toHaveBeenCalled();
@@ -175,14 +170,59 @@ describe('useResolvedFileUrls', () => {
     ];
 
     const { result } = renderHook(() => useResolvedFileUrls(oxyServices, files, 'viewer-a'), {
-      wrapper: makeWrapper(queryClient),
+      wrapper: makeWrapper(),
     });
 
     await waitFor(() => expect(result.current.get('okImg')).toBeDefined());
     expect(result.current.get('deniedImg')).toBeUndefined();
   });
 
-  it('scopes the React Query cache to the active viewer id', async () => {
+  it('reads nothing without a viewer (a gated read)', () => {
+    const getFileDownloadUrls = jest.fn(async () => ({}));
+    const oxyServices: AssetUrlBatchResolver = { assets: { urls: getFileDownloadUrls } };
+    renderHook(
+      () =>
+        useResolvedFileUrls(oxyServices, [makeFile({ id: 'img', contentType: 'image/png' })], null),
+      { wrapper: makeWrapper() },
+    );
+    expect(getFileDownloadUrls).not.toHaveBeenCalled();
+  });
+
+  it('keeps a resolved URL on screen while a grown set (the next page) resolves', async () => {
+    let finishSecond: (urls: Record<string, string>) => void = () => undefined;
+    const getFileDownloadUrls = jest
+      .fn()
+      .mockResolvedValueOnce({ a: 'https://api.oxy.so/assets/a/stream?mt=1' })
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishSecond = resolve;
+        }),
+      );
+    const oxyServices: AssetUrlBatchResolver = { assets: { urls: getFileDownloadUrls } };
+    const first = [makeFile({ id: 'a', contentType: 'image/png' })];
+    const grown = [...first, makeFile({ id: 'b', contentType: 'image/png' })];
+
+    const { result, rerender } = renderHook(
+      ({ files }: { files: FileMetadata[] }) => useResolvedFileUrls(oxyServices, files, 'viewer-a'),
+      { wrapper: makeWrapper(), initialProps: { files: first } },
+    );
+    await waitFor(() => expect(result.current.get('a')).toBeDefined());
+
+    rerender({ files: grown });
+    await waitFor(() => expect(getFileDownloadUrls).toHaveBeenCalledTimes(2));
+    // The second batch is still in flight: `a` keeps its URL, `b` has none yet.
+    expect(result.current.get('a')).toBe('https://api.oxy.so/assets/a/stream?mt=1');
+    expect(result.current.get('b')).toBeUndefined();
+
+    finishSecond({
+      a: 'https://api.oxy.so/assets/a/stream?mt=2',
+      b: 'https://api.oxy.so/assets/b/stream?mt=2',
+    });
+    await waitFor(() => expect(result.current.get('b')).toBeDefined());
+    expect(result.current.get('a')).toBe('https://api.oxy.so/assets/a/stream?mt=2');
+  });
+
+  it("never carries one account's URLs into the next account's store", async () => {
     const getFileDownloadUrls = jest
       .fn()
       .mockResolvedValueOnce({
@@ -197,7 +237,7 @@ describe('useResolvedFileUrls', () => {
     const { result, rerender } = renderHook(
       ({ viewerId }: { viewerId: string }) => useResolvedFileUrls(oxyServices, files, viewerId),
       {
-        wrapper: makeWrapper(queryClient),
+        wrapper: makeWrapper(),
         initialProps: { viewerId: 'viewer-a' },
       },
     );
@@ -205,7 +245,11 @@ describe('useResolvedFileUrls', () => {
     await waitFor(() => expect(result.current.get('privImg')).toBeDefined());
     expect(result.current.get('privImg')).toContain('mt=token-a');
 
+    // The account switch: the session opens the next account's store.
+    void accountStore.close();
+    accountStore = openTestStore();
     rerender({ viewerId: 'viewer-b' });
+    expect(result.current.get('privImg')).toBeUndefined();
 
     await waitFor(() => expect(getFileDownloadUrls).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(result.current.get('privImg')).toContain('mt=token-b'));

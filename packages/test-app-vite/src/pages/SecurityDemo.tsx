@@ -1,4 +1,6 @@
+import { useEntities } from '@oxy.so/bloom-data';
 import {
+  SecurityEvent,
   useAuth,
   useOxy,
   useSecurityActivity,
@@ -24,8 +26,9 @@ import { toast } from '@oxy.so/bloom';
 export function SecurityDemo() {
   const { isAuthenticated } = useAuth();
   const { showBottomSheet } = useOxy();
-  const { data: activity, isLoading: activityLoading } = useSecurityActivity();
-  const { data: privacy, isLoading: privacyLoading } = usePrivacySettings();
+  const { ids: activityIds, isLoading: activityLoading } = useSecurityActivity();
+  const activityEvents = useEntities(SecurityEvent, activityIds);
+  const { value: privacy, isLoading: privacyLoading } = usePrivacySettings();
   const updatePrivacy = useUpdatePrivacySettings();
 
   if (!isAuthenticated) {
@@ -42,14 +45,14 @@ export function SecurityDemo() {
 
   const handleToggle = async (key: string, value: boolean) => {
     try {
-      await updatePrivacy.mutateAsync({ settings: { [key]: value } });
+      await updatePrivacy.run({ settings: { [key]: value } });
       toast.success('Privacy setting updated');
     } catch (err) {
       toast.error('Failed to update: ' + String(err));
     }
   };
 
-  const activityItems = activity?.data ?? [];
+  const activityItems = activityEvents.filter((event) => event !== undefined);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

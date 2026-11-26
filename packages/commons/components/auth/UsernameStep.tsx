@@ -12,6 +12,7 @@ import type { OxyServices } from '@oxy.so/core';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { useTranslation } from '@/lib/i18n';
 import telescopeAnimation from '@/assets/lottie/telescope.json';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 /**
  * Sections of the "Learn more about usernames" explainer, in presentation
@@ -265,7 +266,7 @@ export function UsernameStep({
             onPress={handleContinue}
             disabled={(!canContinue && !isOffline) || isUpdating || isConfirming}
             loading={isUpdating || isConfirming}
-            className="mt-space-32"
+            style={{ marginTop: SPACING['space-32'] }}
           >
             {isUpdating
               ? t('auth.usernameStep.saving')
@@ -282,7 +283,7 @@ export function UsernameStep({
             <Button
               appearance="subtle"
               onPress={onSkip}
-              className="mt-space-12"
+              style={{ marginTop: SPACING['space-12'] }}
               disabled={isUpdating}
             >
               {t('auth.usernameStep.skip')}
@@ -293,7 +294,7 @@ export function UsernameStep({
             <Button
               appearance="subtle"
               onPress={learnMoreDialog.open}
-              className="mt-space-12"
+              style={{ marginTop: SPACING['space-12'] }}
               disabled={isUpdating}
             >
               {t('auth.usernameStep.learnMore')}

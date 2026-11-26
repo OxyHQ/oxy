@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { deviceStorage } from '../../src/ui/data/deviceStorage';
 import { useAccountTheme, useAccountThemeControls } from '../../src/ui/hooks/useAccountTheme';
 
 let mockAuth: Record<string, unknown> = {};
@@ -7,7 +8,7 @@ const mockMutateAsync = jest.fn();
 const mockUseAccountColor = jest.fn();
 jest.mock('../../src/ui/hooks/useAuth', () => ({ useAuth: () => mockAuth }));
 jest.mock('../../src/ui/hooks/mutations/useAccountMutations', () => ({
-  useUpdateProfile: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
+  useUpdateProfile: () => ({ run: mockMutateAsync, isPending: false }),
 }));
 jest.mock('../../src/ui/hooks/useAccountColor', () => ({
   useAccountColor: (options: unknown) => mockUseAccountColor(options),
@@ -28,10 +29,11 @@ beforeEach(() => {
 });
 
 describe('useAccountTheme', () => {
-  it('applies the account mode on the account source and only the colour on the app source', () => {
+  it('applies the account mode on the account source and only the colour on the app source', async () => {
     const canUse = () => true;
     renderHook(() => useAccountTheme({ canUse }));
-    expect(mockSetMode).toHaveBeenCalledWith('dark');
+    // Once the device's stored source is read (none: the account's).
+    await waitFor(() => expect(mockSetMode).toHaveBeenCalledWith('dark'));
     expect(mockUseAccountColor).toHaveBeenCalledWith({ canUse });
 
     const { result } = renderHook(() => useAccountThemeControls());
@@ -58,5 +60,18 @@ describe('useAccountThemeControls', () => {
     await act(() => signedOut.result.current.changeThemeMode('dark'));
     expect(mockSetMode).toHaveBeenLastCalledWith('dark');
     expect(mockMutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('the theme source', () => {
+  it("is kept in the device's data, never the account's", async () => {
+    const { result } = renderHook(() => useAccountThemeControls());
+    act(() => result.current.changeThemeSource('app'));
+    expect(result.current.source).toBe('app');
+    await waitFor(async () =>
+      expect(await deviceStorage().getItem('oxy.theme.source')).toBe('app'),
+    );
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    act(() => result.current.changeThemeSource('account'));
   });
 });
