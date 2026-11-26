@@ -129,7 +129,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
-    "@babel/plugin-transform-export-namespace-from": "^7.29.7",
+    "@babel/plugin-transform-export-namespace-from": "^8.1.0",
     "@babel/plugin-transform-modules-commonjs": "^7.29.7",
     "@expo/code-signing-certificates": "0.0.7",
     "@opentelemetry/sdk-trace": "^3.0.0",
