@@ -25,6 +25,10 @@ internal object OxyCallerPolicy {
   private const val TAG = "OxyIdentityHost"
 
   val OXY_PACKAGES: Set<String> = setOf(
+    "org.mention.app",
+    "org.mention.app.dev",
+    // Mention's id until 2.2.0, only ever on Google Play internal testing.
+    // Kept until the owner's phones run org.mention.app, then removed.
     "earth.mention.app",
     "earth.mention.app.dev",
     "onl.alia.app",
