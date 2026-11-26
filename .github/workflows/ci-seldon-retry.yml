@@ -1,7 +1,9 @@
 name: CI Seldon retry
 
-# The caller of seldon-race-retry.yml for this repo's own CI. A pull request's first CI attempt that failed with a failed job on the
-# seldon-ci pool re-runs its failed jobs once, hosted: the raced lanes go to
+# The caller of seldon-race-retry.yml (the reusable workflow) for this repo's
+# own CI. A pull request's first CI attempt that failed with a failed job on
+# the seldon-ci pool, and no hosted rescue of it, re-runs its failed jobs once,
+# hosted: the raced lanes go to
 # Seldon only on run_attempt 1 (OxyHQ/oxy docs/engineering/build-and-deploy.md,
 # CI on Seldon). The house's ISP gateway can fail a Seldon job's checkout or
 # upload where hosted would pass; a genuine failure fails again on hosted.
