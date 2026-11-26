@@ -508,8 +508,10 @@ function withBaseFontText(config, projectRoot = config.projectRoot, options = {}
 }
 
 /**
- * Wraps a NativeWind Metro config with the Bloom single-instance rewrite and the
- * web `ws` shim. In hoisted monorepos the same Bloom version is duplicated under
+ * Wraps the Metro config (NativeWind's, or Expo's own for an app without
+ * NativeWind) with the Bloom single-instance rewrite and the web `ws` shim.
+ * Expo's default config has no `resolveRequest`, so without NativeWind the
+ * request goes on to Metro's own resolver (`context.resolveRequest`). In hoisted monorepos the same Bloom version is duplicated under
  * root `node_modules` and each app's local `node_modules`; two copies mean two
  * React Context objects, so `<BloomThemeProvider>` (services) does not satisfy
  * `useTheme()` (app code) and the app crashes.
@@ -528,7 +530,7 @@ function withBloomSingleInstance(nativeWindConfig, projectRoot) {
         ? { ...context, originModulePath: bloomOrigin }
         : context;
 
-    return parentResolveRequest(resolveContext, moduleName, platform);
+    return (parentResolveRequest ?? context.resolveRequest)(resolveContext, moduleName, platform);
   };
 
   return nativeWindConfig;

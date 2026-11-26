@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.9.1
+
+### Fixed
+
+- An app without NativeWind starts Metro again. The Bloom single-instance
+  resolver called the resolver it wrapped without checking there was one; only
+  NativeWind's config sets `resolver.resolveRequest` (Expo's default has none),
+  so every request of an app that drops `nativewind` threw
+  `parentResolveRequest is not a function` and Metro never served a bundle.
+  It now hands the request to Metro's own resolver (`context.resolveRequest`)
+  when it wraps none, as the preset's other resolvers already did.
+
 ## 6.9.0
 
 ### Added
