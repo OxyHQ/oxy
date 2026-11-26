@@ -45,3 +45,61 @@ export function isLiveEntityId(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   return OBJECT_ID_HEX.test(value) || UUID_V7.test(value);
 }
+
+/** The statuses a malformed entity-id route param may answer with. */
+export type EntityIdParamStatus = 400 | 404;
+
+export interface EntityIdParamOptions {
+  /**
+   * `400` (default): the id is malformed input (`bad_request`). `404`: the
+   * route treats an id that cannot name a row exactly like one that names no
+   * row (`not_found`) — pick it where the route already answers 404 for a
+   * missing entity and must not tell the two apart.
+   */
+  status?: EntityIdParamStatus;
+}
+
+/** The slice of an Express request {@link entityIdParam} reads. */
+interface ParamRequest {
+  params: Record<string, string | string[] | undefined>;
+}
+
+/** The slice of an Express response {@link entityIdParam} writes. */
+interface ParamResponse {
+  status(code: number): { json(body: unknown): unknown };
+}
+
+const ENTITY_ID_PARAM_CODES: Record<EntityIdParamStatus, string> = {
+  400: 'bad_request',
+  404: 'not_found',
+};
+
+/**
+ * Express middleware refusing a request whose route param(s) cannot name a row
+ * (see {@link isLiveEntityId}), so a handler never repeats the guard by hand and
+ * every route answers the same status and body:
+ * `{ "error": { "code", "message" } }` (`docs/api-conventions.md#errors`).
+ *
+ * Express-typed structurally, so `@oxy.so/db` takes no `express` dependency.
+ * It is only the boundary 400/404 described on {@link isLiveEntityId}; passing
+ * never means the row exists. Usage: `router.get('/:id', entityIdParam('id'), handler)`.
+ *
+ * @param names - The param name, or names, to check (default `'id'`).
+ */
+export function entityIdParam(
+  names: string | readonly string[] = 'id',
+  options: EntityIdParamOptions = {},
+): (req: ParamRequest, res: ParamResponse, next: () => void) => void {
+  const list = typeof names === 'string' ? [names] : names;
+  const status = options.status ?? 400;
+  const code = ENTITY_ID_PARAM_CODES[status];
+  return (req, res, next) => {
+    for (const name of list) {
+      if (!isLiveEntityId(req.params[name])) {
+        res.status(status).json({ error: { code, message: `Invalid ${name}` } });
+        return;
+      }
+    }
+    next();
+  };
+}

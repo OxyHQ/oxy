@@ -327,6 +327,8 @@ export function unregisterCacheFromCleanup(cache: TTLCache<unknown>): void {
 /**
  * Stop all cleanup intervals (useful for testing)
  * This will clear the interval and unregister all caches
+ *
+ * @internal Test-only; not part of the package's public surface.
  */
 export function stopAllCleanupIntervals(): void {
   sweepGeneration += 1;
