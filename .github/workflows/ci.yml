@@ -136,9 +136,13 @@ jobs:
   # first wins, and race-finish cancels the other through its job-level
   # concurrency group. A fork's pull request never runs on Seldon. CI complete
   # takes the raced jobs' verdict from the race (scripts/check-ci-complete.mjs).
+  # Pull requests only: a cancelled loser makes its run conclude `cancelled`,
+  # and the npm release trusts only a merge_group run that concluded
+  # `success` (release-package.mjs ciVerdict), so the queue stays hosted until
+  # that verdict reads `CI complete` instead.
   race:
     needs: scope
-    if: ${{ vars.CI_SELDON_RACE == 'true' && !github.event.pull_request.head.repo.fork }}
+    if: ${{ vars.CI_SELDON_RACE == 'true' && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork }}
     uses: OxyHQ/oxy/.github/workflows/seldon-race-start.yml@main
     permissions:
       actions: read
@@ -192,7 +196,7 @@ jobs:
     # `CI complete` still goes red on the failed scope). On merge_group and push
     # the first clause is always true.
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
-    runs-on: &seldon-lane ${{ vars.CI_SELDON_RACE == 'true' && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
+    runs-on: &seldon-lane ${{ vars.CI_SELDON_RACE == 'true' && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
     concurrency:
       group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-seldon-API Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     permissions: &api-test-permissions
