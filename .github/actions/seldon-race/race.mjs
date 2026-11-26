@@ -24,7 +24,7 @@
 // image has none, and the guard runs before setup-node. It reads only this
 // run's jobs, with the job's GITHUB_TOKEN (actions: read).
 
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 export const SELDON = 'seldon';
@@ -181,6 +181,61 @@ export function verdict(jobs, label) {
   return result;
 }
 
+/**
+ * retry: a pull-request run's first attempt failed, and a job that failed ran
+ * on the Seldon pool with no hosted lane of its name having run since: re-run
+ * its failed jobs once. Lanes go to Seldon only on attempt 1, so the re-run is
+ * hosted. A workflow with rescues (`X-rescue`, a hosted job of the same name
+ * that reruns a failed Seldon lane) already gave that lane its hosted try in
+ * the run, so a retry would only repeat it; this is the fallback for a
+ * workflow without them. A genuine failure fails again on hosted, and nothing
+ * re-runs a second time.
+ */
+export function shouldRetry(run, jobs, label) {
+  if (run.event !== 'pull_request' || run.conclusion !== 'failure' || run.run_attempt !== 1)
+    return false;
+  const ranHosted = (name) =>
+    jobs.some(
+      (j) =>
+        j.name === name &&
+        laneOf(j, label) === HOSTED &&
+        j.status === 'completed' &&
+        j.conclusion !== 'skipped' &&
+        j.conclusion !== 'cancelled',
+    );
+  return jobs.some(
+    (j) => j.conclusion === 'failure' && laneOf(j, label) === SELDON && !ranHosted(j.name),
+  );
+}
+
+async function api(env, method, path) {
+  const response = await fetch(`${env.GITHUB_API_URL}${path}`, {
+    method,
+    headers: {
+      accept: 'application/vnd.github+json',
+      authorization: `Bearer ${env.INPUT_TOKEN}`,
+      'x-github-api-version': '2022-11-28',
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`${method} ${path}: HTTP ${response.status}`);
+  return response.status === 201 || response.status === 204 ? null : response.json();
+}
+
+async function retry(env, label) {
+  const { workflow_run: run } = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8'));
+  const base = `/repos/${env.GITHUB_REPOSITORY}/actions/runs/${run.id}`;
+  const { jobs } = await api(env, 'GET', `${base}/attempts/${run.run_attempt}/jobs?per_page=100`);
+  if (!shouldRetry(run, jobs, label)) {
+    console.log(
+      `Run ${run.id} (${run.event}, attempt ${run.run_attempt}, ${run.conclusion}): no Seldon lane to retry.`,
+    );
+    return;
+  }
+  await api(env, 'POST', `${base}/rerun-failed-jobs`);
+  console.log(`Run ${run.id}: a Seldon lane failed; its failed jobs re-run once, hosted.`);
+}
+
 async function listJobs(env) {
   const {
     GITHUB_API_URL: api,
@@ -320,8 +375,10 @@ export async function main(env) {
       return guard(env, label, intervalMs);
     case 'verdict':
       return judge(env, label);
+    case 'retry':
+      return retry(env, label);
     default:
-      throw new Error(`mode must be start, guard, finish or verdict, not ${env.INPUT_MODE}`);
+      throw new Error(`mode must be start, guard, finish, verdict or retry, not ${env.INPUT_MODE}`);
   }
 }
 

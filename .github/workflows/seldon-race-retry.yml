@@ -1,0 +1,40 @@
+name: Seldon race retry
+
+# Called from a repository's own `on: workflow_run` workflow when its CI run
+# completes (docs/engineering/build-and-deploy.md#ci-on-seldon). When a pull
+# request's first attempt failed and a failed job ran on the seldon-ci pool,
+# re-runs its failed jobs once; lanes go to Seldon only on attempt 1, so the
+# re-run is hosted. The caller grants `actions: write`.
+#
+#   on:
+#     workflow_run:
+#       workflows: [CI]
+#       types: [completed]
+#   jobs:
+#     retry:
+#       if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1
+#       permissions:
+#         actions: write
+#       uses: OxyHQ/oxy/.github/workflows/seldon-race-retry.yml@main
+
+on:
+  workflow_call:
+    inputs:
+      label:
+        type: string
+        default: seldon-ci
+
+permissions: {}
+
+jobs:
+  retry:
+    name: Retry Seldon lanes hosted
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - uses: OxyHQ/oxy/.github/actions/seldon-race@main
+        with:
+          mode: retry
+          label: ${{ inputs.label }}
