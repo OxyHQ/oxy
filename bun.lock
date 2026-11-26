@@ -591,7 +591,7 @@
     },
     "packages/doctor": {
       "name": "@oxy.so/doctor",
-      "version": "1.10.0",
+      "version": "1.10.1",
       "bin": {
         "oxy-doctor": "./src/cli.mjs",
         "oxy-doctor-expo-android": "./src/expo-android.mjs",
