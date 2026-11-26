@@ -365,8 +365,11 @@ function maySkip(jobId) {
     return true;
   return dependenciesOf(jobId).some((id) => {
     const result = needs?.[id]?.result;
-    // An idle Seldon race (its control jobs and twins skipped) excuses nothing.
-    if (result === 'skipped' && (RACE_CONTROL_JOBS.includes(id) || id.endsWith(TWIN_SUFFIX)))
+    // An idle Seldon race (its control jobs, twins and rescues skipped) excuses nothing.
+    if (
+      result === 'skipped' &&
+      (RACE_CONTROL_JOBS.includes(id) || id.endsWith(TWIN_SUFFIX) || id.endsWith(RESCUE_SUFFIX))
+    )
       return false;
     return result !== undefined && result !== 'success';
   });
@@ -375,35 +378,43 @@ function maySkip(jobId) {
 /**
  * THE SELDON RACE (docs/engineering/build-and-deploy.md#ci-on-seldon). A raced
  * job `X` runs on the seldon-ci pool and has a hosted twin `X-hosted` with the
- * same steps; the lane that starts first wins and the other is cancelled. So
- * when the race ran, neither job's own result means anything (a matrix with
- * one cancelled loser reports `cancelled` with every shard passed), and the
- * pair passes on the race's verdict (`RACE_VERDICT`, from the verdict step:
- * every job name passed in some lane and failed in none). When the race did
- * not run, `X` is judged as any job and its twin must not have run at all.
- * The race's own control jobs (`race`, `race-finish`) are skipped whenever it
- * is off, on every event; a control job that fails still fails here.
+ * same steps; the lane that starts first wins and the other is cancelled. A
+ * Seldon lane of `X` that failed, whatever the reason (the house network drops
+ * connections), reruns hosted in `X-rescue`, which fails again on a genuine
+ * failure. So when the race or the rescue ran, none of the three jobs' own
+ * results means anything (a matrix with one cancelled loser reports
+ * `cancelled` with every shard passed; a rescued one reports `failure`), and
+ * the family passes on the race's verdict (`RACE_VERDICT`, from the verdict
+ * step: every job name passed in some lane and failed in no hosted lane).
+ * Otherwise `X` is judged as any job and its twin and rescue must not have run
+ * at all. The race's own control jobs (`race`, `race-finish`) are skipped
+ * whenever it is off, on every event; a control job that fails still fails here.
  */
 const RACE_CONTROL_JOBS = ['race', 'race-finish'];
 const TWIN_SUFFIX = '-hosted';
+const RESCUE_SUFFIX = '-rescue';
 const raced = process.env.RACED === 'true';
 const raceVerdict = process.env.RACE_VERDICT ?? '';
 const judgedByRace = new Set();
 for (const twin of jobIds.filter((id) => id.endsWith(TWIN_SUFFIX))) {
   const base = twin.slice(0, -TWIN_SUFFIX.length);
   if (!jobIds.includes(base)) continue;
+  const rescue = `${base}${RESCUE_SUFFIX}`;
   const baseResult = needs?.[base]?.result;
   const twinResult = needs?.[twin]?.result;
-  if (raced && !(baseResult === 'skipped' && twinResult === 'skipped')) {
+  const rescued = jobIds.includes(rescue) && needs?.[rescue]?.result !== 'skipped';
+  if (rescued || (raced && !(baseResult === 'skipped' && twinResult === 'skipped'))) {
     if (raceVerdict !== 'success') {
       fail(
-        `\`${base}\` raced the seldon-ci pool against \`${twin}\`, and the race's verdict is ` +
-          `${JSON.stringify(raceVerdict)}: some ${base} job passed in neither lane (the verdict ` +
-          'step names it).',
+        `\`${base}\` ${rescued ? 'was rescued on hosted' : 'raced the seldon-ci pool'} ` +
+          `(\`${twin}\`, \`${rescue}\`), and the race's verdict is ` +
+          `${JSON.stringify(raceVerdict)}: some ${base} job passed in no lane, or failed in a ` +
+          'hosted one (the verdict step names it).',
       );
     }
     judgedByRace.add(base);
     judgedByRace.add(twin);
+    judgedByRace.add(rescue);
   } else {
     if (twinResult !== 'skipped') {
       fail(
@@ -412,6 +423,7 @@ for (const twin of jobIds.filter((id) => id.endsWith(TWIN_SUFFIX))) {
       );
     }
     judgedByRace.add(twin);
+    judgedByRace.add(rescue);
   }
 }
 

@@ -82,9 +82,11 @@ function needsFor(root, overrides = {}) {
   const needs = {};
   for (const id of Object.keys(parsed?.jobs ?? {})) {
     if (id === GATE_JOB_ID) continue;
-    // The Seldon race's control jobs and hosted twins are skipped whenever the
-    // race is off, which is the run these defaults describe.
-    const raceOnly = id === 'race' || id === 'race-finish' || id.endsWith('-hosted');
+    // The Seldon race's control jobs, hosted twins and rescues are skipped
+    // whenever the race is off and no Seldon lane failed, which is the run
+    // these defaults describe.
+    const raceOnly =
+      id === 'race' || id === 'race-finish' || id.endsWith('-hosted') || id.endsWith('-rescue');
     needs[id] = { result: raceOnly ? 'skipped' : 'success', outputs: {} };
   }
   // The scope job's outputs are part of the verdict: a real run reports them.
@@ -214,8 +216,8 @@ function expectVerdict(
       )
       // `api-coverage`'s `if:` only follows its dependencies.
       .replace(
-        '    needs: [api-test, api-test-hosted, race]\n',
-        '    needs: [api-test, api-test-hosted, race, guards]\n',
+        '    needs: [api-test, api-test-hosted, api-test-rescue, race]\n',
+        '    needs: [api-test, api-test-hosted, api-test-rescue, race, guards]\n',
       ),
   );
   expectVerdict(
@@ -301,7 +303,7 @@ function expectVerdict(
     root,
     racedNeeds,
     1,
-    'passed in neither lane',
+    'passed in no lane',
     'merge_group',
     {
       RACED: 'true',
@@ -313,7 +315,7 @@ function expectVerdict(
     root,
     racedNeeds,
     1,
-    'passed in neither lane',
+    'passed in no lane',
     'merge_group',
     { RACED: 'true' },
   );
@@ -340,6 +342,90 @@ function expectVerdict(
     1,
     '`race` failed',
     'merge_group',
+  );
+}
+
+// ── The Seldon rescue ───────────────────────────────────────────────────────
+// A Seldon lane that failed reruns hosted in `X-rescue`; the family is judged
+// on the verdict whenever the rescue ran, with or without the race.
+{
+  const root = createFixture();
+  const rescuedNeeds = needsFor(root, {
+    'api-test': 'failure',
+    'api-test-rescue': 'success',
+  });
+  for (const event of ['pull_request', 'merge_group']) {
+    expectVerdict(`rescue-passes-${event}`, root, rescuedNeeds, 0, 'CI is complete', event, {
+      RACE_VERDICT: 'success',
+    });
+  }
+  expectVerdict(
+    'rescue-verdict-failure-fails',
+    root,
+    rescuedNeeds,
+    1,
+    '`api-test` was rescued on hosted',
+    'merge_group',
+    { RACE_VERDICT: 'failure' },
+  );
+  expectVerdict(
+    'rescue-verdict-missing-fails',
+    root,
+    rescuedNeeds,
+    1,
+    'passed in no lane',
+    'merge_group',
+  );
+  // A genuine failure fails the rescue too, and the coverage merge then skips:
+  // the gate names the family, never the merge's inherited skip.
+  const genuine = needsFor(root, {
+    'api-test': 'failure',
+    'api-test-rescue': 'failure',
+    'api-coverage': 'skipped',
+  });
+  expectVerdict(
+    'rescue-genuine-failure-fails',
+    root,
+    genuine,
+    1,
+    '`api-test` was rescued on hosted',
+    'merge_group',
+    { RACE_VERDICT: 'failure' },
+  );
+  expectVerdict(
+    'rescue-genuine-failure-pr-excuses-the-merge-skip',
+    root,
+    genuine,
+    1,
+    '`api-test` was rescued on hosted',
+    'pull_request',
+    { RACE_VERDICT: 'failure' },
+  );
+  // Raced and rescued at once: one verdict for the whole family.
+  expectVerdict(
+    'race-and-rescue-passes',
+    root,
+    needsFor(root, {
+      race: { result: 'success', outputs: { race: 'true' } },
+      'race-finish': 'success',
+      'api-build': 'failure',
+      'api-build-hosted': 'cancelled',
+      'api-build-rescue': 'success',
+    }),
+    0,
+    'CI is complete',
+    'merge_group',
+    { RACED: 'true', RACE_VERDICT: 'success' },
+  );
+  // Without the race and without a rescue, a failure is judged as any job.
+  expectVerdict(
+    'unrescued-failure-fails',
+    root,
+    needsFor(root, { 'packages-apps': 'failure' }),
+    1,
+    '`packages-apps` failed.',
+    'pull_request',
+    { RACE_VERDICT: 'success' },
   );
 }
 
