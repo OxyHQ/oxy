@@ -10,6 +10,7 @@ import {
   pairs,
   parseNames,
   SELDON,
+  shouldRetry,
   started,
   startDecision,
   verdict,
@@ -410,4 +411,25 @@ test('startDecision and finishPlan: a wave sees only its own lanes', () => {
     reap: ['seldon-race-9-1-seldon-Build API'],
     undecided: [],
   });
+});
+
+test('retry: a failed pull-request run whose failure ran on Seldon re-runs once', () => {
+  const run = { event: 'pull_request', conclusion: 'failure', run_attempt: 1 };
+  const seldonFail = [{ conclusion: 'failure', labels: ['seldon-ci'] }];
+  const hostedFail = [{ conclusion: 'failure', labels: ['ubuntu-latest'] }];
+  assert.equal(shouldRetry(run, seldonFail, 'seldon-ci'), true);
+  assert.equal(shouldRetry(run, hostedFail, 'seldon-ci'), false);
+  assert.equal(shouldRetry({ ...run, run_attempt: 2 }, seldonFail, 'seldon-ci'), false);
+  assert.equal(shouldRetry({ ...run, event: 'merge_group' }, seldonFail, 'seldon-ci'), false);
+  assert.equal(shouldRetry({ ...run, conclusion: 'success' }, seldonFail, 'seldon-ci'), false);
+  // A rescue (or a twin) of that name already ran hosted in the run: no retry.
+  const failed = { name: 'Build', status: 'completed', conclusion: 'failure' };
+  const seldon = { ...failed, labels: ['seldon-ci'] };
+  const light = { ...failed, labels: ['seldon-ci-light'] };
+  const rescue = (conclusion) => ({ ...failed, conclusion, labels: ['ubuntu-latest'] });
+  assert.equal(shouldRetry(run, [seldon, rescue('success')], 'seldon-ci'), false);
+  assert.equal(shouldRetry(run, [seldon, rescue('failure')], 'seldon-ci'), false);
+  assert.equal(shouldRetry(run, [seldon, rescue('skipped')], 'seldon-ci'), true);
+  assert.equal(shouldRetry(run, [seldon, rescue('cancelled')], 'seldon-ci'), true);
+  assert.equal(shouldRetry(run, [light], 'seldon-ci'), true);
 });

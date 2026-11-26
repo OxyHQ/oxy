@@ -5,7 +5,7 @@ description: >-
   job needs `permissions: actions: read`.
 inputs:
   mode:
-    description: start (outputs race), guard (the first step of every lane), finish (outputs reap) or verdict (outputs outcome).
+    description: "start (outputs race), guard (the first step of every lane), finish (outputs reap), verdict (outputs outcome) or retry (from a workflow_run, re-runs a pull-request run's failed jobs once, hosted, when a Seldon lane failed and no hosted lane of its name ran)."
     required: true
   delay:
     description: 'start: seconds a Seldon lane may sit queued before its hosted twin queues.'
@@ -23,7 +23,7 @@ inputs:
     description: The runs-on label prefix of the Seldon lanes (seldon-ci covers seldon-ci-light too).
     default: seldon-ci
   token:
-    description: A token that can read this run's jobs.
+    description: A token that can read this run's jobs (retry also needs actions write).
     default: ${{ github.token }}
 outputs:
   race:
