@@ -1,5 +1,38 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 6.9.0
+
+### Added
+
+- An app without NativeWind. Bloom no longer styles with `className`, so an app
+  that has moved its own `className` off (the Bloom language codemod) drops
+  `nativewind` from its package.json, and `createOxyMetroConfig` then applies no
+  NativeWind wrapper, no react-native-css runtime and no redirect of React
+  Native's components: every `View` and `Text` is React Native's own. The
+  `nativewind` option overrides the detection. `nativewind/metro` is loaded only
+  for an app that uses it, and the `nativewind` and `tailwindcss` peers are
+  optional.
+- The base face without NativeWind: React Native's `Text` and `TextInput` files
+  (react-native-web's on the web) resolve to `metro/base-font/PlainText.js` and
+  `PlainTextInput.js`, the base-face hosts (`metro/base-font/hosts.*.js`, which
+  NativeWind's `Text` now wraps as well). Bloom's and the language's texts name
+  their family; a raw text draws Inter, or the document's family on the web.
+- `baseFont` (default `true`): `createOxyMetroConfig(root, { baseFont: false })`
+  leaves a React Native `Text` or `TextInput` that names no family as React
+  Native draws it, the platform face (Roboto on Android, San Francisco on iOS,
+  react-native-web's system stack on the web), as an app on 6.7 drew it. For an
+  app whose rebuild keeps its old look (Mention's raw texts); Bloom's `Text`
+  names Inter either way.
+
+- `BloomNativeWindTheme` (`@oxy.so/app-preset/nativewind-theme`): for an app
+  that takes the Bloom without NativeWind while it still has some `className`.
+  Wrapped once around the app inside `BloomProvider`, it writes Bloom's colour
+  tokens into react-native-css's root variables on native, as Bloom used to, and
+  carries each Bloom colour scope's tokens into NativeWind's scoped variables
+  (Bloom's `ColorScopeLayerContext`), so classes inside a scope follow it; the
+  web needs nothing. `css/base.css` keeps importing Bloom's `theme.css`, which Bloom keeps
+  for such apps until the fleet has migrated.
+
 ## 6.8.0
 
 ### Fixed
