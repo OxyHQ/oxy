@@ -15,8 +15,8 @@ const CERT = 'ab'.repeat(32);
 describe('application recognition (ADR 0045)', () => {
   const declaration = {
     webOrigins: ['https://mention.earth', 'https://app.mention.earth:8443'],
-    android: { packageName: 'earth.mention.app', signingCertSha256: [CERT] },
-    ios: { teamId: 'ABCDE12345', bundleId: 'earth.mention.app' },
+    android: { packageName: 'org.mention.app', signingCertSha256: [CERT] },
+    ios: { teamId: 'ABCDE12345', bundleId: 'org.mention.app' },
   };
 
   it('accepts a whole declaration and an empty one', () => {

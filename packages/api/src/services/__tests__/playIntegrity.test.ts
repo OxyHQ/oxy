@@ -27,14 +27,14 @@ const HASH = 'h'.repeat(43);
 function verdict(overrides: { request?: object; app?: object } = {}): PlayIntegrityVerdict {
   return {
     requestDetails: {
-      requestPackageName: 'earth.mention.app',
+      requestPackageName: 'org.mention.app',
       requestHash: HASH,
       timestampMillis: String(NOW.getTime() + 1000),
       ...overrides.request,
     },
     appIntegrity: {
       appRecognitionVerdict: 'PLAY_RECOGNIZED',
-      packageName: 'earth.mention.app',
+      packageName: 'org.mention.app',
       certificateSha256Digest: [CERT_DIGEST],
       ...overrides.app,
     },
@@ -42,7 +42,7 @@ function verdict(overrides: { request?: object; app?: object } = {}): PlayIntegr
 }
 
 const expected = {
-  packageName: 'earth.mention.app',
+  packageName: 'org.mention.app',
   signingCertSha256: [CERT],
   requestHash: HASH,
   notBefore: NOW,
@@ -55,8 +55,8 @@ describe('judgePlayIntegrityVerdict', () => {
   });
 
   it.each([
-    ['package_mismatch', { app: { packageName: 'earth.mention.fake' } }],
-    ['package_mismatch', { request: { requestPackageName: 'earth.mention.fake' } }],
+    ['package_mismatch', { app: { packageName: 'org.mention.fake' } }],
+    ['package_mismatch', { request: { requestPackageName: 'org.mention.fake' } }],
     ['not_play_recognized', { app: { appRecognitionVerdict: 'UNRECOGNIZED_VERSION' } }],
     ['not_play_recognized', { app: { appRecognitionVerdict: 'UNEVALUATED' } }],
     [
@@ -102,8 +102,8 @@ describe('createPlayIntegrityClient', () => {
   it('mints a service-account token once and decodes for the package', async () => {
     const { calls, fetch } = google();
     const client = createPlayIntegrityClient(config, { fetch, now: () => NOW.getTime() });
-    await expect(client.decode('earth.mention.app', 'integrity-token')).resolves.toEqual(verdict());
-    await client.decode('earth.mention.app', 'integrity-token-2');
+    await expect(client.decode('org.mention.app', 'integrity-token')).resolves.toEqual(verdict());
+    await client.decode('org.mention.app', 'integrity-token-2');
     expect(calls.filter((call) => call.url === config.tokenUri)).toHaveLength(1);
 
     const grant = new URLSearchParams(calls[0]?.init.body as string);
@@ -127,7 +127,7 @@ describe('createPlayIntegrityClient', () => {
 
     const decode = calls[1];
     expect(decode?.url).toBe(
-      'https://playintegrity.googleapis.com/v1/earth.mention.app:decodeIntegrityToken',
+      'https://playintegrity.googleapis.com/v1/org.mention.app:decodeIntegrityToken',
     );
     expect((decode?.init.headers as Record<string, string>).authorization).toBe('Bearer ya29.test');
     expect(JSON.parse(decode?.init.body as string)).toEqual({ integrityToken: 'integrity-token' });

@@ -22,8 +22,8 @@ application's agents (`requireStaff` + `app:update`):
 ```json
 {
   "webOrigins": ["https://mention.earth"],
-  "android": { "packageName": "earth.mention.app", "signingCertSha256": ["<64 lowercase hex>"] },
-  "ios": { "teamId": "ABCDE12345", "bundleId": "earth.mention.app" }
+  "android": { "packageName": "org.mention.app", "signingCertSha256": ["<64 lowercase hex>"] },
+  "ios": { "teamId": "ABCDE12345", "bundleId": "org.mention.app" }
 }
 ```
 
