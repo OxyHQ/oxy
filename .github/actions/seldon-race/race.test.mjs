@@ -5,8 +5,10 @@ import {
   finishPlan,
   HOSTED,
   laneGroup,
+  inScope,
   laneOf,
   pairs,
+  parseNames,
   SELDON,
   started,
   startDecision,
@@ -350,4 +352,58 @@ test('verdict: a family that ran hosted only is judged too, so a hosted failure 
     skippedJob('Lint', HOSTED),
   ];
   assert.deepEqual(verdict(jobs, LABEL), { 'Tests (1/5)': false });
+});
+
+// Waves: a second race covers jobs that need the first wave's, by name.
+test('parseNames and inScope: exact names, a matrix by its prefix, empty covers all', () => {
+  const names = parseNames('  Build API\n\nTests\n');
+  assert.deepEqual(names, ['Build API', 'Tests']);
+  assert.equal(inScope(names)(queued('Build API', SELDON)), true);
+  assert.equal(inScope(names)(queued('Tests (2/5)', SELDON)), true);
+  assert.equal(inScope(names)(queued('Testsuite', SELDON)), false);
+  assert.equal(inScope(names)(queued('Lint & Test', SELDON)), false);
+  assert.equal(inScope(parseNames(''))(queued('Lint & Test', SELDON)), true);
+  assert.deepEqual(parseNames(undefined), []);
+});
+
+test('startDecision and finishPlan: a wave sees only its own lanes', () => {
+  const wave2 = ['Build API'];
+  const firstWave = [
+    done(running('Lint & Test', SELDON, 30), 'success'), // no twin: the first race did not run
+  ];
+  // The second wave's lanes are not listed yet: wait, not "no race".
+  assert.equal(
+    startDecision({
+      jobs: firstWave,
+      label: LABEL,
+      now: T0 + 60_000,
+      since: T0,
+      delayMs: 180_000,
+      names: wave2,
+    }),
+    'wait',
+  );
+  const build = queued('Build API', SELDON, 700);
+  assert.equal(
+    startDecision({
+      jobs: [...firstWave, build],
+      label: LABEL,
+      now: T0 + 880_000,
+      since: T0 + 700_000,
+      delayMs: 180_000,
+      names: wave2,
+    }),
+    'race',
+  );
+  // Finish waits for the second wave's twin, never for the first wave's.
+  const ids = { label: LABEL, runId: '9', attempt: '1', names: wave2 };
+  assert.deepEqual(finishPlan({ jobs: [...firstWave, build], ...ids }), {
+    reap: [],
+    undecided: ['Build API'],
+  });
+  const twin = running('Build API', HOSTED, 890, 885);
+  assert.deepEqual(finishPlan({ jobs: [...firstWave, build, twin], ...ids }), {
+    reap: ['seldon-race-9-1-seldon-Build API'],
+    undecided: [],
+  });
 });

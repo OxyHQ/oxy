@@ -16,6 +16,9 @@ inputs:
   deadline:
     description: 'finish: seconds after which a pair with no started lane keeps both lanes.'
     default: '3600'
+  names:
+    description: "start and finish: the display names this race covers, one per line (X also covers a matrix's X (...)); empty covers every Seldon lane. A workflow whose raced jobs come in waves gives each wave its own start and finish."
+    default: ''
   label:
     description: The runs-on label of the Seldon lanes.
     default: seldon-ci

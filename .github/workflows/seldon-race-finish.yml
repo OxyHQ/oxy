@@ -17,6 +17,10 @@ on:
         description: Seconds after which a pair with no started lane keeps both lanes.
         type: number
         default: 3600
+      names:
+        description: The display names this race covers, one per line (X also covers a matrix's X (...)); empty covers every Seldon lane. Give each wave of raced jobs (some needing others) its own start and finish.
+        type: string
+        default: ''
       label:
         description: The runs-on label of the Seldon lanes.
         type: string
@@ -39,6 +43,7 @@ jobs:
           mode: finish
           interval: ${{ inputs.interval }}
           deadline: ${{ inputs.deadline }}
+          names: ${{ inputs.names }}
           label: ${{ inputs.label }}
 
   reap:

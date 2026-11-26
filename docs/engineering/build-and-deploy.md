@@ -204,6 +204,8 @@ The group is not restricted to workflows, so no secret may ever be put in the im
 5. A Seldon lane that fails, for whatever reason, gets a rescue: a hosted job `X-rescue` with the same name and steps (and no guard), which needs `X` and runs only when `X` failed. The house's ISP (Vodafone DS-Lite) drops new connections in bursts, so a Seldon lane can fail its checkout, an upload or a service pull where hosted passes; a genuine failure fails again in the rescue.
 6. `CI complete` takes each raced job's verdict from the jobs API whenever `CI_SELDON_RACE` is on: per job name, "a lane passed and no hosted lane failed". A cancelled loser is never a failure, a failed Seldon lane is excused by its twin's or its rescue's success, and a failed hosted lane never is. The gate judges `X`, `X-hosted` and `X-rescue` on that verdict when the race ran or the rescue ran, and otherwise judges `X` alone and requires the other two skipped. Required checks and the merge queue still see one result. A rescued run concludes `failure` (one of its jobs failed), so anything that trusts a run trusts its `CI complete`, not its conclusion.
 
+When raced jobs come in waves (a raced job that needs another), each wave gets its own start and finish with the `names` input, the display names it covers. Without it, the first wave's finish would wait for twins of the second wave's lanes that its race never queued, and the second wave's start would see the first wave's finished lanes and call no race.
+
 Seldon being down therefore costs the delay, never the run, and with the variable unset nothing changes. The decision itself runs on hosted runners, so it never depends on Seldon.
 
 **What stays hosted:**

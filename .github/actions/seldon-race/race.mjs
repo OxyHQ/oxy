@@ -52,6 +52,22 @@ const waiting = (job) => job.status !== 'completed' && !started(job);
 /** The live (not skipped) jobs on the Seldon label. */
 const seldonLanes = (jobs, label) => jobs.filter((j) => !skipped(j) && laneOf(j, label) === SELDON);
 
+/**
+ * The `names` input: the display names one start/finish pair races, one per
+ * line; `X` also covers a matrix's `X (...)`. Empty races every Seldon lane.
+ * A workflow whose raced jobs come in waves (some need others) gives each
+ * wave its own start and finish, so neither waits on the other's lanes.
+ */
+export function parseNames(value) {
+  return (value ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export const inScope = (names) => (job) =>
+  names.length === 0 || names.some((n) => job.name === n || job.name.startsWith(`${n} (`));
+
 const createdOrder = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id;
 
 /**
@@ -76,8 +92,8 @@ export function pairs(jobs, label) {
  * `now`. `since` is when the start step began: Seldon lanes that never show
  * up within `delayMs` of it (all skipped, say) mean no race.
  */
-export function startDecision({ jobs, label, now, since, delayMs }) {
-  const lanes = seldonLanes(jobs, label);
+export function startDecision({ jobs, label, now, since, delayMs, names = [] }) {
+  const lanes = seldonLanes(jobs, label).filter(inScope(names));
   if (lanes.length === 0) return now - since >= delayMs ? 'no-race' : 'wait';
   const queued = lanes.filter(waiting);
   if (queued.length === 0) return 'no-race';
@@ -99,10 +115,10 @@ export function winner({ seldon, hosted }) {
  * `undecided`, the names whose twin has not appeared yet or whose lanes have
  * both not started. Finish waits while anything is undecided.
  */
-export function finishPlan({ jobs, label, runId, attempt }) {
+export function finishPlan({ jobs, label, runId, attempt, names = [] }) {
   const reap = [];
   const undecided = [];
-  for (const pair of pairs(jobs, label)) {
+  for (const pair of pairs(jobs, label).filter((p) => inScope(names)(p.seldon))) {
     const won = pair.hosted ? winner(pair) : null;
     if (!won) {
       undecided.push(pair.name);
@@ -221,7 +237,14 @@ async function start(env, label, intervalMs) {
       console.log(`::warning::${error.message}; racing`);
       return output(env, 'race', 'true');
     }
-    const decision = startDecision({ jobs, label, now: Date.now(), since, delayMs });
+    const decision = startDecision({
+      jobs,
+      label,
+      now: Date.now(),
+      since,
+      delayMs,
+      names: parseNames(env.INPUT_NAMES),
+    });
     if (decision !== 'wait') return output(env, 'race', String(decision === 'race'));
     await sleep(intervalMs);
   }
@@ -229,8 +252,9 @@ async function start(env, label, intervalMs) {
 
 async function finish(env, label, intervalMs) {
   const deadline = Date.now() + seconds(env.INPUT_DEADLINE, 3600);
+  const names = parseNames(env.INPUT_NAMES);
   const plan = (jobs) =>
-    finishPlan({ jobs, label, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT });
+    finishPlan({ jobs, label, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT, names });
   for (;;) {
     const { reap, undecided } = plan(await readJobs(env));
     if (undecided.length === 0) return output(env, 'reap', JSON.stringify(reap));
