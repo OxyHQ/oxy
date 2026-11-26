@@ -236,7 +236,7 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "6.9.0",
+      "version": "6.9.1",
       "bin": {
         "oxy-check-keychain-entitlements": "./bin/oxy-check-keychain-entitlements.js",
         "oxy-web-pwa": "./bin/oxy-web-pwa.js",

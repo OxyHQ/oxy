@@ -15,6 +15,8 @@ const WORKLETS_SHIM =
   '/repo/node_modules/react-native-worklets/bundleMode/shims/reactNativeShim.js';
 let createOxyMetroConfig;
 let findWorkspaceRoot;
+/** Whether Expo's default config carries a `resolveRequest` (the real one has none; NativeWind sets one). */
+let defaultHasResolveRequest = true;
 /** Configs worklets' `getBundleModeMetroConfig` was handed. */
 const bundleModeWrapped = [];
 
@@ -30,12 +32,14 @@ before(() => {
               extraNodeModules: { existing: '/existing' },
               // Where NativeWind's resolver sends `react-native` on native.
               // NativeWind's Text, as Metro resolves it.
-              resolveRequest: (context, moduleName, platform) =>
-                moduleName === 'react-native' && platform !== 'web'
-                  ? { type: 'sourceFile', filePath: CSS_COMPONENTS_ENTRY }
-                  : moduleName === 'react-native-css/components/Text'
-                    ? { type: 'sourceFile', filePath: CSS_TEXT }
-                    : { context, moduleName, platform },
+              resolveRequest: !defaultHasResolveRequest
+                ? undefined
+                : (context, moduleName, platform) =>
+                    moduleName === 'react-native' && platform !== 'web'
+                      ? { type: 'sourceFile', filePath: CSS_COMPONENTS_ENTRY }
+                      : moduleName === 'react-native-css/components/Text'
+                        ? { type: 'sourceFile', filePath: CSS_TEXT }
+                        : { context, moduleName, platform },
             },
             transformer: { minifierConfig: { compress: { existing: true } } },
           };
@@ -342,6 +346,44 @@ test('NativeWind wraps only an app that depends on it', () => {
     assert.equal(resolve(createOxyMetroConfig(styled, options)), COMPLETE_REACT_NATIVE);
     assert.notEqual(resolve(plain), COMPLETE_REACT_NATIVE);
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('without NativeWind, Expo’s config (no resolveRequest) hands Bloom to Metro’s resolver', () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'oxy-metro-plain-')));
+  defaultHasResolveRequest = false;
+  try {
+    const app = path.join(root, 'app');
+    fs.mkdirSync(app, { recursive: true });
+    fs.writeFileSync(
+      path.join(app, 'package.json'),
+      JSON.stringify({ dependencies: { '@oxy.so/bloom': '23.0.0' } }),
+    );
+    const config = createOxyMetroConfig(app, { workspaceRoot: root });
+    const asked = [];
+    const resolution = config.resolver.resolveRequest(
+      {
+        originModulePath: path.join(app, 'src/screen.tsx'),
+        resolveRequest: (context, moduleName, platform) => {
+          asked.push({ origin: context.originModulePath, moduleName, platform });
+          return { type: 'sourceFile', filePath: '/resolved.js' };
+        },
+      },
+      '@oxy.so/bloom/button',
+      'ios',
+    );
+    assert.deepEqual(resolution, { type: 'sourceFile', filePath: '/resolved.js' });
+    // Bloom still resolves from the app's root, so there is one instance.
+    assert.deepEqual(asked, [
+      {
+        origin: path.join(app, 'package.json'),
+        moduleName: '@oxy.so/bloom/button',
+        platform: 'ios',
+      },
+    ]);
+  } finally {
+    defaultHasResolveRequest = true;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
