@@ -8,7 +8,6 @@ import { GroupedSection } from '@oxy.so/bloom/grouped-section';
 import { useColors } from '@/hooks/useColors';
 import { Screen, StackHeader, SessionGate, GroupedSectionItem } from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
-import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useIdentity } from '@/hooks/useIdentity';
 import { Fonts } from '@/constants/theme';
@@ -25,7 +24,7 @@ function shorten(value: string, head = 8, tail = 6): string {
  * tab's hero, so it is NOT repeated here. A clean iOS-style grouped list: the
  * technical identifiers (public key, DID) sit as tap-to-copy rows showing a
  * truncated value — never a raw hex dump — followed by the self-custody
- * explainer and the one account setting (inactivity expiration). Read + copy
+ * explainer. Read + copy
  * only; actions (backup, rotate, delete) live in Settings.
  */
 export default function AboutIdentityScreen() {
@@ -42,7 +41,6 @@ export default function AboutIdentityScreen() {
 
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isSavingExpiration, setIsSavingExpiration] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -83,53 +81,6 @@ export default function AboutIdentityScreen() {
     },
     [t],
   );
-
-  const formatExpirationSetting = useCallback(
-    (days: number | null | undefined): string => {
-      if (!days) return t('aboutIdentity.expiration.never');
-      if (days === 365) return t('aboutIdentity.expiration.oneYear');
-      return t('aboutIdentity.expiration.days', { count: days });
-    },
-    [t],
-  );
-
-  const currentExpirationDays = user?.accountExpiresAfterInactivityDays ?? null;
-
-  const handleExpirationChange = useCallback(
-    async (selectedDays: number | null) => {
-      if (!oxyServices || !user) return;
-      try {
-        setIsSavingExpiration(true);
-        await oxyServices.users.updateMe({ accountExpiresAfterInactivityDays: selectedDays });
-        toast.success(t('aboutIdentity.expirationUpdated'));
-      } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : t('aboutIdentity.expirationUpdateFailed');
-        toast.error(message);
-      } finally {
-        setIsSavingExpiration(false);
-      }
-    },
-    [oxyServices, user, t],
-  );
-
-  const showExpirationPicker = useCallback(() => {
-    const options = [
-      { label: t('aboutIdentity.expirationPicker.days30'), value: 30 },
-      { label: t('aboutIdentity.expirationPicker.days90'), value: 90 },
-      { label: t('aboutIdentity.expirationPicker.days180'), value: 180 },
-      { label: t('aboutIdentity.expirationPicker.oneYear'), value: 365 },
-      { label: t('aboutIdentity.expirationPicker.never'), value: null },
-    ];
-
-    alert(t('aboutIdentity.expirationPicker.title'), t('aboutIdentity.expirationPicker.message'), [
-      ...options.map((option) => ({
-        text: option.label,
-        onPress: () => handleExpirationChange(option.value),
-      })),
-      { text: t('common.cancel'), style: 'cancel' },
-    ]);
-  }, [handleExpirationChange, t]);
 
   const selfCustodyItems = useMemo(
     () => [
@@ -227,21 +178,6 @@ export default function AboutIdentityScreen() {
             showChevron={false}
           />
         ))}
-      </GroupedSection>
-
-      {/* Account settings */}
-      <GroupedSection title={t('aboutIdentity.accountSettings')}>
-        <GroupedSectionItem
-          icon={<Icons.pending size="md" fill={colors.tint} />}
-          title={t('aboutIdentity.accountExpiration')}
-          value={formatExpirationSetting(currentExpirationDays)}
-          onPress={isSavingExpiration ? undefined : showExpirationPicker}
-          showChevron={!isSavingExpiration}
-          disabled={isSavingExpiration}
-          rightElement={
-            isSavingExpiration ? <ActivityIndicator size="small" color={colors.tint} /> : undefined
-          }
-        />
       </GroupedSection>
 
       <Text style={[styles.footnote, { color: colors.textSecondary }]}>

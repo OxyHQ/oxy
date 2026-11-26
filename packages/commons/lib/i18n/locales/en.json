@@ -976,26 +976,7 @@
       "recoverySubtitle": "Your 12-word recovery phrase is the only way to restore your identity on a new device.",
       "decentralizedTitle": "Decentralized Identity",
       "decentralizedSubtitle": "Your identity is not controlled by any company. You own it completely."
-    },
-    "accountSettings": "Account Settings",
-    "accountSettingsDescription": "Manage your account preferences and expiration settings.",
-    "accountExpiration": "Account Expiration",
-    "expiration": {
-      "never": "Never expires",
-      "days": "{{count}} days",
-      "oneYear": "1 year"
-    },
-    "expirationPicker": {
-      "title": "Account Expiration",
-      "message": "Choose when your account expires after inactivity",
-      "days30": "30 days",
-      "days90": "90 days",
-      "days180": "180 days",
-      "oneYear": "1 year",
-      "never": "Never"
-    },
-    "expirationUpdated": "Account expiration setting updated",
-    "expirationUpdateFailed": "Failed to update account expiration setting. Please try again."
+    }
   },
   "backup": {
     "title": "Encrypted backup",

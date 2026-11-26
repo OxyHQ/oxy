@@ -976,26 +976,7 @@
       "recoverySubtitle": "Tu frase de recuperación de 12 palabras es la única forma de restaurar tu identidad en un nuevo dispositivo.",
       "decentralizedTitle": "Identidad descentralizada",
       "decentralizedSubtitle": "Tu identidad no está controlada por ninguna empresa. Es completamente tuya."
-    },
-    "accountSettings": "Configuración de la cuenta",
-    "accountSettingsDescription": "Gestiona las preferencias y la configuración de caducidad de tu cuenta.",
-    "accountExpiration": "Caducidad de la cuenta",
-    "expiration": {
-      "never": "Nunca caduca",
-      "days": "{{count}} días",
-      "oneYear": "1 año"
-    },
-    "expirationPicker": {
-      "title": "Caducidad de la cuenta",
-      "message": "Elige cuándo caduca tu cuenta tras un periodo de inactividad",
-      "days30": "30 días",
-      "days90": "90 días",
-      "days180": "180 días",
-      "oneYear": "1 año",
-      "never": "Nunca"
-    },
-    "expirationUpdated": "Configuración de caducidad de la cuenta actualizada",
-    "expirationUpdateFailed": "No se pudo actualizar la configuración de caducidad de la cuenta. Inténtalo de nuevo."
+    }
   },
   "backup": {
     "title": "Copia de seguridad cifrada",
