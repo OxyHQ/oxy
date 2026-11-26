@@ -193,7 +193,7 @@
     "@types/node": "catalog:",
     "@types/react": "*",
     "@oxy.so/bloom": "catalog:",
-    "@oxy.so/bloom-data": "0.1.0",
+    "@oxy.so/bloom-data": "0.1.2",
     "copyfiles": "^2.4.1",
     "expo-clipboard": "catalog:",
     "expo-constants": "catalog:",

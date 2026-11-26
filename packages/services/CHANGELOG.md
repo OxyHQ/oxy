@@ -34,10 +34,6 @@ element was rendered before and after, light and dark, native and web); an app n
   so a macOS app cannot bundle the Expo 58 stack. `compat/expo-58` still renders `<OxyProvider>` as
   macOS under Jest; its macOS Metro bundle step is dropped and comes back once react-native-macos
   0.87 or later exists.
-  Its lockfile still holds the old stack: Bloom 23.0.0 and bloom-data 0.1.0 were published on
-  2026-11-23 and the seven-day install quarantine admits them from 2026-11-30, when
-  `compat/expo-58/bun.lock` is rebuilt (`bun install` there, no quarantine override) and
-  `bun run check:compat-expo-58` runs on it.
 - **Removed:** `nativewind` (optional) and `react-native-css`.
 - **Unchanged:** `@react-native-async-storage/async-storage` stays a required peer. Services reads
   it only to move its device key-value data into bloom-data, each key the first time it is read,
