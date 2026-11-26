@@ -365,16 +365,32 @@ export function plan(workspaces, registry) {
 /** The events whose CI run tested the very commit that is now on the branch. */
 const VOUCHING_EVENTS = ['push', 'merge_group'];
 
+/** The job every Oxy CI workflow ends with: the one verdict its run stands for. */
+export const CI_COMPLETE_JOB = 'CI complete';
+
+/**
+ * A vouching run passed when it concluded `success`, or when it concluded
+ * `cancelled` only because the Seldon race cancelled a losing lane
+ * (docs/engineering/build-and-deploy.md#ci-on-seldon): then its `CI complete`
+ * job, which judged every job and the race's verdict, succeeded. `ci_complete`
+ * is that job's conclusion, which waitForCi reads for every cancelled run. A
+ * run that failed is never rescued.
+ */
+function vouches(run) {
+  if (run.conclusion === 'success') return true;
+  return run.conclusion === 'cancelled' && run.ci_complete === 'success';
+}
+
 /**
  * What the CI runs of one commit say about it: `passed` once any vouching run
- * succeeded; `pending` while one is still running, or none has appeared yet;
- * `failed` when every vouching run finished without succeeding.
+ * passed (vouches); `pending` while one is still running, or none has appeared
+ * yet; `failed` when every vouching run finished without passing.
  */
 export function ciVerdict(runs, sha) {
   const vouching = runs.filter(
     (run) => run.head_sha === sha && VOUCHING_EVENTS.includes(run.event),
   );
-  if (vouching.some((run) => run.conclusion === 'success')) return 'passed';
+  if (vouching.some(vouches)) return 'passed';
   if (vouching.length === 0 || vouching.some((run) => run.status !== 'completed')) return 'pending';
   return 'failed';
 }
@@ -407,6 +423,22 @@ async function waitForCi(sha, workflow) {
     } else {
       unanswered = 0;
       const runs = (await response.json()).workflow_runs;
+      for (const run of runs) {
+        if (run.status !== 'completed' || run.conclusion !== 'cancelled') continue;
+        if (!VOUCHING_EVENTS.includes(run.event) || run.head_sha !== sha) continue;
+        const jobs = await fetch(
+          `${api}/repos/${repository}/actions/runs/${run.id}/jobs?per_page=100`,
+          {
+            headers: {
+              accept: 'application/vnd.github+json',
+              authorization: `Bearer ${process.env.GH_TOKEN}`,
+            },
+          },
+        )
+          .then((reply) => (reply.ok ? reply.json() : { jobs: [] }))
+          .catch(() => ({ jobs: [] }));
+        run.ci_complete = jobs.jobs?.find((job) => job.name === CI_COMPLETE_JOB)?.conclusion;
+      }
       const verdict = ciVerdict(runs, sha);
       const seen = runs
         .filter((run) => VOUCHING_EVENTS.includes(run.event))

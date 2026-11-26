@@ -202,6 +202,20 @@ test('a commit is released only once CI passed on it, from push or the merge que
     ),
     'failed',
   );
+  // The Seldon race: a run cancelled only because a losing lane was, whose
+  // `CI complete` succeeded, vouches; a cancelled run whose gate did not pass,
+  // or whose gate was never read, does not.
+  const raced = (ciComplete) => ({
+    ...run('merge_group', 'completed', 'cancelled'),
+    ci_complete: ciComplete,
+  });
+  assert.equal(ciVerdict([raced('success')], sha), 'passed');
+  assert.equal(ciVerdict([raced('failure')], sha), 'failed');
+  assert.equal(ciVerdict([raced(undefined)], sha), 'failed');
+  assert.equal(
+    ciVerdict([{ ...run('merge_group', 'completed', 'failure'), ci_complete: 'success' }], sha),
+    'failed',
+  );
 });
 
 const tool = new URL('./release-package.mjs', import.meta.url).pathname;
