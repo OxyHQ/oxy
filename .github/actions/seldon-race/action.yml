@@ -20,7 +20,7 @@ inputs:
     description: "start and finish: the display names this race covers, one per line (X also covers a matrix's X (...)); empty covers every Seldon lane. A workflow whose raced jobs come in waves gives each wave its own start and finish."
     default: ''
   label:
-    description: The runs-on label of the Seldon lanes.
+    description: The runs-on label prefix of the Seldon lanes (seldon-ci covers seldon-ci-light too).
     default: seldon-ci
   token:
     description: A token that can read this run's jobs.

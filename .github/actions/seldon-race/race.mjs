@@ -35,7 +35,12 @@ export function laneGroup({ runId, attempt, lane, name }) {
   return `seldon-race-${runId}-${attempt}-${lane}-${name}`;
 }
 
-export const laneOf = (job, label) => (job.labels.includes(label) ? SELDON : HOSTED);
+/**
+ * A lane is a Seldon lane when one of its labels starts with `label`, so the
+ * pool's slot classes (`seldon-ci`, `seldon-ci-light`) all race.
+ */
+export const laneOf = (job, label) =>
+  job.labels.some((l) => l.startsWith(label)) ? SELDON : HOSTED;
 
 const skipped = (job) => job.status === 'completed' && job.conclusion === 'skipped';
 

@@ -61,6 +61,10 @@ test('laneOf: the label decides the lane', () => {
   assert.equal(laneOf(queued('a', SELDON), LABEL), SELDON);
   assert.equal(laneOf(queued('a', HOSTED), LABEL), HOSTED);
   assert.equal(laneOf(queued('a', SELDON), 'seldon-ci-offline-sim'), HOSTED);
+  // Every slot class of the pool is a Seldon lane.
+  const light = { ...queued('a', SELDON), labels: ['seldon-ci-light'] };
+  assert.equal(laneOf(light, LABEL), SELDON);
+  assert.equal(laneOf({ ...light, labels: ['ubuntu-24.04-arm'] }, LABEL), HOSTED);
 });
 
 test('started: a runner, not the status or started_at, says a job started', () => {
