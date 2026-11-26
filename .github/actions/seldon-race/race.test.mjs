@@ -278,3 +278,76 @@ test('verdict: a timed-out or still-running lane fails its name', () => {
   ];
   assert.deepEqual(verdict(jobs, LABEL), { Build: false, Parity: false });
 });
+
+// The rescue: a hosted job of the same name that reruns a Seldon lane's work
+// once that lane failed. It is created only after its Seldon lane completed.
+test('pairs: a late rescue of the same name never stands in for the twin', () => {
+  const s = done(running('Tests (1/5)', SELDON, 30), 'failure');
+  const twin = cancelledQueued('Tests (1/5)', HOSTED, 200);
+  const rescue = running('Tests (1/5)', HOSTED, 400, 390);
+  // Listed before the twin, as the API may order them: the earliest still wins.
+  assert.deepEqual(pairs([rescue, s, twin], LABEL), [
+    { name: 'Tests (1/5)', seldon: s, hosted: twin },
+  ]);
+  // A tie on created_at goes to the lower id, the job GitHub created first.
+  const sameSecond = { ...rescue, created_at: twin.created_at };
+  assert.equal(pairs([sameSecond, s, twin], LABEL)[0].hosted, twin);
+});
+
+test('finishPlan and yields: a late rescue changes nothing', () => {
+  const ids = { label: LABEL, runId: '9', attempt: '1' };
+  const s = done(running('Build', SELDON, 30), 'failure');
+  const twin = running('Build', HOSTED, 220, 200); // sleeping in its guard
+  const rescue = queued('Build', HOSTED, 300);
+  assert.deepEqual(finishPlan({ jobs: [rescue, s, twin], ...ids }), {
+    reap: ['seldon-race-9-1-hosted-Build'],
+    undecided: [],
+  });
+  assert.equal(yields({ jobs: [rescue, s, twin], label: LABEL, jobId: twin.id }), true);
+});
+
+test('verdict: a failed Seldon lane is excused by a hosted success, never a hosted failure', () => {
+  const jobs = [
+    // No race: the Seldon lane failed on the network, its rescue passed.
+    done(running('Tests (1/5)', SELDON, 30), 'failure'),
+    skippedJob('Tests (1/5)', HOSTED),
+    done(running('Tests (1/5)', HOSTED, 400, 390), 'success'),
+    // Raced: Seldon won and failed, the twin was reaped, the rescue passed.
+    done(running('Tests (2/5)', SELDON, 30), 'failure'),
+    cancelledQueued('Tests (2/5)', HOSTED, 200),
+    done(running('Tests (2/5)', HOSTED, 400, 390), 'success'),
+    // A genuine failure fails again in the rescue.
+    done(running('Tests (3/5)', SELDON, 30), 'failure'),
+    skippedJob('Tests (3/5)', HOSTED),
+    done(running('Tests (3/5)', HOSTED, 400, 390), 'failure'),
+    // Both lanes ran and the hosted twin failed: Seldon's success does not excuse it.
+    done(running('Tests (4/5)', SELDON, 30), 'success'),
+    done(running('Tests (4/5)', HOSTED, 200), 'failure'),
+    // A Seldon lane that timed out, rescued.
+    done(running('Tests (5/5)', SELDON, 30), 'timed_out'),
+    done(running('Tests (5/5)', HOSTED, 400, 390), 'success'),
+    // A rescue that was cancelled rescues nothing.
+    done(running('Build', SELDON, 30), 'failure'),
+    done(running('Build', HOSTED, 400, 390), 'cancelled'),
+  ];
+  assert.deepEqual(verdict(jobs, LABEL), {
+    'Tests (1/5)': true,
+    'Tests (2/5)': true,
+    'Tests (3/5)': false,
+    'Tests (4/5)': false,
+    'Tests (5/5)': true,
+    Build: false,
+  });
+});
+
+test('verdict: a family that ran hosted only is judged too, so a hosted failure is never excused', () => {
+  const jobs = [
+    // A re-run attempt: every lane hosted, the job failed and a rescue passed.
+    done(running('Tests (1/5)', HOSTED, 30), 'failure'),
+    done(running('Tests (1/5)', HOSTED, 400, 390), 'success'),
+    // One live job of a name, its twins skipped: not a race, not judged here.
+    done(running('Lint', HOSTED, 30), 'failure'),
+    skippedJob('Lint', HOSTED),
+  ];
+  assert.deepEqual(verdict(jobs, LABEL), { 'Tests (1/5)': false });
+});

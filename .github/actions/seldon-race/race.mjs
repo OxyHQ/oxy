@@ -13,8 +13,12 @@
 //   finish   polls until every pair has a lane running; the one that started
 //            first wins (a tie goes to Seldon) and `reap` lists the losers'
 //            groups, which the reap job queues into.
-//   verdict  per job name: passed when a lane succeeded and none failed. A
-//            cancelled loser is never a failure.
+//   verdict  per job name: passed when a lane succeeded and no hosted lane
+//            failed. A cancelled loser is never a failure, and a failed Seldon
+//            lane is excused by a hosted lane that succeeded: its twin, or its
+//            rescue, a hosted job of the same name that reruns the work
+//            whenever a Seldon lane failed (the house network drops
+//            connections), and that fails again on a genuine failure.
 //
 // It runs as a node24 JavaScript action, on the runner's own Node: Seldon's VM
 // image has none, and the guard runs before setup-node. It reads only this
@@ -48,13 +52,22 @@ const waiting = (job) => job.status !== 'completed' && !started(job);
 /** The live (not skipped) jobs on the Seldon label. */
 const seldonLanes = (jobs, label) => jobs.filter((j) => !skipped(j) && laneOf(j, label) === SELDON);
 
-/** Every Seldon lane by name, as { name, seldon, hosted }; hosted is undefined until its twin exists. */
+const createdOrder = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id;
+
+/**
+ * Every Seldon lane by name, as { name, seldon, hosted }; hosted is undefined
+ * until its twin exists. The twin is the earliest live hosted job of that name:
+ * a rescue of the same name is created only once its Seldon lane completed,
+ * after the twin, so it never stands in for the twin.
+ */
 export function pairs(jobs, label) {
-  const live = jobs.filter((j) => !skipped(j));
+  const hostedLanes = jobs
+    .filter((j) => !skipped(j) && laneOf(j, label) === HOSTED)
+    .sort(createdOrder);
   return seldonLanes(jobs, label).map((seldon) => ({
     name: seldon.name,
     seldon,
-    hosted: live.find((j) => j.name === seldon.name && laneOf(j, label) === HOSTED),
+    hosted: hostedLanes.find((j) => j.name === seldon.name),
   }));
 }
 
@@ -115,17 +128,34 @@ export function yields({ jobs, label, jobId }) {
 const PASSING = new Set(['success', 'cancelled', 'skipped']);
 
 /**
- * verdict: { name: passed } for every Seldon lane's name. Passed when a lane
- * of that name succeeded and none ended in anything but success, cancelled or
- * skipped: a cancelled loser is fine, a cancelled (or timed-out) winner is not,
- * because then nothing succeeded.
+ * The names the verdict judges: every Seldon lane's, and every name that more
+ * than one live job carries (a twin or a rescue of a lane that ran hosted).
+ */
+function judgedNames(jobs, label) {
+  const names = new Set(seldonLanes(jobs, label).map((j) => j.name));
+  const live = new Map();
+  for (const j of jobs.filter((j) => !skipped(j))) live.set(j.name, (live.get(j.name) ?? 0) + 1);
+  for (const [name, count] of live) if (count > 1) names.add(name);
+  return [...names];
+}
+
+/**
+ * verdict: { name: passed } for every judged name. Passed when a lane of that
+ * name succeeded and no hosted lane ended in anything but success, cancelled
+ * or skipped. A cancelled loser is fine, and so is a failed Seldon lane, which
+ * the success of its hosted twin or rescue excuses; a failed hosted lane is
+ * never excused, and a cancelled (or timed-out) winner with nothing else
+ * succeeding is no pass either.
  */
 export function verdict(jobs, label) {
   const result = {};
-  for (const { name } of pairs(jobs, label)) {
+  for (const name of judgedNames(jobs, label)) {
     const lanes = jobs.filter((j) => j.name === name && !skipped(j));
-    const conclusions = lanes.map((j) => (j.status === 'completed' ? j.conclusion : null));
-    result[name] = conclusions.includes('success') && conclusions.every((c) => PASSING.has(c));
+    const conclusion = (j) => (j.status === 'completed' ? j.conclusion : null);
+    const hostedOk = lanes
+      .filter((j) => laneOf(j, label) === HOSTED)
+      .every((j) => PASSING.has(conclusion(j)));
+    result[name] = lanes.some((j) => conclusion(j) === 'success') && hostedOk;
   }
   return result;
 }
@@ -242,7 +272,9 @@ async function guard(env, label, intervalMs) {
 async function judge(env, label) {
   const passed = verdict(await readJobs(env), label);
   for (const [name, ok] of Object.entries(passed)) {
-    console.log(ok ? `${name}: passed` : `::error::${name}: no lane passed`);
+    console.log(
+      ok ? `${name}: passed` : `::error::${name}: no lane passed, or a hosted lane failed`,
+    );
   }
   output(env, 'outcome', Object.values(passed).every(Boolean) ? 'success' : 'failure');
 }

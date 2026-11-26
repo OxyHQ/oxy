@@ -28,7 +28,7 @@ outputs:
   reap:
     description: "finish: JSON list of the losers' concurrency groups."
   outcome:
-    description: "verdict: 'success' when every raced job passed in some lane, else 'failure'."
+    description: "verdict: 'success' when every raced job passed in some lane and failed in no hosted lane (twin or rescue), else 'failure'."
 runs:
   # The runner's own Node, so the guard needs nothing installed on Seldon's image.
   using: node24
