@@ -1,0 +1,35 @@
+name: Seldon race
+description: >-
+  Races a heavy CI job between the seldon-ci pool and a GitHub-hosted twin
+  (docs/engineering/build-and-deploy.md#ci-on-seldon). One step per mode; the
+  job needs `permissions: actions: read`.
+inputs:
+  mode:
+    description: start (outputs race), guard (the first step of every lane), finish (outputs reap) or verdict (outputs outcome).
+    required: true
+  delay:
+    description: 'start: seconds a Seldon lane may sit queued before its hosted twin queues.'
+    default: '180'
+  interval:
+    description: 'start, guard and finish: seconds between polls of the jobs API.'
+    default: '15'
+  deadline:
+    description: 'finish: seconds after which a pair with no started lane keeps both lanes.'
+    default: '3600'
+  label:
+    description: The runs-on label of the Seldon lanes.
+    default: seldon-ci
+  token:
+    description: A token that can read this run's jobs.
+    default: ${{ github.token }}
+outputs:
+  race:
+    description: "start: 'true' when the hosted twins should queue."
+  reap:
+    description: "finish: JSON list of the losers' concurrency groups."
+  outcome:
+    description: "verdict: 'success' when every raced job passed in some lane, else 'failure'."
+runs:
+  # The runner's own Node, so the guard needs nothing installed on Seldon's image.
+  using: node24
+  main: race.mjs

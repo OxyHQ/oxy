@@ -1,0 +1,58 @@
+# The end of a Seldon race (docs/engineering/build-and-deploy.md#ci-on-seldon):
+# `finish` waits until every raced pair has a started lane, then `reap` queues
+# one no-op job into each loser's concurrency group with cancel-in-progress,
+# which cancels that lane alone (queued or sleeping in its guard) at queue
+# time. Call it after the start, when it raced. The caller's `CI complete`
+# must not need this job: the reapers' no-op only follows the cancellation.
+name: Seldon race finish
+
+on:
+  workflow_call:
+    inputs:
+      interval:
+        description: Seconds between polls of the jobs API.
+        type: number
+        default: 15
+      deadline:
+        description: Seconds after which a pair with no started lane keeps both lanes.
+        type: number
+        default: 3600
+      label:
+        description: The runs-on label of the Seldon lanes.
+        type: string
+        default: seldon-ci
+
+permissions:
+  actions: read
+
+jobs:
+  finish:
+    name: Seldon race finish
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    outputs:
+      reap: ${{ steps.finish.outputs.reap }}
+    steps:
+      - id: finish
+        uses: OxyHQ/oxy/.github/actions/seldon-race@ci/seldon-ci-router
+        with:
+          mode: finish
+          interval: ${{ inputs.interval }}
+          deadline: ${{ inputs.deadline }}
+          label: ${{ inputs.label }}
+
+  reap:
+    name: Reap ${{ matrix.group }}
+    needs: finish
+    if: needs.finish.outputs.reap != '' && needs.finish.outputs.reap != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    concurrency:
+      group: ${{ matrix.group }}
+      cancel-in-progress: true
+    strategy:
+      matrix:
+        group: ${{ fromJSON(needs.finish.outputs.reap) }}
+    steps:
+      - run: echo "Queued into the loser's group, which cancelled it."
