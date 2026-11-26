@@ -164,8 +164,9 @@ bunx oxy-doctor-web-budget --dist=dist --budgets=budgets.json
 ```
 
 Every `.js` file counts toward `maxJavaScriptGzipBytes`, on-demand chunks
-included, except Bloom's agent-avatar catalogue: its packed payloads and its
-`catalog/<kind>-<id>` wrapper modules are hundreds of chunks fetched only when
+included, except Bloom's agent-avatar catalogue: its packed payloads, its
+motion blobs (a one-module chunk exporting a single track of samples or rows)
+and its `catalog/<kind>-<id>` wrapper modules are hundreds of chunks fetched only when
 an avatar is drawn, so they have their own line (`maxAvatarCatalogBytes`,
 `maxAvatarCatalogGzipBytes`) and the app's lines measure the code it loads.
 A catalogue chunk that `index.html` loads fails the check, as does any line the
