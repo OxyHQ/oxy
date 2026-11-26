@@ -34,7 +34,7 @@ jobs:
       reap: ${{ steps.finish.outputs.reap }}
     steps:
       - id: finish
-        uses: OxyHQ/oxy/.github/actions/seldon-race@ci/seldon-ci-router
+        uses: OxyHQ/oxy/.github/actions/seldon-race@main
         with:
           mode: finish
           interval: ${{ inputs.interval }}
