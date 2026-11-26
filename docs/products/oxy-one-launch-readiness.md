@@ -64,8 +64,9 @@ runtime uses Peable's native engine (Peable ADR 0018) through `@peable.to/sdk`:
 ## Operating company transition (2026-10-20)
 
 Oxy Platforms, Inc. is the intended operating company and prospective Oxy One
-invoice issuer. Its Delaware incorporation is in progress; payment for formation
-is not evidence of completed incorporation or fiscal verification. The current
+invoice issuer. It was incorporated in Delaware on 2026-10-20 (a Delaware C
+corporation; the incorporation record shows the file number), so incorporation is
+complete; fiscal verification of the issuer record is a separate step. The current
 draft names the new company with `approved: false`, no tax identifier, no reused
 operator identity reference, and commercial activation disabled. The runtime
 configuration requires the new legal name; deploying it requires a separately
