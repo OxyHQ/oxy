@@ -350,19 +350,86 @@ function dependenciesOf(jobId) {
  * own), which names the root of the chain instead of every job downstream of it.
  * The skip is only excused, never passed: a failed dependency still fails here.
  */
+// Jobs whose `if:` exists only to take their input from either Seldon-race
+// lane: their skip is excused by a dependency that did not succeed, never by
+// the `if:` itself (`api-coverage` must never skip over passing shards).
+const DEPENDENCY_ONLY_SKIP = ['api-coverage'];
+
 function maySkip(jobId) {
-  if (jobs?.[jobId] !== null && typeof jobs?.[jobId] === 'object' && 'if' in jobs[jobId])
+  if (
+    jobs?.[jobId] !== null &&
+    typeof jobs?.[jobId] === 'object' &&
+    'if' in jobs[jobId] &&
+    !DEPENDENCY_ONLY_SKIP.includes(jobId)
+  )
     return true;
   return dependenciesOf(jobId).some((id) => {
     const result = needs?.[id]?.result;
+    // An idle Seldon race (its control jobs and twins skipped) excuses nothing.
+    if (result === 'skipped' && (RACE_CONTROL_JOBS.includes(id) || id.endsWith(TWIN_SUFFIX)))
+      return false;
     return result !== undefined && result !== 'success';
   });
 }
 
-const counts = { success: 0, skipped: 0 };
+/**
+ * THE SELDON RACE (docs/engineering/build-and-deploy.md#ci-on-seldon). A raced
+ * job `X` runs on the seldon-ci pool and has a hosted twin `X-hosted` with the
+ * same steps; the lane that starts first wins and the other is cancelled. So
+ * when the race ran, neither job's own result means anything (a matrix with
+ * one cancelled loser reports `cancelled` with every shard passed), and the
+ * pair passes on the race's verdict (`RACE_VERDICT`, from the verdict step:
+ * every job name passed in some lane and failed in none). When the race did
+ * not run, `X` is judged as any job and its twin must not have run at all.
+ * The race's own control jobs (`race`, `race-finish`) are skipped whenever it
+ * is off, on every event; a control job that fails still fails here.
+ */
+const RACE_CONTROL_JOBS = ['race', 'race-finish'];
+const TWIN_SUFFIX = '-hosted';
+const raced = process.env.RACED === 'true';
+const raceVerdict = process.env.RACE_VERDICT ?? '';
+const judgedByRace = new Set();
+for (const twin of jobIds.filter((id) => id.endsWith(TWIN_SUFFIX))) {
+  const base = twin.slice(0, -TWIN_SUFFIX.length);
+  if (!jobIds.includes(base)) continue;
+  const baseResult = needs?.[base]?.result;
+  const twinResult = needs?.[twin]?.result;
+  if (raced && !(baseResult === 'skipped' && twinResult === 'skipped')) {
+    if (raceVerdict !== 'success') {
+      fail(
+        `\`${base}\` raced the seldon-ci pool against \`${twin}\`, and the race's verdict is ` +
+          `${JSON.stringify(raceVerdict)}: some ${base} job passed in neither lane (the verdict ` +
+          'step names it).',
+      );
+    }
+    judgedByRace.add(base);
+    judgedByRace.add(twin);
+  } else {
+    if (twinResult !== 'skipped') {
+      fail(
+        `\`${twin}\` reported ${JSON.stringify(twinResult)} although the Seldon race did not run; ` +
+          'a twin runs only when the race queues it.',
+      );
+    }
+    judgedByRace.add(twin);
+  }
+}
+
+const counts = { success: 0, skipped: 0, raceIdle: 0 };
 
 for (const id of needIds.sort()) {
   const result = needs[id]?.result;
+
+  if (judgedByRace.has(id)) {
+    if (result === 'skipped') counts.raceIdle += 1;
+    else counts.success += 1;
+    continue;
+  }
+
+  if (result === 'skipped' && RACE_CONTROL_JOBS.includes(id) && jobs?.[id]?.if) {
+    counts.raceIdle += 1;
+    continue;
+  }
 
   if (result === 'success') {
     counts.success += 1;
@@ -402,7 +469,7 @@ for (const id of needIds.sort()) {
       continue;
     }
     fail(
-      `\`${id}\` was skipped, but it declares no \`if:\` and everything it needs succeeded — so nothing ` +
+      `\`${id}\` was skipped, but it declares no \`if:\` that may skip it and everything it needs succeeded — so nothing ` +
         'explains why it did not run. Treating that as a pass is how a required check stops ' +
         'checking: one `if: false` and this gate is green over a suite that never executed.',
     );
@@ -441,5 +508,6 @@ if (problems.length > 0) {
 console.log(
   `CI is complete (${eventName}, ${fullSuiteRequired ? 'full suite: nothing skipped' : 'pull request'}): ` +
     `${counts.success} job(s) passed, ${counts.skipped} skipped for a declared ` +
-    `reason, across all ${expected.length} job(s) in ${WORKFLOW_PATH}.`,
+    `reason${counts.raceIdle ? ` (and ${counts.raceIdle} Seldon-race job(s) not needed)` : ''}, ` +
+    `across all ${expected.length} job(s) in ${WORKFLOW_PATH}.`,
 );

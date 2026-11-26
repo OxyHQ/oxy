@@ -82,7 +82,10 @@ function needsFor(root, overrides = {}) {
   const needs = {};
   for (const id of Object.keys(parsed?.jobs ?? {})) {
     if (id === GATE_JOB_ID) continue;
-    needs[id] = { result: 'success', outputs: {} };
+    // The Seldon race's control jobs and hosted twins are skipped whenever the
+    // race is off, which is the run these defaults describe.
+    const raceOnly = id === 'race' || id === 'race-finish' || id.endsWith('-hosted');
+    needs[id] = { result: raceOnly ? 'skipped' : 'success', outputs: {} };
   }
   // The scope job's outputs are part of the verdict: a real run reports them.
   if (needs.scope)
@@ -102,10 +105,11 @@ function expectVerdict(
   expectedCode,
   expectedFragment,
   eventName = 'pull_request',
+  extraEnv = {},
 ) {
   let code = 0;
   let output = '';
-  const env = { ...process.env };
+  const env = { ...process.env, ...extraEnv };
   if (needs === null) delete env.NEEDS_JSON;
   else env.NEEDS_JSON = JSON.stringify(needs);
   if (eventName === null) delete env.EVENT_NAME;
@@ -208,8 +212,11 @@ function expectVerdict(
         '  guards:\n    name: Guards\n',
         '  guards:\n    name: Guards\n    if: "github.event_name == \'push\'"\n',
       )
-      // `api-coverage` declares no `if:` of its own.
-      .replace('    needs: api-test\n', '    needs: [api-test, guards]\n'),
+      // `api-coverage`'s `if:` only follows its dependencies.
+      .replace(
+        '    needs: [api-test, api-test-hosted, race]\n',
+        '    needs: [api-test, api-test-hosted, race, guards]\n',
+      ),
   );
   expectVerdict(
     'a-skip-inherited-from-a-dependency',
@@ -256,7 +263,7 @@ function expectVerdict(
     root,
     needsFor(root, { 'api-coverage': 'skipped' }),
     1,
-    '`api-coverage` was skipped, but it declares no `if:`',
+    '`api-coverage` was skipped, but it declares no `if:` that may skip it',
   );
 }
 
@@ -267,6 +274,75 @@ function expectVerdict(
 // its own — the list is read from the real workflow, not written here, so a job
 // added later is covered the day it lands — and the named ones must still be
 // in it, so a rename that quietly empties this loop goes red too.
+// ── The Seldon race ─────────────────────────────────────────────────────────
+// A raced pair is judged on the race's verdict, never on its jobs' own results.
+{
+  const root = createFixture();
+  const racedNeeds = needsFor(root, {
+    race: { result: 'success', outputs: { race: 'true' } },
+    'race-finish': 'success',
+    'api-test': 'cancelled',
+    'api-test-hosted': 'success',
+  });
+  expectVerdict(
+    'race-loser-cancelled-passes',
+    root,
+    racedNeeds,
+    0,
+    'CI is complete',
+    'merge_group',
+    {
+      RACED: 'true',
+      RACE_VERDICT: 'success',
+    },
+  );
+  expectVerdict(
+    'race-verdict-failure-fails',
+    root,
+    racedNeeds,
+    1,
+    'passed in neither lane',
+    'merge_group',
+    {
+      RACED: 'true',
+      RACE_VERDICT: 'failure',
+    },
+  );
+  expectVerdict(
+    'race-verdict-missing-fails',
+    root,
+    racedNeeds,
+    1,
+    'passed in neither lane',
+    'merge_group',
+    { RACED: 'true' },
+  );
+  expectVerdict(
+    'twin-without-race-fails',
+    root,
+    needsFor(root, { 'api-build-hosted': 'success' }),
+    1,
+    'although the Seldon race did not run',
+    'merge_group',
+  );
+  expectVerdict(
+    'no-race-loser-cancelled-fails',
+    root,
+    needsFor(root, { 'api-test': 'cancelled' }),
+    1,
+    '`api-test` was cancelled',
+    'merge_group',
+  );
+  expectVerdict(
+    'race-control-failure-fails',
+    root,
+    needsFor(root, { race: 'failure' }),
+    1,
+    '`race` failed',
+    'merge_group',
+  );
+}
+
 const REQUIRED_JOBS = [
   'scope',
   'guards',

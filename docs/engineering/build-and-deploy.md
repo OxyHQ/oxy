@@ -182,7 +182,7 @@ The org is on GitHub's free plan: 20 hosted jobs at once across every repository
 
 **The pool.**
 - **What it is.** Runner group `seldon-ci` (id 6), label `seldon-ci`. Just-in-time runners, each in its own Incus KVM VM, run exactly one job and are deleted.
-- **Size.** 3 VMs of 8 vCPU and 12 GiB since 2026-11-26. At 4 of 6 vCPU and 7 GiB, Bloom's `bun run typescript` ran out of heap, oxy's API image `tsc` aborted, and Jest shards starved until the runner "lost communication".
+- **Size.** 4 VMs of 4 vCPU and 10 GiB since 2026-11-26, the same core count as hosted (jobs size their parallelism from it). At 6 vCPU / 7 GiB, Bloom's `bun run typescript` ran out of heap and Jest shards starved; at 8 vCPU / 12 GiB, Bloom's language parity started 7 Jest workers and was OOM-killed at 11.9 GB.
 - **Image.** `ci-base` has the toolchain hosted runners have or Oxy's workflows pin: Node 24.21.0 and 24.20.0 in the tool cache, gh, rustup (stable, nightly, 1.99.0), OpenJDK 17 and 21, bun and docker. A job installs nothing, so do not add install steps to workflows; add the tool to the image.
 - **Cache.** npm, bun and cargo go through a caching proxy on the host, and lockfile integrity still verifies every byte.
 - **Workspace.** `/home/runner/work/<repo>/<repo>`, the same path as hosted. So an Actions cache entry of a path outside the workspace (`~/.bun`, `~/.cargo`, `~/.gradle`) restores to the same place on both. While the workspace sat one level deeper, setup-bun's cache restored to the wrong place ("Unable to locate executable file: /home/runner/.bun/bin/bun").
@@ -196,7 +196,7 @@ The group is not restricted to workflows, so no secret may ever be put in the im
 
 **Who reaches it.** Only a repository's own code. A fork's pull request always runs hosted: the workflows route only `push`, `merge_group`, `workflow_dispatch`, `schedule` and same-repository `pull_request` runs to the pool, and the org's fork-PR approval (`all_external_contributors`) still gates every fork run.
 
-**Routing: the race (pilot on Bloom, `CI_SELDON_RACE=true`).** GitHub cannot let a job say "Seldon or hosted", and it has no API that cancels a single job. A job whose label has no online runner waits up to 24 hours instead of failing. So a heavy job races, using only `GITHUB_TOKEN` (`.github/actions/seldon-race` and its reusable workflows in this repo):
+**Routing: the race (Bloom, oxy and Mention, each with the repository variable `CI_SELDON_RACE=true`).** GitHub cannot let a job say "Seldon or hosted", and it has no API that cancels a single job. A job whose label has no online runner waits up to 24 hours instead of failing. So a heavy job races, using only `GITHUB_TOKEN` (`.github/actions/seldon-race` and its reusable workflows in this repo):
 1. The job targets `seldon-ci`. A hosted twin with the same name and steps (YAML anchors) waits.
 2. A hosted start job watches the run. If a Seldon lane is still unstarted after the delay, because the pool is busy or offline, the twin queues too.
 3. Each lane's first step is a guard. A lane that starts after its twin sleeps until it is cancelled, so the work never runs twice.
