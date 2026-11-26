@@ -12,10 +12,13 @@ import { gzipSync } from 'node:zlib';
  */
 
 /**
- * A catalogue payload: one module, `exports = { encoding: "json", data: "..." }`, Bloom's packed
- * asset format (`@oxy.so/bloom/agent-avatar`, `vector-assets/`).
+ * A catalogue payload: one module whose export is Bloom's packed asset format
+ * (`@oxy.so/bloom/agent-avatar`, `vector-assets/`): an asset's `{ encoding: "json", data: "..." }`,
+ * or, from Bloom 23, a shared motion blob (`vector-assets/blobs/`): one track as an object literal,
+ * `{ matrix: { samples: … } }`, `{ points: { rows: … } }`, `{ translation: { samples: … } }`.
  */
-const AVATAR_PAYLOAD = /^__d\(function\([\w$,]+\)\{[\w$]+\.exports=\{encoding:"json",data:"/;
+const AVATAR_PAYLOAD =
+  /^__d\(function\([\w$,]+\)\{[\w$]+\.exports=\{(?:encoding:"json",data:"|[A-Za-z_$][\w$]*:\{(?:rows|samples):)/;
 /**
  * A catalogue wrapper (`@oxy.so/bloom/agent-avatar/catalog/<kind>-<id>`): one module whose
  * default export is `packedVectorAsset(() => import(asset), { [hash]: () => import(payload) })`.
