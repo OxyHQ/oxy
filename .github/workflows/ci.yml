@@ -439,7 +439,7 @@ jobs:
 
   # api-test's hosted twin in the Seldon race: the same name, strategy, services and steps.
   api-test-hosted:
-    name: API Tests (${{ matrix.shard }}/${{ strategy.job-total }})
+    name: ${{ vars.CI_SELDON_RACE == 'true' && format('API Tests ({0}/{1})', matrix.shard, strategy.job-total) || format('API Tests ({0}/{1}) (seldon twin, off)', matrix.shard, strategy.job-total) }}
     needs: [scope, race]
     if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
     runs-on: ubuntu-latest
@@ -454,7 +454,7 @@ jobs:
   # api-test's rescue: reruns it hosted when a Seldon lane of it failed (the
   # house network drops connections); a genuine failure fails again.
   api-test-rescue:
-    name: API Tests (${{ matrix.shard }}/${{ strategy.job-total }})
+    name: ${{ vars.CI_SELDON_RACE == 'true' && format('API Tests ({0}/{1})', matrix.shard, strategy.job-total) || format('API Tests ({0}/{1}) (seldon rescue, off)', matrix.shard, strategy.job-total) }}
     needs: [scope, api-test]
     if: ${{ !cancelled() && needs.api-test.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
     runs-on: ubuntu-latest
@@ -630,7 +630,7 @@ jobs:
 
   # api-build's hosted twin in the Seldon race: the same name, strategy, services and steps.
   api-build-hosted:
-    name: API Build
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'API Build' || 'API Build (seldon twin, off)' }}
     needs: [scope, race]
     if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
     runs-on: ubuntu-latest
@@ -643,7 +643,7 @@ jobs:
   # api-build's rescue: reruns it hosted when a Seldon lane of it failed (the
   # house network drops connections); a genuine failure fails again.
   api-build-rescue:
-    name: API Build
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'API Build' || 'API Build (seldon rescue, off)' }}
     needs: [scope, api-build]
     if: ${{ !cancelled() && needs.api-build.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
     runs-on: ubuntu-latest
@@ -1501,7 +1501,7 @@ jobs:
 
   # packages-platform's hosted twin in the Seldon race: the same name, strategy, services and steps.
   packages-platform-hosted:
-    name: Package Tests (platform)
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Package Tests (platform)' || 'Package Tests (platform) (seldon twin, off)' }}
     needs: [scope, race]
     if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false')) }}
     runs-on: ubuntu-latest
@@ -1515,7 +1515,7 @@ jobs:
   # packages-platform's rescue: reruns it hosted when a Seldon lane of it failed (the
   # house network drops connections); a genuine failure fails again.
   packages-platform-rescue:
-    name: Package Tests (platform)
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Package Tests (platform)' || 'Package Tests (platform) (seldon rescue, off)' }}
     needs: [scope, packages-platform]
     if: ${{ !cancelled() && needs.packages-platform.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false')) }}
     runs-on: ubuntu-latest
@@ -1694,7 +1694,7 @@ jobs:
 
   # packages-apps's hosted twin in the Seldon race: the same name, strategy, services and steps.
   packages-apps-hosted:
-    name: Package Tests (apps)
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Package Tests (apps)' || 'Package Tests (apps) (seldon twin, off)' }}
     needs: [scope, race]
     if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false')) }}
     runs-on: ubuntu-latest
@@ -1707,7 +1707,7 @@ jobs:
   # packages-apps's rescue: reruns it hosted when a Seldon lane of it failed (the
   # house network drops connections); a genuine failure fails again.
   packages-apps-rescue:
-    name: Package Tests (apps)
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Package Tests (apps)' || 'Package Tests (apps) (seldon rescue, off)' }}
     needs: [scope, packages-apps]
     if: ${{ !cancelled() && needs.packages-apps.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false')) }}
     runs-on: ubuntu-latest
