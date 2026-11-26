@@ -148,8 +148,7 @@ export const VERSIONS = {
   drizzleKit: '0.31.10', // drizzle-kit — devDependency; generates migrations only
 
   // --- The Bloom language template (`--language`) ---
-  // Named only by `templates/language`. The Oxy packages here are not on npm
-  // yet; `scripts/pending-releases.mjs` lists each range until its release.
+  // Named only by `templates/language`.
   oxyBloomLanguage: '^1.0.0', // @oxy.so/bloom-language (and its `/router`)
   oxyBloomLanguageCompiler: '^1.0.0', // @oxy.so/bloom-language-compiler — Metro + Jest pre-pass
   oxyBloomData: '^0.1.0', // @oxy.so/bloom-data — one instance per app, like Bloom

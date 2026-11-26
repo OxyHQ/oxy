@@ -1,11 +1,12 @@
 /**
  * Ranges a template names before their packages are released.
  *
- * The language template (`create-oxy-app --language`) is built on packages
- * that ship together and are not on npm yet: Bloom 23 (no NativeWind), the
- * Bloom language and its compiler, bloom-data, app-preset 6.9 and Services 15.
- * Until they are, `assert-oxy-ranges-resolve.mjs` would fail a language app
- * on an E404 for each one.
+ * The language template (`create-oxy-app --language`) is built on Bloom 23,
+ * the Bloom language and its compiler, bloom-data, app-preset 6.9 and
+ * Services 15. All but Services 15 are on npm; until it is,
+ * `assert-oxy-ranges-resolve.mjs` would fail a language app on its E404.
+ * Bloom 23 is released but stays listed while this workspace's catalog is on
+ * Bloom 22: Services 15 (#2316) moves the catalog, and both entries go then.
  *
  * An entry excuses exactly that and nothing else: this `name@range` matching
  * no published version. A range that resolves is checked like any other (and
@@ -15,10 +16,6 @@
  */
 export const PENDING_RELEASES = Object.freeze({
   '@oxy.so/bloom': '^23.0.0',
-  '@oxy.so/bloom-language': '^1.0.0',
-  '@oxy.so/bloom-language-compiler': '^1.0.0',
-  '@oxy.so/bloom-data': '^0.1.0',
-  '@oxy.so/app-preset': '^6.9.0',
   '@oxy.so/services': '^15.0.0',
 });
 

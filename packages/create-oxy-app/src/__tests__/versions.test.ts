@@ -181,6 +181,8 @@ describe('the language template’s pins', () => {
     }
   });
 
+  // Bloom's language packages and bloom-data are built in the Bloom repository;
+  // the scaffold smoke's resolve gate checks their ranges against npm.
   test('a pin ahead of this workspace, or of the Bloom catalog, is a listed pending release', () => {
     for (const [name, key, dir] of LANGUAGE_OXY) {
       const range = pins[key] as string;
@@ -189,7 +191,8 @@ describe('the language template’s pins', () => {
         : name === '@oxy.so/bloom'
           ? readWorkspaceCatalogVersion(name)
           : null;
-      const ahead = reached === null || compareVersions(range, reached) > 0;
+      if (reached === null) continue;
+      const ahead = compareVersions(range, reached) > 0;
       const verdict = `${name}@${range}`;
       expect({ verdict, excused: !ahead || isPendingRelease(name, range) }).toEqual({
         verdict,
