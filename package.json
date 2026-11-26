@@ -34,7 +34,7 @@
     ],
     "catalog": {
       "zod": "^4.6.7",
-      "typescript": "~6.0.3",
+      "typescript": "~7.0.2",
       "@types/node": "^26.6.6",
       "vite": "^8.3.5",
       "@rolldown/plugin-babel": "^0.3.0",
