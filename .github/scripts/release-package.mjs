@@ -369,16 +369,23 @@ const VOUCHING_EVENTS = ['push', 'merge_group'];
 export const CI_COMPLETE_JOB = 'CI complete';
 
 /**
+ * The conclusions a Seldon-raced run can reach with every job accounted for:
+ * `cancelled` (a race loser) and `failure` (a Seldon lane rescued on hosted).
+ */
+const JUDGED_BY_GATE = ['cancelled', 'failure'];
+
+/**
  * A vouching run passed when it concluded `success`, or when it concluded
- * `cancelled` only because the Seldon race cancelled a losing lane
+ * `failure` only because a failed Seldon lane was rescued on hosted (its
+ * `-rescue` job passed), or `cancelled` only because the Seldon race cancelled a losing lane
  * (docs/engineering/build-and-deploy.md#ci-on-seldon): then its `CI complete`
  * job, which judged every job and the race's verdict, succeeded. `ci_complete`
- * is that job's conclusion, which waitForCi reads for every cancelled run. A
- * run that failed is never rescued.
+ * is that job's conclusion, which waitForCi reads for every cancelled or
+ * failed run. A run whose gate did not pass, or could not be read, never vouches.
  */
 function vouches(run) {
   if (run.conclusion === 'success') return true;
-  return run.conclusion === 'cancelled' && run.ci_complete === 'success';
+  return JUDGED_BY_GATE.includes(run.conclusion) && run.ci_complete === 'success';
 }
 
 /**
@@ -424,7 +431,7 @@ async function waitForCi(sha, workflow) {
       unanswered = 0;
       const runs = (await response.json()).workflow_runs;
       for (const run of runs) {
-        if (run.status !== 'completed' || run.conclusion !== 'cancelled') continue;
+        if (run.status !== 'completed' || !JUDGED_BY_GATE.includes(run.conclusion)) continue;
         if (!VOUCHING_EVENTS.includes(run.event) || run.head_sha !== sha) continue;
         const jobs = await fetch(
           `${api}/repos/${repository}/actions/runs/${run.id}/jobs?per_page=100`,

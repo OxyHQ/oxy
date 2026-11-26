@@ -212,9 +212,18 @@ test('a commit is released only once CI passed on it, from push or the merge que
   assert.equal(ciVerdict([raced('success')], sha), 'passed');
   assert.equal(ciVerdict([raced('failure')], sha), 'failed');
   assert.equal(ciVerdict([raced(undefined)], sha), 'failed');
+  // A Seldon lane rescued on hosted makes its run conclude `failure`: the
+  // green gate vouches for it the same way, and nothing else does.
+  const rescued = (ciComplete) => ({
+    ...run('merge_group', 'completed', 'failure'),
+    ci_complete: ciComplete,
+  });
+  assert.equal(ciVerdict([rescued('success')], sha), 'passed');
+  assert.equal(ciVerdict([rescued('failure')], sha), 'failed');
+  assert.equal(ciVerdict([rescued(undefined)], sha), 'failed');
   assert.equal(
-    ciVerdict([{ ...run('merge_group', 'completed', 'failure'), ci_complete: 'success' }], sha),
-    'failed',
+    ciVerdict([{ ...run('pull_request', 'completed', 'failure'), ci_complete: 'success' }], sha),
+    'pending',
   );
 });
 
