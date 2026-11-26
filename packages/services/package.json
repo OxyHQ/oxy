@@ -194,7 +194,7 @@
     "@types/node": "catalog:",
     "@types/react": "*",
     "@oxy.so/bloom": "catalog:",
-    "@oxy.so/bloom-data": "0.1.0",
+    "@oxy.so/bloom-data": "file:/tmp/claude-1000/-home-nate-Oxy-Bloom/ddd1cca7-1c43-4a3d-9b6c-d17d5a187c12/scratchpad/sdk-data/oxy.so-bloom-data-0.1.0-f6.tgz",
     "copyfiles": "^2.4.1",
     "expo-clipboard": "catalog:",
     "expo-constants": "catalog:",
