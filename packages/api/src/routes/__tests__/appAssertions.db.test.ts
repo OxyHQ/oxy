@@ -173,8 +173,8 @@ async function world() {
   const suffix = randomUUID().replace(/-/g, '').slice(0, 10);
   const mentionIds = {
     origin: `https://mention-${suffix}.example`,
-    packageName: `earth.mention.app${suffix}`,
-    bundleId: `earth.mention.app${suffix}`,
+    packageName: `org.mention.app${suffix}`,
+    bundleId: `org.mention.app${suffix}`,
   };
   const otherIds = {
     origin: `https://other-${suffix}.example`,
@@ -322,7 +322,7 @@ describe('the registry: only the staff lane declares how an application is recog
       (
         await put({
           webOrigins: [],
-          android: { packageName: 'earth.mention', signingCertSha256: ['AB:CD'] },
+          android: { packageName: 'org.mention', signingCertSha256: ['AB:CD'] },
           ios: null,
         })
       ).status,

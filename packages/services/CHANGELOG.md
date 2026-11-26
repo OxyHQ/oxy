@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.24.3
+
+### Changed
+
+- The device-session provider accepts Mention's new Android id, `org.mention.app` (and `org.mention.app.dev`). Mention moves from `earth.mention.app` to `org.mention.app` in its 2.2.0, a new Google Play app; `earth.mention.app` stays on the list until the internal-testing builds that carry it are replaced. Commons 1.15.1 carries the same list for the identity host.
+
 ## 14.24.2
 
 ### Fixed
