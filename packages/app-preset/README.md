@@ -474,8 +474,8 @@ it; `withBaseFontText` is exported for an app that composes its own config.
 #### An app without NativeWind (6.9.0+)
 
 Bloom styles without `className`, so an app that no longer writes it drops
-`nativewind` (and `react-native-css`, Tailwind and `base.css`) from its
-package.json. `createOxyMetroConfig` reads the app's own package.json: with no
+`nativewind` (and `react-native-css` and Tailwind) from its package.json, and
+`base.css` from its `global.css`, but keeps a base reset (below). `createOxyMetroConfig` reads the app's own package.json: with no
 `nativewind` dependency it applies no NativeWind wrapper, no react-native-css
 runtime and no redirect of React Native's components (`nativewind: true | false`
 overrides). The base face then rides on React Native's own files: `Text` and
@@ -495,6 +495,34 @@ NativeWind's `VariableContextProvider` (through Bloom's `ColorScopeLayerContext`
 so classes inside a scope follow its palette. The web needs neither. Once the codemod has moved the
 last class, the app drops `nativewind`, `react-native-css`, Tailwind,
 `css/base.css` and `BloomNativeWindTheme`.
+
+**Keep a base reset on the web.** `css/base.css` also compiled Tailwind's
+preflight, and that reset is the only thing that gives the document its font.
+react-native-web draws a React Native `Text` that names no family with
+`font-family: inherit`, so text Bloom does not draw (React Navigation's tab
+labels, a `contentEditable` editor, raw DOM inside a web fork) inherits from
+`html`. Drop `base.css` with nothing in its place and that text renders in the
+browser's default serif. Keep a plain-CSS `global.css` (Expo compiles it without
+Tailwind or PostCSS) holding the reset in `@layer base`, at least:
+
+```css
+@layer base {
+  *, ::after, ::before, ::backdrop { box-sizing: border-box; border: 0 solid; margin: 0; padding: 0; }
+  html, :host {
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    line-height: 1.5;
+    font-family: var(--bloom-font-sans, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+```
+
+plus the rest of preflight's element rules the app's raw DOM relies on (lists,
+headings, form controls, media). `--bloom-font-sans` is written by Bloom at
+runtime; the fallbacks cover the first paint. Inbox's `packages/frontend/global.css`
+(OxyHQ/Inbox#275) keeps preflight rule for rule and is a worked example; a deploy
+gate can assert the exported stylesheet still sets `html`'s `font-family`.
 
 `baseFont: false` (6.9.0+) turns the base face off: a React Native `Text` or
 `TextInput` that names no family keeps React Native's own, the platform face
