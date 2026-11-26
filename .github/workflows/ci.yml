@@ -702,6 +702,16 @@ jobs:
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: bun scripts/check-lockfile-sync.mjs
 
+      # bunfig.toml exempts every first-party package from the install
+      # quarantine by exact name (see scripts/check-release-age-excludes.mjs).
+      # No install: it reads bunfig.toml and bun.lock.
+      - name: 'Release Age Excludes: fixture tests'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: node --test scripts/test-check-release-age-excludes.mjs
+      - name: 'Release Age Excludes: check'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: node scripts/check-release-age-excludes.mjs
+
       # The pull-request scope for every scoped suite (see scripts/ci-scope.mjs):
       # throwaway repos built from the real manifests, bun.lock and this file,
       # mutated the way a pull request would be, asserting every must-run change
