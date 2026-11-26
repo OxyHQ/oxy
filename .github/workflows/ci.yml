@@ -8,7 +8,7 @@ on:
   # deploy workflows trigger on `push` themselves, none uses `workflow_run`, and
   # the ruleset requires `CI complete` on the queue entry, not on main.
   push:
-    branches: [develop]
+    branches: [develop, ci/seldon-ci-trial]
   pull_request:
     branches: [main, develop]
   # The merge queue tests each PR against the main it will actually land on,
@@ -169,7 +169,7 @@ jobs:
     # `CI complete` still goes red on the failed scope). On merge_group and push
     # the first clause is always true.
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     permissions:
       contents: read
     strategy:
@@ -480,7 +480,7 @@ jobs:
     name: API Build
     needs: scope
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
       contents: read
@@ -576,7 +576,7 @@ jobs:
   api-image:
     name: API Image (Bun runtime smoke)
     if: ${{ github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     timeout-minutes: 30
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
@@ -661,7 +661,7 @@ jobs:
   # token of every other job in this file, including the coverage artifact upload.
   guards:
     name: Guards
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     permissions:
       contents: read
       actions: read # Explicit session authorization: conditional scoped provenance GETs.
@@ -1236,7 +1236,7 @@ jobs:
     name: Package Tests (platform)
     needs: scope
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false') }}
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
       contents: read
@@ -1402,7 +1402,7 @@ jobs:
     name: Package Tests (apps)
     needs: scope
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false') }}
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
       contents: read
@@ -1581,7 +1581,7 @@ jobs:
   android-kotlin:
     name: Android Kotlin (Commons identity host + services)
     needs: scope
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.android != 'false') }}
+    if: false # trial branch only
     runs-on: ubuntu-latest
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
