@@ -27,6 +27,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { useCurrentUser } from '../hooks/queries/useAccountQueries';
 import { useUserSubscription } from '../hooks/queries/usePaymentQueries';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /**
  * Unified "Manage your Oxy Account" screen.
@@ -47,6 +48,7 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
   navigate,
   section,
 }) => {
+  const themed = useThemedStyles();
   const bloomTheme = useTheme();
   const { t, locale } = useI18n();
 
@@ -65,7 +67,7 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
     hasIdentity,
   } = useOxy();
 
-  const { data: userFromQuery, isLoading: userLoading } = useCurrentUser({
+  const { value: userFromQuery, isLoading: userLoading } = useCurrentUser({
     enabled: isAuthenticated,
   });
   // `user` IS the active account. In the real-session switch model, switching
@@ -75,7 +77,7 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
   // alike read this single `user`.
   const user = userFromQuery ?? contextUser;
 
-  const { data: subscription } = useUserSubscription({ enabled: isAuthenticated });
+  const { value: subscription } = useUserSubscription({ enabled: isAuthenticated });
   const [signingOut, setSigningOut] = useState(false);
 
   const displayName = useMemo(
@@ -216,10 +218,8 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
   if (!isAuthenticated) {
     return (
       <>
-        <View className="items-center py-space-40">
-          <Text className="text-text font-medium text-base">
-            {t('common.status.notSignedIn') || 'Not signed in'}
-          </Text>
+        <View style={styles.container}>
+          <Text style={themed.text}>{t('common.status.notSignedIn') || 'Not signed in'}</Text>
         </View>
       </>
     );
@@ -227,7 +227,7 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
 
   return (
     <>
-      <View className="px-screen-margin pb-space-24">
+      <View style={styles.section}>
         {section !== 'data' ? (
           <>
             {/* Profile card */}
@@ -511,8 +511,8 @@ const ManageAccountScreen: React.FC<ManageAccountScreenProps> = ({
               />
             </GroupedSection>
 
-            <View className="items-center mt-space-12 mb-space-8">
-              <Text className="text-text-tertiary text-xs">
+            <View style={styles.container2}>
+              <Text style={themed.mutedText}>
                 {t('accountCenter.version', { version: packageInfo.version }) ||
                   `Version ${packageInfo.version}`}
               </Text>
@@ -533,6 +533,15 @@ const styles = StyleSheet.create({
   footerSpacer: {
     height: 24,
   },
+
+  container: { alignItems: 'center', paddingVertical: 40 },
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+  container2: { marginTop: 12, marginBottom: 8, alignItems: 'center' },
 });
 
 export default ManageAccountScreen;
+
+const useThemedStyles = createTokenStyles((t) => ({
+  text: { fontSize: 16, fontWeight: 500, color: t.foreground, lineHeight: 24 },
+  mutedText: { fontSize: 12, color: t.mutedForeground, lineHeight: 16 },
+}));

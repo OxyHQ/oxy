@@ -28,7 +28,6 @@ import type { StartWebOAuthSignInOptions } from '../oauth/browserAuthTransport';
 import type { OAuthConsentResult, RequestOAuthConsentOptions } from '../oauth/explicitOAuthConsent';
 import type { WebAuthMode, WebOAuthSignInResult } from '../oauth/types';
 import type { StorageInterface } from '../utils/storageHelpers';
-import type { AccountQueriesConfig } from '../hooks/accountQueryPersistence';
 
 /**
  * The outcome of `logout()`. It never rejects: a caller reads this instead.
@@ -77,12 +76,6 @@ export interface OxyContextState {
    */
   isAuthResolved: boolean;
   isStorageReady: boolean;
-  /**
-   * Whether the signed-in account's persisted `accountQueries` cache has been
-   * restored. Always `true` signed out or when the app declared none.
-   * `RequireOxyAuth` waits on it.
-   */
-  isAccountCacheReady: boolean;
   /**
    * Who owns this provider's session (see `OxyProviderProps.sessionMode`).
    *
@@ -281,8 +274,6 @@ export interface OxyRuntimeProviderProps {
   platformStorage?: StorageInterface | null;
   /** See `OxyProviderProps.authStateStore`. Read once, at mount. */
   authStateStore?: PlatformSetupAuthStateStore;
-  /** See `OxyProviderProps.accountQueries`. Read once, at mount. */
-  accountQueries?: AccountQueriesConfig;
 }
 
 /** Internal commit input — session plus zero-cookie device credential. */

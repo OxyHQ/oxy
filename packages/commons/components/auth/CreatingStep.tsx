@@ -13,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import hedgehogAnimation from '@/assets/lottie/Hedgehog.json';
 import { useTranslation } from '@/lib/i18n';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 interface CreatingStepProps {
   progress: number;
@@ -102,7 +103,12 @@ export function CreatingStep({
           </Text>
           <Text style={[styles.creatingSubtitle, { color: textColor, opacity: 0.7 }]}>{error}</Text>
           {onRetry ? (
-            <Button appearance="solid" tone="accent" onPress={onRetry} className="mt-space-24">
+            <Button
+              appearance="solid"
+              tone="accent"
+              onPress={onRetry}
+              style={{ marginTop: SPACING['space-24'] }}
+            >
               {t('auth.creating.retry')}
             </Button>
           ) : null}

@@ -1470,15 +1470,18 @@ jobs:
         if: ${{ !cancelled() && steps.build-services.outcome == 'success' }}
         run: bun run build && bun run check:bundle-budget
         working-directory: ./packages/test-app-vite
-      # The oldest stack services declares: React Native 0.81, React 19.1 and
-      # Expo SDK 54, plus react-native-web 0.21 and react-native-macos 0.81
-      # (Astro). Installed from compat/expo-54's own lockfile in a directory
+      # The oldest stack services declares: Expo SDK 58 (React Native 0.88,
+      # React 19.3), the first SDK with what Bloom 23 needs, plus
+      # react-native-web 0.21 and react-native-macos 0.83 (Astro). Installed
+      # from compat/expo-58's own lockfile in a directory
       # outside the checkout, with the workspace packages packed as npm would
-      # ship them; then peers, a typecheck, renders on iOS/web/macOS and Metro
-      # bundles for iOS (Hermes) and macOS. compat/expo-54/check.mjs says how.
-      - name: 'Services Tests: React Native 0.81 / Expo SDK 54 consumer'
+      # ship them; then peers, a typecheck, renders on iOS/web/macOS and a Metro
+      # bundle for iOS (Hermes). No macOS bundle until react-native-macos 0.87
+      # exists (Astro's macOS target stays on services 14).
+      # compat/expo-58/check.mjs says how.
+      - name: 'Services Tests: Expo SDK 58 / react-native-macos 0.83 consumer'
         if: ${{ !cancelled() && steps.build-services.outcome == 'success' }}
-        run: bun run check:compat-expo-54
+        run: bun run check:compat-expo-58
         working-directory: ./packages/services
 
       # Auth IdP tests (bun test — NOT jest)

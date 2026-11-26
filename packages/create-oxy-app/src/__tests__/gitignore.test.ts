@@ -9,7 +9,7 @@ import { renderTree } from '../render';
  * The template must not ignore its own source.
  *
  * `.gitignore` shipped `lib/` under "Build output" while the frontend template
- * ships `packages/frontend/lib` — config, queryClient, themePersistence, i18n.
+ * ships `packages/frontend/lib` — config, themePersistence, i18n.
  * Every generated app therefore committed without the modules behind its
  * `@/lib/*` alias, and nothing said so: `git status` was clean after the commit,
  * `bun run typecheck` passed locally because the files are on disk, and the

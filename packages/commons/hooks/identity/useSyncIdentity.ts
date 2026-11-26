@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { useOxy, useAuthStore, handleAuthError } from '@oxy.so/services';
+import { useOxy, useOxyRuntime, handleAuthError } from '@oxy.so/services';
 import type { User } from '@oxy.so/core';
 import { KeyManager } from '@oxy.so/core/crypto';
 import { useSilentKeySignIn } from '../useSilentKeySignIn';
@@ -70,6 +70,7 @@ export interface UseSyncIdentityResult {
  */
 export function useSyncIdentity(): UseSyncIdentityResult {
   const { oxyServices } = useOxy();
+  const runtime = useOxyRuntime();
   // SILENT key sign-in (no biometric gate). `useNetworkReconnect` drives this
   // from a timer, where a headless biometric prompt would never resolve and
   // would hang the sync forever. Biometrics gate INTERACTIVE ops elsewhere.
@@ -141,7 +142,7 @@ export function useSyncIdentity(): UseSyncIdentityResult {
         handleAuthError(error, {
           defaultMessage: `Failed to sync identity: ${error instanceof Error ? error.message : String(error)}`,
           code: REGISTER_ERROR_CODE,
-          setAuthError: (msg: string) => useAuthStore.setState({ error: msg }),
+          setAuthError: (msg: string) => runtime.setError(msg),
           logger: __DEV__ ? console.warn : undefined,
         });
         throw error;
@@ -150,7 +151,7 @@ export function useSyncIdentity(): UseSyncIdentityResult {
         lock.release();
       }
     },
-    [oxyServices, signInWithKeySilent, setSynced, setSyncing, isSynced],
+    [oxyServices, runtime, signInWithKeySilent, setSynced, setSyncing, isSynced],
   );
 
   return {

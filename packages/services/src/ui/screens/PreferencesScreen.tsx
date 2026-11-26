@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Platform, View } from 'react-native';
+import { AccessibilityInfo, Platform, View, StyleSheet } from 'react-native';
 import { GroupedSection, GroupedSectionItem } from '@oxy.so/bloom/grouped-section';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -44,7 +44,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
 
   useSurfaceHeader({ title: t('preferences.title') || 'Preferences' });
   const { isAuthenticated } = useOxy();
-  const { data: user } = useCurrentUser({ enabled: isAuthenticated });
+  const { value: user } = useCurrentUser({ enabled: isAuthenticated });
   const updateMutation = useUpdateUserPreferences();
 
   const prefs = user?.userPreferences;
@@ -80,7 +80,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
   const handleThemeChange = useCallback(
     async (nextTheme: ThemePreference) => {
       const patch: Partial<UserPreferences> = { theme: nextTheme };
-      await updateMutation.mutateAsync(patch);
+      await updateMutation.run(patch);
     },
     [updateMutation],
   );
@@ -88,13 +88,13 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
   const handleReduceMotionToggle = useCallback(async () => {
     const next = !reduceMotionPref;
     const patch: Partial<UserPreferences> = { reduceMotion: next };
-    await updateMutation.mutateAsync(patch);
+    await updateMutation.run(patch);
   }, [reduceMotionPref, updateMutation]);
 
   const handleResetTimezone = useCallback(async () => {
     // Empty string means "follow device" — server-side default
     const patch: Partial<UserPreferences> = { timezone: '' };
-    await updateMutation.mutateAsync(patch);
+    await updateMutation.run(patch);
   }, [updateMutation]);
 
   const themeDisplay = useMemo(() => {
@@ -119,7 +119,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
 
   return (
     <>
-      <View className="px-screen-margin pb-space-24">
+      <View style={styles.section}>
         <GroupedSection title={t('preferences.sections.appearance') || 'Appearance'}>
           <GroupedSectionItem
             icon={<SettingsIcon name="theme-light-dark" color={bloomTheme.colors.primary} />}
@@ -192,3 +192,7 @@ const PreferencesScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigat
 };
 
 export default React.memo(PreferencesScreen);
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+});

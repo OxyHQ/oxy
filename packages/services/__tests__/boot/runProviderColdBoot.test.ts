@@ -155,11 +155,11 @@ describe('runProviderColdBoot — cold-boot bounding wiring', () => {
     expect(capturedOpts().isOffline?.()).toBe(true);
   });
 
-  it('native: connected but explicitly unreachable ⇒ isOffline() === true', async () => {
+  it('native: connected but failing the reachability probe ⇒ isOffline() === false (the probe is ignored)', async () => {
     isWeb = false;
     netInfoFetch.mockResolvedValue({ isConnected: true, isInternetReachable: false });
     await runProviderColdBoot(makeOpts());
-    expect(capturedOpts().isOffline?.()).toBe(true);
+    expect(capturedOpts().isOffline?.()).toBe(false);
   });
 
   it('native: a NetInfo probe that never settles is raced out by the 500ms timeout ⇒ isOffline() === false', async () => {

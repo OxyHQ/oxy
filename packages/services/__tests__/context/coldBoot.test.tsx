@@ -22,7 +22,6 @@
 
 import React from 'react';
 import { render, waitFor, act, fireEvent, type RenderResult } from '@testing-library/react';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AppState } from 'react-native';
 import { AUTH_STATE_STORAGE_KEY, createNativeAuthStateStore } from '@oxy.so/core/session';
 import { type User } from '@oxy.so/core';
@@ -99,12 +98,10 @@ jest.mock('../../src/ui/session', () => {
 
 import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
-import { useAuthStore } from '../../src/ui/stores/authStore';
+import { activeRuntime } from '../../src/ui/runtime/activeRuntime';
 import { useAuth } from '../../src/ui/hooks/useAuth';
 import OxySignInButton from '../../src/ui/components/OxySignInButton';
 import { KeyManager } from '@oxy.so/core/crypto';
-import { ACCOUNT_QUERY_CACHE_KEY } from '../../src/ui/hooks/accountQueryPersistence';
-import { snapshot } from '../../src/ui/hooks/persistedQueryCache';
 
 const API_BASE_URL = 'https://api.oxy.so';
 const USER_ID = 'user_cb_1';
@@ -198,20 +195,17 @@ function renderProvider(
   oxyServices: unknown,
   options: { button?: boolean; onError?: jest.Mock; children?: React.ReactNode } = {},
 ): RenderResult {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider
-        oxyServices={oxyServices as never}
-        baseURL={API_BASE_URL}
-        clientId="oxy_test_client"
-        onError={options.onError}
-      >
-        <Capture />
-        {options.button && <OxySignInButton text="Retry sign in" />}
-        {options.children}
-      </OxyRuntimeProvider>
-    </QueryClientProvider>,
+    <OxyRuntimeProvider
+      oxyServices={oxyServices as never}
+      baseURL={API_BASE_URL}
+      clientId="oxy_test_client"
+      onError={options.onError}
+    >
+      <Capture />
+      {options.button && <OxySignInButton text="Retry sign in" />}
+      {options.children}
+    </OxyRuntimeProvider>,
   );
 }
 
@@ -221,7 +215,7 @@ describe('OxyContext cold boot (device-first)', () => {
     window.sessionStorage.clear();
     capturedContext = null;
     redirectToAuthorize.mockClear();
-    useAuthStore.getState().logout();
+    activeRuntime()?.clearSession();
     Object.values(fakeSessionClient).forEach((fn) => (fn as jest.Mock).mockClear());
     fakeSessionClientHost.setDeviceCredential.mockClear();
     fakeSessionClientHost.setCurrentAccountId.mockClear();
@@ -303,18 +297,7 @@ describe('OxyContext cold boot (device-first)', () => {
     expect(redirectToAuthorize).not.toHaveBeenCalled();
   });
 
-  it("paints a saved session with the account's cached queries already restored", async () => {
-    const prefs = ['viewer', USER_ID, 'prefs'];
-    const seed = new QueryClient();
-    await seed.fetchQuery({
-      queryKey: prefs,
-      queryFn: async () => ['tabs'],
-      meta: { persist: 'account' },
-    });
-    window.localStorage.setItem(
-      `${ACCOUNT_QUERY_CACHE_KEY}:${USER_ID}`,
-      snapshot(seed, { persistsQuery: () => true, shouldDehydrateMutation: () => false }),
-    );
+  it('paints a saved session from its cached boot alone, before the network answers', async () => {
     window.localStorage.setItem(
       'oxy_session_boot_lane',
       JSON.stringify({ v: 1, clientId: 'oxy_test_client', lane: 'device' }),
@@ -337,17 +320,15 @@ describe('OxyContext cold boot (device-first)', () => {
     stub.apps.getPublic.mockImplementation(() => new Promise(() => {}));
     const firstPaint: unknown[] = [];
     function FirstPaint() {
-      const { isAuthResolved } = useOxy();
-      const client = useQueryClient();
-      if (isAuthResolved && firstPaint.length === 0) firstPaint.push(client.getQueryData(prefs));
+      const { isAuthResolved, user } = useOxy();
+      if (isAuthResolved && firstPaint.length === 0) firstPaint.push(user?.id);
       return null;
     }
 
     renderProvider(stub, { children: <FirstPaint /> });
 
     await waitFor(() => expect(firstPaint).toHaveLength(1));
-    expect(firstPaint[0]).toEqual(['tabs']);
-    expect(capturedContext?.user?.id).toBe(USER_ID);
+    expect(firstPaint[0]).toBe(USER_ID);
   });
 
   it('restores a session from the persisted store (device-secret mint) and hands off to the SessionClient', async () => {
@@ -487,7 +468,7 @@ describe('SDK public recovery regressions', () => {
     mockWebBrowser = true;
     window.localStorage.clear();
     window.sessionStorage.clear();
-    useAuthStore.getState().logout();
+    activeRuntime()?.clearSession();
     capturedContext = null;
     capturedAuth = null;
     Object.values(fakeSessionClient).forEach((fn) => (fn as jest.Mock).mockClear());
@@ -626,15 +607,13 @@ describe('SDK public recovery regressions', () => {
     const next = buildStub().stub;
     refuseApp(next, 'external');
     view.rerender(
-      <QueryClientProvider client={new QueryClient()}>
-        <OxyRuntimeProvider
-          oxyServices={next as never}
-          clientId="different-client"
-          baseURL={API_BASE_URL}
-        >
-          <Capture />
-        </OxyRuntimeProvider>
-      </QueryClientProvider>,
+      <OxyRuntimeProvider
+        oxyServices={next as never}
+        clientId="different-client"
+        baseURL={API_BASE_URL}
+      >
+        <Capture />
+      </OxyRuntimeProvider>,
     );
     const oldQueries = stub.apps.getPublic.mock.calls.length;
     await act(async () => {
@@ -711,7 +690,7 @@ describe('native foreground device-state reconciliation', () => {
     mockWebBrowser = false;
     window.localStorage.clear();
     window.sessionStorage.clear();
-    useAuthStore.getState().logout();
+    activeRuntime()?.clearSession();
     capturedContext = null;
     capturedAuth = null;
     listeners.clear();

@@ -8,6 +8,7 @@ import { Field } from '@oxy.so/bloom/field';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { surfaces, type SurfaceControls } from '@oxy.so/bloom/surfaces';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface DeleteAccountModalProps {
   /** The presenting surface's controls (from `surfaces.present`). */
@@ -30,6 +31,7 @@ const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
   onDelete,
   t,
 }) => {
+  const styles = useStyles();
   const theme = useTheme();
   const [confirmUsername, setConfirmUsername] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -64,19 +66,19 @@ const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({
 
   return (
     <View>
-      <View className="flex-row items-center mb-4 gap-3">
+      <View style={styles.row}>
         <Ionicons name="alert-circle" size={32} color={theme.colors.error} />
-        <Text className="text-text text-xl font-bold" style={{ color: theme.colors.error }}>
+        <Text style={[styles.title, { color: theme.colors.error }]}>
           {t('deleteAccount.title') || 'Delete Account'}
         </Text>
       </View>
 
-      <Text className="text-text text-sm leading-5 mb-5">
+      <Text style={styles.text}>
         {t('deleteAccount.warning') ||
           'This action cannot be undone. Your account and all associated data will be permanently deleted.'}
       </Text>
 
-      <View className="mb-4">
+      <View style={styles.section}>
         <Field
           label={t('deleteAccount.confirmLabel', { username }) || `Type "${username}" to confirm`}
           error={error ?? undefined}
@@ -133,3 +135,10 @@ export function presentDeleteAccount(options: PresentDeleteAccountOptions): Prom
 }
 
 export default DeleteAccountModal;
+
+const useStyles = createTokenStyles((t) => ({
+  row: { marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  title: { fontSize: 20, fontWeight: 700, color: t.foreground, lineHeight: 28 },
+  text: { marginBottom: 20, fontSize: 14, lineHeight: 20, color: t.foreground },
+  section: { marginBottom: 16 },
+}));

@@ -1,92 +1,57 @@
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { queryKeys } from './queryKeys';
+import { type ListView, skip, useList } from '@oxy.so/bloom-data';
+import type { SecurityEventType } from '@oxy.so/core';
 import { useOxy } from '../../context/oxyRuntimeContext';
-import type { SecurityActivity, SecurityActivityResponse, SecurityEventType } from '@oxy.so/core';
+import {
+  recentSecurityActivity,
+  type SecurityActivityPageExtra,
+  securityActivity,
+  securityActivityPage,
+} from '../../data/security';
 
 /**
- * Get user's security activity with pagination
+ * One page of the account's security activity, at `offset`: a list of
+ * `SecurityEvent` ids, with the page's `total`, `limit`, `offset` and
+ * `hasMore` in `extra`. Waits for an active session.
  */
 export const useSecurityActivity = (options?: {
   limit?: number;
   offset?: number;
   eventType?: SecurityEventType;
   enabled?: boolean;
-}) => {
+}): ListView<SecurityActivityPageExtra> => {
   const { oxyServices, activeSessionId } = useOxy();
+  return useList(
+    securityActivityPage,
+    ...(options?.enabled !== false && activeSessionId
+      ? ([oxyServices, options?.limit, options?.offset, options?.eventType] as const)
+      : ([skip] as const)),
+  );
+};
 
-  return useQuery({
-    queryKey: queryKeys.security.activity(options?.limit, options?.offset, options?.eventType),
-    queryFn: async () => {
-      if (!activeSessionId) {
-        throw new Error('No active session');
-      }
-
-      const response = await oxyServices.devices.securityActivity(
-        options?.limit,
-        options?.offset,
-        options?.eventType,
-      );
-
-      return response;
-    },
-    enabled: options?.enabled !== false && !!activeSessionId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-  });
+/** The account's latest `limit` security events, as `SecurityEvent` ids. Waits for an active session. */
+export const useRecentSecurityActivity = (limit = 10): ListView<unknown> => {
+  const { oxyServices, activeSessionId } = useOxy();
+  return useList(
+    recentSecurityActivity,
+    ...(activeSessionId ? ([oxyServices, limit] as const) : ([skip] as const)),
+  );
 };
 
 /**
- * Get recent security activity (convenience hook)
- */
-export const useRecentSecurityActivity = (limit = 10) => {
-  const { oxyServices, activeSessionId } = useOxy();
-
-  return useQuery<SecurityActivity[]>({
-    queryKey: queryKeys.security.recent(limit),
-    queryFn: async () => {
-      if (!activeSessionId) {
-        throw new Error('No active session');
-      }
-
-      const page = await oxyServices.devices.securityActivity(limit, 0);
-      return page.data;
-    },
-    enabled: !!activeSessionId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-  });
-};
-
-/**
- * Get user's security activity with infinite pagination.
- * Each page returns up to `limit` events; `getNextPageParam` walks the
- * `offset` cursor until the API reports `hasMore: false`.
+ * Every security event of the account, `limit` (default 30) at a time:
+ * `more()` reads the next page until the API reports no more. Waits for an
+ * active session.
  */
 export const useInfiniteSecurityActivity = (options?: {
   limit?: number;
   eventType?: SecurityEventType;
   enabled?: boolean;
-}) => {
+}): ListView<unknown> => {
   const { oxyServices, activeSessionId } = useOxy();
-  const limit = options?.limit ?? 30;
-
-  return useInfiniteQuery<SecurityActivityResponse, Error>({
-    queryKey: queryKeys.security.infinite(limit, options?.eventType),
-    queryFn: async ({ pageParam }) => {
-      if (!activeSessionId) {
-        throw new Error('No active session');
-      }
-
-      const offset = typeof pageParam === 'number' ? pageParam : 0;
-      return await oxyServices.devices.securityActivity(limit, offset, options?.eventType);
-    },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage) => {
-      if (!lastPage.hasMore) return undefined;
-      return lastPage.offset + lastPage.limit;
-    },
-    enabled: options?.enabled !== false && !!activeSessionId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-  });
+  return useList(
+    securityActivity,
+    ...(options?.enabled !== false && activeSessionId
+      ? ([oxyServices, options?.limit ?? 30, options?.eventType] as const)
+      : ([skip] as const)),
+  );
 };

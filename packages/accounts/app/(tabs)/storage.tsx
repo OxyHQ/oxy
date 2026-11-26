@@ -20,15 +20,15 @@ export default function StorageScreen() {
   const { t } = useTranslation();
 
   // Auth is enforced by the `(tabs)` layout — assume a session here.
-  // Storage usage is served by a TanStack query (caching, background refetch,
-  // pull-to-refresh via `refetch`) instead of hand-rolled `useEffect` fetches.
+  // Storage usage is served by the SDK's read (held in the account's store,
+  // read again in the background, pull-to-refresh via `refresh`).
   const { isLoading: oxyLoading } = useOxy();
   const {
-    data: usage = null,
+    value: usage = null,
     isLoading: loading,
     isFetching,
     error: queryError,
-    refetch,
+    refresh,
   } = useAccountStorageUsage();
   const error = queryError
     ? queryError instanceof Error
@@ -37,8 +37,8 @@ export default function StorageScreen() {
     : null;
 
   const handleRefresh = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    await refresh();
+  }, [refresh]);
 
   const { usagePercentage, usageSummaryText, segments, storageDetails, accountInfoItems } =
     useStorageDetails(usage);
@@ -55,7 +55,7 @@ export default function StorageScreen() {
         usagePercentage={usagePercentage}
         segments={segments}
         onRetry={() => {
-          void refetch();
+          void refresh();
         }}
       />
 

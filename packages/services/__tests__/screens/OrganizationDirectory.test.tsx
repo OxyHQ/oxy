@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DataProvider, Store, withStore } from '@oxy.so/bloom-data';
 import type { ReactNode } from 'react';
+import { accountNode } from '../../src/ui/data/account';
 
 const accountGet = jest.fn();
 const search = jest.fn();
@@ -72,6 +73,7 @@ import { OrganizationClaims } from '../../src/ui/components/organizations/Organi
 import { OrganizationClaimReview } from '../../src/ui/components/organizations/OrganizationClaimReview';
 import AccountSettingsScreen from '../../src/ui/screens/AccountSettingsScreen';
 import CreateAccountScreen from '../../src/ui/screens/CreateAccountScreen';
+import { reviewClaimDetail as reviewClaimDetailSource } from '../../src/ui/data/organizations';
 
 const organization = {
   accountId: 'existing-org',
@@ -90,13 +92,21 @@ const organization = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
-const clients: QueryClient[] = [];
+/** Each viewer's data store, as the session opens one per account. */
+let stores = new Map<string, Store>();
+function storeOf(viewerId: string): Store {
+  let store = stores.get(viewerId);
+  if (!store) {
+    store = new Store();
+    stores.set(viewerId, store);
+  }
+  return store;
+}
+function withData(child: ReactNode) {
+  return <DataProvider store={storeOf(user.id)}>{child}</DataProvider>;
+}
 function mount(child: ReactNode) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  clients.push(client);
-  return render(<QueryClientProvider client={client}>{child}</QueryClientProvider>);
+  return render(withData(child));
 }
 async function findCompany() {
   fireEvent.change(screen.getByLabelText('organizationDirectory.search'), {
@@ -106,6 +116,7 @@ async function findCompany() {
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  stores = new Map();
   ready = true;
   user = { id: 'person', kind: 'personal' };
   search.mockResolvedValue({ items: [organization], nextCursor: null });
@@ -124,7 +135,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  for (const client of clients.splice(0)) client.clear();
 });
 
 it('requests review on the existing identity without creating or switching accounts', async () => {
@@ -176,6 +186,8 @@ it('does not claim a managed organization or write before a personal token is re
   fireEvent.click(screen.getByRole('button', { name: 'Acme' }));
   expect(screen.queryByRole('button', { name: 'organizationDirectory.claim' })).toBeNull();
   cleanup();
+  // A fresh start: nothing of the first read is held.
+  stores = new Map();
   ready = false;
   search.mockResolvedValue({ items: [organization], nextCursor: null });
   mount(<OrganizationDirectorySearch onCreateAccount={jest.fn()} />);
@@ -234,6 +246,32 @@ it('validates canonical company fields and updates the existing ID, without repl
     }),
   );
 });
+it('shows the saved organization from the answer of the save, without reading it again', async () => {
+  update.mockResolvedValue({
+    ...organization,
+    legalName: 'Acme Holdings',
+    updatedAt: '2026-02-01T00:00:00.000Z',
+  });
+  mount(<OrganizationSettings accountId="existing-org" canUpdate />);
+  fireEvent.change(await screen.findByLabelText('organizationDirectory.legalName'), {
+    target: { value: 'Acme Holdings' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.save' }));
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText('organizationDirectory.legalName') as HTMLInputElement).value,
+    ).toBe('Acme Holdings'),
+  );
+  expect(update).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(1);
+});
+it('does not retry a failed organization read, and reads it again on request', async () => {
+  get.mockRejectedValueOnce(Object.assign(new Error('unavailable'), { status: 503 }));
+  mount(<OrganizationSettings accountId="existing-org" canUpdate />);
+  fireEvent.click(await screen.findByRole('button', { name: 'organizationDirectory.retry' }));
+  await screen.findByLabelText('organizationDirectory.website');
+  expect(get).toHaveBeenCalledTimes(2);
+});
 it('shows classification without edit controls to a member without account:update', async () => {
   mount(<OrganizationSettings accountId="existing-org" canUpdate={false} />);
   await screen.findByText('organizationDirectory.types.business');
@@ -251,12 +289,10 @@ it('batch-hydrates claim status and drops private requests when the viewer switc
   await screen.findByText('organizationDirectory.pending');
   await waitFor(() => expect(batch).toHaveBeenCalledWith({ ids: ['existing-org'] }));
   expect(batch).toHaveBeenCalledTimes(1);
+  // An account switch opens the next account's store and closes this one.
   user = { id: 'someone-else', kind: 'personal' };
-  view.rerender(
-    <QueryClientProvider client={clients[0]}>
-      <OrganizationClaims />
-    </QueryClientProvider>,
-  );
+  void storeOf('person').close();
+  view.rerender(withData(<OrganizationClaims />));
   await waitFor(() => expect(screen.queryByText('organizationDirectory.pending')).toBeNull());
 });
 
@@ -297,6 +333,35 @@ it('opens the staff queue on demand and approves the same request only with revi
       evidenceReference: 'review-case:456',
     }),
   );
+});
+it('reads both claim lists again once a review is made, then returns to the queue', async () => {
+  myClaims.mockResolvedValue({ items: [pendingClaim], nextCursor: null });
+  reviewClaims.mockResolvedValue({ items: [pendingClaim], nextCursor: null });
+  reviewClaimDetail.mockResolvedValue(pendingClaim);
+  reviewClaim.mockResolvedValue({ ...pendingClaim, status: 'approved' });
+  mount(
+    <>
+      <OrganizationClaims />
+      <OrganizationClaimReview />
+    </>,
+  );
+  await screen.findByText('organizationDirectory.pending');
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.review.title' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Acme' }));
+  fireEvent.change(await screen.findByLabelText('organizationDirectory.review.evidence'), {
+    target: { value: 'review-case:456' },
+  });
+  reviewClaims.mockResolvedValue({ items: [], nextCursor: null });
+  myClaims.mockResolvedValue({
+    items: [{ ...pendingClaim, status: 'approved' }],
+    nextCursor: null,
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.review.approved' }));
+  await screen.findByText('organizationDirectory.review.empty');
+  expect(reviewClaim).toHaveBeenCalledTimes(1);
+  expect(reviewClaims).toHaveBeenCalledTimes(2);
+  expect(myClaims).toHaveBeenCalledTimes(2);
+  await screen.findByText('organizationDirectory.approved');
 });
 it('keeps the private review queue hidden after a staff authorization denial', async () => {
   reviewClaims.mockRejectedValue(Object.assign(new Error('forbidden'), { status: 403 }));
@@ -340,7 +405,11 @@ it('hides private review evidence and actions when a fresh authorization check i
   await openReview();
   expect(screen.getByText('private-applicant-case')).toBeTruthy();
   reviewClaimDetail.mockRejectedValue(Object.assign(new Error('revoked'), { status: 403 }));
-  await clients[0].invalidateQueries({ queryKey: ['oxy', 'organizations', 'review-detail'] });
+  await act(() =>
+    withStore(storeOf('person'), () =>
+      reviewClaimDetailSource.refresh(oxyServices as never, 'claim1'),
+    ),
+  );
   await waitFor(() => expect(screen.queryByText('private-applicant-case')).toBeNull());
   expect(
     screen.queryByRole('button', { name: 'organizationDirectory.review.approved' }),
@@ -367,11 +436,7 @@ it('does not reuse an owner membership when a different viewer opens the same or
     callerMembership: { permissions: [] },
   });
   user = { id: 'read-only-member', kind: 'personal' };
-  view.rerender(
-    <QueryClientProvider client={clients[0]}>
-      <AccountSettingsScreen accountId="existing-org" />
-    </QueryClientProvider>,
-  );
+  view.rerender(withData(<AccountSettingsScreen accountId="existing-org" />));
   expect(screen.queryByRole('button', { name: 'organizationDirectory.save' })).toBeNull();
   await screen.findByText('organizationDirectory.readonly');
   expect(accountGet).toHaveBeenCalledTimes(2);
@@ -403,7 +468,9 @@ it('removes organization edit forms when the same viewer loses account access', 
   mount(<AccountSettingsScreen accountId="existing-org" />);
   await screen.findByRole('button', { name: 'organizationDirectory.save' });
   accountGet.mockRejectedValue(Object.assign(new Error('revoked'), { status: 403 }));
-  await clients[0].invalidateQueries({ queryKey: ['accounts', 'detail', 'existing-org'] });
+  await act(() =>
+    withStore(storeOf('person'), () => accountNode.refresh(oxyServices as never, 'existing-org')),
+  );
   await waitFor(() =>
     expect(screen.queryByRole('button', { name: 'organizationDirectory.save' })).toBeNull(),
   );

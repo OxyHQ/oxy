@@ -25,10 +25,10 @@ export function AccountLanguageBoundary({
     !canUsePrivateApi ||
     profile.fetchStatus === 'paused' ||
     user.languages !== undefined ||
-    profile.isError ||
-    (profile.dataUpdatedAt > 0 &&
-      profile.data?.id === user.id &&
-      currentLanguage === (getPrimaryLanguage(profile.data) ?? FALLBACK_LOCALE));
+    profile.status === 'error' ||
+    (profile.updatedAt > 0 &&
+      profile.value?.id === user.id &&
+      currentLanguage === (getPrimaryLanguage(profile.value) ?? FALLBACK_LOCALE));
   return (
     <LanguageBridge config={language} accountReady={accountReady}>
       {children}

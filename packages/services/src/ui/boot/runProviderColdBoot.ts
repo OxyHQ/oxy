@@ -11,7 +11,7 @@ import { loadPersistedDeviceCredential } from '../utils/deviceCredential';
 import { createPlatformSharedDeviceCredentialStore } from '../session/sharedDeviceCredentialStore';
 import { tryCompleteOAuthReturn } from '../utils/oauthReturn';
 import { isWebBrowser } from '../utils/isWebBrowser';
-import { isNetConnectivityExplicitlyOffline } from '../utils/netConnectivity';
+import { isNetConnectivityOnline } from '../utils/netConnectivity';
 import type { CommitInput } from '../context/oxyContextTypes';
 
 /**
@@ -84,8 +84,9 @@ async function detectOfflineHint(): Promise<boolean> {
       }),
     ]);
     // `null` ⇒ the probe timed out (unknown → assume online). Only an explicit
-    // disconnected / unreachable verdict disables the network steps.
-    return isNetConnectivityExplicitlyOffline(state);
+    // disconnected verdict disables the network steps (the same rule as the
+    // online signal: `isConnected`, never the reachability probe).
+    return state !== null && !isNetConnectivityOnline(state);
   } catch {
     // NetInfo missing / probe threw — never block sign-in on a probe failure.
     return false;

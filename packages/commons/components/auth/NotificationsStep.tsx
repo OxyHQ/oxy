@@ -5,6 +5,7 @@ import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
 import { Icons } from '@/constants/icons';
 import { useTranslation } from '@/lib/i18n';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 interface NotificationsStepProps {
   error: string | null;
@@ -67,11 +68,16 @@ export function NotificationsStep({
           onPress={onRequestNotifications}
           disabled={busy}
           loading={busy}
-          className="mt-space-32"
+          style={{ marginTop: SPACING['space-32'] }}
         >
           {t('auth.notificationsStep.enable')}
         </Button>
-        <Button appearance="subtle" onPress={onSkip} disabled={busy} className="mt-space-8">
+        <Button
+          appearance="subtle"
+          onPress={onSkip}
+          disabled={busy}
+          style={{ marginTop: SPACING['space-8'] }}
+        >
           {t('auth.notificationsStep.notNow')}
         </Button>
       </View>

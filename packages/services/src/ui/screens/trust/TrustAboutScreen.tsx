@@ -17,8 +17,10 @@ import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const TrustAboutScreen: React.FC<BaseScreenProps> = () => {
+  const styles = useStyles();
   const { t } = useI18n();
   const bloomTheme = useTheme();
   const iconColor = bloomTheme.colors.primary;
@@ -29,20 +31,20 @@ const TrustAboutScreen: React.FC<BaseScreenProps> = () => {
   });
 
   return (
-    <View className="px-screen-margin pt-space-16 pb-space-32">
-      <View className="items-center py-space-24 gap-space-12">
+    <View style={styles.section}>
+      <View style={styles.container}>
         <IconCircle icon={RiShieldCheckLine} />
-        <Text className="font-sans text-body text-text-secondary text-center">
+        <Text style={styles.mutedText}>
           {t('trust.about.intro') ||
             'Oxy Trust is a recognition of your positive actions in the Oxy Ecosystem. Reputation cannot be sent or received directly, only earned by contributing to the community.'}
         </Text>
       </View>
 
-      <H4 className="text-sectionTitle font-sectionTitle text-text-secondary mb-space-12">
+      <Text role="heading" aria-level={4} style={styles.mutedText2}>
         {t('trust.about.how.title') || 'How to Earn Reputation'}
-      </H4>
+      </Text>
       <BenefitList
-        className="mb-space-24"
+        style={styles.benefits}
         accessibilityLabel={t('trust.about.how.title') || 'How to Earn Reputation'}
       >
         <BenefitRow
@@ -67,10 +69,10 @@ const TrustAboutScreen: React.FC<BaseScreenProps> = () => {
         />
       </BenefitList>
 
-      <H4 className="text-sectionTitle font-sectionTitle text-text-secondary mb-space-12">
+      <Text role="heading" aria-level={4} style={styles.mutedText2}>
         {t('trust.about.why.title') || 'Why Oxy Trust?'}
-      </H4>
-      <Text className="font-sans text-body text-text-secondary">
+      </Text>
+      <Text style={styles.mutedText3}>
         {t('trust.about.why.text') ||
           'Your reputation and trust tier unlock special features and recognition in the Oxy Ecosystem. The more you contribute, the more you earn!'}
       </Text>
@@ -79,3 +81,18 @@ const TrustAboutScreen: React.FC<BaseScreenProps> = () => {
 };
 
 export default TrustAboutScreen;
+
+const useStyles = createTokenStyles((t) => ({
+  benefits: { marginBottom: 24 },
+  section: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
+  container: { alignItems: 'center', gap: 12, paddingVertical: 24 },
+  mutedText: { textAlign: 'center', color: t.mutedForeground, lineHeight: 22, fontWeight: 400 },
+  mutedText2: {
+    marginBottom: 12,
+    fontSize: 20,
+    color: t.mutedForeground,
+    lineHeight: 26,
+    fontWeight: 600,
+  },
+  mutedText3: { color: t.mutedForeground, lineHeight: 22, fontWeight: 400 },
+}));

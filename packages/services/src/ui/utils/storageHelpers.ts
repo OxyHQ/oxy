@@ -1,3 +1,5 @@
+import { deviceStorage } from '../data/deviceStorage';
+
 export interface StorageInterface {
   getItem: (key: string) => Promise<string | null>;
   setItem: (key: string, value: string) => Promise<void>;
@@ -6,8 +8,6 @@ export interface StorageInterface {
 }
 
 export interface SessionStorageKeys {
-  activeSessionId: string;
-  sessionIds: string;
   language: string;
 }
 
@@ -34,85 +34,17 @@ export const createMemoryStorage = (): StorageInterface => {
 };
 
 /**
- * Create a web storage implementation backed by `localStorage`.
- * Falls back to in-memory storage when unavailable.
- */
-const createWebStorage = (): StorageInterface => {
-  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
-    return createMemoryStorage();
-  }
-
-  return {
-    async getItem(key: string) {
-      try {
-        return window.localStorage.getItem(key);
-      } catch {
-        return null;
-      }
-    },
-    async setItem(key: string, value: string) {
-      try {
-        window.localStorage.setItem(key, value);
-      } catch {
-        // Ignore quota or access issues for now.
-      }
-    },
-    async removeItem(key: string) {
-      try {
-        window.localStorage.removeItem(key);
-      } catch {
-        // Ignore failures.
-      }
-    },
-    async clear() {
-      try {
-        window.localStorage.clear();
-      } catch {
-        // Ignore failures.
-      }
-    },
-  };
-};
-
-let asyncStorageInstance: StorageInterface | null = null;
-
-/**
- * Lazily import React Native AsyncStorage implementation.
- */
-const createNativeStorage = async (): Promise<StorageInterface> => {
-  if (asyncStorageInstance) {
-    return asyncStorageInstance;
-  }
-
-  try {
-    const asyncStorageModule = await import('@react-native-async-storage/async-storage');
-    asyncStorageInstance = asyncStorageModule.default;
-    return asyncStorageInstance;
-  } catch (error) {
-    if (__DEV__) {
-      console.error('Failed to import AsyncStorage:', error);
-    }
-    return createMemoryStorage();
-  }
-};
-
-/**
  * Detect whether the current runtime is React Native.
  */
 export const isReactNative = (): boolean =>
   typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
 
 /**
- * Create a platform-appropriate storage implementation.
- * Defaults to in-memory storage when no platform storage is available.
+ * The SDK's key-value storage: the device's `@oxy.so/bloom-data` store
+ * (`data/deviceStorage.ts`), which moves each key off AsyncStorage (or
+ * localStorage) the first time it is read.
  */
-export const createPlatformStorage = async (): Promise<StorageInterface> => {
-  if (isReactNative()) {
-    return createNativeStorage();
-  }
-
-  return createWebStorage();
-};
+export const createPlatformStorage = async (): Promise<StorageInterface> => deviceStorage();
 
 export const STORAGE_KEY_PREFIX = 'oxy_session';
 
@@ -122,7 +54,5 @@ export const STORAGE_KEY_PREFIX = 'oxy_session';
  * @param prefix - Storage key prefix
  */
 export const getStorageKeys = (prefix: string = STORAGE_KEY_PREFIX): SessionStorageKeys => ({
-  activeSessionId: `${prefix}_active_session_id`,
-  sessionIds: `${prefix}_session_ids`,
   language: `${prefix}_language`,
 });

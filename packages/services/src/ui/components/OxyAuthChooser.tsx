@@ -40,7 +40,6 @@ import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
-import { useQueryClient } from '@tanstack/react-query';
 import type { LogoutResult } from '../context/oxyContextTypes';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
@@ -103,7 +102,6 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   } = useOxy();
   const theme = useTheme();
   const { t } = useI18n();
-  const queryClient = useQueryClient();
   // The device's people and what each may act as, resolved for rendering — the
   // SAME hook (and the same one builder) the auth.oxy.so chooser renders from,
   // so the two switchers cannot drift.
@@ -178,16 +176,14 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
         case 'failed':
           toast.error(t('accountSwitcher.toasts.activateFailed'));
           return;
+        // The subject changed: the runtime opened the new account's store
+        // between the bearer commit and the notify, so nothing is left to clear.
         case 'switched':
-          // The subject changed, so every account-scoped query is now about
-          // somebody else. The runtime resets its own caches between the bearer
-          // commit and the notify; this drops the Query cache the same way.
-          queryClient.invalidateQueries();
           onComplete?.();
           return;
       }
     },
-    [controller, onComplete, queryClient, t],
+    [controller, onComplete, t],
   );
 
   /**
@@ -376,15 +372,15 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   const storageQuery = useAccountStorageUsage({ enabled: showsAccountMenu });
   const storage = useMemo<AccountStorageModel | null>(
     () =>
-      storageQuery.data
+      storageQuery.value
         ? {
-            usedBytes: storageQuery.data.totalUsedBytes,
-            limitBytes: storageQuery.data.totalLimitBytes,
-            categories: storageQuery.data.categories,
-            plan: storageQuery.data.plan,
+            usedBytes: storageQuery.value.totalUsedBytes,
+            limitBytes: storageQuery.value.totalLimitBytes,
+            categories: storageQuery.value.categories,
+            plan: storageQuery.value.plan,
           }
         : null,
-    [storageQuery.data],
+    [storageQuery.value],
   );
 
   // Account settings, data and help navigate within the current dialog.

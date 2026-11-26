@@ -40,14 +40,14 @@ export function usePrivacyCounts({ userId }: UsePrivacyCountsArgs): UsePrivacyCo
   const { t } = useTranslation();
 
   // Fetch follower/following counts
-  const { followerCount, followingCount, fetchUserCounts } = useFollow(userId);
+  const { followerCount, followingCount, fetchUserCounts } = useFollow(userId ?? '');
 
-  // Privacy settings via react-query hooks (same pattern as data.tsx)
+  // Privacy settings via the SDK's read (same pattern as data.tsx)
   const {
-    data: privacySettings,
+    value: privacySettings,
     isLoading: privacyLoading,
     isFetching: privacyFetching,
-    refetch: refetchPrivacy,
+    refresh: refetchPrivacy,
   } = usePrivacySettings(userId, {
     enabled: !!userId,
   });
@@ -114,7 +114,7 @@ export function usePrivacyCounts({ userId }: UsePrivacyCountsArgs): UsePrivacyCo
 
       setPendingPrivacyKey(key);
       try {
-        await updatePrivacyMutation.mutateAsync({
+        await updatePrivacyMutation.run({
           settings: { [key]: value },
           userId,
         });

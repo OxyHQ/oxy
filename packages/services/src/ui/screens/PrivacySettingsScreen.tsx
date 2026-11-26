@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useCallback, useEffect } from 'react';
+import { skip, useAction, useRecord } from '@oxy.so/bloom-data';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { toast } from '@oxy.so/bloom/toast';
@@ -17,7 +17,8 @@ import type { BlockedUser, RestrictedUser } from '@oxy.so/core';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useOxy } from '../context/oxyRuntimeContext';
 import { usePrivacySettings } from '../hooks/queries/useAccountQueries';
-import { queryKeys } from '../hooks/queries/queryKeys';
+import { privacyLists, unblockUser, unrestrictUser } from '../data/account';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 interface PrivacySettings {
   isPrivateAccount: boolean;
@@ -64,6 +65,7 @@ const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
 };
 
 const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
+  const styles = useStyles();
   // Privacy settings belong to the ACTIVE account (the org/project/bot when
   // switched, else the personal user).
   const { oxyServices, user } = useOxy();
@@ -71,7 +73,6 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
 
   useSurfaceHeader({ title: t('privacySettings.title') || 'Privacy Settings' });
   const bloomTheme = useTheme();
-  const queryClient = useQueryClient();
 
   const settingsQuery = usePrivacySettings(user?.id);
 
@@ -79,13 +80,16 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
   const settings: PrivacySettings = {
     ...DEFAULT_PRIVACY_SETTINGS,
     ...user?.privacySettings,
-    ...settingsQuery.data,
+    ...settingsQuery.value,
   };
   const isSaving = updateSettings.isPending;
-  const isLoading = !user?.id || settingsQuery.isPending;
+  const isLoading = !user?.id || settingsQuery.isLoading;
   const toggle = (key: keyof PrivacySettings) => {
     if (isSaving || isLoading) return;
-    updateSettings.mutate({ userId: user.id, settings: { [key]: !settings[key] } });
+    // A failure is told to the person by the hook, and rolled back.
+    updateSettings
+      .run({ userId: user.id, settings: { [key]: !settings[key] } })
+      .catch(() => undefined);
   };
 
   useEffect(() => {
@@ -94,56 +98,19 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
     }
   }, [settingsQuery.error, t]);
 
-  const listsKey = useMemo(() => queryKeys.privacy.lists(user?.id), [user?.id]);
-  const listsQuery = useQuery({
-    queryKey: listsKey,
-    enabled: Boolean(user?.id),
-    queryFn: async () => {
-      const [blocked, restricted] = await Promise.all([
-        oxyServices.privacy.blocked(),
-        oxyServices.privacy.restricted(),
-      ]);
-      return { blocked, restricted };
-    },
-  });
-  const blockedUsers: BlockedUser[] = listsQuery.data?.blocked ?? [];
-  const restrictedUsers: RestrictedUser[] = listsQuery.data?.restricted ?? [];
-  const isLoadingUsers = listsQuery.isPending;
-
-  const removeFromLists = useCallback(
-    (userId: string, list: 'blocked' | 'restricted') => {
-      queryClient.setQueryData<{ blocked: BlockedUser[]; restricted: RestrictedUser[] }>(
-        listsKey,
-        (prev) => {
-          if (!prev) return prev;
-          if (list === 'blocked') {
-            return {
-              ...prev,
-              blocked: prev.blocked.filter(
-                (u) => (typeof u.blockedId === 'string' ? u.blockedId : u.blockedId._id) !== userId,
-              ),
-            };
-          }
-          return {
-            ...prev,
-            restricted: prev.restricted.filter(
-              (u) =>
-                (typeof u.restrictedId === 'string' ? u.restrictedId : u.restrictedId._id) !==
-                userId,
-            ),
-          };
-        },
-      );
-    },
-    [queryClient, listsKey],
-  );
+  const ownerId = user?.id;
+  const lists = useRecord(privacyLists, ...(ownerId ? ([oxyServices, ownerId] as const) : [skip]));
+  const blockedUsers: readonly BlockedUser[] = lists.value?.blocked ?? [];
+  const restrictedUsers: readonly RestrictedUser[] = lists.value?.restricted ?? [];
+  const isLoadingUsers = !ownerId || lists.isLoading;
+  const { run: unblock } = useAction(unblockUser);
+  const { run: unrestrict } = useAction(unrestrictUser);
 
   const handleUnblock = useCallback(
     async (userId: string) => {
-      if (!oxyServices) return;
+      if (!oxyServices || !ownerId) return;
       try {
-        await oxyServices.privacy.unblock(userId);
-        removeFromLists(userId, 'blocked');
+        await unblock(oxyServices, ownerId, userId);
         toast.success(t('privacySettings.userUnblocked') || 'User unblocked');
       } catch (error) {
         if (__DEV__) {
@@ -152,15 +119,14 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
         toast.error(t('privacySettings.unblockError') || 'Failed to unblock user');
       }
     },
-    [oxyServices, t, removeFromLists],
+    [oxyServices, ownerId, t, unblock],
   );
 
   const handleUnrestrict = useCallback(
     async (userId: string) => {
-      if (!oxyServices) return;
+      if (!oxyServices || !ownerId) return;
       try {
-        await oxyServices.privacy.unrestrict(userId);
-        removeFromLists(userId, 'restricted');
+        await unrestrict(oxyServices, ownerId, userId);
         toast.success(t('privacySettings.userUnrestricted') || 'User unrestricted');
       } catch (error) {
         if (__DEV__) {
@@ -169,7 +135,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
         toast.error(t('privacySettings.unrestrictError') || 'Failed to unrestrict user');
       }
     },
-    [oxyServices, t, removeFromLists],
+    [oxyServices, ownerId, t, unrestrict],
   );
 
   // Helper to extract user info from blocked/restricted objects.
@@ -211,7 +177,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
 
   return (
     <>
-      <View className="px-screen-margin pb-space-24">
+      <View style={styles.section}>
         {/* Account Privacy */}
         <GroupedSection title={t('privacySettings.sections.account') || 'ACCOUNT PRIVACY'}>
           <GroupedSectionItem
@@ -466,7 +432,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
         {/* Blocked Users */}
         <GroupedSection title={t('privacySettings.sections.blockedUsers') || 'BLOCKED USERS'}>
           {isLoadingUsers ? null : blockedUsers.length === 0 ? (
-            <Text className="text-text-secondary text-center p-space-40">
+            <Text style={styles.mutedText}>
               {t('privacySettings.noBlockedUsers') || 'No blocked users'}
             </Text>
           ) : (
@@ -499,7 +465,7 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
         {/* Restricted Users */}
         <GroupedSection title={t('privacySettings.sections.restrictedUsers') || 'RESTRICTED USERS'}>
           {isLoadingUsers ? null : restrictedUsers.length === 0 ? (
-            <Text className="text-text-secondary text-center p-space-40">
+            <Text style={styles.mutedText}>
               {t('privacySettings.noRestrictedUsers') || 'No restricted users'}
             </Text>
           ) : (
@@ -535,3 +501,8 @@ const PrivacySettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) =
 };
 
 export default React.memo(PrivacySettingsScreen);
+
+const useStyles = createTokenStyles((t) => ({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+  mutedText: { padding: 40, textAlign: 'center', color: t.mutedForeground },
+}));

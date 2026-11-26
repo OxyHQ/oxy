@@ -11,10 +11,10 @@ export function SocialDemo() {
   const [searchUsername, setSearchUsername] = useState('');
   const [targetUsername, setTargetUsername] = useState('');
 
-  const { data: foundUser, isLoading: searching } = useUserByUsername(targetUsername || '');
+  const { value: foundUser, isLoading: searching } = useUserByUsername(targetUsername || '');
   const targetUserId = foundUser?.id || '';
 
-  const follow = useFollow(targetUserId || undefined);
+  const follow = useFollow(targetUserId);
   const counts = useFollowerCounts(targetUserId);
 
   const handleSearch = () => {

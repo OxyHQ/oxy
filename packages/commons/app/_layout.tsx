@@ -11,9 +11,10 @@ import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-rean
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { OxyProvider, useOxy } from '@oxy.so/services';
 import { productAnalytics } from '@/lib/product-analytics';
+import { queryClient } from '@/lib/queryClient';
 import {
   KeyManager,
   ensureKeychainGroupsMigrated,
@@ -224,20 +225,22 @@ export default function RootLayout() {
               galleries, cards) now resolves a bare Oxy file id through
               `assets.publicUrl`; nothing in the app builds a media URL of
               its own. */}
-          <BloomImageResolver>
-            <LocaleProvider>
-              {/* Mounted exactly once, and the only Bloom outlet this app
-                  mounts. `SurfaceHost` and `ToastOutlet` are deliberately
-                  absent: OxyProvider already renders `SurfaceProvider` and
-                  `ToastOutlet` itself, and a second mount of either silently
-                  draws every surface and every toast twice. */}
-              <PortalProvider>
-                <AppHead />
-                <AppStackContent />
-                <PortalOutlet />
-              </PortalProvider>
-            </LocaleProvider>
-          </BloomImageResolver>
+          <QueryClientProvider client={queryClient}>
+            <BloomImageResolver>
+              <LocaleProvider>
+                {/* Mounted exactly once, and the only Bloom outlet this app
+                    mounts. `SurfaceHost` and `ToastOutlet` are deliberately
+                    absent: OxyProvider already renders `SurfaceProvider` and
+                    `ToastOutlet` itself, and a second mount of either silently
+                    draws every surface and every toast twice. */}
+                <PortalProvider>
+                  <AppHead />
+                  <AppStackContent />
+                  <PortalOutlet />
+                </PortalProvider>
+              </LocaleProvider>
+            </BloomImageResolver>
+          </QueryClientProvider>
         </OxyProvider>
       </BloomProvider>
     </GestureHandlerRootView>

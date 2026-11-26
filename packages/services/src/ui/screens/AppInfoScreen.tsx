@@ -1,7 +1,7 @@
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import type React from 'react';
 import { useState, useEffect } from 'react';
-import { View, Platform, Dimensions } from 'react-native';
+import { View, Platform, Dimensions, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { packageInfo } from '@oxy.so/core';
 import { toast } from '@oxy.so/bloom/toast';
@@ -146,7 +146,7 @@ const AppInfoScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigate })
 
   return (
     <>
-      <View className="px-screen-margin py-space-16 pb-space-24">
+      <View style={styles.section}>
         {/* Package Information */}
         <GroupedSection title={t('appInfo.sections.package')}>
           <GroupedSectionItem
@@ -407,3 +407,7 @@ const AppInfoScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigate })
 };
 
 export default AppInfoScreen;
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 24 },
+});

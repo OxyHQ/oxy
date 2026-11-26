@@ -6,12 +6,8 @@ import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
-import {
-  useOxy,
-  useUserDevices,
-  useRecentSecurityActivity,
-  useCurrentUser,
-} from '@oxy.so/services';
+import { useOxy, useCurrentUser } from '@oxy.so/services';
+import { useDeviceRecords, useRecentSecurityEvents } from '@/hooks/useAccountRows';
 import { formatDate } from '@/utils/date-utils';
 import { getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
 import { useAvatarUrl } from '@/hooks/useAvatarUrl';
@@ -51,11 +47,10 @@ export default function HomeScreen() {
   useCurrentUser();
 
   // Fetch devices for stats
-  const { data: devicesData } = useUserDevices();
-  const devices = (devicesData ?? []) as { id: string }[];
+  const { devices } = useDeviceRecords();
 
   // Fetch security activity
-  const { data: securityActivities = [] } = useRecentSecurityActivity(5);
+  const { events: securityActivities } = useRecentSecurityEvents(5);
 
   // Biometric settings
   const {

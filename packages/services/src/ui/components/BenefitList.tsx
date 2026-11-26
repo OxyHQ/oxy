@@ -26,7 +26,6 @@ export interface BenefitRowProps {
   children?: React.ReactNode;
   /** Accessibility label for the row (defaults to string content). */
   accessibilityLabel?: string;
-  className?: string;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
 }
@@ -36,7 +35,6 @@ export const BenefitRow: React.FC<BenefitRowProps> = ({
   label,
   children,
   accessibilityLabel,
-  className,
   style,
   textStyle,
 }) => {
@@ -46,7 +44,6 @@ export const BenefitRow: React.FC<BenefitRowProps> = ({
 
   return (
     <View
-      className={className}
       style={[{ flexDirection: 'row', alignItems: 'center', gap: SPACING['space-12'] }, style]}
       accessibilityLabel={a11y}
       {...(a11y ? { accessibilityRole: 'text' as const } : {})}
@@ -87,21 +84,18 @@ export interface BenefitListProps {
   /** `BenefitRow`s (or any nodes) stacked with consistent spacing. */
   children: React.ReactNode;
   accessibilityLabel?: string;
-  className?: string;
   style?: StyleProp<ViewStyle>;
 }
 
 export const BenefitList: React.FC<BenefitListProps> = ({
   children,
   accessibilityLabel,
-  className,
   style,
 }) => (
   <Card
     radius="radius-20"
     border="hairline"
     elevation="s"
-    className={className}
     style={[{ padding: SPACING['space-16'], gap: SPACING['space-16'] }, style]}
     accessibilityLabel={accessibilityLabel}
     appearance="outline"

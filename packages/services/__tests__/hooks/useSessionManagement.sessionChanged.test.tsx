@@ -32,7 +32,6 @@ it('rejects a session switch superseded during device-session synchronization', 
     useSessionManagement({
       oxyServices: oxyServices as never,
       runtime: runtime as never,
-      storage: null,
       onError,
       setAuthError,
     }),
@@ -51,4 +50,23 @@ it('rejects a session switch superseded during device-session synchronization', 
   expect(runtime.mergeSessions).not.toHaveBeenCalled();
   expect(onError).not.toHaveBeenCalled();
   expect(setAuthError).not.toHaveBeenCalled();
+});
+
+it('tears down the runtime projection and the tokens on sign-out, and stores nothing', async () => {
+  const runtime = { clearSession: jest.fn() };
+  const oxyServices = { session: { clear: jest.fn() } };
+  const onAuthStateChange = jest.fn();
+  const { result } = renderHook(() =>
+    useSessionManagement({
+      oxyServices: oxyServices as never,
+      runtime: runtime as never,
+      onAuthStateChange,
+    }),
+  );
+
+  await act(() => result.current.clearSessionState());
+
+  expect(runtime.clearSession).toHaveBeenCalledTimes(1);
+  expect(oxyServices.session.clear).toHaveBeenCalledTimes(1);
+  expect(onAuthStateChange).toHaveBeenCalledWith(null);
 });

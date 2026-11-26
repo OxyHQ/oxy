@@ -10,10 +10,10 @@ import { BloomProvider } from '@oxy.so/bloom/provider';
 import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 import { OxyProvider, RequireOxyAuth } from '@oxy.so/services/ui';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Slot } from 'expo-router';
 import Head from 'expo-router/head';
-import { type ReactNode, useCallback } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef } from 'react';
 
 import { AccountProvider } from '@/hooks/use-account';
 import config from '@/lib/config';
@@ -40,21 +40,23 @@ export default function RootLayout() {
         <BloomScope size="md">
           <PortalProvider>
             <ConnectionStatusToasts />
-            {/* OxyProvider owns gesture, safe-area, keyboard and QueryClient providers: handing it the app's client
-                    makes the SDK's account hooks and Console's hooks share one cache. */}
+            {/* OxyProvider owns gesture, safe-area and keyboard providers; Console's own queries
+                    have their own client below it. */}
             <OxyProvider
               baseURL={config.oxyUrl}
               clientId={config.clientId}
               authRedirectUri={config.authRedirectUri}
-              queryClient={queryClient}
             >
-              <ConsoleMedia>
-                <LocaleProvider>
-                  <AccountProvider>
-                    <GatedApp />
-                  </AccountProvider>
-                </LocaleProvider>
-              </ConsoleMedia>
+              <QueryClientProvider client={queryClient}>
+                <ReadAgainOnAccountSwitch />
+                <ConsoleMedia>
+                  <LocaleProvider>
+                    <AccountProvider>
+                      <GatedApp />
+                    </AccountProvider>
+                  </LocaleProvider>
+                </ConsoleMedia>
+              </QueryClientProvider>
             </OxyProvider>
             <PortalOutlet />
           </PortalProvider>
@@ -62,6 +64,23 @@ export default function RootLayout() {
       </BloomProvider>
     </ErrorBoundary>
   );
+}
+
+/**
+ * Console's queries are read again when the signed-in account switches to
+ * another, so none shows the previous account's answer (the SDK's client did
+ * this before it left React Query). The first sign-in reads nothing again.
+ */
+function ReadAgainOnAccountSwitch() {
+  const accountId = useOxy().user?.id ?? null;
+  const previous = useRef(accountId);
+  useEffect(() => {
+    if (previous.current !== null && accountId !== null && previous.current !== accountId) {
+      void queryClient.invalidateQueries();
+    }
+    previous.current = accountId;
+  }, [accountId]);
+  return null;
 }
 
 /** One image resolver for the tree: components pass bare file ids and a variant. */

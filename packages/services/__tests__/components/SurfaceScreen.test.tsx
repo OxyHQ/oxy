@@ -123,7 +123,7 @@ it('explicit close dismisses the current host even when it is detached', () => {
   );
   act(() => mockScreenProps.onClose?.());
   expect(dismiss).toHaveBeenCalledTimes(1);
-  expect(stack.store.getState().closing).toBe(true);
+  expect(stack.getState().closing).toBe(true);
 });
 
 it('leaves Escape to a sheet above the SDK dialog without changing its history', () => {

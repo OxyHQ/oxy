@@ -20,7 +20,7 @@ export function OverviewSkeleton() {
 /** A grouped section: a title over rows with a label and a value. */
 export function GroupSkeleton({ rows = 4 }: { rows?: number }) {
   return (
-    <Skeleton.Region className="min-w-0 flex-1 gap-3 p-4">
+    <Skeleton.Region style={{ minWidth: 0, flex: 1, gap: 12, padding: 16 }}>
       <Skeleton.Box width="30%" height={14} borderRadius={6} />
       <View className="gap-3 rounded-2xl border border-border p-4">
         {Array.from({ length: rows }, (_, index) => (

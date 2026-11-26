@@ -13,7 +13,7 @@
 // 'web'`, so native code paths never emit them. The plain `import 'react-native'`
 // makes this a module augmentation (merge) rather than a redeclaration. Consumers
 // load it via the `/// <reference path>` directives in `src/index.ts` and
-// `src/ui/index.ts`, alongside `react-native-classname.d.ts`.
+// `src/ui/index.ts`.
 
 import 'react-native';
 

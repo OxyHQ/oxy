@@ -73,7 +73,7 @@ function PersonalPlansContent() {
       } else if (result.state === 'closed' || result.state === 'fulfilled') {
         await clearPersonalPlanCheckoutKey(user.id, offerId, offerVersion);
         if (!isCurrent()) return;
-        await sources.refetch();
+        await sources.refresh();
         if (!isCurrent()) return;
         setMessage(
           t(`payments.one.${result.state === 'fulfilled' ? 'checkoutComplete' : 'checkoutClosed'}`),
@@ -135,7 +135,7 @@ function PersonalPlansContent() {
     // A failed list refresh never turns a confirmed cancellation into a failure.
     if (confirmed && isCurrent()) {
       try {
-        await sources.refetch();
+        await sources.refresh();
       } catch {
         if (isCurrent()) setRefreshWarning(true);
       }
@@ -147,13 +147,13 @@ function PersonalPlansContent() {
       <View style={{ gap: 12, padding: 16 }}>
         <ThemedText>{t('payments.one.description')}</ThemedText>
         <DisplayCurrencySelector />
-        {catalogue.isPending ? (
+        {catalogue.isLoading ? (
           <ThemedText>{t('payments.one.loading')}</ThemedText>
-        ) : catalogue.isError ? (
+        ) : catalogue.status === 'error' ? (
           <ThemedText>{t('payments.one.unavailable')}</ThemedText>
         ) : (
           <>
-            {catalogue.data?.plans.map((plan) => (
+            {catalogue.value?.plans.map((plan) => (
               <View key={`${plan.offerId}@${plan.offerVersion}`}>
                 <ThemedText>
                   {plan.displayName} · v{plan.offerVersion}
@@ -175,7 +175,7 @@ function PersonalPlansContent() {
                     <ThemedText>{t('payments.one.finalTaxInclusive')}</ThemedText>
                   </>
                 )}
-                {String(catalogue.data?.purchase) === 'available' && isAuthenticated && (
+                {String(catalogue.value?.purchase) === 'available' && isAuthenticated && (
                   <Pressable
                     accessibilityRole="button"
                     disabled={busy}
@@ -194,18 +194,18 @@ function PersonalPlansContent() {
                 ))}
               </View>
             ))}
-            {catalogue.data?.purchase === 'unavailable' && (
+            {catalogue.value?.purchase === 'unavailable' && (
               <ThemedText>{t('payments.one.unconfigured')}</ThemedText>
             )}
           </>
         )}
         {isAuthenticated &&
-          (sources.isPending ? (
+          (sources.isLoading ? (
             <ThemedText>{t('payments.one.loading')}</ThemedText>
-          ) : sources.isError ? (
+          ) : sources.status === 'error' ? (
             <ThemedText>{t('payments.one.sourceError')}</ThemedText>
-          ) : sources.data?.length ? (
-            sources.data.map((source) => (
+          ) : sources.value?.length ? (
+            sources.value.map((source) => (
               <View key={source.sourceId} style={{ gap: 8 }}>
                 <ThemedText>
                   {source.status} ·{' '}

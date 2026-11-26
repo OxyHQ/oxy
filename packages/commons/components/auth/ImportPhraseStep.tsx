@@ -7,6 +7,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 interface ImportPhraseStepProps {
   phraseWords: string[];
@@ -82,7 +83,7 @@ export function ImportPhraseStep({
           onPress={onImport}
           disabled={isLoading}
           loading={isLoading}
-          className="mt-space-32"
+          style={{ marginTop: SPACING['space-32'] }}
         >
           {t('auth.importStep.import')}
         </Button>

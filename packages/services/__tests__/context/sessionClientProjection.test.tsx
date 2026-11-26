@@ -31,7 +31,6 @@
 
 import React from 'react';
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { User } from '@oxy.so/core';
 import type { DeviceSessionState } from '@oxy.so/contracts';
 
@@ -57,7 +56,7 @@ jest.mock('../../src/ui/session', () => {
 });
 
 import { OxyRuntimeProvider, useOxy, type OxyContextState } from '../../src/ui/context/OxyContext';
-import { useAuthStore } from '../../src/ui/stores/authStore';
+import { activeRuntime } from '../../src/ui/runtime/activeRuntime';
 import { createSessionClient } from '../../src/ui/session';
 
 const mockedCreateSessionClient = createSessionClient as jest.MockedFunction<
@@ -141,21 +140,16 @@ function requireContext(sink: { current: OxyContextState | null }): OxyContextSt
 }
 
 function renderProvider(sink: { current: OxyContextState | null }): RenderResult {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider baseURL="https://api.oxy.so">
-        <Capture sink={sink} />
-      </OxyRuntimeProvider>
-    </QueryClientProvider>,
+    <OxyRuntimeProvider baseURL="https://api.oxy.so">
+      <Capture sink={sink} />
+    </OxyRuntimeProvider>,
   );
 }
 
 describe('SessionClient projection into OxyContext (Task 1 — additive, inert until client.start())', () => {
   afterEach(() => {
-    useAuthStore.getState().logout();
+    activeRuntime()?.clearSession();
     mockedCreateSessionClient.mockReset();
   });
 

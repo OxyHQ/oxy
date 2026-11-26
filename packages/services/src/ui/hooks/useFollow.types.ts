@@ -1,7 +1,7 @@
-// Type-only definition for the useFollow hook to allow context exposure without runtime import cycles.
-// Expand this as needed to better reflect the real return type.
+// The shapes `useFollow` returns, apart from the hook so the context type can
+// name them without importing it (no runtime import cycle).
 
-import type { BulkFollowResult } from '@oxy.so/core';
+import type { BulkFollowResult, BulkUnfollowResult } from '@oxy.so/core';
 import type { FollowErrorCode } from '../utils/followErrors';
 
 export type SingleFollowResult = {
@@ -30,6 +30,7 @@ export type MultiFollowResult = {
   fetchStatusForUser: (userId: string) => Promise<void>;
   fetchAllStatuses: () => Promise<void>;
   followAllUsers: () => Promise<BulkFollowResult>;
+  unfollowAllUsers: () => Promise<BulkUnfollowResult>;
   clearErrorForUser: (userId: string) => void;
   isAnyLoading: boolean;
   hasAnyError: boolean;

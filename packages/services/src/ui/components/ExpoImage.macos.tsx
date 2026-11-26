@@ -41,8 +41,7 @@ export function ExpoImage({
   accessible,
   accessibilityLabel,
   testID,
-  className,
-}: ImageProps & { className?: string }) {
+}: ImageProps) {
   return (
     <Image
       source={toImageSource(source) ?? { uri: '' }}
@@ -53,7 +52,6 @@ export function ExpoImage({
       accessible={accessible}
       accessibilityLabel={accessibilityLabel}
       testID={testID}
-      {...(className ? { className } : null)}
     />
   );
 }

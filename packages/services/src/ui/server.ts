@@ -34,9 +34,6 @@ export const useStorage = () => noopStorageResult;
 // Screens (render null)
 export const ProfileScreen = noopComponent;
 
-// Stores (return empty objects)
-export const useAuthStore = noopHook;
-
 // Toast (noop)
 export const toast = Object.assign(() => {}, {
   success: () => {},

@@ -9,8 +9,7 @@
 
 import type React from 'react';
 import { Fragment, useState } from 'react';
-import { ScrollView } from 'react-native';
-import { Pressable, View } from 'react-native-css/components';
+import { Pressable, ScrollView, View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
@@ -19,6 +18,7 @@ import { Text } from '@oxy.so/bloom/typography';
 import type { EmailSignInAccountOption } from '@oxy.so/contracts';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { useOxy } from '../../context/oxyRuntimeContext';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /** The list scrolls past this height (`max-h-96`). */
 const LIST_MAX_HEIGHT = 384;
@@ -39,6 +39,7 @@ export const OxyEmailAccountChoice: React.FC<OxyEmailAccountChoiceProps> = ({
   pendingId = null,
   disabled = false,
 }) => {
+  const styles = useStyles();
   const theme = useTheme();
   const { oxyServices } = useOxy();
   const [hovered, setHovered] = useState<number | null>(null);
@@ -46,16 +47,13 @@ export const OxyEmailAccountChoice: React.FC<OxyEmailAccountChoiceProps> = ({
   /** The hairline under row `index`, hidden while either neighbour is hovered. */
   const divider = (index: number) =>
     index === accounts.length - 1 ? null : hovered === index || hovered === index + 1 ? (
-      <View className="h-px mx-[8px]" />
+      <View style={styles.container} />
     ) : (
-      <View className="h-px mx-[8px] bg-border opacity-50" />
+      <View style={styles.surface} />
     );
 
   return (
-    <View
-      className="bg-fill-secondary rounded-[22px] overflow-hidden"
-      testID="email-account-choice"
-    >
+    <View style={styles.surface2} testID="email-account-choice">
       <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT }} contentContainerStyle={{ padding: 8 }}>
         {accounts.map((account, index) => {
           const handle = getNormalizedUserHandle({ username: account.username });
@@ -64,7 +62,11 @@ export const OxyEmailAccountChoice: React.FC<OxyEmailAccountChoiceProps> = ({
           return (
             <Fragment key={account.id}>
               <Pressable
-                className={`flex-row items-center gap-[12px] rounded-[14px] p-[8px] ${hovered === index && !disabled ? 'bg-fill' : ''} ${disabled && !busy ? 'opacity-50' : ''}`}
+                style={[
+                  styles.account,
+                  hovered === index && !disabled ? styles.accountHovered : null,
+                  disabled && !busy ? styles.accountDisabled : null,
+                ]}
                 onPress={() => onChoose(account)}
                 onHoverIn={() => setHovered(index)}
                 onHoverOut={() => setHovered((value) => (value === index ? null : value))}
@@ -74,21 +76,17 @@ export const OxyEmailAccountChoice: React.FC<OxyEmailAccountChoiceProps> = ({
                 accessibilityState={{ disabled, busy }}
                 testID={`email-account-${account.id}`}
               >
-                <View className="flex-1 min-w-0">
-                  <Text
-                    className="text-body text-text"
-                    style={{ fontWeight: '500' }}
-                    numberOfLines={1}
-                  >
+                <View style={styles.container2}>
+                  <Text style={[styles.text, { fontWeight: '500' }]} numberOfLines={1}>
                     {name}
                   </Text>
                   {account.displayName && handle ? (
-                    <Text className="text-bodySmall text-text-secondary" numberOfLines={1}>
+                    <Text style={styles.mutedText} numberOfLines={1}>
                       @{handle}
                     </Text>
                   ) : null}
                 </View>
-                <View className="flex-row items-center gap-[8px] shrink-0">
+                <View style={styles.row}>
                   <Avatar
                     source={
                       account.avatar
@@ -114,3 +112,16 @@ export const OxyEmailAccountChoice: React.FC<OxyEmailAccountChoiceProps> = ({
     </View>
   );
 };
+
+const useStyles = createTokenStyles((t) => ({
+  account: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, padding: 8 },
+  accountHovered: { backgroundColor: t.card },
+  accountDisabled: { opacity: 0.5 },
+  container: { marginHorizontal: 8, height: 1 },
+  surface: { marginHorizontal: 8, height: 1, backgroundColor: t.border, opacity: 0.5 },
+  surface2: { overflow: 'hidden', borderRadius: 22, backgroundColor: t.muted },
+  container2: { minWidth: 0, flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  text: { color: t.foreground, lineHeight: 22, fontWeight: 400 },
+  mutedText: { color: t.mutedForeground, lineHeight: 18, fontWeight: 400 },
+  row: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
+}));

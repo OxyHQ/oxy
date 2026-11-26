@@ -148,11 +148,11 @@ already written up below. The mechanisms and evidence it used to restate:
 - [engineering/build-and-deploy.md](engineering/build-and-deploy.md) — AWS, the inbound email path, containers and the Dockerfile gotcha, the workspace and dependency graph, contract-first schemas, key entry points, published version notes; `#commands` holds the catalog, `bun pm pack`, `minimumReleaseAge` and the Jest / `bun test` split, `#architecture` the native-module version alignment
 - [engineering/auth-and-identity.md](engineering/auth-and-identity.md) — the session contract, the application model, service tokens, the SSI layer, Sign in with Oxy, the Auth app
 - [engineering/platform-features.md](engineering/platform-features.md) — workspaces, Oxy Trust, rate limiting, federation, OTA updates, contact discovery, the accounts and commons apps, civic identity, the no-IP invariant (`#no-ip-invariant`)
-- [engineering/sdk-patterns.md](engineering/sdk-patterns.md) — `HttpService`, the offline queue, persistence, `useSessionSocket`, the bottom-sheet and media patterns, `KeyManager` safety
+- [engineering/sdk-patterns.md](engineering/sdk-patterns.md) — `HttpService`, Services' bloom-data stores and writes, `useSessionSocket`, the bottom-sheet and media patterns, `KeyManager` safety
 - [engineering/local-dev-cursor-cloud.md](engineering/local-dev-cursor-cloud.md) — local infra, building shared libs, the end-to-end auth smoke test
 - [engineering/per-owner-asset-rows.md](engineering/per-owner-asset-rows.md) — one live `files` row per owner per content hash, sharing storage: the model, the spelling-precise purge, `by-sha256`'s `ownerUserId`, migration 0124's measured lock profile, the rollout order and the cross-owner split script
 - [engineering/measurement-traps.md](engineering/measurement-traps.md) — checks that run clean while measuring the wrong thing: what `origin/main..HEAD` actually compares, why `--theirs` is inverted during a rebase, and why a transforming query schema must parse its own output
-- [engineering/account-query-migration-research.md](engineering/account-query-migration-research.md) — research, not a mechanism: why changing `accountQueries` filters can overwrite persisted roots, the diagnostic tests that pin today's failure modes, and what a migration needs first
+- [engineering/account-query-migration-research.md](engineering/account-query-migration-research.md) — historical research (the mechanism went in Services 15.0.0): why changing `accountQueries` filters could overwrite persisted roots
 - [engineering/package-namespace.md](engineering/package-namespace.md) — canonical npm names, package ownership and the clean `@oxy.so` scope boundary
 
 ---

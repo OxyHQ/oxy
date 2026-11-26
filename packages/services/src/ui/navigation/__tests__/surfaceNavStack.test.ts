@@ -51,16 +51,16 @@ describe('createSurfaceNavStack', () => {
     expect(stack.getTop().route).toBe('AccountDialog');
     expect(stack.canGoBack()).toBe(false);
     expect(stack.goBack()).toBe(false);
-    expect(stack.store.getState().closing).toBe(false);
+    expect(stack.getState().closing).toBe(false);
   });
 
   it('requestDismiss flips closing once', () => {
     const stack = createSurfaceNavStack('ManageAccount');
     stack.requestDismiss('done');
-    expect(stack.store.getState().closing).toBe(true);
-    expect(stack.store.getState().closeResult).toBe('done');
+    expect(stack.getState().closing).toBe(true);
+    expect(stack.getState().closeResult).toBe('done');
     stack.requestDismiss('again');
-    expect(stack.store.getState().closeResult).toBe('done');
+    expect(stack.getState().closeResult).toBe('done');
   });
 
   describe('result-bearing sub-flow (morphed-in avatar flow)', () => {
@@ -75,7 +75,7 @@ describe('createSurfaceNavStack', () => {
       await expect(flow).resolves.toEqual({ uri: 'file:///cropped.jpg' });
       // Popped back to the frame that started the flow — surface NOT dismissed.
       expect(stack.getTop().route).toBe('EditProfile');
-      expect(stack.store.getState().closing).toBe(false);
+      expect(stack.getState().closing).toBe(false);
     });
 
     it('resolves undefined when the flow entry frame is backed out of', async () => {
@@ -86,14 +86,14 @@ describe('createSurfaceNavStack', () => {
       expect(stack.goBack()).toBe(true); // list -> EditProfile (cancels flow)
       await expect(flow).resolves.toBeUndefined();
       expect(stack.getTop().route).toBe('EditProfile');
-      expect(stack.store.getState().closing).toBe(false);
+      expect(stack.getState().closing).toBe(false);
     });
 
     it('resolveFlowOrDismiss with NO active flow dismisses the surface (cold present)', () => {
       const stack = createSurfaceNavStack('ChangeAvatar');
       stack.resolveFlowOrDismiss({ removed: true });
-      expect(stack.store.getState().closing).toBe(true);
-      expect(stack.store.getState().closeResult).toEqual({ removed: true });
+      expect(stack.getState().closing).toBe(true);
+      expect(stack.getState().closeResult).toEqual({ removed: true });
     });
 
     it('abandons a pending flow (undefined) when the surface is torn down', async () => {
@@ -115,7 +115,7 @@ describe('createSurfaceNavStack', () => {
       stack.resolveFlowOrDismiss({ uri: 'file:///cropped.jpg' }); // cropper confirm
       await expect(flow).resolves.toEqual({ uri: 'file:///cropped.jpg' });
       expect(stack.getTop().route).toBe('EditProfile');
-      expect(stack.store.getState().closing).toBe(false);
+      expect(stack.getState().closing).toBe(false);
     });
 
     it('My Oxy files: Back unwinds cropper → picker → list, then cancels the flow', async () => {
@@ -132,7 +132,7 @@ describe('createSurfaceNavStack', () => {
       expect(stack.goBack()).toBe(true); // ChangeAvatar -> EditProfile (cancels flow)
       await expect(flow).resolves.toBeUndefined();
       expect(stack.getTop().route).toBe('EditProfile');
-      expect(stack.store.getState().closing).toBe(false);
+      expect(stack.getState().closing).toBe(false);
     });
 
     // The stack still supports NESTED flows generically, even though no current
@@ -146,7 +146,7 @@ describe('createSurfaceNavStack', () => {
       stack.resolveFlowOrDismiss({ id: 'file-1' });
       await expect(inner).resolves.toEqual({ id: 'file-1' });
       expect(stack.getTop().route).toBe('ChangeAvatar');
-      expect(stack.store.getState().closing).toBe(false);
+      expect(stack.getState().closing).toBe(false);
       stack.navigate('AvatarCrop');
       stack.resolveFlowOrDismiss({ uri: 'file:///c.jpg' });
       await expect(outer).resolves.toEqual({ uri: 'file:///c.jpg' });
@@ -202,13 +202,13 @@ describe('pushSurfaceBackHandler', () => {
 
 it('reports forward and backward content transitions without changing root navigation', () => {
   const stack = createSurfaceNavStack('ManageAccount');
-  expect(stack.store.getState().direction).toBe('none');
+  expect(stack.getState().direction).toBe('none');
   stack.navigate('EditProfile');
-  expect(stack.store.getState().direction).toBe('forward');
+  expect(stack.getState().direction).toBe('forward');
   stack.goBack();
-  expect(stack.store.getState().direction).toBe('backward');
+  expect(stack.getState().direction).toBe('backward');
   stack.setStep(2);
-  expect(stack.store.getState().direction).toBe('forward');
+  expect(stack.getState().direction).toBe('forward');
   stack.setStep(1);
-  expect(stack.store.getState().direction).toBe('backward');
+  expect(stack.getState().direction).toBe('backward');
 });

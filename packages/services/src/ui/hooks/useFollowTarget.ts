@@ -1,8 +1,8 @@
 /**
  * `useFollowTarget` — the one hook every application uses to follow anything.
  *
- * Wraps the `/v2/follows` SDK methods with the store above, an optimistic
- * update, and a rollback. Nothing in here knows what kind of thing it is
+ * Wraps the `/v2/follows` SDK methods with `FollowTarget` (`data/follow.ts`),
+ * an optimistic layer, and its rollback. Nothing in here knows what kind of thing it is
  * following, which is the property that lets an application the SDK has never
  * heard of use it without a release of this package.
  *
@@ -16,21 +16,28 @@
  */
 
 import { useCallback, useEffect } from 'react';
+import { useEntity, useStore, withStore } from '@oxy.so/bloom-data';
 import type { FollowStatus } from '@oxy.so/contracts';
 import { useOxy } from '../context/oxyRuntimeContext';
 import {
+  FollowTarget,
+  type FollowTargetRecord,
+  followTargetAction,
+  followTargetStatusOf,
   isCompleteFollowStatus,
-  getFollowTargetGeneration,
   isFollowedGlobally,
+  readFollowTarget,
+  seedFollowTargets,
+  setFollowTargetModeAction,
   UNKNOWN_FOLLOW_STATUS,
-  useFollowTargetStore,
-  withApplicationMode,
-} from '../stores/followTargetStore';
-import {
-  type FollowActionErrorCode,
-  type FollowErrorCode,
-  toFollowErrorCode,
-} from '../utils/followErrors';
+  unfollowTargetAction,
+  writeFollowTarget,
+} from '../data/follow';
+import type { FollowErrorCode } from '../utils/followErrors';
+
+const statusOf = (target: FollowTargetRecord | undefined) => target?.status;
+const pendingOf = (target: FollowTargetRecord | undefined) => target?.pending ?? false;
+const errorOf = (target: FollowTargetRecord | undefined) => target?.error;
 
 export interface UseFollowTargetResult {
   status: FollowStatus;
@@ -59,23 +66,20 @@ export interface UseFollowTargetResult {
   disableHere: () => Promise<boolean>;
   enableHere: () => Promise<boolean>;
   refresh: () => Promise<void>;
+  /** Why the last read or write failed, read now: for a toast after a write resolves `false`. */
+  lastError: () => FollowErrorCode | undefined;
 }
 
 export function useFollowTarget(
   targetId: string | undefined,
   options?: { initialStatus?: FollowStatus },
 ): UseFollowTargetResult {
+  const store = useStore();
   const { oxyServices, canUsePrivateApi } = useOxy();
 
-  const status = useFollowTargetStore(
-    useCallback((s) => (targetId ? s.statuses[targetId] : undefined), [targetId]),
-  );
-  const isPending = useFollowTargetStore(
-    useCallback((s) => (targetId ? (s.pending[targetId] ?? false) : false), [targetId]),
-  );
-  const error = useFollowTargetStore(
-    useCallback((s) => (targetId ? s.errors[targetId] : undefined), [targetId]),
-  );
+  const status = useEntity(FollowTarget, targetId, statusOf);
+  const isPending = useEntity(FollowTarget, targetId, pendingOf);
+  const error = useEntity(FollowTarget, targetId, errorOf);
 
   const initialStatus = options?.initialStatus;
 
@@ -83,9 +87,10 @@ export function useFollowTarget(
   // seeds it rather than making this hook re-ask once per rendered row.
   useEffect(() => {
     if (!targetId || !initialStatus) return;
-    const store = useFollowTargetStore.getState();
-    if (!store.statuses[targetId]) store.setStatus(targetId, initialStatus);
-  }, [targetId, initialStatus]);
+    withStore(store, () => {
+      if (!followTargetStatusOf(targetId)) seedFollowTargets({ [targetId]: initialStatus });
+    });
+  }, [store, targetId, initialStatus]);
 
   const refresh = useCallback(async () => {
     // Gated on `canUsePrivateApi`, not on `isAuthenticated`: during the session
@@ -93,134 +98,70 @@ export function useFollowTarget(
     // that window 401s and would leave the button stuck reporting an error the
     // user cannot act on.
     if (!targetId || !canUsePrivateApi) return;
-    const generation = getFollowTargetGeneration();
-    try {
-      const next = await oxyServices.follows.targetStatus(targetId);
-      if (generation !== getFollowTargetGeneration()) return;
-      useFollowTargetStore.getState().setStatus(targetId, next);
-      useFollowTargetStore.getState().setError(targetId, undefined);
-    } catch (e) {
-      if (generation !== getFollowTargetGeneration()) return;
-      const store = useFollowTargetStore.getState();
-      // Leave `isUnknown` false so the button stays interactive and can retry.
-      // A failed read is not the same as "never asked" — disabling forever would
-      // strand the user with no affordance when the network blips.
-      if (!store.statuses[targetId]) {
-        store.setStatus(targetId, UNKNOWN_FOLLOW_STATUS);
-      }
-      store.setError(targetId, toFollowErrorCode(e, 'read_failed'));
-    }
-  }, [targetId, canUsePrivateApi, oxyServices]);
+    await withStore(store, () => readFollowTarget(oxyServices, targetId));
+  }, [store, targetId, canUsePrivateApi, oxyServices]);
 
   useEffect(() => {
     if (!targetId || !canUsePrivateApi) return;
-    const existing = useFollowTargetStore.getState().statuses[targetId];
+    const existing = withStore(store, () => followTargetStatusOf(targetId));
     if (existing && isCompleteFollowStatus(existing)) return;
     void refresh();
-  }, [targetId, canUsePrivateApi, refresh]);
-
-  /**
-   * Run a mutation optimistically: show `optimistic` at once, keep the previous
-   * value, and put it back if the server refuses. Every mutation below goes
-   * through this so the rollback cannot be forgotten in one of them.
-   */
-  const mutate = useCallback(
-    async (
-      optimistic: FollowStatus,
-      run: () => Promise<FollowStatus | undefined>,
-      failure: FollowActionErrorCode,
-    ): Promise<boolean> => {
-      if (!targetId) return false;
-      const generation = getFollowTargetGeneration();
-      const store = useFollowTargetStore.getState();
-      const previous = store.statuses[targetId];
-      store.setStatus(targetId, optimistic);
-      store.setPending(targetId, true);
-      store.setError(targetId, undefined);
-      try {
-        const settled = await run();
-        if (generation !== getFollowTargetGeneration()) return false;
-        if (settled) useFollowTargetStore.getState().setStatus(targetId, settled);
-        return true;
-      } catch (e) {
-        if (generation !== getFollowTargetGeneration()) return false;
-        const s = useFollowTargetStore.getState();
-        // Back to what was true, not to a guess. Clearing the entry instead
-        // would make the next render ask again and flash the wrong state.
-        if (previous) s.setStatus(targetId, previous);
-        s.setError(targetId, toFollowErrorCode(e, failure));
-        return false;
-      } finally {
-        if (generation === getFollowTargetGeneration()) {
-          useFollowTargetStore.getState().setPending(targetId, false);
-        }
-      }
-    },
-    [targetId],
-  );
+  }, [store, targetId, canUsePrivateApi, refresh]);
 
   const current = status ?? UNKNOWN_FOLLOW_STATUS;
 
+  // Every write shows its result at once and is rolled back if the server
+  // refuses (an action's optimistic layer), so no write can forget the rollback.
   const follow = useCallback(
     async (opts?: { expiresIn?: number }) => {
       if (!targetId) return false;
-      return mutate(
-        {
-          ...withApplicationMode({ ...current, globalState: 'active' }, current.applicationMode),
-          ...(opts?.expiresIn
-            ? { expiresAt: new Date(Date.now() + opts.expiresIn * 1000).toISOString() }
-            : {}),
-        },
-        // The server returns the whole resulting status, so store it rather
-        // than reconstructing one: `effectiveState`'s derivation lives there,
-        // and a client recomputing it is a second implementation of one rule.
-        async () => (await oxyServices.follows.followTarget(targetId, opts)).status,
-        'update_failed',
+      return withStore(store, () =>
+        writeFollowTarget(
+          targetId,
+          () => followTargetAction(oxyServices, targetId, current, opts),
+          'update_failed',
+        ),
       );
     },
-    [targetId, current, mutate, oxyServices],
+    [store, targetId, current, oxyServices],
   );
 
   const unfollow = useCallback(async () => {
     const relationshipId = current.relationshipId;
     if (!targetId || !relationshipId) return false;
-    return mutate(
-      { ...UNKNOWN_FOLLOW_STATUS },
-      async () => {
-        await oxyServices.follows.unfollowTarget(relationshipId);
-        return { ...UNKNOWN_FOLLOW_STATUS };
-      },
-      'update_failed',
+    return withStore(store, () =>
+      writeFollowTarget(
+        targetId,
+        () => unfollowTargetAction(oxyServices, targetId, relationshipId),
+        'update_failed',
+      ),
     );
-  }, [targetId, current.relationshipId, mutate, oxyServices]);
+  }, [store, targetId, current.relationshipId, oxyServices]);
 
-  const disableHere = useCallback(async () => {
-    const relationshipId = current.relationshipId;
-    if (!targetId || !relationshipId) return false;
-    const optimistic = withApplicationMode(current, 'disabled');
-    return mutate(
-      optimistic,
-      async () => {
-        await oxyServices.follows.setApplicationMode(relationshipId, 'disabled');
-        return optimistic;
-      },
-      'mode_failed',
-    );
-  }, [targetId, current, mutate, oxyServices]);
+  const setMode = useCallback(
+    async (mode: 'disabled' | 'inherit') => {
+      const relationshipId = current.relationshipId;
+      if (!targetId || !relationshipId) return false;
+      return withStore(store, () =>
+        writeFollowTarget(
+          targetId,
+          () => setFollowTargetModeAction(oxyServices, targetId, relationshipId, current, mode),
+          'mode_failed',
+        ),
+      );
+    },
+    [store, targetId, current, oxyServices],
+  );
 
-  const enableHere = useCallback(async () => {
-    const relationshipId = current.relationshipId;
-    if (!targetId || !relationshipId) return false;
-    const optimistic = withApplicationMode(current, 'inherit');
-    return mutate(
-      optimistic,
-      async () => {
-        await oxyServices.follows.restoreInheritance(relationshipId);
-        return optimistic;
-      },
-      'mode_failed',
-    );
-  }, [targetId, current, mutate, oxyServices]);
+  const disableHere = useCallback(() => setMode('disabled'), [setMode]);
+  const enableHere = useCallback(() => setMode('inherit'), [setMode]);
+
+  /** Why the last read or write failed, read now (after a write resolves `false`). */
+  const lastError = useCallback(
+    (): FollowErrorCode | undefined =>
+      targetId ? withStore(store, () => FollowTarget.get(targetId)?.error) : undefined,
+    [store, targetId],
+  );
 
   return {
     status: current,
@@ -233,5 +174,21 @@ export function useFollowTarget(
     disableHere,
     enableHere,
     refresh,
+    lastError,
   };
+}
+
+/**
+ * useSeedFollowTargets — a stable callback that seeds target statuses already
+ * known (a follow list page through `followRecordsToStatusMap`) into the
+ * signed-in account's store, replacing what is held.
+ */
+export function useSeedFollowTargets(): (entries: Record<string, FollowStatus>) => void {
+  const store = useStore();
+  return useCallback(
+    (entries: Record<string, FollowStatus>) => {
+      withStore(store, () => seedFollowTargets(entries));
+    },
+    [store],
+  );
 }

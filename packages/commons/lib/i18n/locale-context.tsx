@@ -60,7 +60,7 @@ export function LocaleProvider({ children }: LocaleProviderProps) {
         // Write the account's ordered locales, primary first, preserving any
         // additional locales the user has chosen.
         const rest = currentLanguages.filter((entry) => entry !== next);
-        await updateProfile.mutateAsync({ languages: [next, ...rest] });
+        await updateProfile.run({ languages: [next, ...rest] });
       } else {
         // Guests hold a single locally-stored locale, owned by the SDK.
         await setLanguage(next);

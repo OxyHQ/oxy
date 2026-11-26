@@ -112,3 +112,10 @@ jest.setTimeout(10000);
 // platform screen. Screen suites import their component directly; the browser
 // check exercises the complete synchronous registry with real platform modules.
 jest.mock('./src/ui/navigation/screenComponents', () => ({ screenComponents: {} }));
+
+// Every test starts from an empty device: the SDK's key-value data lives in a
+// process-wide device store (`data/deviceStorage.ts`), which `localStorage.clear()`
+// does not reach.
+afterEach(() => {
+  require('./src/ui/data/deviceStorage').resetDeviceStorage();
+});

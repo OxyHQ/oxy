@@ -1,6 +1,6 @@
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import type React from 'react';
-import { View, ScrollView, RefreshControl } from 'react-native';
+import { View, ScrollView, RefreshControl, StyleSheet } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
@@ -58,9 +58,8 @@ const FileListSection: React.FC<FileListSectionProps> = ({
   return (
     <ScrollView
       ref={scrollViewRef}
-      className="flex-1"
-      style={{ flex: 1 }}
-      contentContainerClassName="px-space-12 pt-0 pb-space-12"
+      style={[styles.fill, { flex: 1 }]}
+      contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
       }
@@ -75,18 +74,12 @@ const FileListSection: React.FC<FileListSectionProps> = ({
       scrollEventThrottle={250}
     >
       {filteredFiles.length === 0 && searchQuery.length > 0 ? (
-        <View className="items-center py-10 px-space-24">
+        <View style={styles.container}>
           <Ionicons name="search" size={64} color={colors.textTertiary} />
-          <Text
-            className="text-[24px] font-bold mt-space-16 mb-space-8"
-            style={{ color: colors.text }}
-          >
+          <Text style={[styles.title, { color: colors.text }]}>
             {t('fileManagement.noResults.title')}
           </Text>
-          <Text
-            className="text-[16px] text-center leading-[24px] mb-space-32"
-            style={{ color: colors.textSecondary }}
-          >
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
             {t('fileManagement.noResults.description', { query: searchQuery })}
           </Text>
           <Button onPress={onClearSearch}>{t('fileManagement.clearSearch')}</Button>
@@ -109,9 +102,9 @@ const FileListSection: React.FC<FileListSectionProps> = ({
             ))}
           </GroupedSection>
           {paging.loadingMore && (
-            <View className="flex-row items-center justify-center py-space-12 gap-space-8">
+            <View style={styles.row}>
               <SpinnerIcon size={16} color={colors.primary} />
-              <Text className="text-[13px] font-medium" style={{ color: colors.text }}>
+              <Text style={[styles.text2, { color: colors.text }]}>
                 {t('fileManagement.loadingMore')}
               </Text>
             </View>
@@ -123,3 +116,19 @@ const FileListSection: React.FC<FileListSectionProps> = ({
 };
 
 export default FileListSection;
+
+const styles = StyleSheet.create({
+  fill: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+  content: { paddingHorizontal: 12, paddingTop: 0, paddingBottom: 12 },
+  container: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 40 },
+  title: { marginTop: 16, marginBottom: 8, fontSize: 24, fontWeight: 700 },
+  text: { marginBottom: 32, textAlign: 'center', fontSize: 16, lineHeight: 24 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  text2: { fontSize: 13, fontWeight: 500 },
+});

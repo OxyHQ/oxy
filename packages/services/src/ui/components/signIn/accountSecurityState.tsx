@@ -7,9 +7,9 @@
  */
 
 import type React from 'react';
+import type { RecordView } from '@oxy.so/bloom-data';
 import { Button } from '@oxy.so/bloom/button';
 import type { SignInMethods } from '@oxy.so/contracts';
-import type { UseQueryResult } from '@tanstack/react-query';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import type { Translate } from '../authChooser/types';
@@ -21,7 +21,7 @@ export interface AccountSecurityState {
   keyed: boolean;
   /** A personal account (an organization, project or bot signs in through its people). */
   personal: boolean;
-  methods: UseQueryResult<SignInMethods>;
+  methods: RecordView<SignInMethods>;
 }
 
 export function useAccountSecurityState(): AccountSecurityState {
@@ -35,7 +35,7 @@ export function useAccountSecurityState(): AccountSecurityState {
 /**
  * The screen a panel shows while its methods are not there to act on: not a
  * personal account, the read failed (with a retry), or still loading. `null`
- * once `methods.data` is ready.
+ * once `methods.value` is ready.
  */
 export function accountSecurityFallback(
   state: AccountSecurityState,
@@ -52,7 +52,7 @@ export function accountSecurityFallback(
       </OxyAuthScreen>
     );
   }
-  if (state.methods.isError && !state.methods.data) {
+  if (state.methods.status === 'error' && !state.methods.value) {
     return (
       <OxyAuthScreen>
         <OxyAuthScreenHeader title={title} />
@@ -62,7 +62,7 @@ export function accountSecurityFallback(
         <Button
           appearance="outline"
           size="lg"
-          onPress={() => void state.methods.refetch()}
+          onPress={() => void state.methods.refresh()}
           testID="account-security-retry"
         >
           {t('signInSecurity.retry')}
@@ -70,6 +70,6 @@ export function accountSecurityFallback(
       </OxyAuthScreen>
     );
   }
-  if (!state.methods.data) return <OxyAuthLoading />;
+  if (!state.methods.value) return <OxyAuthLoading />;
   return null;
 }

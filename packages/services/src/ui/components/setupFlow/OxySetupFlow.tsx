@@ -29,8 +29,7 @@
 
 import type React from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Platform, Text as RNText } from 'react-native';
-import { View } from 'react-native-css/components';
+import { AccessibilityInfo, Platform, Text as RNText, StyleSheet, View } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
 import { CarouselDots } from '@oxy.so/bloom/carousel';
 import { useItemAccessibilityFocus, usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
@@ -39,7 +38,12 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';
 import { SurfaceFrameWidthContext, useSurfaceFrameWidth } from '../../hooks/useSurfaceFrameWidth';
-import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthSplit } from '../signIn/OxyAuthScreen';
+import {
+  OxyAuthScreen,
+  OxyAuthScreenHeader,
+  OxyAuthSplit,
+  useAuthSplitColumns,
+} from '../signIn/OxyAuthScreen';
 
 /** The split card's width, as the sign-in asks it for its QR side. */
 const SPLIT_WIDTH = 880;
@@ -144,7 +148,7 @@ const StepBody: React.FC<{
       <>
         <SplitWidth />
         <OxyAuthSplit bare aside={step.aside}>
-          <OxyAuthScreen className="md:max-w-none">
+          <OxyAuthScreen inSplit>
             {header}
             {step.content}
           </OxyAuthScreen>
@@ -225,6 +229,7 @@ export const OxySetupFlow: React.FC<OxySetupFlowProps> = ({
   // The width the current step asks (the sign-in's split card, a step's aside),
   // handed to the host and to any surface around the flow.
   const [askedWidth, setAskedWidth] = useState<number | null>(null);
+  const splitColumns = useAuthSplitColumns();
   useSurfaceFrameWidth(askedWidth);
   useLayoutEffect(() => {
     if (!onMaxWidthChange) return;
@@ -262,12 +267,12 @@ export const OxySetupFlow: React.FC<OxySetupFlowProps> = ({
     <View
       role="region"
       accessibilityLabel={label}
-      className={`w-full self-center gap-6 max-w-[448px] ${wide ? 'md:max-w-[880px]' : ''}`}
+      style={[styles.region, wide && splitColumns ? styles.regionWide : null]}
     >
       <SurfaceFrameWidthContext.Provider value={setAskedWidth}>
         {/* Clipped, so a step slides in within the card; the 4px bleed keeps
             the content's focus rings. */}
-        <View className="-m-1 overflow-hidden p-1">
+        <View style={styles.container}>
           {reducedMotion ? (
             <View key={step.id} testID="oxy-setup-step">
               {body}
@@ -281,7 +286,7 @@ export const OxySetupFlow: React.FC<OxySetupFlowProps> = ({
       </SurfaceFrameWidthContext.Provider>
 
       {showProgress && total > 1 ? (
-        <View className="items-center gap-2">
+        <View style={styles.stack}>
           <CarouselDots count={total} index={index} testID="oxy-setup-dots" />
           <Text
             variant="caption-1-medium"
@@ -294,7 +299,7 @@ export const OxySetupFlow: React.FC<OxySetupFlowProps> = ({
       ) : null}
 
       {onBack || step.secondary || step.primary ? (
-        <View className="w-full flex-row items-center gap-3">
+        <View style={styles.row}>
           {onBack ? (
             <Button
               appearance="plain"
@@ -307,7 +312,7 @@ export const OxySetupFlow: React.FC<OxySetupFlowProps> = ({
               {backLabel ?? t('common.actions.back')}
             </Button>
           ) : null}
-          <View className="flex-1" />
+          <View style={styles.fill} />
           {step.secondary ? (
             <Button
               appearance="subtle"
@@ -344,3 +349,12 @@ export const OxySetupFlow: React.FC<OxySetupFlowProps> = ({
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  region: { width: '100%', maxWidth: 448, alignSelf: 'center', gap: 24 },
+  regionWide: { maxWidth: 880 },
+  container: { margin: -4, overflow: 'hidden', padding: 4 },
+  stack: { alignItems: 'center', gap: 8 },
+  row: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 12 },
+  fill: { flexGrow: 1, flexShrink: 1, flexBasis: '0%' },
+});

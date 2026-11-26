@@ -24,7 +24,7 @@ import {
   isFollowedGlobally,
   UNKNOWN_FOLLOW_STATUS,
   withApplicationMode,
-} from '../../stores/followTargetStore';
+} from '../../data/follow';
 
 const DURATIONS = [
   { label: '24 hours', seconds: 86400 },

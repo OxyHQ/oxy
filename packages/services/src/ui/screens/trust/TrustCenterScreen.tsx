@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { skip, useRecord } from '@oxy.so/bloom-data';
 import { View, StyleSheet } from 'react-native';
 import Ionicons from '../../icons/Ionicons';
 import { Chip } from '@oxy.so/bloom/chip';
@@ -13,9 +13,11 @@ import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { trustTierLabel } from '@oxy.so/core';
-import { queryKeys } from '../../hooks/queries/queryKeys';
+import { trustStanding } from '../../data/trust';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
+  const themed = useThemedStyles();
   // Reputation/trust is the ACTIVE account's standing (the org/project/bot
   // when switched, else the personal user).
   const { user, oxyServices, isAuthenticated } = useOxy();
@@ -26,21 +28,11 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
   // Keyed on the account id, not the `user` object: a profile write that
   // replaces `user` must not refetch the ledger.
   const userId = user?.id;
-  const standing = useQuery({
-    queryKey: queryKeys.reputation.transactions(userId, 20),
-    enabled: Boolean(userId),
-    queryFn: async () => {
-      const [balance, transactions] = await Promise.all([
-        oxyServices.reputation.balance(),
-        oxyServices.reputation.transactions(userId, { limit: 20, offset: 0 }),
-      ]);
-      return { balance, transactions: Array.isArray(transactions) ? transactions : [] };
-    },
-  });
-  const reputationTotal = standing.data?.balance.total ?? null;
-  const trustTier = standing.data?.balance.trustTier ?? null;
-  const transactions = standing.data?.transactions ?? [];
-  const isLoading = standing.isPending && Boolean(userId);
+  const standing = useRecord(trustStanding, ...(userId ? [oxyServices, userId] : [skip]));
+  const reputationTotal = standing.value?.balance.total ?? null;
+  const trustTier = standing.value?.balance.trustTier ?? null;
+  const transactions = standing.value?.transactions ?? [];
+  const isLoading = standing.isLoading;
   const error = standing.error
     ? (standing.error instanceof Error ? standing.error.message : null) ||
       t('trust.center.loadError') ||
@@ -57,22 +49,18 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
 
   if (!isAuthenticated) {
     return (
-      <View className="items-center py-space-40">
-        <Text className="text-text font-medium text-base">
-          {t('common.status.notSignedIn') || 'Not signed in'}
-        </Text>
+      <View style={styles.container}>
+        <Text style={themed.text}>{t('common.status.notSignedIn') || 'Not signed in'}</Text>
       </View>
     );
   }
 
   return (
-    <View className="px-screen-margin pt-space-16 pb-space-24">
+    <View style={styles.section}>
       {/* Balance hero card */}
-      <View className="items-center bg-fill-secondary rounded-radius-20 px-space-20 py-space-24 mb-space-16">
+      <View style={themed.surface}>
         <H1 style={{ color: primaryColor }}>{reputationTotal ?? 0}</H1>
-        <Text className="text-text-tertiary text-base mt-space-2 mb-space-12">
-          {t('trust.center.balance') || 'Reputation Balance'}
-        </Text>
+        <Text style={themed.mutedText}>{t('trust.center.balance') || 'Reputation Balance'}</Text>
         {resolvedTrustTierLabel ? (
           <Chip
             variant="subtle"
@@ -82,10 +70,7 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
             {resolvedTrustTierLabel}
           </Chip>
         ) : null}
-        <Text
-          className="text-text-tertiary text-sm text-center mt-space-16"
-          style={styles.infoText}
-        >
+        <Text style={[themed.mutedText2, styles.infoText]}>
           {t('trust.center.info') ||
             'Reputation can only be earned by positive actions in the Oxy Ecosystem. It cannot be sent or received directly.'}
         </Text>
@@ -160,12 +145,7 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
       </GroupedSection>
 
       {error ? (
-        <Text
-          className="text-sm text-center mt-space-16"
-          style={{ color: bloomTheme.colors.error }}
-        >
-          {error}
-        </Text>
+        <Text style={[styles.text2, { color: bloomTheme.colors.error }]}>{error}</Text>
       ) : null}
     </View>
   );
@@ -177,6 +157,36 @@ const styles = StyleSheet.create({
   infoText: {
     maxWidth: 320,
   },
+
+  container: { alignItems: 'center', paddingVertical: 40 },
+  section: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 },
+  text2: { marginTop: 16, textAlign: 'center', fontSize: 14, lineHeight: 20 },
 });
 
 export default TrustCenterScreen;
+
+const useThemedStyles = createTokenStyles((t) => ({
+  text: { fontSize: 16, fontWeight: 500, color: t.foreground, lineHeight: 24 },
+  surface: {
+    marginBottom: 16,
+    alignItems: 'center',
+    borderRadius: 20,
+    backgroundColor: t.muted,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  mutedText: {
+    marginTop: 2,
+    marginBottom: 12,
+    fontSize: 16,
+    color: t.mutedForeground,
+    lineHeight: 24,
+  },
+  mutedText2: {
+    marginTop: 16,
+    textAlign: 'center',
+    fontSize: 14,
+    color: t.mutedForeground,
+    lineHeight: 20,
+  },
+}));

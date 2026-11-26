@@ -2,8 +2,7 @@ import type React from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
-import { useShallow } from 'zustand/react/shallow';
-import { useAuthStore } from '../stores/authStore';
+import { useOxy } from '../context/oxyRuntimeContext';
 import LogoIcon from './logo/LogoIcon';
 import OxySignInButton from './OxySignInButton';
 
@@ -57,7 +56,7 @@ export interface OxyAuthPromptProps {
  * ```tsx
  * if (!isAuthenticated) {
  *   return (
- *     <ThemedView className="flex-1">
+ *     <ThemedView style={{ flex: 1 }}>
  *       <Header options={{ title: 'Notifications' }} />
  *       <OxyAuthPrompt label="Notifications" />
  *     </ThemedView>
@@ -72,7 +71,7 @@ export const OxyAuthPrompt: React.FC<OxyAuthPromptProps> = ({
   style,
 }) => {
   const theme = useTheme();
-  const isAuthenticated = useAuthStore(useShallow((state) => state.isAuthenticated));
+  const { isAuthenticated } = useOxy();
 
   if (isAuthenticated) return null;
 

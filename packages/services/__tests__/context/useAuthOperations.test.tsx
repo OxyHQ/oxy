@@ -201,7 +201,6 @@ const setup = (opts: SetupOpts = {}) => {
   const oxyServices = makeOxyServices(opts.oxyServices);
   const store = opts.store ?? buildFakeStore();
   const runtime = buildFakeRuntime(opts.activeSessionId ?? null);
-  const saveActiveSessionId = jest.fn(async () => undefined);
   const clearSessionState = jest.fn(async () => undefined);
   const switchSession = jest.fn(
     async () =>
@@ -229,7 +228,6 @@ const setup = (opts: SetupOpts = {}) => {
       store: store as never,
       storage: null,
       runtime: runtime as never,
-      saveActiveSessionId,
       clearSessionState,
       switchSession,
       sessionClient: sessionClient as never,
@@ -254,7 +252,6 @@ const setup = (opts: SetupOpts = {}) => {
     setAccount: runtime.setAccount,
     setLoading: runtime.setLoading,
     setError: runtime.setError,
-    saveActiveSessionId,
     clearSessionState,
     switchSession,
     onAuthStateChange,
@@ -300,7 +297,6 @@ describe('useAuthOperations.signIn — online flow', () => {
     expect(helpers.sessionClient.registerAndActivate).toHaveBeenCalledWith('user-1');
     expect(helpers.syncFromClient).toHaveBeenCalledTimes(1);
     expect(helpers.setActiveSessionId).toHaveBeenCalledWith('new-session');
-    expect(helpers.saveActiveSessionId).toHaveBeenCalledWith('new-session');
     expect(helpers.setAccount).toHaveBeenCalled();
     expect(helpers.onAuthStateChange).toHaveBeenCalled();
     expect(signedInUser?.id).toBe('user-1');

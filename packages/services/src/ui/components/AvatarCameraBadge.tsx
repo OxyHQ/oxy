@@ -1,8 +1,8 @@
 import type React from 'react';
-import type { ViewStyle } from 'react-native';
-import { View } from 'react-native-css/components';
+import { View, type ViewStyle } from 'react-native';
 import Ionicons from '../icons/Ionicons';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 
 /**
  * The camera overlay badge on a pressable avatar — the "tap to change your
@@ -25,12 +25,17 @@ const badgeStyle: ViewStyle = {
 };
 
 const AvatarCameraBadge: React.FC = () => {
+  const styles = useStyles();
   const theme = useTheme();
   return (
-    <View style={badgeStyle} className="bg-fill-brand border-border-image">
+    <View style={[styles.surface, badgeStyle]}>
       <Ionicons name="camera" size={14} color={theme.colors.primaryForeground} />
     </View>
   );
 };
 
 export default AvatarCameraBadge;
+
+const useStyles = createTokenStyles((t) => ({
+  surface: { borderColor: t.border, backgroundColor: t.primary },
+}));

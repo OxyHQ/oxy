@@ -18,6 +18,7 @@ import { useTranslation } from '@/lib/i18n';
 import { authenticate } from '@/lib/biometricAuth';
 import { RECOVERY_PHRASE_LENGTH } from '@/constants/auth';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 type IdentityStatus = 'checking' | 'present' | 'missing' | 'unavailable';
 
@@ -265,7 +266,7 @@ export default function CreateBackupScreen() {
             appearance="outline"
             tone="neutral"
             onPress={() => router.back()}
-            className="flex-1"
+            style={{ flex: 1 }}
           >
             {t('backup.goBack')}
           </Button>
@@ -273,7 +274,7 @@ export default function CreateBackupScreen() {
             appearance="solid"
             tone="accent"
             onPress={() => router.replace('/(auth)/welcome')}
-            className="flex-1"
+            style={{ flex: 1 }}
           >
             {t('backup.setupIdentity')}
           </Button>
@@ -348,7 +349,7 @@ export default function CreateBackupScreen() {
             onPress={handleDelete}
             loading={isDeleting}
             disabled={isDeleting || isSubmitting}
-            className="mt-space-8 self-start"
+            style={{ marginTop: SPACING['space-8'], alignSelf: 'flex-start' }}
           >
             {isDeleting ? t('backup.deleting') : t('backup.delete')}
           </Button>
@@ -381,7 +382,7 @@ export default function CreateBackupScreen() {
           onPress={handleCreate}
           loading={isSubmitting}
           disabled={isSubmitting || isDeleting}
-          className="mt-space-16"
+          style={{ marginTop: SPACING['space-16'] }}
         >
           {isSubmitting
             ? t('backup.creating')

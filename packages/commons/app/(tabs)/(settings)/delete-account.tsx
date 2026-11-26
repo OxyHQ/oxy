@@ -230,7 +230,7 @@ export default function DeleteAccountScreen() {
               tone="neutral"
               onPress={() => router.back()}
               disabled={isDeleting}
-              className="flex-1"
+              style={{ flex: 1 }}
             >
               {t('data.deleteAccount.cancel')}
             </Button>
@@ -241,7 +241,7 @@ export default function DeleteAccountScreen() {
               testID="delete-account-cta"
               loading={isDeleting}
               disabled={!isConfirmValid || isDeleting}
-              className="flex-1"
+              style={{ flex: 1 }}
             >
               {isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}
             </Button>

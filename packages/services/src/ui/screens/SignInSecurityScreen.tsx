@@ -1,5 +1,5 @@
 import type React from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { OxySignInSecurityPanel } from '../components/signIn/OxySignInSecurityPanel';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -10,10 +10,14 @@ const SignInSecurityScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
   const { t } = useI18n();
   useSurfaceHeader({ title: t('signInSecurity.title') });
   return (
-    <View className="px-screen-margin pb-space-24">
+    <View style={styles.section}>
       <OxySignInSecurityPanel onOpen={navigate ? (route) => navigate(route) : undefined} />
     </View>
   );
 };
 
 export default SignInSecurityScreen;
+
+const styles = StyleSheet.create({
+  section: { paddingHorizontal: 20, paddingBottom: 24 },
+});

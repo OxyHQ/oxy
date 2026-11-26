@@ -20,6 +20,7 @@ import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
 import { usePreventScreenCapture } from '@/hooks/usePreventScreenCapture';
 import { SECRET_INPUT_PROPS } from '@/lib/recovery-phrase/secret-input';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 /**
  * Import an identity from a raw private key (hex).
@@ -134,7 +135,7 @@ export default function ImportPrivateKeyScreen() {
           onPress={handleImport}
           disabled={isLoading}
           loading={isLoading}
-          className="mt-space-32"
+          style={{ marginTop: SPACING['space-32'] }}
         >
           {isLoading ? t('importPrivateKey.importing') : t('importPrivateKey.import')}
         </Button>

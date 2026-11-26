@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { skip } from '@oxy.so/bloom-data';
 import { Button } from '@oxy.so/bloom/button';
 import { Text } from '@oxy.so/bloom/typography';
 import type { SafetyPerson } from '@oxy.so/contracts';
 import { useOxy } from '../../context/oxyRuntimeContext';
+import { useAnswer } from '../../data/answer';
+import { peopleSearch } from '../../data/supervision';
 import { useI18n } from '../../hooks/useI18n';
 import { AccountFlowField, AccountFlowNote } from '../signIn/accountFlowParts';
 export function PersonPicker({
@@ -18,14 +20,10 @@ export function PersonPicker({
     { t } = useI18n();
   const [text, setText] = useState(''),
     [query, setQuery] = useState('');
-  const results = useQuery({
-    queryKey: ['oxy', 'safety', 'people', user?.id, query],
-    queryFn: () => oxyServices.safety.people({ query }),
-    enabled: query.length >= 2,
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-  });
+  const results = useAnswer(
+    peopleSearch,
+    ...(query.length >= 2 ? ([oxyServices, user?.id ?? '', query] as const) : ([skip] as const)),
+  );
   return (
     <View style={{ gap: 12 }}>
       <AccountFlowNote>{t('supervision.exactHandleHint')}</AccountFlowNote>
@@ -44,10 +42,10 @@ export function PersonPicker({
       >
         {t('supervision.search')}
       </Button>
-      {results.isError ? (
+      {results.status === 'error' ? (
         <AccountFlowNote>{t('supervision.loadError')}</AccountFlowNote>
       ) : (
-        results.data?.items
+        results.value?.items
           .filter((person) => !exclude.includes(person.accountId))
           .map((person) => (
             <Button
@@ -61,7 +59,7 @@ export function PersonPicker({
             </Button>
           ))
       )}
-      {results.data?.items.length === 0 ? <Text>{t('supervision.noPeople')}</Text> : null}
+      {results.value?.items.length === 0 ? <Text>{t('supervision.noPeople')}</Text> : null}
     </View>
   );
 }
