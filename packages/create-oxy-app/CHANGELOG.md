@@ -1,5 +1,15 @@
 # Changelog: `create-oxy-app`
 
+## 0.10.1
+
+### Changed
+
+- The language template scaffolds on the Bloom language 2.0.0 (`^2.0.0`) and its compiler
+  `^1.7.0`, the compiler that compiles a family's views from its own entry. Its views are
+  imported from their family's entry (`@oxy.so/bloom-language/inputs`, `/list`,
+  `/glass-group`), since 2.0.0's root keeps only the language. They were all imported from
+  the root, which only 1.x exports.
+
 ## 0.10.0
 
 ### Added

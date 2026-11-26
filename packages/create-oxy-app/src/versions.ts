@@ -150,8 +150,8 @@ export const VERSIONS = {
 
   // --- The Bloom language template (`--language`) ---
   // Named only by `templates/language`.
-  oxyBloomLanguage: '^1.0.0', // @oxy.so/bloom-language (and its `/router`)
-  oxyBloomLanguageCompiler: '^1.0.0', // @oxy.so/bloom-language-compiler — Metro + Jest pre-pass
+  oxyBloomLanguage: '^2.0.0', // @oxy.so/bloom-language (its root, `/router` and each family's entry)
+  oxyBloomLanguageCompiler: '^1.7.0', // @oxy.so/bloom-language-compiler — Metro + Jest pre-pass; 1.7.0 compiles a family's entry
   oxyBloomData: '^0.1.0', // @oxy.so/bloom-data — one instance per app, like Bloom
   expoBlur: '~58.0.5', // a required peer of Bloom 23
   expoGlassEffect: '~58.0.5', // the language's glass on iOS (Liquid Glass)

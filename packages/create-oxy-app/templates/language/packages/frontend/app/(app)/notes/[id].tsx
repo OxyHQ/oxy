@@ -1,6 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useAction, useEntity } from '@oxy.so/bloom-data';
-import { HStack, ScrollView, Spacer, Text, Toggle } from '@oxy.so/bloom-language';
+import { HStack, ScrollView, Spacer, Text } from '@oxy.so/bloom-language';
+import { Toggle } from '@oxy.so/bloom-language/inputs';
 import { screen } from '@oxy.so/bloom-language/router';
 import { useBackWithFallback } from '@oxy.so/bloom/panel-routing/expo-router';
 import { useTranslation } from '@/lib/i18n';

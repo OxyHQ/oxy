@@ -1,19 +1,8 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useAction } from '@oxy.so/bloom-data';
-import {
-  Button,
-  Field,
-  HStack,
-  Option,
-  Picker,
-  ScrollView,
-  Spacer,
-  Text,
-  TextEditor,
-  TextField,
-  Toggle,
-} from '@oxy.so/bloom-language';
+import { Button, HStack, ScrollView, Spacer, Text } from '@oxy.so/bloom-language';
+import { Field, Option, Picker, TextEditor, TextField, Toggle } from '@oxy.so/bloom-language/inputs';
 import { screen } from '@oxy.so/bloom-language/router';
 import { useTranslation } from '@/lib/i18n';
 import { addNote, CATEGORIES, newNoteId, type NoteCategory } from '@/lib/notes';
