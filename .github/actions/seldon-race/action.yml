@@ -16,8 +16,11 @@ inputs:
   deadline:
     description: 'finish: seconds after which a pair with no started lane keeps both lanes.'
     default: '3600'
+  names:
+    description: "start and finish: the display names this race covers, one per line (X also covers a matrix's X (...)); empty covers every Seldon lane. A workflow whose raced jobs come in waves gives each wave its own start and finish."
+    default: ''
   label:
-    description: The runs-on label of the Seldon lanes.
+    description: The runs-on label prefix of the Seldon lanes (seldon-ci covers seldon-ci-light too).
     default: seldon-ci
   token:
     description: A token that can read this run's jobs.
@@ -28,7 +31,7 @@ outputs:
   reap:
     description: "finish: JSON list of the losers' concurrency groups."
   outcome:
-    description: "verdict: 'success' when every raced job passed in some lane, else 'failure'."
+    description: "verdict: 'success' when every raced job passed in some lane and failed in no hosted lane (twin or rescue), else 'failure'."
 runs:
   # The runner's own Node, so the guard needs nothing installed on Seldon's image.
   using: node24

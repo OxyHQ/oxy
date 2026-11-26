@@ -5,8 +5,10 @@ import {
   finishPlan,
   HOSTED,
   laneGroup,
+  inScope,
   laneOf,
   pairs,
+  parseNames,
   SELDON,
   started,
   startDecision,
@@ -59,6 +61,10 @@ test('laneOf: the label decides the lane', () => {
   assert.equal(laneOf(queued('a', SELDON), LABEL), SELDON);
   assert.equal(laneOf(queued('a', HOSTED), LABEL), HOSTED);
   assert.equal(laneOf(queued('a', SELDON), 'seldon-ci-offline-sim'), HOSTED);
+  // Every slot class of the pool is a Seldon lane.
+  const light = { ...queued('a', SELDON), labels: ['seldon-ci-light'] };
+  assert.equal(laneOf(light, LABEL), SELDON);
+  assert.equal(laneOf({ ...light, labels: ['ubuntu-24.04-arm'] }, LABEL), HOSTED);
 });
 
 test('started: a runner, not the status or started_at, says a job started', () => {
@@ -277,4 +283,131 @@ test('verdict: a timed-out or still-running lane fails its name', () => {
     running('Parity', HOSTED, 200),
   ];
   assert.deepEqual(verdict(jobs, LABEL), { Build: false, Parity: false });
+});
+
+// The rescue: a hosted job of the same name that reruns a Seldon lane's work
+// once that lane failed. It is created only after its Seldon lane completed.
+test('pairs: a late rescue of the same name never stands in for the twin', () => {
+  const s = done(running('Tests (1/5)', SELDON, 30), 'failure');
+  const twin = cancelledQueued('Tests (1/5)', HOSTED, 200);
+  const rescue = running('Tests (1/5)', HOSTED, 400, 390);
+  // Listed before the twin, as the API may order them: the earliest still wins.
+  assert.deepEqual(pairs([rescue, s, twin], LABEL), [
+    { name: 'Tests (1/5)', seldon: s, hosted: twin },
+  ]);
+  // A tie on created_at goes to the lower id, the job GitHub created first.
+  const sameSecond = { ...rescue, created_at: twin.created_at };
+  assert.equal(pairs([sameSecond, s, twin], LABEL)[0].hosted, twin);
+});
+
+test('finishPlan and yields: a late rescue changes nothing', () => {
+  const ids = { label: LABEL, runId: '9', attempt: '1' };
+  const s = done(running('Build', SELDON, 30), 'failure');
+  const twin = running('Build', HOSTED, 220, 200); // sleeping in its guard
+  const rescue = queued('Build', HOSTED, 300);
+  assert.deepEqual(finishPlan({ jobs: [rescue, s, twin], ...ids }), {
+    reap: ['seldon-race-9-1-hosted-Build'],
+    undecided: [],
+  });
+  assert.equal(yields({ jobs: [rescue, s, twin], label: LABEL, jobId: twin.id }), true);
+});
+
+test('verdict: a failed Seldon lane is excused by a hosted success, never a hosted failure', () => {
+  const jobs = [
+    // No race: the Seldon lane failed on the network, its rescue passed.
+    done(running('Tests (1/5)', SELDON, 30), 'failure'),
+    skippedJob('Tests (1/5)', HOSTED),
+    done(running('Tests (1/5)', HOSTED, 400, 390), 'success'),
+    // Raced: Seldon won and failed, the twin was reaped, the rescue passed.
+    done(running('Tests (2/5)', SELDON, 30), 'failure'),
+    cancelledQueued('Tests (2/5)', HOSTED, 200),
+    done(running('Tests (2/5)', HOSTED, 400, 390), 'success'),
+    // A genuine failure fails again in the rescue.
+    done(running('Tests (3/5)', SELDON, 30), 'failure'),
+    skippedJob('Tests (3/5)', HOSTED),
+    done(running('Tests (3/5)', HOSTED, 400, 390), 'failure'),
+    // Both lanes ran and the hosted twin failed: Seldon's success does not excuse it.
+    done(running('Tests (4/5)', SELDON, 30), 'success'),
+    done(running('Tests (4/5)', HOSTED, 200), 'failure'),
+    // A Seldon lane that timed out, rescued.
+    done(running('Tests (5/5)', SELDON, 30), 'timed_out'),
+    done(running('Tests (5/5)', HOSTED, 400, 390), 'success'),
+    // A rescue that was cancelled rescues nothing.
+    done(running('Build', SELDON, 30), 'failure'),
+    done(running('Build', HOSTED, 400, 390), 'cancelled'),
+  ];
+  assert.deepEqual(verdict(jobs, LABEL), {
+    'Tests (1/5)': true,
+    'Tests (2/5)': true,
+    'Tests (3/5)': false,
+    'Tests (4/5)': false,
+    'Tests (5/5)': true,
+    Build: false,
+  });
+});
+
+test('verdict: a family that ran hosted only is judged too, so a hosted failure is never excused', () => {
+  const jobs = [
+    // A re-run attempt: every lane hosted, the job failed and a rescue passed.
+    done(running('Tests (1/5)', HOSTED, 30), 'failure'),
+    done(running('Tests (1/5)', HOSTED, 400, 390), 'success'),
+    // One live job of a name, its twins skipped: not a race, not judged here.
+    done(running('Lint', HOSTED, 30), 'failure'),
+    skippedJob('Lint', HOSTED),
+  ];
+  assert.deepEqual(verdict(jobs, LABEL), { 'Tests (1/5)': false });
+});
+
+// Waves: a second race covers jobs that need the first wave's, by name.
+test('parseNames and inScope: exact names, a matrix by its prefix, empty covers all', () => {
+  const names = parseNames('  Build API\n\nTests\n');
+  assert.deepEqual(names, ['Build API', 'Tests']);
+  assert.equal(inScope(names)(queued('Build API', SELDON)), true);
+  assert.equal(inScope(names)(queued('Tests (2/5)', SELDON)), true);
+  assert.equal(inScope(names)(queued('Testsuite', SELDON)), false);
+  assert.equal(inScope(names)(queued('Lint & Test', SELDON)), false);
+  assert.equal(inScope(parseNames(''))(queued('Lint & Test', SELDON)), true);
+  assert.deepEqual(parseNames(undefined), []);
+});
+
+test('startDecision and finishPlan: a wave sees only its own lanes', () => {
+  const wave2 = ['Build API'];
+  const firstWave = [
+    done(running('Lint & Test', SELDON, 30), 'success'), // no twin: the first race did not run
+  ];
+  // The second wave's lanes are not listed yet: wait, not "no race".
+  assert.equal(
+    startDecision({
+      jobs: firstWave,
+      label: LABEL,
+      now: T0 + 60_000,
+      since: T0,
+      delayMs: 180_000,
+      names: wave2,
+    }),
+    'wait',
+  );
+  const build = queued('Build API', SELDON, 700);
+  assert.equal(
+    startDecision({
+      jobs: [...firstWave, build],
+      label: LABEL,
+      now: T0 + 880_000,
+      since: T0 + 700_000,
+      delayMs: 180_000,
+      names: wave2,
+    }),
+    'race',
+  );
+  // Finish waits for the second wave's twin, never for the first wave's.
+  const ids = { label: LABEL, runId: '9', attempt: '1', names: wave2 };
+  assert.deepEqual(finishPlan({ jobs: [...firstWave, build], ...ids }), {
+    reap: [],
+    undecided: ['Build API'],
+  });
+  const twin = running('Build API', HOSTED, 890, 885);
+  assert.deepEqual(finishPlan({ jobs: [...firstWave, build, twin], ...ids }), {
+    reap: ['seldon-race-9-1-seldon-Build API'],
+    undecided: [],
+  });
 });
