@@ -23,7 +23,7 @@ that job updates its pins automatically. Platform HEAD may be unpublished, which
 pre-merge check uses tarballs instead of forcing a premature release. The existing
 scaffold registry-range and release artifact inspectors remain in place.
 
-Five real loopback-HTTP tests exercise (the sixth, the Gemies SDK one, is out for now):
+Six real loopback-HTTP tests exercise:
 
 - Core workload v2 cache/401 refresh, with explicit customer credentials still
   using their external scoped request even when a workload provider is configured;
@@ -34,11 +34,10 @@ Five real loopback-HTTP tests exercise (the sixth, the Gemies SDK one, is out fo
   the upstream response without replay;
 - linked session bearer/disposal/origin behavior;
 - published Gemies SDK session JSON POST replay after one401 and rejection of a pending
-  response after switching the Oxy account. **Out for now:** `@gemies/sdk` 9 does not admit
-  Services 15 and 10 is not published yet, so `session-composition.test.ts` is a `todo`
-  naming how to restore it when `@gemies/sdk` 10 is on npm.
+  response after switching the Oxy account.
 
-Core authentication/HTTP code and product factories
+Only the Gemies SDK's renderer hooks are mocked so its published pure HTTP transport can
+run without mounting React. Core authentication/HTTP code and product factories
 are actual installed packages. The issuer and resource servers are synthetic:
 these tests do **not** verify signatures, live grants/revocation, production or
 native UI acceptance. Existing API/core authority tests cover those boundaries.
