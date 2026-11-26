@@ -81,7 +81,8 @@ function needsFor(root, overrides = {}) {
   const parsed = Bun.YAML.parse(readFileSync(join(root, WORKFLOW), 'utf8'));
   const needs = {};
   for (const id of Object.keys(parsed?.jobs ?? {})) {
-    if (id === GATE_JOB_ID) continue;
+    // `race-finish` is never a dependency of the gate (NOT_GATED).
+    if (id === GATE_JOB_ID || id === 'race-finish') continue;
     // The Seldon race's control jobs, hosted twins and rescues are skipped
     // whenever the race is off and no Seldon lane failed, which is the run
     // these defaults describe.
@@ -282,7 +283,6 @@ function expectVerdict(
   const root = createFixture();
   const racedNeeds = needsFor(root, {
     race: { result: 'success', outputs: { race: 'true' } },
-    'race-finish': 'success',
     'api-test': 'cancelled',
     'api-test-hosted': 'success',
   });
@@ -407,7 +407,6 @@ function expectVerdict(
     root,
     needsFor(root, {
       race: { result: 'success', outputs: { race: 'true' } },
-      'race-finish': 'success',
       'api-build': 'failure',
       'api-build-hosted': 'cancelled',
       'api-build-rescue': 'success',
@@ -442,7 +441,22 @@ const REQUIRED_JOBS = [
 ];
 const workflowJobs = Object.keys(
   Bun.YAML.parse(readFileSync(join(repoRoot, WORKFLOW), 'utf8'))?.jobs ?? {},
-).filter((id) => id !== GATE_JOB_ID);
+).filter((id) => id !== GATE_JOB_ID && id !== 'race-finish');
+
+{
+  // The race's finish and its reapers wait on Seldon: the gate must not need them.
+  const root = createFixture();
+  edit(root, 'race-finish-must-not-be-a-dependency', (yaml) =>
+    yaml.replace('      - race\n', '      - race\n      - race-finish\n'),
+  );
+  expectVerdict(
+    'race-finish-must-not-be-a-dependency',
+    root,
+    { ...needsFor(root), 'race-finish': { result: 'success', outputs: {} } },
+    1,
+    'which it must not',
+  );
+}
 for (const job of REQUIRED_JOBS) {
   if (!workflowJobs.includes(job)) {
     failures.push(

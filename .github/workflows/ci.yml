@@ -1819,7 +1819,8 @@ jobs:
     needs:
       - scope
       - race
-      - race-finish
+      # Not race-finish: its reapers run on seldon-ci-light and only follow the
+      # cancellation, so a CI complete that needed them would wait on Seldon.
       - guards
       - api-test
       - api-test-hosted

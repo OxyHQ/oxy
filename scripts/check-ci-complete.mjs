@@ -310,7 +310,14 @@ if (needIds.length === 0) {
 }
 
 // ── 2. Coverage: every job in the workflow is a dependency of this one ─────
-const expected = jobIds.filter((id) => id !== GATE_JOB_ID);
+/**
+ * Jobs this gate must NOT need. `race-finish` (the Seldon race's finish and
+ * its reapers) only follows the race's cancellation, and its reapers run on
+ * seldon-ci-light: a gate that needed them would wait for Seldon. A raced job
+ * whose loser was never reaped is still judged, on the race's verdict.
+ */
+const NOT_GATED = ['race-finish'];
+const expected = jobIds.filter((id) => id !== GATE_JOB_ID && !NOT_GATED.includes(id));
 const uncovered = expected.filter((id) => !needIds.includes(id));
 if (uncovered.length > 0) {
   fail(
@@ -321,6 +328,13 @@ if (uncovered.length > 0) {
 }
 
 const unknown = needIds.filter((id) => !jobIds.includes(id));
+const gatedAnyway = needIds.filter((id) => NOT_GATED.includes(id));
+if (gatedAnyway.length > 0) {
+  fail(
+    `\`${GATE_JOB_ID}\` needs ${gatedAnyway.join(', ')}, which it must not: the Seldon race's ` +
+      'finish only follows the cancellation, and its reapers wait for Seldon.',
+  );
+}
 if (unknown.length > 0) {
   fail(
     `\`${GATE_JOB_ID}\` needs ${unknown.join(', ')}, which the parse of ${WORKFLOW_PATH} did not ` +
