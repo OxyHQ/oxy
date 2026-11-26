@@ -509,6 +509,9 @@ export const OXY_MOVE_APPLICATION_ID = '4bac8f1baed68fd02d65d592';
 /** Syra's application (its deployed id, as `GET /auth/oauth/client/:clientId` answers it). */
 export const SYRA_APPLICATION_ID = '6a2f851751b784a86fd0e93d';
 
+/** Vibbr's application (vibbr.co), registered in the Console before it was declared here. */
+export const VIBBR_APPLICATION_ID = '01a1fab5-34d0-7822-8f7f-3badac2cbbb7';
+
 /** Peable's application, the receiving audience of its payments API (`oxy-service:<id>`). */
 export const PEABLE_APPLICATION_ID = '6a2f851751b784a86fd0e958';
 
@@ -697,6 +700,26 @@ export const SEED_APPS: SeedAppSpec[] = [
       'files:references:write',
     ],
     capabilities: [catalogApplicationCapability('mention'), AGENCY_COORDINATE_CAPABILITY],
+  },
+  {
+    // Vibbr (events and tickets, vibbr.co). The id of the application already registered in the
+    // Console (`GET /auth/oauth/client/<its public client id>` answers it), so the seed adopts that row
+    // instead of minting a second one by name.
+    id: VIBBR_APPLICATION_ID,
+    name: 'Vibbr',
+    // ADR 0066: what Vibbr's backend does for the people who use it. Nothing is declared until
+    // a feature needs it; federation (organizers as their Oxy accounts, ADR 0002 in OxyHQ/Vibbr)
+    // adds its entry in the change that ships the code using it.
+    description: 'Events and tickets: discover, buy, resell and organize.',
+    websiteUrl: 'https://vibbr.co',
+    webOrigins: ['https://vibbr.co'],
+    type: 'first_party',
+    redirectUris: [
+      'https://vibbr.co/__oxy/sso-callback',
+      'https://www.vibbr.co/__oxy/sso-callback',
+      'http://localhost:8081/__oxy/sso-callback',
+    ],
+    scopes: ['user:read'],
   },
   {
     id: HOMIIO_APPLICATION_ID,
