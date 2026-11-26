@@ -46,11 +46,18 @@ jobs:
           names: ${{ inputs.names }}
           label: ${{ inputs.label }}
 
+  # On Seldon's light slots, not hosted: the loser is cancelled when this job
+  # QUEUES into its concurrency group, not when it runs, so the reaper's runner
+  # does not matter to the race, and a hosted slot (20 across the org) is not
+  # spent on an echo. The light VMs are mostly idle, so it runs in seconds. If
+  # Seldon is down it waits: the losers are already cancelled and the caller's
+  # CI complete does not need this job, but the run stays in_progress until
+  # Seldon is back and the reaper runs.
   reap:
     name: Reap ${{ matrix.group }}
     needs: finish
     if: needs.finish.outputs.reap != '' && needs.finish.outputs.reap != '[]'
-    runs-on: ubuntu-latest
+    runs-on: seldon-ci-light
     timeout-minutes: 5
     permissions: {}
     concurrency:
