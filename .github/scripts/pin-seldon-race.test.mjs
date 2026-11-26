@@ -22,7 +22,8 @@ test('moves an existing pin and keeps one comment', () => {
 });
 
 test('leaves every other action alone', () => {
-  const text = 'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\nuses: OxyHQ/oxy/.github/actions/reviewed-image@main\n';
+  const text =
+    'uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\nuses: OxyHQ/oxy/.github/actions/reviewed-image@main\n';
   assert.equal(pin(text, A), text);
 });
 
@@ -39,7 +40,11 @@ test('refuses anything but a full commit SHA', () => {
 test('every reusable workflow pins the action to one full SHA', () => {
   const shas = new Set();
   for (const file of WORKFLOWS) {
-    const refs = [...readFileSync(file, 'utf8').matchAll(/OxyHQ\/oxy\/\.github\/actions\/seldon-race@(\S+)( # main)?/g)];
+    const refs = [
+      ...readFileSync(file, 'utf8').matchAll(
+        /OxyHQ\/oxy\/\.github\/actions\/seldon-race@(\S+)( # main)?/g,
+      ),
+    ];
     assert.ok(refs.length > 0, `${file} calls the action`);
     for (const [, ref, comment] of refs) {
       assert.match(ref, /^[0-9a-f]{40}$/, `${file} pins by full SHA, not ${ref}`);
