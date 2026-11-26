@@ -34,6 +34,7 @@ import {
   ONBOARDING_COMPLETE_QUERY_KEY,
   ONBOARDING_FLOW_QUERY_KEY,
 } from '@/hooks/useOnboardingStatus';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 /**
  * Restore identity from the user's encrypted off-device backup.
@@ -241,7 +242,7 @@ export default function RestoreFromBackupScreen() {
           onPress={handleRestore}
           disabled={isLoading}
           loading={isLoading}
-          className="mt-space-32"
+          style={{ marginTop: SPACING['space-32'] }}
         >
           {isLoading ? t('restoreBackup.restoring') : t('restoreBackup.restore')}
         </Button>

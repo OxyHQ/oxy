@@ -5,7 +5,7 @@ import { View } from 'react-native';
 
 export function ListSkeleton({ count = 5 }: { count?: number }) {
   return (
-    <Skeleton.Region testID="list-skeleton" className="w-full">
+    <Skeleton.Region testID="list-skeleton" style={{ width: '100%' }}>
       {Array.from({ length: count }, (_, index) => (
         <View key={index} className="flex-row items-center gap-3 border-b border-border px-4 py-4">
           <Skeleton.Circle size={40} />
@@ -21,7 +21,7 @@ export function ListSkeleton({ count = 5 }: { count?: number }) {
 
 export function TableSkeleton({ rows = 6, columns = 4 }: { rows?: number; columns?: number }) {
   return (
-    <Skeleton.Region testID="table-skeleton" className="w-full">
+    <Skeleton.Region testID="table-skeleton" style={{ width: '100%' }}>
       <View className="flex-row gap-4 border-b border-border px-4 py-3">
         {Array.from({ length: columns }, (_, column) => (
           <View key={column} className="flex-1">
@@ -44,7 +44,7 @@ export function TableSkeleton({ rows = 6, columns = 4 }: { rows?: number; column
 
 export function FormSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <Skeleton.Region testID="form-skeleton" className="w-full gap-5 p-4">
+    <Skeleton.Region testID="form-skeleton" style={{ width: '100%', gap: 20, padding: 16 }}>
       {Array.from({ length: count }, (_, index) => (
         <View key={index} className="gap-2">
           <Skeleton.Box width="34%" height={14} borderRadius={6} />
@@ -57,7 +57,7 @@ export function FormSkeleton({ count = 4 }: { count?: number }) {
 
 export function DetailSkeleton() {
   return (
-    <Skeleton.Region testID="detail-skeleton" className="w-full gap-5 p-4">
+    <Skeleton.Region testID="detail-skeleton" style={{ width: '100%', gap: 20, padding: 16 }}>
       <Skeleton.Box width="60%" height={28} borderRadius={8} />
       <Skeleton.Box width="40%" height={14} borderRadius={6} />
       <Skeleton.Box width="100%" height={160} borderRadius={16} />
@@ -76,7 +76,10 @@ export function DetailSkeleton() {
 /** A StatCards row: `count` tiles with a label, a value and a delta line. */
 export function StatsSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <Skeleton.Region testID="stats-skeleton" className="w-full flex-row flex-wrap gap-3 p-4">
+    <Skeleton.Region
+      testID="stats-skeleton"
+      style={{ width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 16 }}
+    >
       {Array.from({ length: count }, (_, index) => (
         <View
           key={index}

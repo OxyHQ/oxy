@@ -1,6 +1,7 @@
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { createTokenStyles } from '@oxy.so/bloom/theme';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
@@ -19,6 +20,7 @@ import { WelcomeStep } from './WelcomeStep';
 export function OnboardingGate({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const { query } = useConsoleOnboarding();
+  const styles = useStyles();
 
   if (query.isError) {
     return (
@@ -35,7 +37,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   }
   if (!query.data) {
     return (
-      <Skeleton.Region testID="onboarding-loading" className="flex-1 gap-4 bg-background p-10">
+      <Skeleton.Region testID="onboarding-loading" style={styles.loading}>
         <Skeleton.Box width="40%" height={32} borderRadius={8} />
         <Skeleton.Box width="60%" height={16} borderRadius={6} />
         <Skeleton.Box width="100%" height={160} borderRadius={12} />
@@ -52,3 +54,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       return <>{children}</>;
   }
 }
+
+const useStyles = createTokenStyles((t) => ({
+  loading: { flex: 1, gap: 16, padding: 40, backgroundColor: t.background },
+}));

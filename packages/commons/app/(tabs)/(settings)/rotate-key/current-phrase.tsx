@@ -10,6 +10,7 @@ import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 import { RECOVERY_PHRASE_LENGTH } from '@/constants/auth';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 /**
  * Path B step: capture the CURRENT recovery phrase so the rotation can be
@@ -76,7 +77,12 @@ export default function RotateKeyCurrentPhraseScreen() {
 
       {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-      <Button appearance="solid" tone="accent" onPress={handleContinue} className="mt-space-8">
+      <Button
+        appearance="solid"
+        tone="accent"
+        onPress={handleContinue}
+        style={{ marginTop: SPACING['space-8'] }}
+      >
         {t('rotateKey.currentPhrase.continue')}
       </Button>
     </KeyboardAwareScrollViewWrapper>

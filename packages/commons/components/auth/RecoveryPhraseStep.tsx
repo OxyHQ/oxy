@@ -8,6 +8,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { ImportantBanner } from '@/components/ui';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useTranslation } from '@/lib/i18n';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 interface RecoveryPhraseStepProps {
   /**
@@ -194,7 +195,7 @@ export function RecoveryPhraseStep({
           onPress={onContinue}
           disabled={!revealed || !acknowledged || isContinuing}
           loading={isContinuing}
-          className="mt-space-4"
+          style={{ marginTop: SPACING['space-4'] }}
         >
           {t('auth.recoveryPhrase.continueButton')}
         </Button>

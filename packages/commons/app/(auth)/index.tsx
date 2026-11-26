@@ -17,6 +17,7 @@ import {
 } from '@/hooks/useOnboardingStatus';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
 import { STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
+import { SPACING } from '@oxy.so/bloom/design-tokens';
 
 const humanTranslations = ['Human', 'Humano', 'Humain', 'Mensch', '人类', '人間', 'إنسان'];
 
@@ -210,7 +211,7 @@ export default function AuthIndexScreen() {
         <Button
           appearance="plain"
           tone="neutral"
-          className="mt-space-24"
+          style={{ marginTop: SPACING['space-24'] }}
           onPress={handleRestore}
           accessibilityLabel={t('auth.indexRestore')}
         >
