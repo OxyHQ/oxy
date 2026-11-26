@@ -1,0 +1,6 @@
+# Self-hosted runner labels, so actionlint knows them (docs/engineering/build-and-deploy.md#ci-on-seldon).
+self-hosted-runner:
+  labels:
+    - seldon
+    - seldon-ci
+    - seldon-ci-light
