@@ -12,11 +12,11 @@ Native email system for the Oxy platform. Every Oxy user with a username automat
 
 ## Architecture
 
-Mail flow in production runs through **AWS SES** for both inbound and outbound traffic. The Oxy API exposes a REST surface for mailbox / message operations and a Cloudflare Email Routing webhook handler for inbound mail.
+In production, inbound mail terminates at **Cloudflare Email Routing**, which posts the message to the Oxy API's `/email/inbound` webhook, and outbound mail is sent through **AWS SES**. The Oxy API also exposes a REST surface for mailbox / message operations.
 
 ```
 Inbound:
-  Sender MX  --SES--> Cloudflare Email Routing webhook
+  Sender MX  --> Cloudflare Email Routing --> /email/inbound webhook
                                  │
                                  ▼
                          ┌──────────────────┐
@@ -36,7 +36,7 @@ Outbound:
    (nodemailer SES transport, DKIM signed)
 ```
 
-The legacy on-box SMTP server (`smtp.inbound.ts` / Rspamd / port 25) is no longer used in production — SES handles delivery and spam scoring. The standalone SMTP modules remain in the codebase for local dev and for self-hosted deployments outside AWS.
+The legacy on-box SMTP server (`smtp.inbound.ts` / Rspamd / port 25) is no longer used in production — inbound arrives through the Cloudflare webhook and outbound delivery goes through SES. The standalone SMTP modules remain in the codebase for local dev and for self-hosted deployments outside AWS.
 
 ## Setup
 
