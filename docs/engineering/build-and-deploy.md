@@ -174,6 +174,52 @@ jobs:
 - **It runs only on `seldon`**, the self-hosted build machine (Ryzen 9 9950X, 60 GB RAM, Debian 13, user `gha` without sudo). Its org runner group `seldon` is restricted to `OxyHQ/oxy/.github/workflows/android-release.yml@refs/heads/main`: no other workflow and no pull request of any public repo can run a job there. It holds the ecosystem keystore in `/home/gha/.oxy/` (mode 600) and passes it as `ORG_GRADLE_PROJECT_OXY_UPLOAD_*` from the runner's `/opt/actions-runner/.env`, so no signing material is on GitHub; `oxyVerifyReleaseSigning` still fails any release without the ecosystem certificate. The Android SDK is `/opt/android-sdk`; Gradle's user home keeps its caches between runs, with `org.gradle.jvmargs=-Xmx16g -XX:MaxMetaspaceSize=4g` (Expo's 2 GB default runs out of Metaspace building React Native from source). Hermes from source needs `libicu-dev`.
 - A repo with several apps (Willo's frame, Mercaria's POS) calls it once per app with a distinct `tag-prefix`.
 - **This repo's own apps** release through `android-release-apps.yml` (`accounts-android-v…`, `commons-android-v…`), called by path so the job's workflow ref is still `…/android-release.yml@refs/heads/main`; it runs only when an `app.config.js` (where `version` lives) changes, or by `workflow_dispatch`. In a Turbo repo the reusable workflow builds the app's workspace dependencies (`turbo run build --filter='{./<app-dir>}^...'`) before prebuilding, because Metro resolves `@oxy.so/core`, `contracts`, `protocol` and `expo-splash` from `dist/`. Their OTA updates publish from `publish-update.yml` (one matrix job per app, each with its own public client id, running `packages/ship` from source); that exact path is the two apps' trusted publisher.
+- **Android releases wait for Seldon.** The keystore and the Play key exist only there, so while Seldon is down a release job stays queued (GitHub keeps it up to 24 hours) and runs when Seldon is back. Nothing falls back to hosted for a release, on purpose.
+
+## CI on Seldon
+
+The org is on GitHub's free plan: 20 hosted jobs at once across every repository. Seldon also runs a pool of ephemeral CI VMs, `seldon-ci`, which relieves that queue. How the host side runs, installs and is rebuilt (pool, image, cache, cleanup) is OxyHQ/oxy-infra `docs/runbooks/69-seldon-ci-pool.md`; its files are versioned in oxy-infra `seldon/`.
+
+**The pool.**
+- **What it is.** Runner group `seldon-ci` (id 6), label `seldon-ci`. Just-in-time runners, each in its own Incus KVM VM, run exactly one job and are deleted.
+- **Size.** 3 VMs of 8 vCPU and 12 GiB since 2026-11-26. At 4 of 6 vCPU and 7 GiB, Bloom's `bun run typescript` ran out of heap, oxy's API image `tsc` aborted, and Jest shards starved until the runner "lost communication".
+- **Image.** `ci-base` has the toolchain hosted runners have or Oxy's workflows pin: Node 24.21.0 and 24.20.0 in the tool cache, gh, rustup (stable, nightly, 1.99.0), OpenJDK 17 and 21, bun and docker. A job installs nothing, so do not add install steps to workflows; add the tool to the image.
+- **Cache.** npm, bun and cargo go through a caching proxy on the host, and lockfile integrity still verifies every byte.
+- **Workspace.** `/home/runner/work/<repo>/<repo>`, the same path as hosted. So an Actions cache entry of a path outside the workspace (`~/.bun`, `~/.cargo`, `~/.gradle`) restores to the same place on both. While the workspace sat one level deeper, setup-bun's cache restored to the wrong place ("Unable to locate executable file: /home/runner/.bun/bin/bun").
+
+**Isolation**, verified 2026-11-26 by a probe job (OxyHQ/Bloom runs 45756779277 and 45756878441). A pool job runs as `runner` in a VM, never as `gha`, and sees none of the release material:
+- no `/home/gha` (keystore), no `/srv/oxy-releases`, and no `/opt/actions-runner*` (`.env`, credentials, work directories);
+- no release variables;
+- only the internet and the host's DNS and cache, on a private bridge. The LAN and the host's other ports are unreachable.
+
+The group is not restricted to workflows, so no secret may ever be put in the image.
+
+**Who reaches it.** Only a repository's own code. A fork's pull request always runs hosted: the workflows route only `push`, `merge_group`, `workflow_dispatch`, `schedule` and same-repository `pull_request` runs to the pool, and the org's fork-PR approval (`all_external_contributors`) still gates every fork run.
+
+**Routing: the race (pilot on Bloom, `CI_SELDON_RACE=true`).** GitHub cannot let a job say "Seldon or hosted", and it has no API that cancels a single job. A job whose label has no online runner waits up to 24 hours instead of failing. So a heavy job races, using only `GITHUB_TOKEN` (`.github/actions/seldon-race` and its reusable workflows in this repo):
+1. The job targets `seldon-ci`. A hosted twin with the same name and steps (YAML anchors) waits.
+2. A hosted start job watches the run. If a Seldon lane is still unstarted after the delay, because the pool is busy or offline, the twin queues too.
+3. Each lane's first step is a guard. A lane that starts after its twin sleeps until it is cancelled, so the work never runs twice.
+4. A hosted finish job polls until every pair has a started lane. The lane that started first wins (a tie goes to Seldon). A reap job then queues into each loser's job-level `concurrency` group (`seldon-race-<run>-<attempt>-<lane>-<name>`, `cancel-in-progress`), which cancels that one job.
+5. `CI complete` takes each raced job's verdict, "a lane passed and none failed", from the jobs API. A cancelled loser is never a failure, and required checks and the merge queue still see one result.
+
+Seldon being down therefore costs the delay, never the run, and with the variable unset nothing changes. The decision itself runs on hosted runners, so it never depends on Seldon.
+
+**What stays hosted:**
+- jobs that need another OS or arm;
+- releases: npm trusted publishing with provenance needs a GitHub-hosted runner, and the tarballs it attests are built in the same hosted workflow;
+- light jobs (lint, provenance, scope, `CI complete`), where a hosted slot is short.
+
+**Runner Apps.** GitHub Apps that register runners for the org:
+
+| App | Permission | Used by | State |
+| --- | --- | --- | --- |
+| `oxy-seldon-ci` (id 5624160, created 2026-11-05) | organization self-hosted runners: write | `oxy-ci-pool.service` on Seldon mints JIT runners for group `seldon-ci`; its key is `/etc/oxy-ci/github-app.pem` on Seldon | in use |
+| `oxy-home-runners` (id 5355333, created 2026-10-17) | organization self-hosted runners: write | the ThinkPad home-runner pilot, dropped 2026-10-19 | unused: no online runner was registered with it, and nothing on Seldon holds its key. Safe to uninstall. |
+
+Seldon's release runners `seldon`, `seldon-2` and `seldon-3` were registered once with a registration token (2026-11-04) and use no App. The repo-level `seldon-oxyos-*` runners serve OxyHQ/OxyOS's gate. Never give a workflow a runner App's key: runners: write can register a runner into any group, `seldon` included.
+
+**The network.** Since 2026-11-05 the house's connections fail for one to fifteen minutes at a time, for every destination at once (Google, GitHub, Cloudflare). The rejection is `ICMP admin prohibited` from 192.0.0.1, upstream of the double NAT, and it is worse on heavy-build days. Evidence and the probe are in runbook 69. A pool job that hits a burst fails the way a flaky network does; the race does not retry a failed lane.
 
 ## Commands
 
