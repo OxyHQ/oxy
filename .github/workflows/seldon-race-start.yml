@@ -1,0 +1,45 @@
+# The start of a Seldon race (docs/engineering/build-and-deploy.md#ci-on-seldon):
+# `race` is 'true' once a Seldon lane of this run is still queued `delay`
+# seconds after it was created, so the caller's hosted twins queue. Call it
+# with the same `needs` and condition as the raced jobs, plus the opt-in and
+# the fork check, so it costs no runner when the race is off.
+name: Seldon race start
+
+on:
+  workflow_call:
+    inputs:
+      delay:
+        description: Seconds a Seldon lane may sit queued before its hosted twin queues.
+        type: number
+        default: 180
+      interval:
+        description: Seconds between polls of the jobs API.
+        type: number
+        default: 15
+      label:
+        description: The runs-on label of the Seldon lanes.
+        type: string
+        default: seldon-ci
+    outputs:
+      race:
+        description: "'true' when the hosted twins should queue."
+        value: ${{ jobs.start.outputs.race }}
+
+permissions:
+  actions: read
+
+jobs:
+  start:
+    name: Seldon race start
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      race: ${{ steps.race.outputs.race }}
+    steps:
+      - id: race
+        uses: OxyHQ/oxy/.github/actions/seldon-race@main
+        with:
+          mode: start
+          delay: ${{ inputs.delay }}
+          interval: ${{ inputs.interval }}
+          label: ${{ inputs.label }}

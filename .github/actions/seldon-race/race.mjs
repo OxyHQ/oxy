@@ -1,0 +1,272 @@
+// Races a heavy CI job between Seldon's `seldon-ci` pool and a GitHub-hosted
+// twin (docs/engineering/build-and-deploy.md#ci-on-seldon).
+//
+// Every raced job has a twin of the same display name on a hosted runner. Both
+// lanes sit in their own job-level concurrency group, `laneGroup()`, so queuing
+// any job into a lane's group with cancel-in-progress cancels that lane alone
+// (GitHub has no API that cancels a single job). The modes, one per step:
+//
+//   start    Seldon lanes still unstarted `delay` seconds after they were
+//            queued? Then `race=true` and the hosted twins queue.
+//   guard    the first step of each lane: a lane that starts after its twin
+//            sleeps until `finish` cancels it, so it never does the work twice.
+//   finish   polls until every pair has a lane running; the one that started
+//            first wins (a tie goes to Seldon) and `reap` lists the losers'
+//            groups, which the reap job queues into.
+//   verdict  per job name: passed when a lane succeeded and none failed. A
+//            cancelled loser is never a failure.
+//
+// It runs as a node24 JavaScript action, on the runner's own Node: Seldon's VM
+// image has none, and the guard runs before setup-node. It reads only this
+// run's jobs, with the job's GITHUB_TOKEN (actions: read).
+
+import { appendFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
+export const SELDON = 'seldon';
+export const HOSTED = 'hosted';
+
+/** The lane's job-level concurrency group; the workflow must spell it exactly so. */
+export function laneGroup({ runId, attempt, lane, name }) {
+  return `seldon-race-${runId}-${attempt}-${lane}-${name}`;
+}
+
+export const laneOf = (job, label) => (job.labels.includes(label) ? SELDON : HOSTED);
+
+const skipped = (job) => job.status === 'completed' && job.conclusion === 'skipped';
+
+/**
+ * Has the job had a runner? A job cancelled while queued is `completed` with
+ * `runner_id` 0 and `started_at` equal to `created_at`, so neither status nor
+ * started_at alone says it ran.
+ */
+export const started = (job) =>
+  job.status === 'in_progress' || (job.status === 'completed' && job.runner_id > 0);
+
+const waiting = (job) => job.status !== 'completed' && !started(job);
+
+/** The live (not skipped) jobs on the Seldon label. */
+const seldonLanes = (jobs, label) => jobs.filter((j) => !skipped(j) && laneOf(j, label) === SELDON);
+
+/** Every Seldon lane by name, as { name, seldon, hosted }; hosted is undefined until its twin exists. */
+export function pairs(jobs, label) {
+  const live = jobs.filter((j) => !skipped(j));
+  return seldonLanes(jobs, label).map((seldon) => ({
+    name: seldon.name,
+    seldon,
+    hosted: live.find((j) => j.name === seldon.name && laneOf(j, label) === HOSTED),
+  }));
+}
+
+/**
+ * start: 'race', 'no-race' or 'wait' for the Seldon lanes as they stand at
+ * `now`. `since` is when the start step began: Seldon lanes that never show
+ * up within `delayMs` of it (all skipped, say) mean no race.
+ */
+export function startDecision({ jobs, label, now, since, delayMs }) {
+  const lanes = seldonLanes(jobs, label);
+  if (lanes.length === 0) return now - since >= delayMs ? 'no-race' : 'wait';
+  const queued = lanes.filter(waiting);
+  if (queued.length === 0) return 'no-race';
+  if (queued.some((j) => now - Date.parse(j.created_at) >= delayMs)) return 'race';
+  return 'wait';
+}
+
+/** The lane that started first (a tie goes to Seldon), or null while neither has. */
+export function winner({ seldon, hosted }) {
+  const at = (job) => (job && started(job) ? Date.parse(job.started_at) : Infinity);
+  const s = at(seldon);
+  const h = at(hosted);
+  if (s === Infinity && h === Infinity) return null;
+  return s <= h ? SELDON : HOSTED;
+}
+
+/**
+ * finish: `reap`, the groups of the losers still running or queued, and
+ * `undecided`, the names whose twin has not appeared yet or whose lanes have
+ * both not started. Finish waits while anything is undecided.
+ */
+export function finishPlan({ jobs, label, runId, attempt }) {
+  const reap = [];
+  const undecided = [];
+  for (const pair of pairs(jobs, label)) {
+    const won = pair.hosted ? winner(pair) : null;
+    if (!won) {
+      undecided.push(pair.name);
+      continue;
+    }
+    const lane = won === SELDON ? HOSTED : SELDON;
+    if (pair[lane].status !== 'completed')
+      reap.push(laneGroup({ runId, attempt, lane, name: pair.name }));
+  }
+  return { reap, undecided };
+}
+
+/** guard: does this job (by id) yield to a twin that started first? */
+export function yields({ jobs, label, jobId }) {
+  const me = jobs.find((j) => j.id === jobId);
+  if (!me) return false;
+  const pair = pairs(jobs, label).find((p) => p.name === me.name);
+  if (!pair?.hosted) return false;
+  const won = winner(pair);
+  return won !== null && won !== laneOf(me, label);
+}
+
+const PASSING = new Set(['success', 'cancelled', 'skipped']);
+
+/**
+ * verdict: { name: passed } for every Seldon lane's name. Passed when a lane
+ * of that name succeeded and none ended in anything but success, cancelled or
+ * skipped: a cancelled loser is fine, a cancelled (or timed-out) winner is not,
+ * because then nothing succeeded.
+ */
+export function verdict(jobs, label) {
+  const result = {};
+  for (const { name } of pairs(jobs, label)) {
+    const lanes = jobs.filter((j) => j.name === name && !skipped(j));
+    const conclusions = lanes.map((j) => (j.status === 'completed' ? j.conclusion : null));
+    result[name] = conclusions.includes('success') && conclusions.every((c) => PASSING.has(c));
+  }
+  return result;
+}
+
+async function listJobs(env) {
+  const {
+    GITHUB_API_URL: api,
+    GITHUB_REPOSITORY: repo,
+    GITHUB_RUN_ID: runId,
+    GITHUB_RUN_ATTEMPT: attempt,
+  } = env;
+  const jobs = [];
+  for (let page = 1; ; page++) {
+    const response = await fetch(
+      `${api}/repos/${repo}/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100&page=${page}`,
+      {
+        headers: {
+          accept: 'application/vnd.github+json',
+          authorization: `Bearer ${env.INPUT_TOKEN}`,
+          'x-github-api-version': '2022-11-28',
+        },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!response.ok) throw new Error(`jobs API: HTTP ${response.status}`);
+    const body = await response.json();
+    jobs.push(...body.jobs);
+    if (body.jobs.length < 100) return jobs;
+  }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** listJobs, retried: a transient API error must not decide a race. */
+async function readJobs(env) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await listJobs(env);
+    } catch (error) {
+      if (attempt >= 5) throw error;
+      console.log(`::warning::${error.message}; retrying`);
+      await sleep(5_000 * attempt);
+    }
+  }
+}
+
+function output(env, name, value) {
+  appendFileSync(env.GITHUB_OUTPUT, `${name}=${value}\n`);
+  console.log(`${name}=${value}`);
+}
+
+const seconds = (value, fallback) => (Number(value) > 0 ? Number(value) : fallback) * 1000;
+
+async function start(env, label, intervalMs) {
+  const delayMs = seconds(env.INPUT_DELAY, 180);
+  const since = Date.now();
+  for (;;) {
+    let jobs;
+    try {
+      jobs = await readJobs(env);
+    } catch (error) {
+      // Unanswerable: queue the twins, which run unless their Seldon lane started first.
+      console.log(`::warning::${error.message}; racing`);
+      return output(env, 'race', 'true');
+    }
+    const decision = startDecision({ jobs, label, now: Date.now(), since, delayMs });
+    if (decision !== 'wait') return output(env, 'race', String(decision === 'race'));
+    await sleep(intervalMs);
+  }
+}
+
+async function finish(env, label, intervalMs) {
+  const deadline = Date.now() + seconds(env.INPUT_DEADLINE, 3600);
+  const plan = (jobs) =>
+    finishPlan({ jobs, label, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT });
+  for (;;) {
+    const { reap, undecided } = plan(await readJobs(env));
+    if (undecided.length === 0) return output(env, 'reap', JSON.stringify(reap));
+    if (Date.now() > deadline) {
+      console.log(
+        `::warning::No lane started for ${undecided.join(', ')}; both lanes of those stay.`,
+      );
+      return output(env, 'reap', JSON.stringify(reap));
+    }
+    await sleep(intervalMs);
+  }
+}
+
+async function guard(env, label, intervalMs) {
+  try {
+    let me;
+    // The jobs API can lag the runner by a few seconds.
+    for (let tries = 0; !me && tries < 6; tries++) {
+      if (tries) await sleep(5_000);
+      me = (await readJobs(env)).find(
+        (j) => j.runner_name === env.RUNNER_NAME && j.status === 'in_progress',
+      );
+    }
+    if (!me) return console.log('::warning::Could not find this job in the run; running it.');
+    for (let first = true; ; first = false) {
+      if (!yields({ jobs: await readJobs(env), label, jobId: me.id })) {
+        if (!first) console.log('The twin is gone; running.');
+        return;
+      }
+      if (first) console.log(`${me.name}: the twin started first; waiting to be cancelled.`);
+      await sleep(intervalMs);
+    }
+  } catch (error) {
+    // A guard that cannot tell runs the lane: at worst both lanes work and finish cancels one.
+    console.log(`::warning::${error.message}; running.`);
+  }
+}
+
+async function judge(env, label) {
+  const passed = verdict(await readJobs(env), label);
+  for (const [name, ok] of Object.entries(passed)) {
+    console.log(ok ? `${name}: passed` : `::error::${name}: no lane passed`);
+  }
+  output(env, 'outcome', Object.values(passed).every(Boolean) ? 'success' : 'failure');
+}
+
+export async function main(env) {
+  const label = env.INPUT_LABEL || 'seldon-ci';
+  const intervalMs = seconds(env.INPUT_INTERVAL, 15);
+  switch (env.INPUT_MODE) {
+    case 'start':
+      return start(env, label, intervalMs);
+    case 'finish':
+      return finish(env, label, intervalMs);
+    case 'guard':
+      return guard(env, label, intervalMs);
+    case 'verdict':
+      return judge(env, label);
+    default:
+      throw new Error(`mode must be start, guard, finish or verdict, not ${env.INPUT_MODE}`);
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main(process.env).catch((error) => {
+    console.log(`::error::${error.message}`);
+    process.exitCode = 1;
+  });
+}
