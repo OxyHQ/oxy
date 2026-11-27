@@ -40,6 +40,7 @@ import {
   upsertVariant,
 } from './fileRepository';
 import { playlistSiblingKey } from './hlsPlaylist';
+import { skipsVideoLadder } from './federatedVideoRenditions';
 import { LARGE_UPLOAD_MAX_BYTES } from '../utils/fileContentPolicy';
 import { isSvgType } from '../utils/svgSanitizer';
 import { isIconContainer, largestIconFrame } from '../utils/icoImage';
@@ -684,6 +685,18 @@ export class VariantService {
             size: file.size,
           });
       } else if (file.mime.startsWith('video/')) {
+        if (!reencode && skipsVideoLadder(file)) {
+          // A federated copy plays as stored (`federatedVideoRenditions.ts`).
+          // Nothing is encoded, uploaded or probed: the file stays exactly as
+          // every federated video waiting in the backlog already is, and an
+          // explicit re-encode (the repair workflows) still builds the ladder.
+          logger.info('Federated video served as stored; no ladder encoded', {
+            fileId,
+            mime: file.mime,
+            size: file.size,
+          });
+          return;
+        }
         await this.generateVideoVariants(file);
       } else if (file.mime.startsWith('audio/')) {
         await this.generateAudioVariants(file);
