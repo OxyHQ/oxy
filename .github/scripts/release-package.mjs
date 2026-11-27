@@ -9,7 +9,8 @@
 //                         is not on the registry yet, dependencies first, each
 //                         with the dist-tag it publishes under; and the
 //                         directories to build for them, dependencies first,
-//                         each once. Refuses a version whose dist-tag would be
+//                         each once: the workspaces each links (`workspace:`)
+//                         and each workspace of the repository it peers on. Refuses a version whose dist-tag would be
 //                         wrong (see `releaseTag`, `distTagProblem`)
 //   ci <sha> <workflow>   waits until a run of the caller's CI workflow (its
 //                         file name) on exactly <sha>, from a `push` or
@@ -110,9 +111,14 @@ export function workspaceDependencies(name, workspaces) {
     if (path.includes(current))
       throw new Error(`workspace cycle: ${[...path, current].join(' -> ')}`);
     if (order.includes(current)) return;
+    // A `workspace:` link, or a peer on a workspace of this repository (whatever its
+    // range): the peer's types are compiled against, so it is built first.
     for (const field of DEPENDENCY_FIELDS)
       for (const [dependency, range] of Object.entries(byName.get(current).manifest[field] ?? {}))
-        if (range.startsWith('workspace:') && byName.has(dependency))
+        if (
+          byName.has(dependency) &&
+          (range.startsWith('workspace:') || field === 'peerDependencies')
+        )
           visit(dependency, [...path, current]);
     order.push(current);
   };
