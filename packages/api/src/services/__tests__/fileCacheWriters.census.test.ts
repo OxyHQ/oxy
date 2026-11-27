@@ -40,6 +40,8 @@ const WRITERS: Record<string, string> = {
   'services/fileRepository.ts#tombstoneFile': 'AssetService.tombstoneAndOwePurge, after commit',
   'services/fileRepository.ts#tombstoneFileIfDue':
     'AssetService.tombstoneAndOwePurge, after commit',
+  'services/fileRepository.ts#tombstoneExpiredFederationCacheFile':
+    'AssetService.tombstoneAndOwePurge (expireFederationCacheEntry), after commit',
   'services/fileRepository.ts#tombstoneApplicationFile':
     'AssetService.tombstoneAndOwePurge, after commit',
   'services/fileRepository.ts#tombstoneFederatedFileForApp':

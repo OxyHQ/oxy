@@ -1,0 +1,385 @@
+name: File retention
+
+# Runs `packages/api/scripts/file-retention.ts` against production: the file
+# retention pass (`packages/api/src/services/fileRetention.service.ts`) that
+# removes the rows the shared database keeps for files that no longer need
+# them — a tombstone's rendition and source rows, and all but one rendition
+# row of an image nobody has used for 30 days. Deleting production rows is the
+# app owner's decision: `mode=apply` needs the confirmation phrase typed in.
+#
+# Same shape as `reconcile-profile-media-references.yml`: an ECS one-shot
+# INSIDE the VPC on the live service's task definition, only the image and the
+# command overridden. The pass itself stops at the end of its off-peak window
+# (01:00-07:00 UTC by default) and when the database is slow, so dispatch it
+# shortly after 01:00 UTC.
+#
+# ALWAYS run `mode=report` FIRST (the default). It writes nothing and prints
+# the same summary an apply would: per step the files, `variantRows`,
+# `sourceRows` and bytes, and `estimate.databaseBytes`. Take an RDS snapshot
+# before the first apply. Then `mode=apply` (with `confirm`), then
+# `mode=report` again: the steps it ran must report 0. A run that stops
+# (`stoppedBecause` other than `complete`) resumes from its `lastFileId`,
+# passed as `after`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'report = write nothing, print what apply would do; apply = delete'
+        required: true
+        type: choice
+        options: [report, apply]
+        default: report
+      confirm:
+        description: 'For apply only: type delete-file-retention-rows'
+        required: false
+        type: string
+      steps:
+        description: 'Comma-separated: tombstoneRenditions, unusedRenditions, federationCacheExpiry (opt-in). Empty = the first two'
+        required: false
+        type: string
+      unused_days:
+        description: 'unusedRenditions: unreferenced for at least this many days (min 7)'
+        required: true
+        type: string
+        default: '30'
+      cache_ttl_days:
+        description: 'federationCacheExpiry: cached at least this many days ago (min 30)'
+        required: true
+        type: string
+        default: '90'
+      after:
+        description: 'Resume after this file id (the `lastFileId` of a previous summary or progress line)'
+        required: false
+        type: string
+      max_batches:
+        description: 'Stop after this many batches (a bounded run); empty = until the window closes'
+        required: false
+        type: string
+      scan_window:
+        description: 'File ids examined per batch (100-10000)'
+        required: true
+        type: string
+        default: '2000'
+
+concurrency:
+  # One pass at a time: the steps are idempotent, but two passes double the load.
+  group: file-retention
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  APP: oxy-api
+  CLUSTER: oxy-cluster
+  SERVICE: oxy-api
+  DOCKERFILE: Dockerfile
+  SCRIPT: packages/api/scripts/file-retention.ts
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  retention:
+    # This job receives production credentials. Only the protected main branch
+    # may select the code that runs in the production VPC.
+    if: github.ref == 'refs/heads/main'
+    # Same arch as the deployed image — the service runs linux/arm64.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The immutable reviewed commit on protected main that dispatched this.
+          ref: ${{ github.sha }}
+
+      - name: Reject a malformed mode, confirmation, step list, cursor or bound
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+          STEPS: ${{ inputs.steps }}
+          UNUSED_DAYS: ${{ inputs.unused_days }}
+          CACHE_TTL_DAYS: ${{ inputs.cache_ttl_days }}
+          AFTER: ${{ inputs.after }}
+          MAX_BATCHES: ${{ inputs.max_batches }}
+          SCAN_WINDOW: ${{ inputs.scan_window }}
+        run: |
+          set -euo pipefail
+          if [ "$MODE" != "report" ] && [ "$MODE" != "apply" ]; then
+            echo "::error::mode must be report or apply; got '$MODE'."
+            exit 1
+          fi
+          if [ "$MODE" = "apply" ] && [ "$CONFIRM" != "delete-file-retention-rows" ]; then
+            echo "::error::apply deletes production rows: type delete-file-retention-rows in confirm."
+            exit 1
+          fi
+          if [ -n "$STEPS" ] && ! [[ "$STEPS" =~ ^(tombstoneRenditions|unusedRenditions|federationCacheExpiry)(,(tombstoneRenditions|unusedRenditions|federationCacheExpiry))*$ ]]; then
+            echo "::error::steps must be a comma-separated list of tombstoneRenditions, unusedRenditions, federationCacheExpiry; got '$STEPS'."
+            exit 1
+          fi
+          if ! [[ "$UNUSED_DAYS" =~ ^[0-9]{1,4}$ ]] || [ "$UNUSED_DAYS" -lt 7 ]; then
+            echo "::error::unused_days must be an integer of at least 7; got '$UNUSED_DAYS'."
+            exit 1
+          fi
+          if ! [[ "$CACHE_TTL_DAYS" =~ ^[0-9]{1,4}$ ]] || [ "$CACHE_TTL_DAYS" -lt 30 ]; then
+            echo "::error::cache_ttl_days must be an integer of at least 30; got '$CACHE_TTL_DAYS'."
+            exit 1
+          fi
+          # A file id is a uuid (uuidv7 today) or a legacy 24-hex ObjectId.
+          if [ -n "$AFTER" ] && ! [[ "$AFTER" =~ ^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24})$ ]]; then
+            echo "::error::after must be a file id (uuid or 24-hex); got '$AFTER'."
+            exit 1
+          fi
+          if [ -n "$MAX_BATCHES" ] && ! [[ "$MAX_BATCHES" =~ ^[1-9][0-9]{0,5}$ ]]; then
+            echo "::error::max_batches must be a positive integer (1-999999); got '$MAX_BATCHES'."
+            exit 1
+          fi
+          if ! [[ "$SCAN_WINDOW" =~ ^[1-9][0-9]{2,4}$ ]] || [ "$SCAN_WINDOW" -gt 10000 ]; then
+            echo "::error::scan_window must be an integer between 100 and 10000; got '$SCAN_WINDOW'."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the retention image (its own tag; never `latest`)
+        id: image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          TAG="file-retention-$(git rev-parse --short HEAD)"
+          IMG="$ECR_REGISTRY/oxy/$APP:$TAG"
+          docker build -f "$DOCKERFILE" -t "$IMG" .
+          docker push "$IMG"
+          echo "image=$IMG" >> "$GITHUB_OUTPUT"
+          echo "Built $IMG"
+
+      - name: Assert the image carries this script
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          set -euo pipefail
+          # A task that cannot find or parse its script fails INSIDE the VPC,
+          # where the only evidence is a CloudWatch stream. The script validates
+          # its arguments before it reads DATABASE_URL, so this needs no database.
+          docker run --rm --entrypoint sh -e SCRIPT="$SCRIPT" "$IMAGE" -c '
+            test -f "$SCRIPT" || { echo "$SCRIPT is not in the image"; exit 1; }
+            bun run "$SCRIPT" --not-an-option 2>&1 | grep -q "unknown argument" \
+              || { echo "$SCRIPT in this image does not validate its arguments"; exit 1; }
+            echo "$SCRIPT present and parsing its arguments"
+          '
+
+      - name: Run the retention pass as an ECS one-shot task
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+          STEPS: ${{ inputs.steps }}
+          UNUSED_DAYS: ${{ inputs.unused_days }}
+          CACHE_TTL_DAYS: ${{ inputs.cache_ttl_days }}
+          AFTER: ${{ inputs.after }}
+          MAX_BATCHES: ${{ inputs.max_batches }}
+          SCAN_WINDOW: ${{ inputs.scan_window }}
+        run: |
+          set -euo pipefail
+
+          SERVICE_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+
+          LIVE_TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
+          SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          # Mirror the service's public-IP setting: the cluster's subnets are
+          # public with NO NAT gateway, so a task without a public IP cannot even
+          # pull its image from ECR.
+          ASSIGN_IP=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp')
+
+          echo "live task definition: $LIVE_TASK_DEF"
+
+          aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
+            --query 'taskDefinition' --output json > live-taskdef.json
+
+          CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
+
+          # A throwaway revision differing from the live one ONLY by the image.
+          jq --arg img "$IMAGE" '
+            .containerDefinitions[0].image = $img
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' live-taskdef.json > retention-taskdef.json
+
+          RETENTION_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://retention-taskdef.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "retention task definition: $RETENTION_TASK_DEF"
+
+          # Only `--apply` (with its confirmation) deletes. `--sample` bounds the
+          # per-file records the log carries; the summary counts every file.
+          OVERRIDES=$(jq -nc \
+            --arg name "$CONTAINER" \
+            --arg script "$SCRIPT" \
+            --arg mode "$MODE" \
+            --arg confirm "$CONFIRM" \
+            --arg steps "$STEPS" \
+            --arg unused "$UNUSED_DAYS" \
+            --arg ttl "$CACHE_TTL_DAYS" \
+            --arg after "$AFTER" \
+            --arg max "$MAX_BATCHES" \
+            --arg window "$SCAN_WINDOW" \
+            '{containerOverrides:[{
+               name: $name,
+               command: (["bun","run",$script,"--scan-window=" + $window,"--unused-days=" + $unused,"--cache-ttl-days=" + $ttl,"--sample=200"] +
+                 (if $mode == "apply" then ["--apply","--confirm=" + $confirm] else [] end) +
+                 (if $steps != "" then ["--steps=" + $steps] else [] end) +
+                 (if $after != "" then ["--after=" + $after] else [] end) +
+                 (if $max != "" then ["--max-batches=" + $max] else [] end))
+             }]}')
+          echo "command: $(jq -c '.containerOverrides[0].command' <<<"$OVERRIDES")"
+
+          # The cluster runs at the edge of its Fargate on-demand vCPU quota, so a
+          # one-shot competing with a rollout is refused outright (`RESOURCE:CPU`).
+          # That is a queue, not a failure. Bounded: after START_MAX_WAIT_SECS the
+          # run fails loudly rather than hanging on a quota that is not coming back.
+          START_MAX_WAIT_SECS=600
+          POLL_INTERVAL=20
+          start_waited=0
+          while :; do
+            # Where SERVICE runs: its capacity provider strategy when it has one (the
+            # oxy-ec2 capacity, whose revisions are EC2-only), otherwise its launch
+            # type. This revision is derived from its live one, so a hard-coded
+            # FARGATE would be refused once the service is on EC2.
+            placement_service_json=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --query 'services[0]' --output json)
+            placement_strategy=$(jq -c '.capacityProviderStrategy // []' <<<"$placement_service_json")
+            if [[ "$placement_strategy" != "[]" ]]; then
+              placement=(--capacity-provider-strategy "$placement_strategy")
+            else
+              placement=(--launch-type "$(jq -r '.launchType // "FARGATE"' <<<"$placement_service_json")")
+            fi
+            RUN_JSON=$(aws ecs run-task \
+              --cluster "$CLUSTER" \
+              --task-definition "$RETENTION_TASK_DEF" \
+              "${placement[@]}" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
+              --overrides "$OVERRIDES" \
+              --started-by "gh-file-retention")
+            if [ "$(jq '.failures | length' <<<"$RUN_JSON")" = "0" ]; then
+              break
+            fi
+            if ! jq -e '
+              all(
+                .failures[];
+                (.reason // "") == "RESOURCE:CPU"
+                or ((.reason // "") | ascii_downcase | contains("limit on the number of vcpus you can run concurrently"))
+              )
+            ' <<<"$RUN_JSON" >/dev/null; then
+              echo "::error::ECS refused to start the retention task."
+              jq '.failures' <<<"$RUN_JSON"
+              exit 1
+            fi
+            if [ "$start_waited" -ge "$START_MAX_WAIT_SECS" ]; then
+              echo "::error::Fargate vCPU capacity never freed up within ${START_MAX_WAIT_SECS}s."
+              jq '.failures' <<<"$RUN_JSON"
+              exit 1
+            fi
+            echo "::warning::Fargate vCPU capacity refused the retention task; retrying in ${POLL_INTERVAL}s."
+            sleep "$POLL_INTERVAL"
+            start_waited=$((start_waited + POLL_INTERVAL))
+          done
+
+          TASK_ARN=$(jq -r '.tasks[0].taskArn' <<<"$RUN_JSON")
+          echo "task: $TASK_ARN"
+
+          # `aws ecs wait tasks-stopped` gives up after 10 minutes (100 polls of
+          # 6s), and a full pass may run longer than that. Poll until STOPPED,
+          # bounded below the job's own timeout.
+          RUN_MAX_WAIT_SECS=$((345 * 60))
+          run_waited=0
+          echo "Waiting for the task to stop…"
+          while :; do
+            STATUS=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+              --query 'tasks[0].lastStatus' --output text)
+            if [ "$STATUS" = "STOPPED" ]; then
+              break
+            fi
+            if [ "$run_waited" -ge "$RUN_MAX_WAIT_SECS" ]; then
+              echo "::error::The retention task was still $STATUS after ${RUN_MAX_WAIT_SECS}s; it is left running. Stop it with: aws ecs stop-task --cluster $CLUSTER --task $TASK_ARN"
+              exit 1
+            fi
+            sleep 30
+            run_waited=$((run_waited + 30))
+          done
+
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_OPTS=$(jq -r '.containerDefinitions[0].logConfiguration.options' live-taskdef.json)
+          LOG_GROUP=$(echo "$LOG_OPTS" | jq -r '."awslogs-group"')
+          LOG_PREFIX=$(echo "$LOG_OPTS" | jq -r '."awslogs-stream-prefix"')
+          LOG_STREAM="$LOG_PREFIX/$CONTAINER/$TASK_ID"
+
+          # One page of get-log-events holds at most 10,000 events / 1 MB, and the
+          # summary is the LAST line: page forward until the token stops moving.
+          : > retention.log
+          TOKEN=""
+          for _ in $(seq 1 200); do
+            if [ -z "$TOKEN" ]; then
+              PAGE=$(aws logs get-log-events --log-group-name "$LOG_GROUP" \
+                --log-stream-name "$LOG_STREAM" --start-from-head --output json) || break
+            else
+              PAGE=$(aws logs get-log-events --log-group-name "$LOG_GROUP" \
+                --log-stream-name "$LOG_STREAM" --next-token "$TOKEN" --output json) || break
+            fi
+            jq -r '.events[].message' <<<"$PAGE" >> retention.log
+            NEXT=$(jq -r '.nextForwardToken' <<<"$PAGE")
+            if [ "$NEXT" = "$TOKEN" ]; then
+              break
+            fi
+            TOKEN="$NEXT"
+          done
+
+          echo "──────── retention output ────────"
+          if [ -s retention.log ]; then cat retention.log; else echo "(no logs retrieved)"; fi
+          echo "──────────────────────────────────"
+
+          SUMMARY=$(grep -E '^\{"summary":' retention.log | tail -n 1 || true)
+          {
+            echo "### File retention — \`$MODE\`"
+            echo
+            if [ -n "$SUMMARY" ]; then
+              echo '```json'
+              jq '.summary' <<<"$SUMMARY"
+              echo '```'
+            else
+              LAST_PROGRESS=$(grep -E '^\{"progress":' retention.log | tail -n 1 || true)
+              echo "No summary was printed. Last progress line (resume from its \`lastFileId\`):"
+              echo
+              echo '```json'
+              if [ -n "$LAST_PROGRESS" ]; then jq '.progress' <<<"$LAST_PROGRESS"; else echo 'null'; fi
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+
+          echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
+
+          # A pass whose result you cannot see is one you have not run.
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Retention task exited with $EXIT_CODE"
+            exit 1
+          fi
+          if [ -z "$SUMMARY" ]; then
+            echo "::error::The task exited 0 but printed no summary."
+            exit 1
+          fi

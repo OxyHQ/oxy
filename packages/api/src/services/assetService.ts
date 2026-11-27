@@ -118,6 +118,7 @@ import {
   tombstoneApplicationFile,
   tombstoneFederatedFileForApp,
   tombstoneFile,
+  tombstoneExpiredFederationCacheFile,
   tombstoneFileIfDue,
   trashAccountFile,
   trashUnreferencedApplicationFile,
@@ -2046,6 +2047,24 @@ export class AssetService {
     logger.info('Cached media deleted', { fileId });
 
     return { deleted: true, outOfScope: false };
+  }
+
+  /**
+   * Expire ONE federation media-cache entry cached before `cutoff` that
+   * nothing holds (the retention pass, `fileRetention.service.ts`): tombstoned
+   * and purged through the same ledger as {@link deleteCachedMedia}, and taken
+   * off the CDN. `false`: it no longer qualifies (re-referenced, evicted, or
+   * not a cache entry at all), and nothing changed.
+   */
+  async expireFederationCacheEntry(fileId: string, cutoff: Date): Promise<boolean> {
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneExpiredFederationCacheFile(tx, fileId, cutoff),
+      { awaitPurge: true },
+    );
+    if (!tombstoned) return false;
+    this.invalidateServedPaths(tombstoned);
+    logger.info('Federation media cache entry expired', { fileId });
+    return true;
   }
 
   /**

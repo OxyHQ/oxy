@@ -475,6 +475,40 @@ async function renderableImageSource(
   }
 }
 
+/**
+ * The ladder rungs an image upload renders EAGERLY, from
+ * `FILE_IMAGE_EAGER_VARIANTS` (a comma-separated list of ladder names).
+ *
+ * Unset or empty (the default) is the whole ladder, today's behaviour: seven
+ * `file_variants` rows per image, which is ~98% of that table in production
+ * (2026-11-28: 34.4M rows, 17.2 GiB). A rung left out is not lost: the first
+ * request for it renders it ({@link VariantService.ensureImageVariant}, which
+ * every `?variant=` read reaches) and stores it like any other. So the list
+ * trades one render on a rung's first read for a row (and an object) per
+ * image nobody ever asks at that size — the avatar boxes `w96`/`w128` on
+ * content images, `w2048` on phones.
+ *
+ * Fails to the whole ladder: an unknown name is logged and the setting
+ * ignored, so a typo can never stop images from rendering.
+ */
+export function eagerImageVariantTypes(raw: string | undefined): ReadonlySet<ImageVariantName> {
+  const ladder = Object.keys(IMAGE_VARIANTS) as ImageVariantName[];
+  const names = (raw ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+  if (names.length === 0) return new Set(ladder);
+  const unknown = names.filter((name) => !(ladder as string[]).includes(name));
+  if (unknown.length > 0) {
+    logger.error('[Variants] Unknown FILE_IMAGE_EAGER_VARIANTS rung; rendering the whole ladder', {
+      unknown,
+      ladder,
+    });
+    return new Set(ladder);
+  }
+  return new Set(names as ImageVariantName[]);
+}
+
 function spellingOf(file: Pick<FileRecord, 'visibility' | 'status'>): FileVisibility {
   return isServedPublicly(file) ? 'public' : 'private';
 }
@@ -928,7 +962,10 @@ export class VariantService {
       // keeps its id instead of being deleted and reinserted.
       const variants: NewFileVariant[] = [];
       let reused = 0;
+      const eager = eagerImageVariantTypes(process.env.FILE_IMAGE_EAGER_VARIANTS);
       for (const config of this.imageVariants) {
+        // A rung left out renders on its first request (`ensureImageVariant`).
+        if (!eager.has(config.type as ImageVariantName)) continue;
         const existing = await this.getUsableReadyVariant(file, config.type);
         if (existing) {
           reused++;

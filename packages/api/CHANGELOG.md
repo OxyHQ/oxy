@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### The file retention pass (draft; deleting production rows is the owner's decision)
+
+- `scripts/file-retention.ts` (dry run unless `--apply --confirm=delete-file-retention-rows`; in production the `file-retention.yml` ECS one-shot) walks `files` by primary key in bounded windows, inside 01:00-07:00 UTC, backing off and stopping when batches get slow, resumable from the `lastFileId` it prints. Steps: `tombstoneRenditions` (a tombstone's `file_variants` and `file_sources` rows, after making sure its variant directories are owed a delete), `unusedRenditions` (all but one ladder rendition ROW per directory of an image of an account or application unused for 30 days; the objects stay and the rest render again on first read), and the opt-in `federationCacheExpiry` (a media-cache entry cached more than 90 days ago that nothing holds, tombstoned and purged). Nothing referenced, nothing an open claim holds, no original, no video/audio rendition and no other platform namespace is ever touched (`services/fileRetention.service.ts`).
+- `FILE_IMAGE_EAGER_VARIANTS` (comma-separated ladder rungs; unset = the whole ladder, unchanged) lets an image upload render only some rungs eagerly; the others render on their first request.
+
 ### The Oxy Keychain, step 1: the server (ADR 0063)
 
 - Six tables (`keychain_vaults`, `keychain_roster_entries`, `keychain_members`, `keychain_wraps`, `keychain_items`, `keychain_enrollments`; migration 0242), all under the vault and the vault under the account (`ON DELETE CASCADE`); a member's device session is `ON DELETE SET NULL` (orphaned, served nothing). Enrollments are swept a day after they expire.

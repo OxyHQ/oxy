@@ -425,6 +425,22 @@ off 200 files per step per hour. To stop at once, set `report` (or `off`)
 again: nothing is deleted until a file has spent 30 days in trash, and a
 reference or a re-upload restores it until then.
 
+#### The retention pass (proposed; owner decision)
+
+`packages/api/scripts/file-retention.ts` (`services/fileRetention.service.ts`,
+workflow `file-retention.yml`) is an operator-run pass, never scheduled, that
+removes what the shared database keeps for files that no longer need it,
+without changing D5: a TOMBSTONE's `file_variants` and `file_sources` rows (its
+storage is already owed through `storage_object_deletions`; the pass makes sure
+of it first); all but one ladder rendition ROW per directory of an image nobody
+has used for 30 days — of an account or an application — whose objects stay
+and whose other sizes render again on their first read; and, opt-in, a
+federation media-cache entry cached more than 90 days ago that nothing holds
+(the backstop to its using service's own eviction). Nothing referenced, held as
+evidence by an open claim, an original, a video or audio rendition, or another
+platform namespace is touched. Dry run by default; an apply needs
+`--confirm=delete-file-retention-rows`.
+
 ### Required changes in other repositories (stage 1)
 
 - **GoWay** withdraws a contributor's photo from a place with the business's
