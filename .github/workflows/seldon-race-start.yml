@@ -41,7 +41,7 @@ jobs:
       race: ${{ steps.race.outputs.race }}
     steps:
       - id: race
-        uses: OxyHQ/oxy/.github/actions/seldon-race@907bba7c08eb81d0327446de3f08807e0305e769 # main
+        uses: OxyHQ/oxy/.github/actions/seldon-race@0f985e7a8fdc3584107d7f2043c5cd2465075129 # main
         with:
           mode: start
           delay: ${{ inputs.delay }}
