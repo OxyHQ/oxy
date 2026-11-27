@@ -226,6 +226,99 @@ Seldon's release runners `seldon`, `seldon-2` and `seldon-3` were registered onc
 
 **The network.** Since 2026-11-05 the house's connections fail for one to fifteen minutes at a time, for every destination at once (Google, GitHub, Cloudflare). The rejection is `ICMP admin prohibited` from 192.0.0.1, upstream of the double NAT, and it is worse on heavy-build days. Evidence and the probe are in runbook 69. A pool job that hits a burst fails the way a flaky network does; its rescue reruns it hosted, and the retry caller re-runs a failed first attempt hosted.
 
+### Seldon-first routing
+
+This replaces the race, repository by repository. It is the design approved on 2026-11-27; the race's workflows stay in place, inert, until no repository calls them.
+
+**How a job is routed.** One org variable, `SELDON_CI_ROUTE`, is read when a job is queued.
+- A heavy job runs on `seldon-ci` (a light one on `seldon-ci-light`) only while the variable reads `seldon-ci`, and only on the first attempt of a same-repository pull request. Phase 1 routes `pull_request` only; `merge_group` comes later.
+- Anything else runs hosted: an unset variable, a re-run, a fork, the queue.
+- The Seldon CI router, a Cloudflare Worker, owns the variable. It writes `seldon-ci` only while Seldon's heartbeat is fresh (under 2 minutes) and the pool's queue is short, and `hosted` the moment either stops holding.
+- Its watchdog cancels a pull request run stuck on Seldon for 10 minutes while Seldon is unhealthy, and re-runs its failed jobs, which attempt 2 sends hosted.
+- The org is on GitHub Free, where organization variables do not reach private repositories. Every wired repository is public, so one org variable serves them all. A repository variable of the same name would override it: never set one.
+- The router, its heartbeat, its shadow mode and its owner steps are in OxyHQ/oxy-infra runbook 70.
+
+**What is gone.** Twins, the race's start and finish, the reapers, the guard and the retry caller. Seldon offline costs nothing: the route goes hosted, and a job already queued there is cancelled and re-run hosted.
+
+**What stays:**
+- the hosted `X-rescue` of each heavy job: the same display name, strategy and steps, run when `X` failed on Seldon;
+- the hosted `CI complete`.
+
+**The rescue's condition** reads where `X` ran from `X`'s own output `lane`, written by its first step from `runner.environment`. It does not read the variable, which may have changed since `X` was queued. Every shard of a matrix is routed at once, so any shard's `lane` speaks for all of them. If `X` failed before its first step, the output is empty and the variable decides.
+
+**The verdict** (`.github/actions/seldon-route`). It reads only the gate's `needs`, with no token and no API call:
+- `X` success: passed;
+- `X` failure and `X-rescue` success: rescued, which passes (a matrix rescue reruns every shard);
+- `X-rescue` skipped: `X`'s own result decides;
+- anything else fails: a failed or cancelled rescue, or a rescue over a job that did not fail.
+
+**The snippet.** One heavy job `build` (display name `Build`). Further heavy jobs reuse `*seldon-lane` and `*lane-step`. A light job uses `'seldon-ci-light'` in place of `'seldon-ci'`.
+
+```yaml
+jobs:
+  build:
+    name: Build
+    runs-on: &seldon-lane ${{ vars.SELDON_CI_ROUTE == 'seldon-ci' && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      lane: ${{ steps.lane.outputs.lane }}
+    steps: &build-steps
+      # First: where this job ran, for the rescue's condition.
+      - &lane-step
+        id: lane
+        name: Seldon lane
+        run: echo "lane=${{ runner.environment == 'self-hosted' && 'seldon' || 'hosted' }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+      - run: bun install --frozen-lockfile && bun run build
+
+  # Reruns Build hosted when it failed on Seldon. The same name, strategy and steps.
+  build-rescue:
+    name: Build
+    needs: build
+    if: ${{ !cancelled() && needs.build.result == 'failure' && (needs.build.outputs.lane == 'seldon' || (needs.build.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps: *build-steps
+
+  ci-complete:
+    name: CI complete
+    if: always()
+    needs: [build, build-rescue]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Seldon route verdict
+        id: route
+        uses: OxyHQ/oxy/.github/actions/seldon-route@main
+        with:
+          needs: ${{ toJSON(needs) }}
+      - name: Every job passed
+        env:
+          FAMILIES: ${{ steps.route.outputs.families }}
+          OUTCOME: ${{ steps.route.outputs.outcome }}
+        run: |
+          set -euo pipefail
+          # Every family with a rescue is judged by the verdict; a job without
+          # one is judged by its own result, as before.
+          [ "$OUTCOME" = success ] || { echo "::error::a rescued family failed: $FAMILIES"; exit 1; }
+          [ "$(jq -r .build <<<"$FAMILIES")" != skipped ] || { echo "::error::build was skipped"; exit 1; }
+```
+
+A job that needs a heavy job `X` needs `[X, X-rescue]` and runs when either passed (`needs.X.result == 'success' || needs.X-rescue.result == 'success'`). A repository that requires SHA pins pins the action, `uses: OxyHQ/oxy/.github/actions/seldon-route@<sha> # main`.
+
+**Moving a raced repository over**, one pull request each:
+- `runs-on` reads `SELDON_CI_ROUTE` (and `pull_request` only);
+- delete the twins (`X-hosted`), the race and race-finish jobs, the guard step and the retry caller;
+- give each heavy job the lane step and output, and its rescue the new condition and plain name;
+- the gate takes the rescue verdict.
+
+The pull request runs hosted until the router writes the variable, so it proves itself hosted first. The router's `REPOS` gains the repository when it merges.
+
 ### Wiring a repo
 
 Every repository that races calls the same action and reusable workflows from this repo, at `@main` (a repository that requires SHA pins pins the action; see below). Templates that merged: OxyHQ/Gemies#175 and #176 (a new `CI complete`, two waves, rescues), OxyHQ/website#262 and #263, OxyHQ/Bloom#981, OxyHQ/Mention#2052 and OxyHQ/oxy#2330.
