@@ -1,0 +1,68 @@
+name: Seldon race pin
+
+# The race's reusable workflows (seldon-race-start, -finish, -retry) call the
+# seldon-race action at a full commit SHA, because a repository that requires
+# SHA pins (`sha_pinning_required`, OxyHQ/tnp) refuses `@main` inside a workflow
+# it calls (docs/engineering/build-and-deploy.md#ci-on-seldon). When the action
+# changes on main, this opens or updates ONE pull request that moves the three
+# pins to that commit (`.github/scripts/pin-seldon-race.mjs`). Until it merges,
+# the reusable workflows keep the previous action, so a change that needs both
+# a new action and a new workflow lands in two pull requests.
+#
+# A pull request opened with GITHUB_TOKEN starts no `pull_request` workflow and
+# ci.yml has no `workflow_dispatch`, so a person closes and reopens it (or
+# pushes to it) to run CI, then merges it through the queue.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/actions/seldon-race/**
+
+permissions: {}
+
+concurrency:
+  group: seldon-race-pin
+  cancel-in-progress: false
+
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      BRANCH: ci/seldon-race-pin
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Move the pins and open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(node .github/scripts/pin-seldon-race.mjs "$SHA")"
+          if [ -z "$changed" ]; then
+            echo "The reusable workflows already pin the action at $SHA."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$BRANCH"
+          git commit -qam "ci(seldon-race): pin the action at ${SHA:0:9} in the reusable workflows"
+          git push --force origin "$BRANCH"
+          cat > "$RUNNER_TEMP/body.md" <<EOF
+          The seldon-race action changed on main at $SHA. This moves the pin in the race's reusable workflows to that commit:
+
+          $(printf -- '- `%s`\n' $changed)
+
+          Opened by \`seldon-race-pin.yml\` with GITHUB_TOKEN, so no CI has run: close and reopen this pull request to run it, then merge it through the queue.
+          EOF
+          title='ci(seldon-race): pin the action in the reusable workflows'
+          if [ "$(gh pr list --head "$BRANCH" --state open --json number --jq length)" = "0" ]; then
+            gh pr create --base main --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr edit "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi
