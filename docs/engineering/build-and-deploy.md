@@ -375,7 +375,7 @@ A second wave (a raced job that needs another raced job) gets `race-2` and `race
 - arm, macOS and Windows jobs stay hosted.
 - A step that re-resolves the lockfile (`bun install --lockfile-only`, a lockfile-sync check) sets `BUN_CONFIG_REGISTRY=https://registry.npmjs.org/`. The image points bun at the host's cache, and a re-resolve on Seldon writes the cache's URLs into `bun.lock`, so the check fails there and passes hosted (OxyHQ/Homiio run 45903677170).
 - Lanes go to Seldon on `run_attempt` 1 only, so a re-run, and the retry caller's re-run, is hosted.
-- A test with a tight timeout (bun's default 5 s) can trip on Seldon while the pool is full and cost a rescue: OxyHQ/Syra run 45903866884 (a test at 7.6 s) and OxyHQ/Peable run 45924894369 (a `beforeEach` hook). Give a test that does real work an explicit timeout.
+- A test with a tight timeout (bun's default 5 s) can trip on Seldon while the pool is full and cost a rescue: OxyHQ/Syra run 45903866884 (a test at 7.6 s) and OxyHQ/Peable run 45924894369 (a `beforeEach` hook). The cause on Seldon is being investigated; do not raise test timeouts to hide it.
 - Uploads from a raced job use `overwrite: true`, so a rescue replaces what its failed lane uploaded and a merge step reads whichever lane won.
 - A repository that checks job-level `concurrency` (Gemies' `check-workflow-concurrency.mjs`) learns the lanes' groups: unique to the run, no `cancel-in-progress`.
 
