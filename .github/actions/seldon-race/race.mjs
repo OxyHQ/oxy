@@ -162,6 +162,25 @@ export function yields({ jobs, label, jobId }) {
 const PASSING = new Set(['success', 'cancelled', 'skipped']);
 
 /**
+ * A re-run ("Re-run failed jobs") makes a new attempt that runs only some
+ * jobs; the rest keep their result from an earlier attempt. The verdict reads
+ * every attempt (`filter=all`) and judges each job name on the most recent
+ * attempt in which that name actually ran (a job not skipped): a name the
+ * re-run did not touch keeps the lanes of the attempt that ran it, winner and
+ * cancelled loser together, and a name the re-run ran again is judged on that
+ * attempt alone. Jobs without `run_attempt` (fixtures) count as attempt 1.
+ */
+export function latestAttemptPerName(jobs) {
+  const attemptOf = (j) => j.run_attempt ?? 1;
+  const latest = new Map();
+  for (const j of jobs) {
+    if (skipped(j)) continue;
+    latest.set(j.name, Math.max(latest.get(j.name) ?? 0, attemptOf(j)));
+  }
+  return jobs.filter((j) => attemptOf(j) === (latest.get(j.name) ?? attemptOf(j)));
+}
+
+/**
  * The names the verdict judges: every Seldon lane's, and every name that more
  * than one live job carries (a twin or a rescue of a lane that ran hosted).
  */
@@ -182,9 +201,13 @@ function judgedNames(jobs, label) {
  * never excused, and a cancelled (or timed-out) winner with nothing else
  * succeeding is no pass either.
  */
-export function verdict(jobs, label) {
+export function verdict(allJobs, label) {
+  // Which names are raced is read over every attempt (a re-run may run only
+  // one hosted lane of a name); how each one did, on its latest attempt.
+  const names = judgedNames(allJobs, label);
+  const jobs = latestAttemptPerName(allJobs);
   const result = {};
-  for (const name of judgedNames(jobs, label)) {
+  for (const name of names) {
     const lanes = jobs.filter((j) => j.name === name && !skipped(j));
     const conclusion = (j) => (j.status === 'completed' ? j.conclusion : null);
     const hostedOk = lanes
@@ -250,7 +273,7 @@ async function retry(env, label) {
   console.log(`Run ${run.id}: a Seldon lane failed; its failed jobs re-run once, hosted.`);
 }
 
-async function listJobs(env) {
+async function listJobs(env, allAttempts = false) {
   const {
     GITHUB_API_URL: api,
     GITHUB_REPOSITORY: repo,
@@ -260,7 +283,9 @@ async function listJobs(env) {
   const jobs = [];
   for (let page = 1; ; page++) {
     const response = await fetch(
-      `${api}/repos/${repo}/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100&page=${page}`,
+      allAttempts
+        ? `${api}/repos/${repo}/actions/runs/${runId}/jobs?filter=all&per_page=100&page=${page}`
+        : `${api}/repos/${repo}/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100&page=${page}`,
       {
         headers: {
           accept: 'application/vnd.github+json',
@@ -280,10 +305,10 @@ async function listJobs(env) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** listJobs, retried: a transient API error must not decide a race. */
-async function readJobs(env) {
+async function readJobs(env, allAttempts = false) {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await listJobs(env);
+      return await listJobs(env, allAttempts);
     } catch (error) {
       if (attempt >= 5) throw error;
       console.log(`::warning::${error.message}; retrying`);
@@ -368,7 +393,7 @@ async function guard(env, label, intervalMs) {
 }
 
 async function judge(env, label) {
-  const passed = verdict(await readJobs(env), label);
+  const passed = verdict(await readJobs(env, true), label);
   for (const [name, ok] of Object.entries(passed)) {
     console.log(
       ok ? `${name}: passed` : `::error::${name}: no lane passed, or a hosted lane failed`,

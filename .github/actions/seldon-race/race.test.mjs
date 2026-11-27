@@ -12,6 +12,7 @@ import {
   SELDON,
   shouldRetry,
   isControl,
+  latestAttemptPerName,
   started,
   startDecision,
   verdict,
@@ -473,4 +474,33 @@ test("verdict: the race's control jobs are never lanes, a queued reaper on seldo
     pairs(jobs, 'seldon-ci').map((p) => p.name),
     ['Test core'],
   );
+});
+
+test('verdict: a re-run attempt keeps the lanes of names it did not run, and judges names it re-ran on that attempt alone', () => {
+  const job = (id, name, labels, conclusion, run_attempt) => ({
+    id,
+    name,
+    labels,
+    status: 'completed',
+    conclusion,
+    run_attempt,
+    created_at: '2026-11-27T10:00:00Z',
+    started_at: '2026-11-27T10:00:01Z',
+  });
+  const jobs = [
+    // Attempt 1: the hosted twin won "Tests", its Seldon lane was reaped.
+    job(1, 'Tests', ['seldon-ci'], 'cancelled', 1),
+    job(2, 'Tests', ['ubuntu-latest'], 'success', 1),
+    // Attempt 1: "Lint" failed on hosted; attempt 2 re-ran it and it passed.
+    job(3, 'Lint', ['ubuntu-latest'], 'failure', 1),
+    job(4, 'Lint', ['ubuntu-latest'], 'success', 2),
+  ];
+  assert.deepEqual(
+    latestAttemptPerName(jobs).map((j) => j.id),
+    [1, 2, 4],
+  );
+  assert.deepEqual(verdict(jobs, 'seldon-ci'), { Tests: true, Lint: true });
+  // A name the re-run ran again and failed stays failed.
+  const refailed = [...jobs.slice(0, 2), job(5, 'Tests', ['ubuntu-latest'], 'failure', 2)];
+  assert.deepEqual(verdict(refailed, 'seldon-ci'), { Tests: false });
 });
