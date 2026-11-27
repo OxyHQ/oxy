@@ -15,6 +15,7 @@ import {
   publicPackages,
   releaseTag,
   workspaceDependencies,
+  buildOrder,
   workspacePackages,
   workspaceRangeProblems,
 } from './release-package.mjs';
@@ -150,6 +151,38 @@ test('the workspace packages to build come dependencies first, registry ranges e
   ]);
   assert.deepEqual(workspaceDependencies('services', workspaces), ['packages/contracts']);
   assert.deepEqual(workspaceDependencies('contracts', workspaces), []);
+});
+
+test('a peer on a workspace of this repository is built first, whatever its range', () => {
+  // Bloom's language peers the root package `@oxy.so/bloom` (`>=23.9.1`); bun cannot link the
+  // root as `workspace:`, and the language's build compiles against Bloom's lib/.
+  const workspaces = [
+    {
+      directory: '.',
+      manifest: { name: 'bloom', peerDependencies: { lens: 'workspace:>=1.0.0' } },
+    },
+    workspace('lens'),
+    {
+      directory: 'packages/language',
+      manifest: { name: 'language', peerDependencies: { bloom: '>=23.9.1', react: '*' } },
+    },
+    workspace('codemod', {}, { language: 'workspace:*' }),
+  ];
+  assert.deepEqual(workspaceDependencies('language', workspaces), ['packages/lens', '.']);
+  assert.deepEqual(buildOrder(['language', 'codemod'], workspaces), [
+    'packages/lens',
+    '.',
+    'packages/language',
+    'packages/codemod',
+  ]);
+  // A registry range in dependencies or devDependencies still links nothing.
+  assert.deepEqual(
+    workspaceDependencies('services', [
+      workspace('services', { core: '4.10.0' }),
+      workspace('core'),
+    ]),
+    [],
+  );
 });
 
 test('a workspace cycle is refused', () => {
