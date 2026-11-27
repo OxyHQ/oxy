@@ -196,7 +196,7 @@ The group is not restricted to workflows, so no secret may ever be put in the im
 
 **Who reaches it.** Only a repository's own code. A fork's pull request always runs hosted: the workflows route only `push`, `merge_group`, `workflow_dispatch`, `schedule` and same-repository `pull_request` runs to the pool, and the org's fork-PR approval (`all_external_contributors`) still gates every fork run.
 
-**Routing: the race (Bloom, oxy and Mention, each with the repository variable `CI_SELDON_RACE=true`).** GitHub cannot let a job say "Seldon or hosted", and it has no API that cancels a single job. A job whose label has no online runner waits up to 24 hours instead of failing. So a heavy job races, using only `GITHUB_TOKEN` (`.github/actions/seldon-race` and its reusable workflows in this repo):
+**Routing: the race (every repository in [Wiring a repo](#wiring-a-repo), each with the repository variable `CI_SELDON_RACE=true`).** GitHub cannot let a job say "Seldon or hosted", and it has no API that cancels a single job. A job whose label has no online runner waits up to 24 hours instead of failing. So a heavy job races, using only `GITHUB_TOKEN` (`.github/actions/seldon-race` and its reusable workflows in this repo):
 1. The job targets `seldon-ci`. A hosted twin with the same name and steps (YAML anchors) waits.
 2. A hosted start job watches the run. If a Seldon lane is still unstarted after the delay, because the pool is busy or offline, the twin queues too.
 3. Each lane's first step is a guard. A lane that starts after its twin sleeps until it is cancelled, so the work never runs twice.
@@ -224,7 +224,197 @@ Seldon being down therefore costs the delay, never the run, and with the variabl
 
 Seldon's release runners `seldon`, `seldon-2` and `seldon-3` were registered once with a registration token (2026-11-04) and use no App. The repo-level `seldon-oxyos-*` runners serve OxyHQ/OxyOS's gate. Never give a workflow a runner App's key: runners: write can register a runner into any group, `seldon` included.
 
-**The network.** Since 2026-11-05 the house's connections fail for one to fifteen minutes at a time, for every destination at once (Google, GitHub, Cloudflare). The rejection is `ICMP admin prohibited` from 192.0.0.1, upstream of the double NAT, and it is worse on heavy-build days. Evidence and the probe are in runbook 69. A pool job that hits a burst fails the way a flaky network does; the race does not retry a failed lane.
+**The network.** Since 2026-11-05 the house's connections fail for one to fifteen minutes at a time, for every destination at once (Google, GitHub, Cloudflare). The rejection is `ICMP admin prohibited` from 192.0.0.1, upstream of the double NAT, and it is worse on heavy-build days. Evidence and the probe are in runbook 69. A pool job that hits a burst fails the way a flaky network does; its rescue reruns it hosted, and the retry caller re-runs a failed first attempt hosted.
+
+### Wiring a repo
+
+Every repository that races calls the same action and reusable workflows from this repo, at `@main` (a repository that requires SHA pins pins the action; see below). Templates that merged: OxyHQ/Gemies#175 and #176 (a new `CI complete`, two waves, rescues), OxyHQ/website#262 and #263, OxyHQ/Bloom#981, OxyHQ/Mention#2052 and OxyHQ/oxy#2330.
+
+**Worth wiring.** A repository races when at least one Linux x64 pull-request job usually runs a minute or more. Below that, the hosted start job and the gate cost more hosted slots than the lane saves; for a private repository, every job is also billed as at least a minute.
+
+**Where each job goes.**
+- `seldon-ci` (4 vCPU / 10 GiB): any job that runs a full `tsc` or typecheck, a large test suite, a large image build, a Rust build, or needs more than about 1.5 GB.
+- `seldon-ci-light` (2 vCPU / 3 GiB): a job under about 1.5 GB with no full `tsc`, such as a bundle or a small build.
+- Hosted: lint, change detection, provenance, the race's start job and `CI complete`, where a hosted slot is short. arm, macOS and Windows jobs. Jobs that need a tool the image lacks (no Android SDK, no Xcode), and anything that publishes.
+
+**Steps.**
+1. Read the repository's rulesets, or its classic branch protection when it has none (`gh api repos/OxyHQ/<repo>/rulesets`, then each one's `required_status_checks`). Keep a copy of the JSON.
+2. Open one pull request with:
+   - a `CI complete` gate, if the repository has none;
+   - a lane, a twin and a rescue for each heavy job, and light routing;
+   - one start and one finish per wave of raced jobs;
+   - the retry caller: a copy of OxyHQ/Bloom's `.github/workflows/seldon-race-retry.yml` with `workflows:` set to the CI workflow's `name:`;
+   - a fix for anything that reads a raced run's conclusion (below).
+3. When the required checks are only `CI complete`, or none: `gh variable set CI_SELDON_RACE -R OxyHQ/<repo> --body true` before the pull request runs. Prove the race with that run: a heavy job passed on a `seldon-ci` runner (not just a reaper on `seldon-ci-light`) and `CI complete` passed. When the pool is busy the hosted twins win; that shows the race works, not that Seldon does, so prove it again on a later pull request. Then merge it.
+4. When the required checks name individual jobs: get the pull request green hosted, with the variable unset, and leave it open. The required checks are switched to `CI complete` first; then the wiring merges, the variable is set, and the next pull request proves the race. A required job name cannot follow the race: the twin and the rescue share the name, and a cancelled loser reports under it.
+
+**The snippet.** One raced job `build` (display name `Build`) in one wave. Further raced jobs reuse `*seldon-lane`, `*race-lane-permissions` and `*race-guard`.
+
+```yaml
+jobs:
+  race:
+    if: ${{ !cancelled() && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork }}
+    uses: OxyHQ/oxy/.github/workflows/seldon-race-start.yml@main
+    permissions:
+      actions: read
+    with:
+      names: |
+        Build
+
+  race-finish:
+    needs: race
+    # `!cancelled()`: a skipped ancestor must not skip it.
+    if: ${{ !cancelled() && needs.race.outputs.race == 'true' }}
+    uses: OxyHQ/oxy/.github/workflows/seldon-race-finish.yml@main
+    permissions:
+      actions: read
+    with:
+      names: |
+        Build
+
+  build:
+    name: Build
+    runs-on: &seldon-lane ${{ vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
+    concurrency:
+      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-seldon-Build
+    permissions: &race-lane-permissions
+      contents: read
+      actions: read # the guard reads this run's jobs
+    timeout-minutes: 20
+    steps: &build-steps
+      # A lane that starts after its twin waits here to be cancelled.
+      - &race-guard
+        name: Seldon race guard
+        if: vars.CI_SELDON_RACE == 'true' && !endsWith(github.job, '-rescue')
+        uses: OxyHQ/oxy/.github/actions/seldon-race@main
+        with:
+          mode: guard
+      - uses: actions/checkout@v7
+      - run: bun install --frozen-lockfile && bun run build
+
+  # The hosted twin: the same name (while the race is on), services, strategy and steps.
+  build-hosted:
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Build' || 'Build (seldon twin, off)' }}
+    needs: race
+    if: ${{ !cancelled() && needs.race.outputs.race == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-hosted-Build
+    permissions: *race-lane-permissions
+    steps: *build-steps
+
+  # The rescue: reruns the job hosted when its Seldon lane failed.
+  build-rescue:
+    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Build' || 'Build (seldon rescue, off)' }}
+    needs: build
+    if: ${{ !cancelled() && needs.build.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions: *race-lane-permissions
+    steps: *build-steps
+
+  ci-complete:
+    name: CI complete
+    if: always()
+    # Not race-finish: its reapers run on seldon-ci-light.
+    needs: [race, build, build-hosted, build-rescue]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read # the verdict reads this run's jobs
+    steps:
+      - name: Seldon race verdict
+        id: race
+        if: vars.CI_SELDON_RACE == 'true'
+        uses: OxyHQ/oxy/.github/actions/seldon-race@main
+        with:
+          mode: verdict
+      - name: Every job passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          RACE_VERDICT: ${{ steps.race.outputs.outcome }}
+        run: |
+          set -euo pipefail
+          failures=()
+          result() { jq -r --arg job "$1" '.[$job].result // "missing"' <<<"$RESULTS"; }
+          r="$(result race)"
+          case "$r" in success | skipped) ;; *) failures+=("race did not pass: $r") ;; esac
+          # The verdict when the race or the rescue ran; otherwise the job's
+          # own result, with its twin skipped.
+          family() {
+            local job="$1" wave="$2" own twin rescue raced
+            own="$(result "$job")"; twin="$(result "$job-hosted")"; rescue="$(result "$job-rescue")"
+            raced="$(jq -r --arg w "$wave" '.[$w].outputs.race // ""' <<<"$RESULTS")"
+            if [ "$rescue" != skipped ] || { [ "$raced" = true ] && ! { [ "$own" = skipped ] && [ "$twin" = skipped ]; }; }; then
+              family="${RACE_VERDICT:-no verdict}"; return
+            fi
+            [ "$twin" = skipped ] || failures+=("$job-hosted ran although the race did not: $twin")
+            family="$own"
+          }
+          family build race
+          [ "$family" = success ] || failures+=("build did not pass: $family")
+          if [ ${#failures[@]} -gt 0 ]; then printf '::error::%s\n' "${failures[@]}"; exit 1; fi
+```
+
+A second wave (a raced job that needs another raced job) gets `race-2` and `race-2-finish` with its own `names`, and `race-2` needs the first wave's three jobs and runs when any of them passed. Every job that needs a raced job `X` needs `[X, X-hosted, X-rescue]` and accepts success from any of the three; a matrix job's twin and rescue keep its `strategy`, and its concurrency group includes the matrix display name.
+
+**A repository that requires SHA pins** (`sha_pinning_required` in its Actions policy, OxyHQ/tnp for one) refuses an action at `@main`, inside a workflow it calls too. It does not refuse a reusable-workflow ref by branch: a tnp probe called `seldon-race-start.yml` by branch name and passed (tnp run 45908673941). So:
+- the race's reusable workflows call the action at a full SHA, marked `# main`. When the action changes on main, `seldon-race-pin.yml` opens an issue with the exact command that moves those pins (`.github/scripts/pin-seldon-race.mjs`). It cannot open the pull request itself, because GitHub refuses a `GITHUB_TOKEN` push that changes `.github/workflows/`;
+- such a repository pins its own guard and verdict steps the same way (`uses: OxyHQ/oxy/.github/actions/seldon-race@<sha> # main`), and may call the reusable workflows `@main`.
+
+**Rules learned the hard way.**
+- While `CI_SELDON_RACE` is unset, a twin or a rescue does not share its job's display name: `X (seldon twin, off)` and `X (seldon rescue, off)`, built with `format()` for a matrix name. A skipped one would otherwise be the newest check run of that name and could mask a failed required check. With the variable set the names match, which the race needs, since it pairs lanes by display name. GitHub does not evaluate a skipped job's name, so a skipped twin shows the expression itself in the checks list; it still differs from `X`, which is what matters.
+- The required checks are switched to `CI complete` before the wiring merges, never after.
+- Every twin, rescue and finish job runs under `!cancelled()`. Without a status function, a skipped ancestor skips it.
+- No gate waits on a finish job: its reapers run on `seldon-ci-light`, so needing it would wait on Seldon.
+- The race runs on `pull_request` and `merge_group` only, never on `push` or `workflow_dispatch`. Deploys that trust a push run stay unchanged.
+- Anything that reads a run's conclusion (a deploy, queue provenance, a release check) accepts a `cancelled` or `failure` run whose `CI complete` passed: a reaped loser makes the run `cancelled`, a rescued lane makes it `failure`. See OxyHQ/Bloom, OxyHQ/Mention and OxyHQ/website `merge-queue-verified.sh`, and `release-package.mjs` here.
+- A check that judges a job name from the jobs API passes the name when one of its jobs succeeded and none failed, never by whichever job of that name the API lists last: that can be a skipped twin or rescue (OxyHQ/Mercaria `require-ci-success.mjs`, #1258).
+- Jobs that run a full `tsc` or typecheck stay on `seldon-ci`. Only jobs under about 1.5 GB with no full `tsc` go to `seldon-ci-light`.
+- arm, macOS and Windows jobs stay hosted.
+- A step that re-resolves the lockfile (`bun install --lockfile-only`, a lockfile-sync check) sets `BUN_CONFIG_REGISTRY=https://registry.npmjs.org/`. The image points bun at the host's cache, and a re-resolve on Seldon writes the cache's URLs into `bun.lock`, so the check fails there and passes hosted (OxyHQ/Homiio run 45903677170).
+- Lanes go to Seldon on `run_attempt` 1 only, so a re-run, and the retry caller's re-run, is hosted.
+- A test with a tight timeout (bun's default 5 s) can trip on Seldon while the pool is full and cost a rescue: OxyHQ/Syra run 45903866884 (a test at 7.6 s) and OxyHQ/Peable run 45924894369 (a `beforeEach` hook). The cause on Seldon is being investigated; do not raise test timeouts to hide it.
+- Uploads from a raced job use `overwrite: true`, so a rescue replaces what its failed lane uploaded and a merge step reads whichever lane won.
+- A repository that checks job-level `concurrency` (Gemies' `check-workflow-concurrency.mjs`) learns the lanes' groups: unique to the run, no `cancel-in-progress`.
+
+**Wired repositories.** The ruleset is the one on `main`; the proof run is a pull-request or queue run in which a heavy job passed on a `seldon-ci` runner and the gate passed.
+
+| Repository | Pull request | Ruleset (required checks) | `CI_SELDON_RACE` | Proof run |
+| --- | --- | --- | --- | --- |
+| OxyHQ/Bloom | #981, #1013 | 24486145 (`CI complete`) | on | 45906280655 |
+| OxyHQ/oxy | #2330, #2337, #2338 | 24004899 (`CI complete`) | on | 45904419882 |
+| OxyHQ/Mention | #2052, #2054 | 24154319 (`CI complete`) | on | 45908926689 |
+| OxyHQ/Gemies | #175, #176, #180 | 27102831 (`CI complete`) | on | 45910924235 |
+| OxyHQ/website | #262, #263, #264 | 24486392 (`CI complete`) | on | 45904450111 |
+| OxyHQ/Homiio | #852, #854 | classic protection (`CI complete`) | on | 45905599854 |
+| OxyHQ/Inbox | #277, #279 | 24913174 (`CI complete`) | on | 45923523037 |
+| OxyHQ/Mercaria | #1258, #1259 | classic protection (`CI complete`) | on | 45907441667 |
+| OxyHQ/Allo | #333, #334 | classic protection (`CI complete`) | on | 45905820020 |
+| OxyHQ/Kaana | #343, #344 | classic protection (`CI complete`) | on | 45903882616 |
+| OxyHQ/OxyOS | #631 | 24913180 (`Native foundation complete`, `apps-tests`, `scenarios`) | on | 45907614898 (merge queue) |
+| OxyHQ/Nilo | #231 | 24913178 (`CI complete`) | on | 45924905092 |
+| OxyHQ/Clarity | #259, #260 | 24913171 (`CI complete`) | on | 45903917133 |
+| OxyHQ/Authenticator | #93, #94 | 24913169 (`CI complete`) | on | 45904218326 |
+| OxyHQ/Move | #86 | 24913177 (`CI complete`) | on | 45902328064 |
+| OxyHQ/Noted | #328, #329 | 24913179 (`CI complete`) | on | 45905949845 |
+| OxyHQ/CrowdSource | #359 | 24913172 (`CI complete`) | on | 45944430533 |
+| OxyHQ/Schedio | #113, #114 | 24913181 (`CI complete`) | on | 45903644109 |
+| OxyHQ/Vibbr | #18 (open: auto-merge is off) | none | on | 45904270967 |
+| OxyHQ/Moovo | #225, #226 | 24913176 (`CI complete`) | on | raced, hosted won (45915581017) |
+| OxyHQ/Syra | #316, #317 | classic protection (`CI complete`) | on | Seldon lane rescued (45903866884) |
+| OxyHQ/Peable | #311, #313 | classic protection (`CI complete`) | on | Seldon lane rescued (45924894369) |
+| OxyHQ/GoWay | #328 (open: main fails `oxy-doctor`) | classic protection (`CI complete`) | on | raced (45904730546) |
+| OxyHQ/tnp | #164 (open: waits for the switch and a code-owner review) | 24913182 (five job names) | off | none yet |
+
+"Raced, hosted won" and "rescued" are runs in which the race and the gate worked but no heavy job passed on Seldon, because the pool was full or a timing-sensitive test tripped there. Each still needs a run in which Seldon wins.
+
+**Not wired.**
+- Every pull-request job usually runs under a minute: OxyHQ/Alia (48 s at most), Atlas (about 30 s), Dropsea (29 to 48 s), Codea (about 25 s), Willo (8 to 31 s), examples, BloomAiIcons and willo-local (under 25 s), and oxy-infra (private; 8 to 16 s jobs, each billed as a minute).
+- OxyHQ/activity-wallpaper: its one job is an Android build, and the image has no Android SDK.
+- OxyHQ/react-native and OxyHQ/maplibre-react-native: forks of upstream projects, with upstream's CI.
+- The repositories with no pull-request CI: Astro, Studio, OxyPaySDK, engineering, mercaria-woocommerce and `.github`.
 
 ## Commands
 
