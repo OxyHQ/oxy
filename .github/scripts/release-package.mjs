@@ -111,9 +111,9 @@ export function workspaceDependencies(name, workspaces) {
     if (path.includes(current))
       throw new Error(`workspace cycle: ${[...path, current].join(' -> ')}`);
     if (order.includes(current)) return;
+    // A `workspace:` link, or a peer on a workspace of this repository (whatever its
+    // range): the peer's types are compiled against, so it is built first.
     for (const field of DEPENDENCY_FIELDS)
-      // A `workspace:` link, or a peer on a workspace of this repository (whatever its
-      // range): the peer's types are compiled against, so it is built first.
       for (const [dependency, range] of Object.entries(byName.get(current).manifest[field] ?? {}))
         if (
           byName.has(dependency) &&
