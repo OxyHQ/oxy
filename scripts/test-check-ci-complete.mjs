@@ -81,14 +81,10 @@ function needsFor(root, overrides = {}) {
   const parsed = Bun.YAML.parse(readFileSync(join(root, WORKFLOW), 'utf8'));
   const needs = {};
   for (const id of Object.keys(parsed?.jobs ?? {})) {
-    // `race-finish` is never a dependency of the gate (NOT_GATED).
-    if (id === GATE_JOB_ID || id === 'race-finish') continue;
-    // The Seldon race's control jobs, hosted twins and rescues are skipped
-    // whenever the race is off and no Seldon lane failed, which is the run
-    // these defaults describe.
-    const raceOnly =
-      id === 'race' || id === 'race-finish' || id.endsWith('-hosted') || id.endsWith('-rescue');
-    needs[id] = { result: raceOnly ? 'skipped' : 'success', outputs: {} };
+    if (id === GATE_JOB_ID) continue;
+    // The rescues are skipped whenever no heavy job failed on Seldon, which is
+    // the run these defaults describe.
+    needs[id] = { result: id.endsWith('-rescue') ? 'skipped' : 'success', outputs: {} };
   }
   // The scope job's outputs are part of the verdict: a real run reports them.
   if (needs.scope)
@@ -217,8 +213,8 @@ function expectVerdict(
       )
       // `api-coverage`'s `if:` only follows its dependencies.
       .replace(
-        '    needs: [api-test, api-test-hosted, api-test-rescue, race]\n',
-        '    needs: [api-test, api-test-hosted, api-test-rescue, race, guards]\n',
+        '    needs: [api-test, api-test-rescue]\n',
+        '    needs: [api-test, api-test-rescue, guards]\n',
       ),
   );
   expectVerdict(
@@ -277,105 +273,16 @@ function expectVerdict(
 // its own — the list is read from the real workflow, not written here, so a job
 // added later is covered the day it lands — and the named ones must still be
 // in it, so a rename that quietly empties this loop goes red too.
-// ── The Seldon race ─────────────────────────────────────────────────────────
-// A raced pair is judged on the race's verdict, never on its jobs' own results.
-{
-  const root = createFixture();
-  const racedNeeds = needsFor(root, {
-    race: { result: 'success', outputs: { race: 'true' } },
-    'api-test': 'cancelled',
-    'api-test-hosted': 'success',
-  });
-  expectVerdict(
-    'race-loser-cancelled-passes',
-    root,
-    racedNeeds,
-    0,
-    'CI is complete',
-    'merge_group',
-    {
-      RACED: 'true',
-      RACE_VERDICT: 'success',
-    },
-  );
-  expectVerdict(
-    'race-verdict-failure-fails',
-    root,
-    racedNeeds,
-    1,
-    'passed in no lane',
-    'merge_group',
-    {
-      RACED: 'true',
-      RACE_VERDICT: 'failure',
-    },
-  );
-  expectVerdict(
-    'race-verdict-missing-fails',
-    root,
-    racedNeeds,
-    1,
-    'passed in no lane',
-    'merge_group',
-    { RACED: 'true' },
-  );
-  expectVerdict(
-    'twin-without-race-fails',
-    root,
-    needsFor(root, { 'api-build-hosted': 'success' }),
-    1,
-    'although the Seldon race did not run',
-    'merge_group',
-  );
-  expectVerdict(
-    'no-race-loser-cancelled-fails',
-    root,
-    needsFor(root, { 'api-test': 'cancelled' }),
-    1,
-    '`api-test` was cancelled',
-    'merge_group',
-  );
-  expectVerdict(
-    'race-control-failure-fails',
-    root,
-    needsFor(root, { race: 'failure' }),
-    1,
-    '`race` failed',
-    'merge_group',
-  );
-}
-
 // ── The Seldon rescue ───────────────────────────────────────────────────────
-// A Seldon lane that failed reruns hosted in `X-rescue`; the family is judged
-// on the verdict whenever the rescue ran, with or without the race.
+// A heavy job that failed on Seldon reruns hosted in `X-rescue`. When the
+// rescue ran, the family passes only when the job failed and the rescue passed.
 {
   const root = createFixture();
   const rescuedNeeds = needsFor(root, {
     'api-test': 'failure',
     'api-test-rescue': 'success',
   });
-  for (const event of ['pull_request', 'merge_group']) {
-    expectVerdict(`rescue-passes-${event}`, root, rescuedNeeds, 0, 'CI is complete', event, {
-      RACE_VERDICT: 'success',
-    });
-  }
-  expectVerdict(
-    'rescue-verdict-failure-fails',
-    root,
-    rescuedNeeds,
-    1,
-    '`api-test` was rescued on hosted',
-    'merge_group',
-    { RACE_VERDICT: 'failure' },
-  );
-  expectVerdict(
-    'rescue-verdict-missing-fails',
-    root,
-    rescuedNeeds,
-    1,
-    'passed in no lane',
-    'merge_group',
-  );
+  expectVerdict('rescue-passes', root, rescuedNeeds, 0, 'CI is complete', 'pull_request');
   // A genuine failure fails the rescue too, and the coverage merge then skips:
   // the gate names the family, never the merge's inherited skip.
   const genuine = needsFor(root, {
@@ -389,34 +296,26 @@ function expectVerdict(
     genuine,
     1,
     '`api-test` was rescued on hosted',
-    'merge_group',
-    { RACE_VERDICT: 'failure' },
-  );
-  expectVerdict(
-    'rescue-genuine-failure-pr-excuses-the-merge-skip',
-    root,
-    genuine,
-    1,
-    '`api-test` was rescued on hosted',
     'pull_request',
-    { RACE_VERDICT: 'failure' },
   );
-  // Raced and rescued at once: one verdict for the whole family.
   expectVerdict(
-    'race-and-rescue-passes',
+    'rescue-cancelled-fails',
     root,
-    needsFor(root, {
-      race: { result: 'success', outputs: { race: 'true' } },
-      'api-build': 'failure',
-      'api-build-hosted': 'cancelled',
-      'api-build-rescue': 'success',
-    }),
-    0,
-    'CI is complete',
-    'merge_group',
-    { RACED: 'true', RACE_VERDICT: 'success' },
+    needsFor(root, { 'api-build': 'failure', 'api-build-rescue': 'cancelled' }),
+    1,
+    '`api-build` was rescued on hosted',
+    'pull_request',
   );
-  // Without the race and without a rescue, a failure is judged as any job.
+  // A rescue over a job that did not fail is not a rescue.
+  expectVerdict(
+    'rescue-over-a-passing-job-fails',
+    root,
+    needsFor(root, { 'packages-platform-rescue': 'success' }),
+    1,
+    '`packages-platform` was rescued on hosted',
+    'pull_request',
+  );
+  // Without a rescue, a failure is judged as any job.
   expectVerdict(
     'unrescued-failure-fails',
     root,
@@ -424,7 +323,24 @@ function expectVerdict(
     1,
     '`packages-apps` failed.',
     'pull_request',
-    { RACE_VERDICT: 'success' },
+  );
+  // The merge queue never runs a rescue (nothing routes it to Seldon): its
+  // skipped rescues are not needed, and every other skip still fails there.
+  expectVerdict(
+    'queue-with-idle-rescues-passes',
+    root,
+    needsFor(root),
+    0,
+    'CI is complete',
+    'merge_group',
+  );
+  expectVerdict(
+    'queue-cancelled-job-fails',
+    root,
+    needsFor(root, { 'api-test': 'cancelled' }),
+    1,
+    '`api-test` was cancelled',
+    'merge_group',
   );
 }
 
@@ -441,22 +357,8 @@ const REQUIRED_JOBS = [
 ];
 const workflowJobs = Object.keys(
   Bun.YAML.parse(readFileSync(join(repoRoot, WORKFLOW), 'utf8'))?.jobs ?? {},
-).filter((id) => id !== GATE_JOB_ID && id !== 'race-finish');
+).filter((id) => id !== GATE_JOB_ID);
 
-{
-  // The race's finish and its reapers wait on Seldon: the gate must not need them.
-  const root = createFixture();
-  edit(root, 'race-finish-must-not-be-a-dependency', (yaml) =>
-    yaml.replace('      - race\n', '      - race\n      - race-finish\n'),
-  );
-  expectVerdict(
-    'race-finish-must-not-be-a-dependency',
-    root,
-    { ...needsFor(root), 'race-finish': { result: 'success', outputs: {} } },
-    1,
-    'which it must not',
-  );
-}
 for (const job of REQUIRED_JOBS) {
   if (!workflowJobs.includes(job)) {
     failures.push(
