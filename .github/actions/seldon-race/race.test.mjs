@@ -11,6 +11,8 @@ import {
   parseNames,
   SELDON,
   shouldRetry,
+  isControl,
+  latestAttemptPerName,
   started,
   startDecision,
   verdict,
@@ -432,4 +434,73 @@ test('retry: a failed pull-request run whose failure ran on Seldon re-runs once'
   assert.equal(shouldRetry(run, [seldon, rescue('skipped')], 'seldon-ci'), true);
   assert.equal(shouldRetry(run, [seldon, rescue('cancelled')], 'seldon-ci'), true);
   assert.equal(shouldRetry(run, [light], 'seldon-ci'), true);
+});
+
+test("verdict: the race's control jobs are never lanes, a queued reaper on seldon-ci-light included", () => {
+  const job = (id, name, labels, status, conclusion) => ({
+    id,
+    name,
+    labels,
+    status,
+    conclusion,
+    created_at: '2026-11-27T10:00:00Z',
+    started_at: '2026-11-27T10:00:01Z',
+  });
+  const jobs = [
+    job(1, 'Test core', ['seldon-ci'], 'completed', 'success'),
+    job(2, 'Test core', ['ubuntu-latest'], 'completed', 'cancelled'),
+    job(
+      3,
+      'race-finish / Reap seldon-race-1-1-hosted-Test core',
+      ['seldon-ci-light'],
+      'queued',
+      null,
+    ),
+    job(
+      4,
+      'race-finish / Seldon race reap seldon-race-1-1-hosted-Test core',
+      ['seldon-ci-light'],
+      'in_progress',
+      null,
+    ),
+    job(5, 'race / Seldon race start', ['ubuntu-latest'], 'completed', 'success'),
+  ];
+  assert.equal(isControl(jobs[2]), true);
+  assert.equal(isControl(jobs[3]), true);
+  assert.equal(isControl(jobs[4]), true);
+  assert.equal(isControl(jobs[0]), false);
+  assert.deepEqual(verdict(jobs, 'seldon-ci'), { 'Test core': true });
+  assert.deepEqual(
+    pairs(jobs, 'seldon-ci').map((p) => p.name),
+    ['Test core'],
+  );
+});
+
+test('verdict: a re-run attempt keeps the lanes of names it did not run, and judges names it re-ran on that attempt alone', () => {
+  const job = (id, name, labels, conclusion, run_attempt) => ({
+    id,
+    name,
+    labels,
+    status: 'completed',
+    conclusion,
+    run_attempt,
+    created_at: '2026-11-27T10:00:00Z',
+    started_at: '2026-11-27T10:00:01Z',
+  });
+  const jobs = [
+    // Attempt 1: the hosted twin won "Tests", its Seldon lane was reaped.
+    job(1, 'Tests', ['seldon-ci'], 'cancelled', 1),
+    job(2, 'Tests', ['ubuntu-latest'], 'success', 1),
+    // Attempt 1: "Lint" failed on hosted; attempt 2 re-ran it and it passed.
+    job(3, 'Lint', ['ubuntu-latest'], 'failure', 1),
+    job(4, 'Lint', ['ubuntu-latest'], 'success', 2),
+  ];
+  assert.deepEqual(
+    latestAttemptPerName(jobs).map((j) => j.id),
+    [1, 2, 4],
+  );
+  assert.deepEqual(verdict(jobs, 'seldon-ci'), { Tests: true, Lint: true });
+  // A name the re-run ran again and failed stays failed.
+  const refailed = [...jobs.slice(0, 2), job(5, 'Tests', ['ubuntu-latest'], 'failure', 2)];
+  assert.deepEqual(verdict(refailed, 'seldon-ci'), { Tests: false });
 });
