@@ -1,0 +1,18 @@
+name: Seldon route verdict
+description: >-
+  For CI complete under Seldon-first routing (docs/engineering/build-and-deploy.md#seldon-first-routing).
+  Judges each heavy job X that has a hosted rescue X-rescue: passed when X passed, or when X failed
+  on Seldon and X-rescue passed. Reads only `needs`; no token, no API call.
+inputs:
+  needs:
+    description: The gate's `toJSON(needs)`.
+    required: true
+outputs:
+  outcome:
+    description: "'success' when no rescued family failed, else 'failure'."
+  families:
+    description: 'JSON: { X: "passed" | "rescued" | "skipped" | "failed" } for every X with an X-rescue in needs.'
+runs:
+  # The runner's own Node: nothing to install.
+  using: node24
+  main: route.mjs

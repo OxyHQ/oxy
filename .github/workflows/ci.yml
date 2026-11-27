@@ -1025,6 +1025,7 @@ jobs:
           npm ci --prefix .github/scripts/release-runtime --ignore-scripts --no-audit --fund=false --userconfig /dev/null
           node --test .github/scripts/release-package.test.mjs
           node --test .github/actions/seldon-race/race.test.mjs
+          node --test .github/actions/seldon-route/route.test.mjs
           node --test .github/scripts/pin-seldon-race.test.mjs
           bash .github/scripts/test-run-external-identity-reconciliation.sh
           bash .github/scripts/test-collect-external-identity-task.sh
