@@ -1376,8 +1376,10 @@ export async function refreshUnreferencedSinceAfterMove(
  * own included — an application's own reference is exactly what keeps its
  * file), no mail attachment, no store listing screenshot. The sweep re-checks
  * it in every conditional write, so `unreferenced_since` is only ever a hint.
+ * Exported for the retention pass (`fileRetention.service.ts`), which re-checks
+ * the same definition.
  */
-function heldByNothing(db: DatabaseOrTransaction) {
+export function heldByNothing(db: DatabaseOrTransaction) {
   return and(
     notExists(
       db.select({ one: sql`1` }).from(fileReferences).where(eq(fileReferences.fileId, files.id)),
@@ -1594,6 +1596,50 @@ export async function tombstoneFileIfDue(
     .update(files)
     .set({ status: 'deleted' })
     .where(and(eq(files.id, fileId), fileLifecyclePredicate(step, now, tx)))
+    .returning();
+  const [record] = await withChildren(rows, tx);
+  return record ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// The retention pass's federation-cache expiry (`fileRetention.service.ts`)
+// ---------------------------------------------------------------------------
+
+/**
+ * A federation media-cache entry (`__federation_media_cache__`, purpose
+ * `federation-media-cache`) that is still `active`, was cached before `cutoff`
+ * and that nothing on the platform holds. Its using service (Mention) evicts
+ * entries idle 30 days by itself; this is the platform's backstop for entries
+ * that eviction never reaches. Only ever this namespace: an account's or an
+ * application's file can never match.
+ */
+export function federationCacheExpiryPredicate(cutoff: Date, db: DatabaseOrTransaction = getDb()) {
+  return and(
+    eq(files.systemOwner, '__federation_media_cache__'),
+    eq(files.purpose, 'federation-media-cache'),
+    isNull(files.ownerUserId),
+    isNull(files.ownerApplicationId),
+    eq(files.status, 'active'),
+    lte(files.createdAt, cutoff),
+    heldByNothing(db),
+    sql`not ${heldAsEvidence(qualified(files.sha256))}`,
+  );
+}
+
+/**
+ * Tombstone ONE federation cache entry if, at this statement, it still meets
+ * {@link federationCacheExpiryPredicate} — the conditional half of the expiry,
+ * run inside `assetService.tombstoneAndOwePurge`'s transaction.
+ */
+export async function tombstoneExpiredFederationCacheFile(
+  tx: Transaction,
+  fileId: string,
+  cutoff: Date,
+): Promise<FileRecord | null> {
+  const rows = await tx
+    .update(files)
+    .set({ status: 'deleted' })
+    .where(and(eq(files.id, fileId), federationCacheExpiryPredicate(cutoff, tx)))
     .returning();
   const [record] = await withChildren(rows, tx);
   return record ?? null;
