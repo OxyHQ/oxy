@@ -40,6 +40,7 @@ import {
   upsertVariant,
 } from './fileRepository';
 import { playlistSiblingKey } from './hlsPlaylist';
+import { skipsVideoLadder } from './federatedVideoRenditions';
 import { LARGE_UPLOAD_MAX_BYTES } from '../utils/fileContentPolicy';
 import { isSvgType } from '../utils/svgSanitizer';
 import { isIconContainer, largestIconFrame } from '../utils/icoImage';
@@ -684,6 +685,25 @@ export class VariantService {
             size: file.size,
           });
       } else if (file.mime.startsWith('video/')) {
+        if (skipsVideoLadder(file)) {
+          // A federated copy plays as stored (`federatedVideoRenditions.ts`):
+          // record its dimensions and duration from a bounded probe of the
+          // original and encode nothing, so nothing is uploaded either.
+          // A probe failure is not a reason to retry: the file plays either way.
+          const probed = await this.extractSourceMetadataOnly(file.id).catch((error: unknown) => {
+            logger.warn('Federated video probe failed; dimensions stay unknown', {
+              fileId,
+              reason: error instanceof Error ? error.message.slice(0, 300) : String(error),
+            });
+            return false;
+          });
+          logger.info('Federated video served as stored; no ladder encoded', {
+            fileId,
+            size: file.size,
+            probed,
+          });
+          return;
+        }
         await this.generateVideoVariants(file);
       } else if (file.mime.startsWith('audio/')) {
         await this.generateAudioVariants(file);
