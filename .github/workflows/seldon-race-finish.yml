@@ -54,7 +54,8 @@ jobs:
   # CI complete does not need this job, but the run stays in_progress until
   # Seldon is back and the reaper runs.
   reap:
-    name: Reap ${{ matrix.group }}
+    # "Seldon race " marks a control job, which the verdict never judges (race.mjs isControl).
+    name: Seldon race reap ${{ matrix.group }}
     needs: finish
     if: needs.finish.outputs.reap != '' && needs.finish.outputs.reap != '[]'
     runs-on: seldon-ci-light

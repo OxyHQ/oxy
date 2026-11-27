@@ -55,7 +55,20 @@ export const started = (job) =>
 const waiting = (job) => job.status !== 'completed' && !started(job);
 
 /** The live (not skipped) jobs on the Seldon label. */
-const seldonLanes = (jobs, label) => jobs.filter((j) => !skipped(j) && laneOf(j, label) === SELDON);
+/**
+ * The race's own control jobs (seldon-race-start.yml, seldon-race-finish.yml
+ * and its reapers, seldon-race-retry.yml) are never lanes, whatever runner
+ * they use: the reapers run on seldon-ci-light, and one still queued when
+ * the verdict runs must not read as a Seldon lane with no passing twin.
+ * They are marked by name: every control job's display name starts with
+ * "Seldon race " (the reapers' "Reap seldon-race-" is the name before that
+ * rule), optionally behind the calling job's "<caller> / " prefix.
+ */
+const CONTROL = /(^|\/ )(Seldon race |Reap seldon-race-)/;
+export const isControl = (job) => CONTROL.test(job.name);
+
+const seldonLanes = (jobs, label) =>
+  jobs.filter((j) => !skipped(j) && !isControl(j) && laneOf(j, label) === SELDON);
 
 /**
  * The `names` input: the display names one start/finish pair races, one per
@@ -83,7 +96,7 @@ const createdOrder = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_a
  */
 export function pairs(jobs, label) {
   const hostedLanes = jobs
-    .filter((j) => !skipped(j) && laneOf(j, label) === HOSTED)
+    .filter((j) => !skipped(j) && !isControl(j) && laneOf(j, label) === HOSTED)
     .sort(createdOrder);
   return seldonLanes(jobs, label).map((seldon) => ({
     name: seldon.name,
@@ -155,7 +168,8 @@ const PASSING = new Set(['success', 'cancelled', 'skipped']);
 function judgedNames(jobs, label) {
   const names = new Set(seldonLanes(jobs, label).map((j) => j.name));
   const live = new Map();
-  for (const j of jobs.filter((j) => !skipped(j))) live.set(j.name, (live.get(j.name) ?? 0) + 1);
+  for (const j of jobs.filter((j) => !skipped(j) && !isControl(j)))
+    live.set(j.name, (live.get(j.name) ?? 0) + 1);
   for (const [name, count] of live) if (count > 1) names.add(name);
   return [...names];
 }

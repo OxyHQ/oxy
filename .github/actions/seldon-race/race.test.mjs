@@ -11,6 +11,7 @@ import {
   parseNames,
   SELDON,
   shouldRetry,
+  isControl,
   started,
   startDecision,
   verdict,
@@ -432,4 +433,44 @@ test('retry: a failed pull-request run whose failure ran on Seldon re-runs once'
   assert.equal(shouldRetry(run, [seldon, rescue('skipped')], 'seldon-ci'), true);
   assert.equal(shouldRetry(run, [seldon, rescue('cancelled')], 'seldon-ci'), true);
   assert.equal(shouldRetry(run, [light], 'seldon-ci'), true);
+});
+
+test("verdict: the race's control jobs are never lanes, a queued reaper on seldon-ci-light included", () => {
+  const job = (id, name, labels, status, conclusion) => ({
+    id,
+    name,
+    labels,
+    status,
+    conclusion,
+    created_at: '2026-11-27T10:00:00Z',
+    started_at: '2026-11-27T10:00:01Z',
+  });
+  const jobs = [
+    job(1, 'Test core', ['seldon-ci'], 'completed', 'success'),
+    job(2, 'Test core', ['ubuntu-latest'], 'completed', 'cancelled'),
+    job(
+      3,
+      'race-finish / Reap seldon-race-1-1-hosted-Test core',
+      ['seldon-ci-light'],
+      'queued',
+      null,
+    ),
+    job(
+      4,
+      'race-finish / Seldon race reap seldon-race-1-1-hosted-Test core',
+      ['seldon-ci-light'],
+      'in_progress',
+      null,
+    ),
+    job(5, 'race / Seldon race start', ['ubuntu-latest'], 'completed', 'success'),
+  ];
+  assert.equal(isControl(jobs[2]), true);
+  assert.equal(isControl(jobs[3]), true);
+  assert.equal(isControl(jobs[4]), true);
+  assert.equal(isControl(jobs[0]), false);
+  assert.deepEqual(verdict(jobs, 'seldon-ci'), { 'Test core': true });
+  assert.deepEqual(
+    pairs(jobs, 'seldon-ci').map((p) => p.name),
+    ['Test core'],
+  );
 });
