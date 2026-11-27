@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useList } from '@oxy.so/bloom-data';
-import { Button, GlassGroup, HStack, Icon, ScrollView, Text, regular } from '@oxy.so/bloom-language';
+import { Button, HStack, Icon, ScrollView, Text, regular } from '@oxy.so/bloom-language';
+import { GlassGroup } from '@oxy.so/bloom-language/glass-group';
 import { navigate, screen } from '@oxy.so/bloom-language/router';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiLogoutBoxRLine } from '@oxy.so/bloom/icons/RiLogoutBoxRLine';

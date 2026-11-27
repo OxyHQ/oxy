@@ -1,5 +1,6 @@
 import { useEntity } from '@oxy.so/bloom-data';
-import { Icon, ListItem, view } from '@oxy.so/bloom-language';
+import { Icon, view } from '@oxy.so/bloom-language';
+import { ListItem } from '@oxy.so/bloom-language/list';
 import { navigate } from '@oxy.so/bloom-language/router';
 import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
 import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';

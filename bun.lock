@@ -555,7 +555,7 @@
     },
     "packages/create-oxy-app": {
       "name": "create-oxy-app",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "bin": {
         "create-oxy-app": "dist/index.js",
       },
