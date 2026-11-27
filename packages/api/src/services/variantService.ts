@@ -685,22 +685,15 @@ export class VariantService {
             size: file.size,
           });
       } else if (file.mime.startsWith('video/')) {
-        if (skipsVideoLadder(file)) {
-          // A federated copy plays as stored (`federatedVideoRenditions.ts`):
-          // record its dimensions and duration from a bounded probe of the
-          // original and encode nothing, so nothing is uploaded either.
-          // A probe failure is not a reason to retry: the file plays either way.
-          const probed = await this.extractSourceMetadataOnly(file.id).catch((error: unknown) => {
-            logger.warn('Federated video probe failed; dimensions stay unknown', {
-              fileId,
-              reason: error instanceof Error ? error.message.slice(0, 300) : String(error),
-            });
-            return false;
-          });
+        if (!reencode && skipsVideoLadder(file)) {
+          // A federated copy plays as stored (`federatedVideoRenditions.ts`).
+          // Nothing is encoded, uploaded or probed: the file stays exactly as
+          // every federated video waiting in the backlog already is, and an
+          // explicit re-encode (the repair workflows) still builds the ladder.
           logger.info('Federated video served as stored; no ladder encoded', {
             fileId,
+            mime: file.mime,
             size: file.size,
-            probed,
           });
           return;
         }

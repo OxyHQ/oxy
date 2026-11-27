@@ -32,6 +32,20 @@ describe('skipsVideoLadder', () => {
     expect(skipsVideoLadder(file({ metadata: { source: 'upload' } }))).toBe(false);
   });
 
+  it('keeps the compatibility encode for containers browsers cannot play as stored', () => {
+    expect(
+      skipsVideoLadder(file({ mime: 'video/quicktime', metadata: { source: 'federation' } })),
+    ).toBe(false);
+  });
+
+  it('reads the container from a MIME with parameters', () => {
+    expect(
+      skipsVideoLadder(
+        file({ mime: 'video/mp4; codecs="avc1.42E01E"', metadata: { source: 'federation' } }),
+      ),
+    ).toBe(true);
+  });
+
   it('never applies to images, which keep their renditions', () => {
     expect(skipsVideoLadder(file({ mime: 'image/jpeg', metadata: { source: 'federation' } }))).toBe(
       false,

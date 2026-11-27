@@ -2,7 +2,15 @@ import { FEDERATION_MEDIA_CACHE_PURPOSE } from '../constants/federationCache';
 import type { FileRecord } from '../types/file.types';
 
 /**
- * Whether a VIDEO's background generation skips the encoded ladder.
+ * Containers every supported client plays progressively. Federated video is
+ * almost all `video/mp4` (925 of 926 in six hours on 2026-11-28: Mastodon and
+ * most servers already transcode uploads to H.264 MP4). Anything else, such as
+ * QuickTime, keeps its compatibility encode.
+ */
+const PROGRESSIVE_VIDEO_TYPES = new Set(['video/mp4', 'video/webm']);
+
+/**
+ * Whether a VIDEO's ordinary background generation skips the encoded ladder.
  *
  * A federated video (Mention's durable copy of a remote post's media, or a
  * media-cache entry) is a copy of bytes another server already serves. Encoding
@@ -14,12 +22,14 @@ import type { FileRecord } from '../types/file.types';
  * still waiting in the backlog, and the poster is rendered on demand by
  * `ensureVideoPoster` (a bounded range read of the original).
  *
- * Videos people upload to Oxy are not federated and keep their ladder.
+ * Videos people upload to Oxy are not federated and keep their ladder, and an
+ * explicit re-encode (`generateVariants(id, { reencode: true })`) always builds it.
  */
 export function skipsVideoLadder(
   file: Pick<FileRecord, 'mime' | 'metadata' | 'purpose' | 'systemOwner'>,
 ): boolean {
-  if (!file.mime.startsWith('video/')) return false;
+  const family = file.mime.split(';')[0].trim().toLowerCase();
+  if (!PROGRESSIVE_VIDEO_TYPES.has(family)) return false;
   if (file.purpose === FEDERATION_MEDIA_CACHE_PURPOSE) return true;
   if (file.systemOwner === '__federation_media_cache__') return true;
   return file.metadata?.source === 'federation';
