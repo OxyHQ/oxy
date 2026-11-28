@@ -40,8 +40,11 @@ export async function revokeMetaIdentityProof(
 ): Promise<void> {
   await getDb().transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
+    // `in (… union all …)`, not `canonical_acct = x or canonical_acct in (…)`:
+    // the OR defeats both primary keys and scanned the whole table (~19k pages,
+    // 106 ms mean) inside the registry's global lock; this is two index probes.
     await tx.execute(sql`update external_identities set meta_proof_revoked_at = greatest(meta_proof_revoked_at, ${observedAt.toISOString()}::timestamptz)
-      where canonical_acct = ${identifier} or canonical_acct in (select canonical_acct from external_identity_actors where actor_uri = ${identifier})`);
+      where canonical_acct in (select ${identifier}::text union all select canonical_acct from external_identity_actors where actor_uri = ${identifier})`);
     if (revokeOwnershipClaims) {
       await tx.execute(sql`update external_identity_claims set state = 'revoked', updated_at = ${observedAt.toISOString()}::timestamptz
         where updated_at <= ${observedAt.toISOString()}::timestamptz and (target_acct in

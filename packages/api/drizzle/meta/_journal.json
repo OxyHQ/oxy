@@ -1842,6 +1842,13 @@
       "when": 1794952264260,
       "tag": "0263_content_referrals_validate_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 264,
+      "version": "7",
+      "when": 1795843046588,
+      "tag": "0264_external_identities_network_stable_id_idx",
+      "breakpoints": true
     }
   ]
 }

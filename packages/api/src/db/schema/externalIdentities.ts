@@ -18,7 +18,16 @@ export const externalIdentities = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index('external_identities_user_id_idx').on(t.userId)],
+  (t) => [
+    index('external_identities_user_id_idx').on(t.userId),
+    // The same-subject lookup when an actor is registered (`stable_id`,
+    // `network`, externalIdentityRegistry.service.ts) runs under the registry's
+    // global advisory lock; without this it was a parallel scan of the whole
+    // table (~19k pages, 40 ms mean) that every registration waited behind.
+    index('external_identities_network_stable_id_idx')
+      .on(t.network, t.stableId)
+      .where(sql`${t.stableId} is not null`),
+  ],
 );
 
 /** Actor URIs are never overwritten when another bridge discovers the account. */
