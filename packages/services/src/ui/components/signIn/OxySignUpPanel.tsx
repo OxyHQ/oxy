@@ -42,6 +42,10 @@ import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { isWebBrowser } from '../../utils/isWebBrowser';
 import { fromCalendarDate, toCalendarDate } from '../../utils/calendarDate';
 import { renderHandlePreview } from '../../utils/handlePreview';
+import {
+  shareUsernameLookup,
+  usernameLookupCooldownSeconds,
+} from '../../utils/usernameLookupBudget';
 import { checkUsernameDraft, describeUsernameRefusal } from '../../utils/usernamePolicy';
 import { SubtleLink } from '../authChooser/primitives';
 import { useAccountDialogHost } from './accountDialogHost';
@@ -126,6 +130,8 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
   // handle is checked rather than treated as "unchanged".
   const availability = useUsernameAvailability(username, step.name === 'username', {
     matchCurrentUser: false,
+    // Preview lookups share the ten-a-minute quota with the check below.
+    reserveSubmit: true,
   });
   const previewTemplate = (handlePreviewTemplate ?? hostDialog.handlePreviewTemplate)?.trim() || '';
   const handlePreview = renderHandlePreview(previewTemplate, username);
@@ -179,8 +185,17 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
       return;
     }
     run(async () => {
-      const { available } = await oxyServices.auth.checkUsername(handle);
-      if (!available) throw new UsernameTakenError();
+      // Reuses the preview's answer for this exact handle, or the one lookup
+      // the preview left unused. Past that, wait out the window — sending
+      // would be refused and the refusal would count too.
+      const outcome = await shareUsernameLookup(handle, 'submit', (name) =>
+        oxyServices.auth.checkUsername(name),
+      );
+      if (outcome === 'deferred') {
+        setError(t('signin.errors.rateLimited', { seconds: usernameLookupCooldownSeconds() }));
+        return;
+      }
+      if (!outcome.available) throw new UsernameTakenError();
       setStep({ name: 'birthdate' });
     });
   };

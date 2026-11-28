@@ -466,7 +466,10 @@ router.get('/validate', asyncHandler(async (_req, res) => {
   sendSuccess(res, { valid: true });
 }));
 
-// Strict rate limit for enumeration-sensitive check endpoints (10/min per IP)
+// Strict rate limit for enumeration-sensitive check endpoints (10/min per IP).
+// Signup's live preview stays under this (`USERNAME_LOOKUP_BACKGROUND_MAX`)
+// so Continue still has a lookup. Raising or lowering `max` has to move that
+// client ceiling with it.
 const checkLimiter = rateLimit({
   prefix: 'rl:auth:lookup:',
   windowMs: 60 * 1000,

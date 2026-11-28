@@ -137,6 +137,11 @@ jest.mock('../../../src/ui/hooks/useI18n', () => {
   };
 });
 
+import {
+  resetUsernameLookupBudget,
+  USERNAME_LOOKUP_BACKGROUND_MAX,
+  USERNAME_LOOKUP_LIMIT,
+} from '../../../src/ui/utils/usernameLookupBudget';
 import { AccountDialogHostProvider } from '../../../src/ui/components/signIn/accountDialogHost';
 import { OxySignUpPanel } from '../../../src/ui/components/signIn/OxySignUpPanel';
 import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
@@ -170,6 +175,7 @@ const continueToEmail = async (dateOfBirth = ADULT_BIRTHDATE) => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  resetUsernameLookupBudget();
   user = { id: 'user-1', username: 'ada' };
   methods = { hasEmail: true, hasPassword: false, totpEnabled: false, backupCodesRemaining: 0 };
   snapshot = { commonsAvailability: 'unknown' };
@@ -429,6 +435,50 @@ describe('creating an account', () => {
       expect(screen.getByRole('alert').textContent).toBe('That username is taken.');
       expect(screen.queryByText('This username is available.')).toBeNull();
     } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('leaves a lookup for Continue after a minute of typing', async () => {
+    // Production allows ten lookups a minute. Each pause on a longer prefix
+    // used to spend one, and Continue's check was the one that came back 429.
+    const handle = 'lunalark2026';
+    const drafts = Array.from({ length: handle.length - 2 }, (_, index) =>
+      handle.slice(0, index + 3),
+    );
+    expect(drafts.length).toBeGreaterThan(USERNAME_LOOKUP_BACKGROUND_MAX);
+    let calls = 0;
+    oxyServices.auth.checkUsername.mockImplementation(async () => {
+      calls += 1;
+      if (calls > USERNAME_LOOKUP_LIMIT) {
+        throw Object.assign(new Error('Too many lookup requests, please try again later.'), {
+          status: 429,
+        });
+      }
+      return { available: true, message: '' };
+    });
+    jest.useFakeTimers();
+    try {
+      render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+      for (const draft of drafts) {
+        type('signup-username', draft);
+        await act(async () => {
+          jest.advanceTimersByTime(350);
+        });
+      }
+      expect(oxyServices.auth.checkUsername).toHaveBeenCalledTimes(USERNAME_LOOKUP_BACKGROUND_MAX);
+      await act(async () => {
+        press('signup-username-continue');
+      });
+      expect(screen.getByTestId('signup-birthdate')).toBeTruthy();
+      expect(oxyServices.auth.checkUsername).toHaveBeenCalledTimes(USERNAME_LOOKUP_LIMIT);
+      expect(oxyServices.auth.checkUsername).toHaveBeenLastCalledWith(handle);
+      expect(screen.queryByText(/Too many attempts/)).toBeNull();
+    } finally {
+      oxyServices.auth.checkUsername.mockImplementation(async () => ({
+        available: true,
+        message: '',
+      }));
       jest.useRealTimers();
     }
   });
