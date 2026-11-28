@@ -89,6 +89,12 @@ run_case() {
       echo "FAIL ($label): registered command $registered, expected bun (the image's runtime)"
       failures=$((failures + 1)); return
     fi
+    # The reservation oxy-infra declares (app-oxy-asset-variant-worker.tf):
+    # the running revision is the only place it takes effect.
+    if [[ "$(jq -c '.containerDefinitions[0] | [.cpu, .memoryReservation]' "$state/registered.json")" != '[512,1536]' ]]; then
+      echo "FAIL ($label): registered reservation is not cpu 512 / memoryReservation 1536"
+      failures=$((failures + 1)); return
+    fi
     if [[ "$(jq -r '.containerDefinitions[0].image' "$state/registered.json")" != registry/oxy-api@sha256:new ]]; then
       echo "FAIL ($label): the registered revision does not carry the deploying image"
       failures=$((failures + 1)); return
