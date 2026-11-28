@@ -2,6 +2,8 @@ const dict = {
   signin: {
     title: 'Inicia la sessió',
     subtitle: "Fes servir el teu compte d'Oxy",
+    oneAccount: "Amb un compte d'Oxy entres a les apps d'Oxy",
+    oneAccountInApp: "Amb un compte d'Oxy entres a {{app}} i a la resta d'apps d'Oxy",
     addAccountTitle: 'Afegeix un altre compte',
     addAccountSubtitle: 'Inicia sessió amb un altre compte',
     actions: {
@@ -113,6 +115,7 @@ const dict = {
       label: "Nom d'usuari",
       placeholder: 'elteunom',
       required: "Tria un nom d'usuari.",
+      available: "Aquest nom d'usuari està disponible.",
       taken: "Aquest nom d'usuari ja està agafat.",
     },
     email: {

@@ -4,8 +4,10 @@
  * differs (`host`). Sign-in happens IN it, on every origin: no window opens.
  *
  *   picker        a returning device: "Choose an account", then "Use another account"
- *   identifier    the header, the Commons way in, and "Email or username" with its
- *                 Continue. On the web, from `md`, the screen is Bloom `AuthCard`'s
+ *   identifier    the header (what an Oxy account is, naming the host app when the
+ *                 dialog knows it), the Commons way in, and "Email or username"
+ *                 with its Continue, then a Create account button. On the web,
+ *                 from `md`, the screen is Bloom `AuthCard`'s
  *                 split card and the Commons way in is the embedded QR over its
  *                 photo carousel, in the right column (the account dialog grows to
  *                 that card); below `md` it is "Continue with Oxy" at the top. A
@@ -29,7 +31,7 @@
 
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Platform, Text as RNText, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { AuthMediaCarousel } from '@oxy.so/bloom/auth-card';
 import { Button } from '@oxy.so/bloom/button';
 import { Divider } from '@oxy.so/bloom/divider';
@@ -61,6 +63,7 @@ import { useSurfaceFrameWidth } from '../../hooks/useSurfaceFrameWidth';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { resolveSignInDevice } from '../../utils/signInDevice';
 import { SubtleLink } from '../authChooser/primitives';
+import { useAccountDialogHost } from './accountDialogHost';
 import { SIGN_IN_SLIDES } from './artwork';
 import { InlineCommonsQr } from './InlineCommonsQr';
 import { OxyAccountPicker } from './OxyAccountPicker';
@@ -147,6 +150,9 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
 }) => {
   const theme = useTheme();
   const { t } = useI18n();
+  const hostDialog = useAccountDialogHost();
+  // A prop wins; otherwise the hosting app's `OxyProvider`. Blank names none.
+  const resolvedAppName = (appName ?? hostDialog.appName)?.trim() || null;
   const {
     accountDialogController: controller,
     openAccountDialog,
@@ -528,7 +534,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     return (
       <OxyAccountPicker
         principals={principals}
-        appName={appName}
+        appName={resolvedAppName}
         signedOut={!snapshot.hasSession}
         pendingContextId={snapshot.activatingContextId}
         isLoading={snapshot.activatingContextId !== null}
@@ -781,9 +787,12 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       const title = adding ? t('signin.addAccountTitle') : t('signin.title');
       const description = adding
         ? t('signin.addAccountSubtitle')
-        : appName
-          ? t('signin.subtitleToApp', { app: appName })
+        : resolvedAppName
+          ? t('signin.subtitleToApp', { app: resolvedAppName })
           : t('signin.subtitle');
+      const oneAccount = resolvedAppName
+        ? t('signin.oneAccountInApp', { app: resolvedAppName })
+        : t('signin.oneAccount');
 
       const continueWithOxyButton = (
         <Button
@@ -801,7 +810,22 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
 
       form = (
         <OxyAuthScreen inSplit={splits}>
-          <OxyAuthScreenHeader title={title} description={description} />
+          <OxyAuthScreenHeader
+            title={title}
+            description={
+              <View style={styles.intro}>
+                <Text style={[styles.introLine, { color: theme.colors.textSecondary }]}>
+                  {description}
+                </Text>
+                <Text
+                  testID="signin-one-account"
+                  style={[styles.oneAccount, { color: theme.colors.textSecondary }]}
+                >
+                  {oneAccount}
+                </Text>
+              </View>
+            }
+          />
 
           {/* The Commons way in, then the email. On the web from `md` the QR
               beside the form IS the Commons way in; below `md` this screen is
@@ -855,17 +879,6 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               autoFocus={device !== 'phone'}
               testID="signin-identifier"
             />
-            <Text style={[styles.note, styles.noAccount, { color: theme.colors.textSecondary }]}>
-              {t('signin.noAccount')}{' '}
-              <RNText
-                accessibilityRole="link"
-                onPress={onCreateAccount}
-                style={[styles.noAccountLink, { color: theme.colors.text }]}
-                testID="create-account-link"
-              >
-                {t('signin.createAccount')}
-              </RNText>
-            </Text>
             {rateLimitNotice}
             <AccountFlowAction
               label={t('signin.actions.continue')}
@@ -874,6 +887,22 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               disabled={rateLimitSeconds > 0}
               testID="signin-identifier-continue"
             />
+            <View style={styles.createAccount}>
+              <Text style={[styles.createAccountPrompt, { color: theme.colors.textSecondary }]}>
+                {t('signin.noAccount')}
+              </Text>
+              <Button
+                appearance="outline"
+                tone="neutral"
+                size="lg"
+                fullWidth
+                onPress={onCreateAccount}
+                accessibilityLabel={t('signin.createAccount')}
+                testID="create-account-link"
+              >
+                {t('signin.createAccount')}
+              </Button>
+            </View>
           </View>
           <OxyAuthTerms />
         </OxyAuthScreen>
@@ -911,10 +940,23 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
-  noAccount: {
-    textAlign: 'left',
+  intro: {
+    gap: 8,
   },
-  noAccountLink: {
-    textDecorationLine: 'underline',
+  introLine: {
+    fontSize: 18,
+    lineHeight: 28,
+  },
+  oneAccount: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  createAccount: {
+    gap: 8,
+  },
+  createAccountPrompt: {
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: 'center',
   },
 });

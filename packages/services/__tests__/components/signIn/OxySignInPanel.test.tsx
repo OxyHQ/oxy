@@ -197,7 +197,12 @@ import {
 } from '../../../src/ui/components/signIn/OxySignInPanel';
 import { OxySurfaceFrame } from '../../../src/ui/components/OxySurfaceFrame';
 import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
-import { InlineCommonsQr } from '../../../src/ui/components/signIn/InlineCommonsQr';
+import { AccountDialogHostProvider } from '../../../src/ui/components/signIn/accountDialogHost';
+import {
+  InlineCommonsQr,
+  QR_CAPTION_FONT_SIZE,
+  QR_CAPTION_SCRIM,
+} from '../../../src/ui/components/signIn/InlineCommonsQr';
 
 const onSignedIn = jest.fn();
 const onCreateAccount = jest.fn();
@@ -243,6 +248,9 @@ describe('the entry — an email or username, and the Commons way in', () => {
     expect(screen.getByTestId('signin-identifier')).toBeTruthy();
     expect(screen.getByTestId('signin-identifier-continue')).toBeTruthy();
     expect(screen.getByTestId('create-account-link')).toBeTruthy();
+    expect(screen.getByText('One Oxy account works across Oxy apps')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create account' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Create account' })).toBeNull();
     expect(screen.getByText('Terms of Service')).toBeTruthy();
     // No window, no recovery page.
     expect(screen.queryByTestId('recover-link')).toBeNull();
@@ -336,6 +344,24 @@ describe('the entry — an email or username, and the Commons way in', () => {
     renderPanel();
     press('create-account-link');
     expect(onCreateAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the host app in the explanation when the dialog knows it', () => {
+    renderPanel({ appName: 'Mention' });
+    expect(
+      screen.getByText('One Oxy account works across Mention and other Oxy apps'),
+    ).toBeTruthy();
+  });
+
+  it('reads the host app from the provider when the screen was not given one', () => {
+    render(
+      <AccountDialogHostProvider appName="Mention">
+        <OxySignInPanel onSignedIn={onSignedIn} onCreateAccount={onCreateAccount} />
+      </AccountDialogHostProvider>,
+    );
+    expect(
+      screen.getByText('One Oxy account works across Mention and other Oxy apps'),
+    ).toBeTruthy();
   });
 });
 
@@ -1053,6 +1079,13 @@ describe('InlineCommonsQr — the embedded QR', () => {
     });
     render(<InlineCommonsQr controller={controller as never} />);
     expect(screen.getByTestId('qrcode').textContent).toBe('oxycommons://approve?code=C');
+    // The caption sits on its own plate (see `captionPlate`). The RN stub drops
+    // style, so this asserts the words are still there, not the plate's paint.
+    expect(screen.getByTestId('signin-qr-caption').textContent).toBe(
+      'Scan with Commons to sign in',
+    );
+    expect(QR_CAPTION_FONT_SIZE).toBeGreaterThanOrEqual(16);
+    expect(QR_CAPTION_SCRIM).toBe('rgba(0, 0, 0, 0.78)');
   });
 
   it('replaces an expired code by itself', () => {

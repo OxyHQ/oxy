@@ -5,15 +5,29 @@ import { useI18n } from './useI18n';
 
 type CheckResult = { candidate: string; status: 'available' | 'taken' | 'error' };
 
+export interface UsernameAvailabilityOptions {
+  /**
+   * When true (the default), a handle that already belongs to the signed-in
+   * account is "unchanged" and is not sent to the server. Signup passes false:
+   * a new account needs its own free handle, even on a device that is signed in.
+   */
+  matchCurrentUser?: boolean;
+}
+
 /** Debounced server check; a response only applies to the draft that requested it. */
-export function useUsernameAvailability(value: string, enabled: boolean) {
+export function useUsernameAvailability(
+  value: string,
+  enabled: boolean,
+  options?: UsernameAvailabilityOptions,
+) {
   const { oxyServices, user } = useOxy();
   const { t } = useI18n();
+  const matchCurrentUser = options?.matchCurrentUser !== false;
   const candidate = value.trim();
   // The policy of the signed-in account's kind: a bot's handle ends in `bot`.
   const checked = enabled ? checkUsernameDraft(candidate, t, user?.kind) : null;
   const invalid = checked && !checked.ok ? checked.error : undefined;
-  const unchanged = candidate.toLowerCase() === user?.username?.toLowerCase();
+  const unchanged = matchCurrentUser && candidate.toLowerCase() === user?.username?.toLowerCase();
   const [result, setResult] = useState<CheckResult>();
   const [attempt, setAttempt] = useState(0);
 

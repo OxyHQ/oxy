@@ -13,7 +13,7 @@
  * session is committed.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Linking } from 'react-native';
 import { surfaces } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
@@ -137,6 +137,7 @@ jest.mock('../../../src/ui/hooks/useI18n', () => {
   };
 });
 
+import { AccountDialogHostProvider } from '../../../src/ui/components/signIn/accountDialogHost';
 import { OxySignUpPanel } from '../../../src/ui/components/signIn/OxySignUpPanel';
 import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
 import { OxyDeleteAccountPanel } from '../../../src/ui/components/signIn/OxyDeleteAccountPanel';
@@ -377,6 +378,59 @@ describe('creating an account', () => {
     );
     press('signup-birthdate-back');
     expect((screen.getByTestId('signup-username') as HTMLInputElement).value).toBe('ada');
+  });
+
+  it('explains Commons, and previews a host profile template without naming a domain', () => {
+    render(
+      <OxySignUpPanel
+        onSignedIn={jest.fn()}
+        onSignIn={jest.fn()}
+        handlePreviewTemplate="{base}/@{username}"
+      />,
+    );
+    expect(
+      screen.getByText('Or create your identity in Commons, and hold your own key.'),
+    ).toBeTruthy();
+    expect(screen.getByTestId('signup-commons-instead')).toBeTruthy();
+    type('signup-username', 'ada');
+    expect(screen.getByTestId('signup-handle-preview').textContent).toBe('{base}/@ada');
+    expect(screen.queryByText(/mention\.earth/)).toBeNull();
+  });
+
+  it('reads the profile template from the provider when the screen was not given one', () => {
+    render(
+      <AccountDialogHostProvider handlePreviewTemplate="https://example.org/@{username}">
+        <OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />
+      </AccountDialogHostProvider>,
+    );
+    type('signup-username', 'ada');
+    expect(screen.getByText('https://example.org/@ada')).toBeTruthy();
+  });
+
+  it('says whether the username is free while it is typed', async () => {
+    jest.useFakeTimers();
+    try {
+      oxyServices.auth.checkUsername.mockResolvedValueOnce({ available: true, message: '' });
+      render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+      type('signup-username', 'ada');
+      expect(screen.queryByText('This username is available.')).toBeNull();
+      expect(oxyServices.auth.checkUsername).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(350);
+      });
+      expect(oxyServices.auth.checkUsername).toHaveBeenCalledWith('ada');
+      expect(screen.getByText('This username is available.')).toBeTruthy();
+
+      oxyServices.auth.checkUsername.mockResolvedValueOnce({ available: false, message: '' });
+      type('signup-username', 'takenname');
+      await act(async () => {
+        jest.advanceTimersByTime(350);
+      });
+      expect(screen.getByRole('alert').textContent).toBe('That username is taken.');
+      expect(screen.queryByText('This username is available.')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('offers Commons instead: its store page on the web', async () => {

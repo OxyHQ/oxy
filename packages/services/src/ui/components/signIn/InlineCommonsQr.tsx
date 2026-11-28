@@ -15,7 +15,7 @@
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
@@ -35,6 +35,12 @@ const PLATE_PADDING = 8;
 const PLATE_SIZE = QR_SIZE + PLATE_PADDING * 2;
 /** The spinner while a code is on its way: React Native's `large` indicator size. */
 const SPINNER_SIZE = 36;
+/**
+ * The caption over the photo carousel. 16px white on a dark plate: the old
+ * 12px white line with a text shadow was not readable on the photos.
+ */
+export const QR_CAPTION_FONT_SIZE = 16;
+export const QR_CAPTION_SCRIM = 'rgba(0, 0, 0, 0.78)';
 
 export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | null }> = ({
   controller,
@@ -110,16 +116,17 @@ export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | n
       }}
     >
       <View style={[styles.plate, { borderColor: theme.colors.border }]}>{plate}</View>
-      <Text style={[styles.caption, styles.captionOnMedia]}>{t('signin.qr.caption')}</Text>
+      <View style={styles.captionPlate} testID="signin-qr-caption">
+        <Text style={styles.caption}>{t('signin.qr.caption')}</Text>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   block: {
-    width: PLATE_SIZE,
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
   },
   plate: {
     width: PLATE_SIZE,
@@ -131,21 +138,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  caption: {
-    fontSize: 12,
-    lineHeight: 16,
-    textAlign: 'center',
+  // A dark plate, not a 12px white line over the photo: the carousel behind
+  // this caption changes, and a shadow on the glyphs was not enough to read.
+  captionPlate: {
+    maxWidth: 260,
+    backgroundColor: QR_CAPTION_SCRIM,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
-  captionOnMedia: {
+  caption: {
     color: '#FFFFFF',
-    fontWeight: '500',
-    ...Platform.select({
-      web: { textShadow: '0px 1px 4px rgba(0, 0, 0, 0.6)' },
-      default: {
-        textShadowColor: 'rgba(0, 0, 0, 0.6)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 4,
-      },
-    }),
+    fontSize: QR_CAPTION_FONT_SIZE,
+    lineHeight: 22,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

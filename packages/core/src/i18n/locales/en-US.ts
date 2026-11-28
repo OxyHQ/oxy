@@ -149,6 +149,8 @@ const dict = {
   signin: {
     title: 'Sign in',
     subtitle: 'Use your Oxy account',
+    oneAccount: 'One Oxy account works across Oxy apps',
+    oneAccountInApp: 'One Oxy account works across {{app}} and other Oxy apps',
     emailAccounts: {
       title: 'Choose an account',
       description: '{{identifier}} has several accounts. Choose the one to sign in with.',
@@ -286,6 +288,7 @@ const dict = {
     username: {
       label: 'Username',
       placeholder: 'yourname',
+      available: 'This username is available.',
       taken: 'That username is taken.',
     },
     email: {

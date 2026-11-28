@@ -57,6 +57,17 @@ test('debounces edits and ignores an older response after a newer draft', async 
   expect(checkUsername.mock.calls).toEqual([['firstdraft'], ['seconddraft']]);
 });
 
+test('checks a new account even when the handle matches the signed-in one', async () => {
+  checkUsername.mockResolvedValueOnce({ available: false });
+  const { result } = renderHook(() =>
+    useUsernameAvailability('existinguser', true, { matchCurrentUser: false }),
+  );
+  expect(result.current.status).toBe('checking');
+  await advance();
+  expect(result.current.status).toBe('taken');
+  expect(checkUsername).toHaveBeenCalledWith('existinguser');
+});
+
 test('does not treat connection failure as availability and can retry', async () => {
   checkUsername
     .mockRejectedValueOnce(new Error('offline'))
