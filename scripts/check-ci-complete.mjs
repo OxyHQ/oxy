@@ -374,7 +374,7 @@ function maySkip(jobId) {
 /**
  * SELDON-FIRST ROUTING (docs/engineering/build-and-deploy.md#seldon-first-routing).
  * A heavy job `X` runs on the seldon-ci pool while the org variable
- * SELDON_CI_ROUTE says so (a pull request's first attempt only). When it fails
+ * SELDON_CI_ROUTE says so (the first attempt of a pull request or merge group). When it fails
  * there, whatever the reason (the house network drops connections), its rescue
  * `X-rescue`, a hosted job of the same name, strategy and steps, runs it again
  * and fails again on a genuine failure. A matrix rescue reruns every shard, so

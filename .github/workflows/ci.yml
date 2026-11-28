@@ -182,7 +182,7 @@ jobs:
     # `CI complete` still goes red on the failed scope). On merge_group and push
     # the first clause is always true.
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
-    runs-on: &seldon-lane ${{ vars.SELDON_CI_ROUTE == 'seldon-ci' && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
+    runs-on: &seldon-lane ${{ vars.SELDON_CI_ROUTE == 'seldon-ci' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
     outputs: &lane-outputs
       lane: ${{ steps.lane.outputs.lane }}
     permissions: &api-test-permissions
@@ -423,7 +423,7 @@ jobs:
   api-test-rescue:
     name: API Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [scope, api-test]
-    if: ${{ !cancelled() && needs.api-test.result == 'failure' && (needs.api-test.outputs.lane == 'seldon' || (needs.api-test.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
+    if: ${{ !cancelled() && needs.api-test.result == 'failure' && (needs.api-test.outputs.lane == 'seldon' || (needs.api-test.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
     runs-on: ubuntu-latest
     permissions: *api-test-permissions
     strategy: *api-test-strategy
@@ -596,7 +596,7 @@ jobs:
   api-build-rescue:
     name: API Build
     needs: [scope, api-build]
-    if: ${{ !cancelled() && needs.api-build.result == 'failure' && (needs.api-build.outputs.lane == 'seldon' || (needs.api-build.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
+    if: ${{ !cancelled() && needs.api-build.result == 'failure' && (needs.api-build.outputs.lane == 'seldon' || (needs.api-build.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
     runs-on: ubuntu-latest
     permissions: *api-build-permissions
     timeout-minutes: 15
@@ -1455,7 +1455,7 @@ jobs:
   packages-platform-rescue:
     name: Package Tests (platform)
     needs: [scope, packages-platform]
-    if: ${{ !cancelled() && needs.packages-platform.result == 'failure' && (needs.packages-platform.outputs.lane == 'seldon' || (needs.packages-platform.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false')) }}
+    if: ${{ !cancelled() && needs.packages-platform.result == 'failure' && (needs.packages-platform.outputs.lane == 'seldon' || (needs.packages-platform.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false')) }}
     runs-on: ubuntu-latest
     permissions: *packages-platform-permissions
     timeout-minutes: 30
@@ -1633,7 +1633,7 @@ jobs:
   packages-apps-rescue:
     name: Package Tests (apps)
     needs: [scope, packages-apps]
-    if: ${{ !cancelled() && needs.packages-apps.result == 'failure' && (needs.packages-apps.outputs.lane == 'seldon' || (needs.packages-apps.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false')) }}
+    if: ${{ !cancelled() && needs.packages-apps.result == 'failure' && (needs.packages-apps.outputs.lane == 'seldon' || (needs.packages-apps.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false')) }}
     runs-on: ubuntu-latest
     permissions: *packages-apps-permissions
     timeout-minutes: 30
