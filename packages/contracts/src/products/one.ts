@@ -122,10 +122,6 @@ export const OXY_ONE_APP_SUBSCRIPTIONS = {
     name: 'Clarity',
     tiers: { Free: null, Go: null, Pro: 'Plus', Max: 'Plus', Ultra: 'Plus' },
   },
-  schedio: {
-    name: 'Schedio',
-    tiers: { Free: null, Go: null, Pro: 'Plus', Max: 'Plus', Ultra: 'Plus' },
-  },
   inbox: {
     name: 'Inbox',
     tiers: { Free: null, Go: null, Pro: 'Plus', Max: 'Plus', Ultra: 'Plus' },

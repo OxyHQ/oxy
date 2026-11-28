@@ -105,7 +105,7 @@ feed disconnects or loses its heartbeat.
 The [verified protocol-v1 retirement](workload-v1-retirement.md) removed the finite
 legacy workload cohort, old resource-introspection serializers and owner-metadata
 projection bridge. Core 7.4.0 publication, API/worker rollout, supported launcher
-inventory, Schedio parking and token drain were verified on 2026-10-25; the linked
+inventory, last-producer stop and token drain were verified on 2026-10-25; the linked
 record distinguishes those facts from source and consumer tests. The subsequent
 [compatible writer and physical schema cleanup](workload-schema-cleanup.md)
 completed on 2026-10-26: the historical workload scope column/check was removed

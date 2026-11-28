@@ -27,8 +27,8 @@ session; in the background, a task minted from that session and valid up to a
 year. Every product that works for a person while they are away grew the same
 machinery around it: Gemies stores a task on every channel, bot link, agent
 session and work item, renews it before it lapses and sends the person a
-"reauthorise" notice when it does; Syra, Move and Schedio store one per upload,
-import or scheduled post; Mention, Homiio and Syra thread session bearers into
+"reauthorise" notice when it does; Syra and Move store one per upload
+or import; Mention, Homiio and Syra thread session bearers into
 Files. A person who never opened the app again, or whose task lapsed, silently
 lost a feature they had turned on, and the person was asked, in effect, to keep
 granting Oxy permission to work for them in Oxy.
@@ -149,7 +149,7 @@ the person no longer pays for it with prompts, renewals and features that stop.
    first-party execution authorization exist without a session or task.
 2. Consumers move to `actingFor` and declare in the registry: Gemies first
    (files, tools; channel media, Inbox from Telegram, reminders, email alerts),
-   then Syra, Move, Schedio, Mention, Homiio and the product SDKs' requester
+   then Syra, Move, Mention, Homiio and the product SDKs' requester
    unions.
 3. Oxy deletes the old proofs, `first_party_tasks` and their routes, with
    pre/post migrations, once no caller remains.

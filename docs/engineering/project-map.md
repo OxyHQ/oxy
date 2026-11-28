@@ -36,7 +36,6 @@ Every Oxy product and shared package is its own repository under [github.com/Oxy
 | [Willo](https://github.com/OxyHQ/Willo) | Smart-home control over a Home Assistant instance |
 | [willo-ha](https://github.com/OxyHQ/willo-local) | Home Assistant integration that connects an instance to Willo over one outbound connection |
 | [Dropsea](https://github.com/OxyHQ/Dropsea) | Photos and files (dropsea.net): albums over what a person keeps in Oxy Files |
-| [Schedio](https://github.com/OxyHQ/Schedio) | Compose once, schedule, and publish to connected social accounts |
 | [Atlas](https://github.com/OxyHQ/Atlas) | The Oxy app store (atlas.oxy.so); frontend only, the store lives in the Oxy API |
 | [Authenticator](https://github.com/OxyHQ/Authenticator) | Two-factor (TOTP) authenticator app with sync across devices through Oxy |
 | [Move](https://github.com/OxyHQ/Move) | Migrator (move.oxy.so) that brings a Mastodon or Bluesky account to Oxy and Mention |

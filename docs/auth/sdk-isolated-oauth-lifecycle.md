@@ -122,11 +122,11 @@ The monorepo's production mounts in accounts, auth, Console, Commons, test apps
 and create-oxy-app pass clientId; those values still require active registry
 verification before adoption. Existing SDK examples/comments and callers that
 omit it can no longer restore or route to the account dialog. The matrix scan of
-previously inspected consumer sources found 29 provider openings: three omitted
+previously inspected consumer sources found 28 provider openings: three omitted
 explicit clientId at the original examples pin03f9d52 (Next, Vite, Expo).
 Next/Vite are corrected only in the candidate examples#4; Expo remains pending
 this SDK's actual release. The attached scan is selective source evidence, not
-an exhaustive registry or deployment audit of all 50 repositories.
+an exhaustive registry or deployment audit of all 49 repositories.
 
 ## Expo usage after a coordinated release
 

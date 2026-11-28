@@ -148,7 +148,7 @@ requires platform staff for creation or an explicit environment backfill. An
 existing non-null environment cannot change. An identical bind is idempotent;
 description/expiry drift is reported rather than silently applied. Review an
 exact-tuple update separately when retiring or reactivating a binding. In
-particular, ordinary provisioning must not undo Schedio's recorded parking.
+particular, ordinary provisioning must not undo a recorded binding expiry.
 
 Runtime implementation: `workloadAttestation.service.ts` verifies infrastructure
 proof; `workloadIdentity.service.ts` mints own authority;

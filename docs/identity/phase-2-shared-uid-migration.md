@@ -87,7 +87,7 @@ resolves the caller with `OxyCallerPolicy` (one copy in `@oxy.so/services`
    `so.oxy.move`, Willo `sh.willo.app` / Frame `sh.willo.frame`, Moovo
    `now.moovo.app` / `.go` / `.tracker` / `.hub`, Noted `so.oxy.noted`, Inbox
    `so.oxy.inbox`, Clarity `surf.clarity.app`, Nilo `so.nilo.app`, Mercaria
-   `co.mercaria.app` / `.dashboard` / `.pos`, Schedio `com.schedio.app`, Syra
+   `co.mercaria.app` / `.dashboard` / `.pos`, Syra
    `fm.syra.app` / `fm.syra.studio`, Authenticator `so.oxy.authenticator`,
    Accounts `so.oxy.accounts`, Commons `so.oxy.commons`, each with its `.dev`
    variant. An app's id is its own product domain reversed: Commons, already on

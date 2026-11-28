@@ -286,7 +286,6 @@ const OXY_API_SERVICES: Record<string, string> = {
   'api.moovo.now': 'moovo',
   'api.allo.you': 'allo',
   'api.noted.oxy.so': 'noted',
-  'api.schedio.app': 'schedio',
   'api.tnp.network': 'tnp-api',
 };
 export function resolveOxyServiceEndpoint(url: URL): ServiceEndpoint | undefined {

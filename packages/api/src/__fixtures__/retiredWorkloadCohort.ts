@@ -127,12 +127,6 @@ export const LEGACY_WORKLOAD_BINDINGS = [
     subject: 'arn:aws:iam::237343248947:role/oxy-peable-task',
   },
   {
-    id: '01a14433-6e30-7ae9-b22f-172dbdd64822',
-    applicationId: '6a37b02cd55f88733615197c',
-    provider: 'aws-iam',
-    subject: 'arn:aws:iam::237343248947:role/oxy-schedio-task',
-  },
-  {
     id: '01a0b9b6-8e03-74c2-9a99-2932edc9fdb4',
     applicationId: '6a2f851751b784a86fd0e93d',
     provider: 'aws-iam',

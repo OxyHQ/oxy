@@ -30,7 +30,7 @@ the Oxy files):
 | Gemies | channel, bot and session tasks, renewal, reauthorise, `alia_task_authorizations`, Files `withRequester` | pending |
 | Alia app | channel reauthorise screen and renewal hook | pending |
 | Syra | Files tasks, renewal, revocation outbox; MCP episodes kept as Syra copies | pending |
-| Move, Schedio | per-job and per-post tasks and columns | pending |
+| Move | per-job tasks and columns | pending |
 | Mention, Homiio | Files `withRequester`, foreground authorizations, requester contexts | pending |
 | Peable, Kaana, CrowdSource SDKs | `requester` unions | pending |
 | OxyOS | `oxy-account` install consent for Oxy's own apps | pending |
@@ -48,9 +48,9 @@ the Oxy files):
 | Alia own-app levels and tool admission | Stage B/C and Stop receiver verified at API 619/integrations 198 on `e2c85110` (10:09 UTC); SDK 22.1.1/server 1.3.1/CLI 3.1.0 published; [19 consumer adoptions closed at their declared scope](#stop-consumer-adoption-checkpoint-2026-10-26); live Stop acknowledged and cancelled, estimated usage remains unresolved | No app-level switches; owner/requester/bot and scheduled-task isolation |
 | Alia gateway/integrations workload transport | Integrations 198 and API 619 verified on `e2c85110` (10:09 UTC); old shared-secret definitions/parameters retired; live Alia voice-resume acceptance remains pending | Role-specific workload identity, live channel binding, requester task; no shared-secret identity |
 | Kaana inference own-service receiver | Contracts 8.0.1 published; API 152 and publisher 153 verified on `95ac4fa9`; real two-task resume after Kaana cookie removal preserves one admission/settlement | Retain requester/account, external scopes, audience and revocation |
-| Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Homiio, Website, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified; Schedio is explicitly parked before launch | Caller→SDK→receiver tests for own and external identities |
+| Product receivers and SDK adopters | Clarity reader reconciled and producer canary passed; CrowdSource, Peable, GoWay, Moovo, TNP, Allo, Homiio, Website, Mention, Syra, Move, Nilo and Mercaria runtime readbacks verified | Caller→SDK→receiver tests for own and external identities |
 | Mercaria storefront commerce transport | PR #1159 deployed: API 146 and all three frontends verified on `714f3ec4`; public HTTP/Chromium transport acceptance passed | Preserve Oxy-owned carts and independent guest/portal authority; bounded referral preservation only; real-identity/native acceptance not claimed |
-| Registry/workload migration and deploy | Workload-v1 retirement and physical scope-column removal verified; Schedio parked before launch; current runtime and separate product limits recorded below | Reviewed readback, rollout order, actual task digests and live canaries |
+| Registry/workload migration and deploy | Workload-v1 retirement and physical scope-column removal verified; current runtime and separate product limits recorded below | Reviewed readback, rollout order, actual task digests and live canaries |
 
 Record tested commits and commands in each implementation PR; update this table
 only when that work is verified. SDK packages release through Actions/OIDC before
@@ -68,7 +68,7 @@ The [sanitized deployment receipt](evidence/first-party-live-20261025.json)
 records source commits, exact image digests, task revisions and running counts
 from operator readbacks; the [follow-up receipt](evidence/first-party-followups-20261025.json)
 adds later package, runtime and bounded readiness observations. The final
-[parking and retirement receipt](evidence/first-party-prelaunch-parking-20261025.json)
+[retirement receipt](evidence/first-party-prelaunch-parking-20261025.json)
 records the subsequent drain, Core 7.4 publication and API/worker cutover. None contains
 bearer credentials or user data. The following table records verified rollout observations, not a live inventory. Later
 product checkpoints below may record subsequent deployments; earlier stages remain
@@ -201,11 +201,7 @@ is not an installed ISO or physical-device acceptance. Website API 69 and its
 frontend are now deployed; its installed-SDK canary is recorded below. Alia's
 separate app/Syra transport follow-up also has runtime receipts.
 
-Mention's readers and Move's producer are verified. Schedio's public DNS smoke
-failed and its backend automatically rolled back to revision 17; its new
-producer is **not deployed**. That historical rollback initially held retirement;
-the later owner-approved
-prelaunch parking and full token drain below supersede this hold. The Oxy Inbox
+Mention's readers and Move's producer are verified. The Oxy Inbox
 producer now has its own deployment and canary evidence below. Mercaria
 revision 142 and its reader canary
 passed at `2026-10-25T11:10:10.567Z`: anonymous and own-workload catalogue reads
@@ -389,7 +385,7 @@ No launcher was invoked and no infrastructure was created by this audit.
 Oxy's asset-variant worker revision 543 was independently verified at `12:43:55Z`,
 8/8 on the exact `0a312b9b` source image. The issuer observation from
 `12:30:24Z` to `12:45:24Z` contained 232 parsed mints, all protocol 2 with
-`first_party` authority. **Zero observed v1 mints does not prove that Schedio,
+`first_party` authority. **Zero observed v1 mints does not prove that
 dormant launchers or rollback images have migrated.** It does not start the drain
 clock or authorize retirement. The final process/launcher inventory, reviewed
 Core minor release and consumer composition remain required. After the last old
@@ -401,25 +397,19 @@ protocol-v1 dependency.
 
 ### Remaining acceptance and operational holds
 
-The owner deferred Schedio's public launch on 2026-10-25 because the product
-has not launched. Cloudflare zone access, DNS and ACM readiness remain future
-launch prerequisites, not prerequisites for retiring an **effectively parked**
-prelaunch producer. Source hold [PR #72](https://github.com/OxyHQ/Schedio/pull/72)
-merged as `5be56680`; its deployment workflows are disabled. Infrastructure
-parking [PR #401](https://github.com/OxyHQ/oxy-infra/pull/401) merged as
-`c6e80da0`. The old task stopped at `19:36:26.289Z`. The exact binding expiry committed at
+The last old producer task stopped at `19:36:26.289Z`. Its exact binding expiry committed at
 `19:38:09.468Z`, followed by a separate read-only database confirmation at
 `19:38:09.471726Z`; every field except `expires_at` remained unchanged.
-A fresh signed mint using the actual Schedio role was refused at `19:39:15.618Z`
+A fresh signed mint using that role was refused at `19:39:15.618Z`
 with HTTP 403 `unbound_workload`. All diagnostic tasks stopped successfully and
 their definitions are inactive. The post-drain service and task readback at `19:45:27–19:45:29Z` confirmed
-Schedio at 0/0/0, 47 running fleet tasks and no standalone diagnostics. The
+47 running fleet tasks and no standalone diagnostics. The
 issuer window ending `19:45:05.578Z` covered more than 300 seconds after the
 conservative boundary and contained 84 mints, all v2, with no unparsed events.
 This observation supports the concrete stop/expiry/refusal evidence; quiet logs
-alone would not establish parking. The `19:47:32Z` comparison also confirmed that every
+alone would not establish it. The `19:47:32Z` comparison also confirmed that every
 running service container retained the immutable digest already mapped to reviewed
-source at `19:13Z`; Schedio had no running container. A final task readback at
+source at `19:13Z`. A final task readback at
 `19:49:43Z` showed 47 running tasks and no standalone tasks. The intervening standalone
 task was the reviewed Mention sitemap launcher using revision 723 and the exact migrated
 service image; it exited successfully at `19:47:40Z`. Extending the issuer observation
@@ -427,16 +417,15 @@ through `19:50:51.657Z` yielded 178 emissions, all protocol 2, with no unparsed 
 The named Kaana administrative image and both manifest children remain available with
 `pinned-*` retention tags; the earlier empty tag list was a report filter, not a
 retention change.
-No public launch or new producer deployment is claimed. The
-[sanitized parking receipt](evidence/first-party-prelaunch-parking-20261025.json)
+No new producer deployment is claimed. The
+[sanitized retirement receipt](evidence/first-party-prelaunch-parking-20261025.json)
 preserves those exact operational boundaries.
 
-The fresh read-only publishing census at `19:33:42.003Z` found zero connections,
-posts and deliveries, including no scheduled deliveries. The separate workload
+The workload
 registry census at `19:30:08.685606Z` checked exactly 27 reviewed tuples, found
 zero bindings outside that cohort, and confirmed application/owner readiness.
-Noted was expired; Schedio remained unexpired. Its read-only diagnostic stopped
-with exit 0 and its definition became `INACTIVE` at `19:31:09Z`. Those pre-parking snapshots do not themselves establish the subsequent operation
+Noted was expired. Its read-only diagnostic stopped
+with exit 0 and its definition became `INACTIVE` at `19:31:09Z`. Those pre-drain snapshots do not themselves establish the subsequent operation
 or start the drain clock. The conservative drain starts at `19:39:52.720361Z`,
 after process stop, commit, signed refusal and final diagnostic cleanup. Its
 300-second deadline is `19:44:52.720361Z`; the retroactive expiry is not its start.
@@ -491,7 +480,7 @@ merged as `39eaf793`; the operational receipts, rather than documentation,
 establish the bounded retirement. Oxy
 [PR #1984](https://github.com/OxyHQ/oxy/pull/1984) merged as
 `dc1c21186dab603c6e2ec216e61f7c45d7f37537` at `20:01:29Z`, after the
-reviewed parking, drain, artifact and normal queue gates. Independent comparison
+reviewed last-producer stop, drain, artifact and normal queue gates. Independent comparison
 against the actual Core 7.3.0 archive found no public API removal, supporting the
 Core 7.4.0 minor. Actual registry integrity/provenance and published consumer
 composition checks passed at `20:07:29Z`; Accounts, Auth and Console also completed
@@ -500,12 +489,9 @@ actual deployments of the same source. API revision 1080 (3/3) and asset worker
 `20:14:09.701Z` live canary passed scope-free v2 access, canonical introspection,
 wrong-recipient refusal, v1 issuer refusal and invalid-bearer refusal. Its task
 stopped successfully and its definition became inactive. The invalid-bearer
-negative does not represent a positive live customer-key/OAuth exercise. A fresh
-signed Schedio mint against API 1080 was also refused with `403 unbound_workload`
-at `20:16:47.538Z`; its diagnostic exited 0 and was fully retired by `20:17:38Z`.
+negative does not represent a positive live customer-key/OAuth exercise.
 The [retirement runbook](../auth/workload-v1-retirement.md) records the completed
-gates and distinguishes them from product-acceptance limits. Schedio's future
-public launch is not a prerequisite. The subsequent 2026-10-26 product checkpoint
+gates and distinguishes them from product-acceptance limits. The subsequent 2026-10-26 product checkpoint
 below supersedes earlier untested identity/inference entries only for its stated
 journeys; other device and desktop-distribution limits remain.
 
@@ -568,7 +554,7 @@ estimated usage remains unresolved as described below. Core 7.5 supplies
 authoritative receipt lookup by idempotency key; publication alone is not a
 claim that the new Stop UI is deployed.
 Codea and Cowork have separate Stop callers; updating the shared UI package alone
-does not cover them. Schedio remains deliberately excluded from launch/adoption.
+does not cover them.
 
 The temporary Kaana diagnostic-image tag was removed by tag only after the final
 readback. All five owned reader definitions are inactive with no active family
@@ -644,7 +630,7 @@ Both read-only diagnostic tasks exited successfully and their definitions are
 inactive. These receipts establish explicit Stop acceptance and conservative
 handling of unknown usage, not provider-measured partial charging.
 
-Schedio remains explicitly parked and excluded. Kaana's cookie-free resume
+Kaana's cookie-free resume
 acceptance above is complete; Alia's separate cookie-removal acceptance still
 awaits the matching ordinary authenticated account. These package updates
 introduce no internal application consent grants. Native and desktop distribution
@@ -682,7 +668,6 @@ alone is not evidence that a feature is enabled in production.
 
 | Caller → receiver | Current seam | Required change / invariant |
 |---|---|---|
-| Schedio → Mention publishing | Mention SDK after central MCP OAuth registration/PKCE; persisted access/refresh | Replace own connection with workload/person operation context; preserve scheduled publications; Mastodon OAuth stays |
 | Move → Mention import/lookup/undo | Fetch + service token + user header; duplicated contract | Product SDK transport, verified requester and idempotent operation |
 | Mercaria → CrowdSource | Legacy `@oxy.so/crowdsource` service key | Current CrowdSource SDK own-service helper; no static key |
 | Allo/Moovo → CrowdSource | `crowdSourceForOxyService` | Adopt shared own authority; preserve tenant isolation |
@@ -698,7 +683,7 @@ alone is not evidence that a feature is enabled in production.
 | Moovo internal callers | `SERVICE_SECRET` synthesizes `system/serviceApp`; Telegram secret/user header | Replace fabricated identity with verified caller and actor; update all consumers |
 | TNP API/DNS/relay → Oxy | Workload/events | Shared identity; retain separate cryptographic network grants |
 | Allo/Syra → Alia | Ask SDK | Adopt SDK and own-account tests |
-| Nilo/Atlas/GoWay/Moovo/Schedio/Willo → Alia | ChatSheet SDK | Adopt SDK and own-account tests |
+| Nilo/Atlas/GoWay/Moovo/Willo → Alia | ChatSheet SDK | Adopt SDK and own-account tests |
 | Noted/CrowdSource Console/website → Alia | Text SDK | Adopt SDK and own-account tests |
 
 Authenticator uses Oxy provider/appData; its separate identity storage is

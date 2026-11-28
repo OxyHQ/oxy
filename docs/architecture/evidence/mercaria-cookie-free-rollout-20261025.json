@@ -303,7 +303,7 @@
       "sha256": "63293f544b462376d482f8909436c8cccf7c7f93300587710056e7c2b20c17e9"
     }
   ],
-  "remainingGate": "Schedio zone access/DNS/ACM and final release/inventory/token-drain gates remain; Oxy PR1984 stays draft.",
+  "remainingGate": "Final release/inventory/token-drain gates remain; Oxy PR1984 stays draft.",
   "workflowEvidenceObservedAt": "2026-10-25T16:59:18.152735+00:00",
   "globalV1Retired": false
 }
