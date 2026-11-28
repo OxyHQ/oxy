@@ -142,7 +142,7 @@ import {
   USERNAME_LOOKUP_BACKGROUND_MAX,
   USERNAME_LOOKUP_LIMIT,
 } from '../../../src/ui/utils/usernameLookupBudget';
-import { AccountDialogHostProvider } from '../../../src/ui/components/signIn/accountDialogHost';
+import { AccountDialogHostProvider } from '../../../src/ui/components/accountDialogHost';
 import { OxySignUpPanel } from '../../../src/ui/components/signIn/OxySignUpPanel';
 import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
 import { OxyDeleteAccountPanel } from '../../../src/ui/components/signIn/OxyDeleteAccountPanel';

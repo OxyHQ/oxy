@@ -23,7 +23,7 @@ import { ProductAnalyticsObserver } from '../analytics/productAnalytics';
 import { AccountLanguageBoundary } from './AccountLanguageBoundary';
 import { BloomLocaleBridge } from './BloomLocaleBridge';
 import { SupervisionStateObserver } from '../hooks/queries/useSupervision';
-import { AccountDialogHostProvider } from './signIn/accountDialogHost';
+import { AccountDialogHostProvider } from './accountDialogHost';
 
 const bootStyles = StyleSheet.create({
   providerRoot: {

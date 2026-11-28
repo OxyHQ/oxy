@@ -63,7 +63,7 @@ import { useSurfaceFrameWidth } from '../../hooks/useSurfaceFrameWidth';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { resolveSignInDevice } from '../../utils/signInDevice';
 import { SubtleLink } from '../authChooser/primitives';
-import { useAccountDialogHost } from './accountDialogHost';
+import { useAccountDialogHost } from '../accountDialogHost';
 import { SIGN_IN_SLIDES } from './artwork';
 import { InlineCommonsQr } from './InlineCommonsQr';
 import { OxyAccountPicker } from './OxyAccountPicker';

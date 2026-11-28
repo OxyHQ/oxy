@@ -48,7 +48,7 @@ import {
 } from '../../utils/usernameLookupBudget';
 import { checkUsernameDraft, describeUsernameRefusal } from '../../utils/usernamePolicy';
 import { SubtleLink } from '../authChooser/primitives';
-import { useAccountDialogHost } from './accountDialogHost';
+import { useAccountDialogHost } from '../accountDialogHost';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
 import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
 import {

@@ -197,7 +197,7 @@ import {
 } from '../../../src/ui/components/signIn/OxySignInPanel';
 import { OxySurfaceFrame } from '../../../src/ui/components/OxySurfaceFrame';
 import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
-import { AccountDialogHostProvider } from '../../../src/ui/components/signIn/accountDialogHost';
+import { AccountDialogHostProvider } from '../../../src/ui/components/accountDialogHost';
 import {
   InlineCommonsQr,
   QR_CAPTION_FONT_SIZE,
