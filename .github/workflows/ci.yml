@@ -127,35 +127,18 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: bun scripts/ci-scope.mjs
 
-  # The Seldon race (docs/engineering/build-and-deploy.md#ci-on-seldon), opt-in
-  # with the repository variable CI_SELDON_RACE=true. Unset, every job runs
-  # hosted as before and none of these takes a runner. Set, the raced jobs
-  # (api-test, api-build, packages-platform, packages-apps) run on the
-  # self-hosted seldon-ci pool; a lane still queued 3 minutes after it was
-  # created gets its hosted twin (the `-hosted` jobs), the lane that starts
-  # first wins, and race-finish cancels the other through its job-level
-  # concurrency group. A fork's pull request never runs on Seldon. A Seldon
-  # lane that fails, whatever the reason, reruns hosted in its `-rescue` job,
-  # which fails again on a genuine failure. CI complete takes the raced jobs'
-  # verdict from the race (scripts/check-ci-complete.mjs).
-  # Pull requests and the merge queue, never a push. A cancelled loser makes a
-  # run conclude `cancelled` and a rescued lane `failure`; the npm release
-  # trusts such a queue run when its `CI complete` passed (release-package.mjs
-  # ciVerdict).
-  race:
-    needs: scope
-    if: ${{ vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork }}
-    uses: OxyHQ/oxy/.github/workflows/seldon-race-start.yml@main
-    permissions:
-      actions: read
-
-  race-finish:
-    needs: race
-    # `!cancelled()`: an ancestor skipped on this event (provenance, a twin) must not skip it.
-    if: ${{ !cancelled() && needs.race.outputs.race == 'true' }}
-    uses: OxyHQ/oxy/.github/workflows/seldon-race-finish.yml@main
-    permissions:
-      actions: read
+  # Seldon-first routing (docs/engineering/build-and-deploy.md#seldon-first-routing).
+  # The heavy jobs (api-test, api-build, packages-platform, packages-apps) run
+  # on the self-hosted seldon-ci pool only while the org variable SELDON_CI_ROUTE
+  # reads `seldon-ci`, which the Seldon CI router writes only while Seldon is
+  # healthy and its queue short (oxy-infra runbook 70), and only on the first
+  # attempt of a same-repository pull request. Everything else runs hosted: the
+  # merge queue, a push, a re-run, a fork. A heavy job that fails on Seldon,
+  # whatever the reason, reruns hosted in its `-rescue` job (same name and
+  # steps), which fails again on a genuine failure; CI complete takes such a
+  # family from the rescue (scripts/check-ci-complete.mjs). A job stuck queued
+  # on an unhealthy Seldon is cancelled by the router's watchdog and re-run, and
+  # attempt 2 runs hosted.
 
   # API Package Tests
   #
@@ -199,11 +182,10 @@ jobs:
     # `CI complete` still goes red on the failed scope). On merge_group and push
     # the first clause is always true.
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
-    runs-on: &seldon-lane ${{ vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
-    concurrency:
-      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-seldon-API Tests (${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: &seldon-lane ${{ vars.SELDON_CI_ROUTE == 'seldon-ci' && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && 'seldon-ci' || 'ubuntu-latest' }}
+    outputs: &lane-outputs
+      lane: ${{ steps.lane.outputs.lane }}
     permissions: &api-test-permissions
-      actions: read # the Seldon race guard reads this run's jobs
       contents: read
     strategy: &api-test-strategy
       # Every shard runs to the end even when one fails, so a red run names
@@ -297,13 +279,12 @@ jobs:
           --health-retries 10
 
     steps: &api-test-steps
-      # A lane that starts after its hosted twin waits here to be cancelled (the Seldon race).
-      - &race-guard
-        name: Seldon race guard
-        if: vars.CI_SELDON_RACE == 'true' && !endsWith(github.job, '-rescue')
-        uses: OxyHQ/oxy/.github/actions/seldon-race@main
-        with:
-          mode: guard
+      # First: where this job ran, which its rescue's condition reads (the
+      # variable may have changed since the job was queued).
+      - &lane-step
+        id: lane
+        name: Seldon lane
+        run: echo "lane=${{ runner.environment == 'self-hosted' && 'seldon' || 'hosted' }}" >> "$GITHUB_OUTPUT"
       - name: Checkout code
         uses: actions/checkout@v7
 
@@ -437,26 +418,12 @@ jobs:
           overwrite: true
           retention-days: 1
 
-  # api-test's hosted twin in the Seldon race: the same name, strategy, services and steps.
-  api-test-hosted:
-    name: ${{ vars.CI_SELDON_RACE == 'true' && format('API Tests ({0}/{1})', matrix.shard, strategy.job-total) || format('API Tests ({0}/{1}) (seldon twin, off)', matrix.shard, strategy.job-total) }}
-    needs: [scope, race]
-    if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
-    runs-on: ubuntu-latest
-    concurrency:
-      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-hosted-API Tests (${{ matrix.shard }}/${{ strategy.job-total }})
-    permissions: *api-test-permissions
-    strategy: *api-test-strategy
-    timeout-minutes: 36
-    services: *api-test-services
-    steps: *api-test-steps
-
-  # api-test's rescue: reruns it hosted when a Seldon lane of it failed (the
-  # house network drops connections); a genuine failure fails again.
+  # api-test's rescue: reruns it hosted when it failed on Seldon (the house
+  # network drops connections); a genuine failure fails again.
   api-test-rescue:
-    name: ${{ vars.CI_SELDON_RACE == 'true' && format('API Tests ({0}/{1})', matrix.shard, strategy.job-total) || format('API Tests ({0}/{1}) (seldon rescue, off)', matrix.shard, strategy.job-total) }}
+    name: API Tests (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [scope, api-test]
-    if: ${{ !cancelled() && needs.api-test.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
+    if: ${{ !cancelled() && needs.api-test.result == 'failure' && (needs.api-test.outputs.lane == 'seldon' || (needs.api-test.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
     runs-on: ubuntu-latest
     permissions: *api-test-permissions
     strategy: *api-test-strategy
@@ -468,13 +435,11 @@ jobs:
   # and the same floors the serial job ran, now over the matrix's artifacts.
   api-coverage:
     name: API Coverage
-    # When the Seldon race ran, each shard's report comes from the lane that
-    # won it, so the matrix's own result can be `cancelled` with every shard
-    # passed; when a Seldon shard failed, every shard's report comes from the
-    # rescue (`overwrite`), which it needs so it waits for them. The merge below
+    # When a shard failed on Seldon, every shard's report comes from the rescue
+    # (`overwrite`), which it needs so it waits for them. The merge below
     # refuses a missing or empty shard either way.
-    needs: [api-test, api-test-hosted, api-test-rescue, race]
-    if: ${{ !cancelled() && (needs.api-test.result == 'success' || needs.race.outputs.race == 'true' || needs.api-test-rescue.result == 'success') }}
+    needs: [api-test, api-test-rescue]
+    if: ${{ !cancelled() && (needs.api-test.result == 'success' || needs.api-test-rescue.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -554,18 +519,16 @@ jobs:
     needs: scope
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
     runs-on: *seldon-lane
-    concurrency:
-      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-seldon-API Build
+    outputs: *lane-outputs
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions: &api-build-permissions
-      actions: read # the Seldon race guard reads this run's jobs
       contents: read
     # ~2.5 minutes measured (p95 under 3); a backstop for a wedged runner, not
     # a budget.
     timeout-minutes: 15
 
     steps: &api-build-steps
-      - *race-guard
+      - *lane-step
       - name: Checkout code
         uses: actions/checkout@v7
 
@@ -628,24 +591,12 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
-  # api-build's hosted twin in the Seldon race: the same name, strategy, services and steps.
-  api-build-hosted:
-    name: ${{ vars.CI_SELDON_RACE == 'true' && 'API Build' || 'API Build (seldon twin, off)' }}
-    needs: [scope, race]
-    if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
-    runs-on: ubuntu-latest
-    concurrency:
-      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-hosted-API Build
-    permissions: *api-build-permissions
-    timeout-minutes: 15
-    steps: *api-build-steps
-
-  # api-build's rescue: reruns it hosted when a Seldon lane of it failed (the
-  # house network drops connections); a genuine failure fails again.
+  # api-build's rescue: reruns it hosted when it failed on Seldon (the house
+  # network drops connections); a genuine failure fails again.
   api-build-rescue:
-    name: ${{ vars.CI_SELDON_RACE == 'true' && 'API Build' || 'API Build (seldon rescue, off)' }}
+    name: API Build
     needs: [scope, api-build]
-    if: ${{ !cancelled() && needs.api-build.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
+    if: ${{ !cancelled() && needs.api-build.result == 'failure' && (needs.api-build.outputs.lane == 'seldon' || (needs.api-build.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false')) }}
     runs-on: ubuntu-latest
     permissions: *api-build-permissions
     timeout-minutes: 15
@@ -1340,11 +1291,9 @@ jobs:
     needs: scope
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false') }}
     runs-on: *seldon-lane
-    concurrency:
-      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-seldon-Package Tests (platform)
+    outputs: *lane-outputs
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions: &packages-platform-permissions
-      actions: read # the Seldon race guard reads this run's jobs
       contents: read
     # A backstop: containers (35s), install (30s), the DB suite at its own 15m
     # cap, and every other suite at its observed maximum (~5m together).
@@ -1372,7 +1321,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps: &packages-platform-steps
-      - *race-guard
+      - *lane-step
       - uses: actions/checkout@v7
       - id: bun
         uses: oven-sh/setup-bun@v2
@@ -1501,25 +1450,12 @@ jobs:
         run: bun run build && bun run lint && bun run typescript && bun run test
         working-directory: ./packages/federation
 
-  # packages-platform's hosted twin in the Seldon race: the same name, strategy, services and steps.
-  packages-platform-hosted:
-    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Package Tests (platform)' || 'Package Tests (platform) (seldon twin, off)' }}
-    needs: [scope, race]
-    if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false')) }}
-    runs-on: ubuntu-latest
-    concurrency:
-      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-hosted-Package Tests (platform)
-    permissions: *packages-platform-permissions
-    timeout-minutes: 30
-    services: *packages-platform-services
-    steps: *packages-platform-steps
-
-  # packages-platform's rescue: reruns it hosted when a Seldon lane of it failed (the
-  # house network drops connections); a genuine failure fails again.
+  # packages-platform's rescue: reruns it hosted when it failed on Seldon (the house
+  # network drops connections); a genuine failure fails again.
   packages-platform-rescue:
-    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Package Tests (platform)' || 'Package Tests (platform) (seldon rescue, off)' }}
+    name: Package Tests (platform)
     needs: [scope, packages-platform]
-    if: ${{ !cancelled() && needs.packages-platform.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false')) }}
+    if: ${{ !cancelled() && needs.packages-platform.result == 'failure' && (needs.packages-platform.outputs.lane == 'seldon' || (needs.packages-platform.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.platform != 'false')) }}
     runs-on: ubuntu-latest
     permissions: *packages-platform-permissions
     timeout-minutes: 30
@@ -1535,17 +1471,15 @@ jobs:
     needs: scope
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false') }}
     runs-on: *seldon-lane
-    concurrency:
-      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-seldon-Package Tests (apps)
+    outputs: *lane-outputs
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions: &packages-apps-permissions
-      actions: read # the Seldon race guard reads this run's jobs
       contents: read
     # A backstop: install (30s), builds (~2m) and every suite at its observed
     # maximum (~4m together).
     timeout-minutes: 30
     steps: &packages-apps-steps
-      - *race-guard
+      - *lane-step
       - uses: actions/checkout@v7
       - id: bun
         uses: oven-sh/setup-bun@v2
@@ -1694,24 +1628,12 @@ jobs:
         run: bun run test
         working-directory: ./packages/console
 
-  # packages-apps's hosted twin in the Seldon race: the same name, strategy, services and steps.
-  packages-apps-hosted:
-    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Package Tests (apps)' || 'Package Tests (apps) (seldon twin, off)' }}
-    needs: [scope, race]
-    if: ${{ needs.race.outputs.race == 'true' && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false')) }}
-    runs-on: ubuntu-latest
-    concurrency:
-      group: seldon-race-${{ github.run_id }}-${{ github.run_attempt }}-hosted-Package Tests (apps)
-    permissions: *packages-apps-permissions
-    timeout-minutes: 30
-    steps: *packages-apps-steps
-
-  # packages-apps's rescue: reruns it hosted when a Seldon lane of it failed (the
-  # house network drops connections); a genuine failure fails again.
+  # packages-apps's rescue: reruns it hosted when it failed on Seldon (the house
+  # network drops connections); a genuine failure fails again.
   packages-apps-rescue:
-    name: ${{ vars.CI_SELDON_RACE == 'true' && 'Package Tests (apps)' || 'Package Tests (apps) (seldon rescue, off)' }}
+    name: Package Tests (apps)
     needs: [scope, packages-apps]
-    if: ${{ !cancelled() && needs.packages-apps.result == 'failure' && vars.CI_SELDON_RACE == 'true' && github.run_attempt == 1 && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false')) }}
+    if: ${{ !cancelled() && needs.packages-apps.result == 'failure' && (needs.packages-apps.outputs.lane == 'seldon' || (needs.packages-apps.outputs.lane == '' && vars.SELDON_CI_ROUTE == 'seldon-ci')) && github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && (!cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.apps != 'false')) }}
     runs-on: ubuntu-latest
     permissions: *packages-apps-permissions
     timeout-minutes: 30
@@ -1820,23 +1742,16 @@ jobs:
     name: CI complete
     needs:
       - scope
-      - race
-      # Not race-finish: its reapers run on seldon-ci-light and only follow the
-      # cancellation, so a CI complete that needed them would wait on Seldon.
       - guards
       - api-test
-      - api-test-hosted
       - api-test-rescue
       - api-coverage
       - api-build
-      - api-build-hosted
       - api-build-rescue
       - api-image
       - packages-platform
-      - packages-platform-hosted
       - packages-platform-rescue
       - packages-apps
-      - packages-apps-hosted
       - packages-apps-rescue
       - android-kotlin
     if: always()
@@ -1844,17 +1759,8 @@ jobs:
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
       contents: read
-      actions: read # the Seldon race verdict reads this run's jobs
     timeout-minutes: 5
     steps:
-      # Per job name: passed when one of its lanes succeeded and no hosted lane
-      # failed. Whenever the race is on: a rescue can run without the race.
-      - name: Seldon race verdict
-        id: race
-        if: vars.CI_SELDON_RACE == 'true'
-        uses: OxyHQ/oxy/.github/actions/seldon-race@main
-        with:
-          mode: verdict
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
@@ -1870,6 +1776,4 @@ jobs:
           # pull_request may skip a scoped suite; every other event may skip
           # nothing.
           EVENT_NAME: ${{ github.event_name }}
-          RACED: ${{ needs.race.outputs.race }}
-          RACE_VERDICT: ${{ steps.race.outputs.outcome }}
         run: bun scripts/check-ci-complete.mjs

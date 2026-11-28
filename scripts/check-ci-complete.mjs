@@ -310,14 +310,7 @@ if (needIds.length === 0) {
 }
 
 // ── 2. Coverage: every job in the workflow is a dependency of this one ─────
-/**
- * Jobs this gate must NOT need. `race-finish` (the Seldon race's finish and
- * its reapers) only follows the race's cancellation, and its reapers run on
- * seldon-ci-light: a gate that needed them would wait for Seldon. A raced job
- * whose loser was never reaped is still judged, on the race's verdict.
- */
-const NOT_GATED = ['race-finish'];
-const expected = jobIds.filter((id) => id !== GATE_JOB_ID && !NOT_GATED.includes(id));
+const expected = jobIds.filter((id) => id !== GATE_JOB_ID);
 const uncovered = expected.filter((id) => !needIds.includes(id));
 if (uncovered.length > 0) {
   fail(
@@ -328,13 +321,6 @@ if (uncovered.length > 0) {
 }
 
 const unknown = needIds.filter((id) => !jobIds.includes(id));
-const gatedAnyway = needIds.filter((id) => NOT_GATED.includes(id));
-if (gatedAnyway.length > 0) {
-  fail(
-    `\`${GATE_JOB_ID}\` needs ${gatedAnyway.join(', ')}, which it must not: the Seldon race's ` +
-      'finish only follows the cancellation, and its reapers wait for Seldon.',
-  );
-}
 if (unknown.length > 0) {
   fail(
     `\`${GATE_JOB_ID}\` needs ${unknown.join(', ')}, which the parse of ${WORKFLOW_PATH} did not ` +
@@ -364,8 +350,8 @@ function dependenciesOf(jobId) {
  * own), which names the root of the chain instead of every job downstream of it.
  * The skip is only excused, never passed: a failed dependency still fails here.
  */
-// Jobs whose `if:` exists only to take their input from either Seldon-race
-// lane: their skip is excused by a dependency that did not succeed, never by
+// Jobs whose `if:` exists only to take their input from a heavy job or its
+// rescue: their skip is excused by a dependency that did not succeed, never by
 // the `if:` itself (`api-coverage` must never skip over passing shards).
 const DEPENDENCY_ONLY_SKIP = ['api-coverage'];
 
@@ -379,81 +365,61 @@ function maySkip(jobId) {
     return true;
   return dependenciesOf(jobId).some((id) => {
     const result = needs?.[id]?.result;
-    // An idle Seldon race (its control jobs, twins and rescues skipped) excuses nothing.
-    if (
-      result === 'skipped' &&
-      (RACE_CONTROL_JOBS.includes(id) || id.endsWith(TWIN_SUFFIX) || id.endsWith(RESCUE_SUFFIX))
-    )
-      return false;
+    // A rescue that was not needed (skipped) excuses nothing.
+    if (result === 'skipped' && id.endsWith(RESCUE_SUFFIX)) return false;
     return result !== undefined && result !== 'success';
   });
 }
 
 /**
- * THE SELDON RACE (docs/engineering/build-and-deploy.md#ci-on-seldon). A raced
- * job `X` runs on the seldon-ci pool and has a hosted twin `X-hosted` with the
- * same steps; the lane that starts first wins and the other is cancelled. A
- * Seldon lane of `X` that failed, whatever the reason (the house network drops
- * connections), reruns hosted in `X-rescue`, which fails again on a genuine
- * failure. So when the race or the rescue ran, none of the three jobs' own
- * results means anything (a matrix with one cancelled loser reports
- * `cancelled` with every shard passed; a rescued one reports `failure`), and
- * the family passes on the race's verdict (`RACE_VERDICT`, from the verdict
- * step: every job name passed in some lane and failed in no hosted lane).
- * Otherwise `X` is judged as any job and its twin and rescue must not have run
- * at all. The race's own control jobs (`race`, `race-finish`) are skipped
- * whenever it is off, on every event; a control job that fails still fails here.
+ * SELDON-FIRST ROUTING (docs/engineering/build-and-deploy.md#seldon-first-routing).
+ * A heavy job `X` runs on the seldon-ci pool while the org variable
+ * SELDON_CI_ROUTE says so (a pull request's first attempt only). When it fails
+ * there, whatever the reason (the house network drops connections), its rescue
+ * `X-rescue`, a hosted job of the same name, strategy and steps, runs it again
+ * and fails again on a genuine failure. A matrix rescue reruns every shard, so
+ * a rescue that passed is the whole job proven hosted, and `X`'s own `failure`
+ * then means nothing. The rule, the same as `.github/actions/seldon-route`:
+ * when the rescue ran, the family passes only when `X` failed and `X-rescue`
+ * succeeded; when it did not, `X` is judged as any job and its skipped rescue
+ * was simply not needed.
  */
-const RACE_CONTROL_JOBS = ['race', 'race-finish'];
-const TWIN_SUFFIX = '-hosted';
 const RESCUE_SUFFIX = '-rescue';
-const raced = process.env.RACED === 'true';
-const raceVerdict = process.env.RACE_VERDICT ?? '';
-const judgedByRace = new Set();
-for (const twin of jobIds.filter((id) => id.endsWith(TWIN_SUFFIX))) {
-  const base = twin.slice(0, -TWIN_SUFFIX.length);
+const judgedByRescue = new Set();
+const idleRescues = new Set();
+for (const rescue of jobIds.filter((id) => id.endsWith(RESCUE_SUFFIX))) {
+  const base = rescue.slice(0, -RESCUE_SUFFIX.length);
   if (!jobIds.includes(base)) continue;
-  const rescue = `${base}${RESCUE_SUFFIX}`;
-  const baseResult = needs?.[base]?.result;
-  const twinResult = needs?.[twin]?.result;
-  const rescued = jobIds.includes(rescue) && needs?.[rescue]?.result !== 'skipped';
-  if (rescued || (raced && !(baseResult === 'skipped' && twinResult === 'skipped'))) {
-    if (raceVerdict !== 'success') {
-      fail(
-        `\`${base}\` ${rescued ? 'was rescued on hosted' : 'raced the seldon-ci pool'} ` +
-          `(\`${twin}\`, \`${rescue}\`), and the race's verdict is ` +
-          `${JSON.stringify(raceVerdict)}: some ${base} job passed in no lane, or failed in a ` +
-          'hosted one (the verdict step names it).',
-      );
-    }
-    judgedByRace.add(base);
-    judgedByRace.add(twin);
-    judgedByRace.add(rescue);
-  } else {
-    if (twinResult !== 'skipped') {
-      fail(
-        `\`${twin}\` reported ${JSON.stringify(twinResult)} although the Seldon race did not run; ` +
-          'a twin runs only when the race queues it.',
-      );
-    }
-    judgedByRace.add(twin);
-    judgedByRace.add(rescue);
+  const rescueResult = needs?.[rescue]?.result;
+  if (rescueResult === 'skipped') {
+    idleRescues.add(rescue);
+    continue;
   }
+  const baseResult = needs?.[base]?.result;
+  if (!(rescueResult === 'success' && baseResult === 'failure')) {
+    fail(
+      `\`${base}\` was rescued on hosted (\`${rescue}\`), and the family did not pass: ` +
+        `\`${base}\` reported ${JSON.stringify(baseResult)} and \`${rescue}\` ` +
+        `${JSON.stringify(rescueResult)}. A rescue reruns a job that failed on Seldon, and a ` +
+        'genuine failure fails it again.',
+    );
+  }
+  judgedByRescue.add(base);
+  judgedByRescue.add(rescue);
 }
 
-const counts = { success: 0, skipped: 0, raceIdle: 0 };
+const counts = { success: 0, skipped: 0, rescueIdle: 0 };
 
 for (const id of needIds.sort()) {
   const result = needs[id]?.result;
 
-  if (judgedByRace.has(id)) {
-    if (result === 'skipped') counts.raceIdle += 1;
-    else counts.success += 1;
+  if (judgedByRescue.has(id)) {
+    counts.success += 1;
     continue;
   }
 
-  if (result === 'skipped' && RACE_CONTROL_JOBS.includes(id) && jobs?.[id]?.if) {
-    counts.raceIdle += 1;
+  if (idleRescues.has(id)) {
+    counts.rescueIdle += 1;
     continue;
   }
 
@@ -534,6 +500,6 @@ if (problems.length > 0) {
 console.log(
   `CI is complete (${eventName}, ${fullSuiteRequired ? 'full suite: nothing skipped' : 'pull request'}): ` +
     `${counts.success} job(s) passed, ${counts.skipped} skipped for a declared ` +
-    `reason${counts.raceIdle ? ` (and ${counts.raceIdle} Seldon-race job(s) not needed)` : ''}, ` +
+    `reason${counts.rescueIdle ? ` (and ${counts.rescueIdle} Seldon rescue(s) not needed)` : ''}, ` +
     `across all ${expected.length} job(s) in ${WORKFLOW_PATH}.`,
 );
