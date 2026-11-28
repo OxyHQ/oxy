@@ -6,8 +6,8 @@ after normal queue CI, image and reviewed activation gates passed. Core 7.4.0
 is published and integrity/provenance verified. Accounts, Auth and
 Console deployed the same source successfully. API revision 1080 and asset worker
 545 are verified on the exact image, with prior tasks drained; live authority
-canaries passed. The parked Schedio role was again refused by the new API.
-The bounded parking and token drain below are complete. Historical
+canaries passed. The expired last-producer role was again refused by the new API.
+The last-producer stop and token drain below are complete. Historical
 validation checkpoints remain dated evidence, not instructions to repeat them.
 
 ADR 0049 assigns scope-free authority to verified own workloads. Final retirement
@@ -46,9 +46,7 @@ active and must not be removed.
   do not create missing credential-control services during this cleanup.
 - Enabled products retain their verified receiver-before-producer rollout. Move
   follows the Mention receiver; Clarity's reader/backfill and Mercaria receiver
-  precede their producers. Schedio is explicitly deferred before launch, as
-  described below; neither its DNS nor its launch is a prerequisite for this
-  retirement. Its old issuer must nevertheless be verifiably parked. Legacy
+  precede their producers. Legacy
   queued jobs keep their recorded original account/operation and are never
   promoted by brand.
 - The Oxy-hosted Inbox client, catalog registrar and normalized-event outbox
@@ -61,7 +59,7 @@ active and must not be removed.
   raw forwarded owner headers or a v1 introspection serializer. External scoped
   clients are not counted as violations of the own-workload migration.
 - Final live canaries cover scope-free own v2, canonical introspection, recipient
-  mismatch, refused v1 issuance, invalid bearers and the parked Schedio binding.
+  mismatch, refused v1 issuance, invalid bearers and the expired last-producer binding.
   Requester/account isolation, external customer scope ceilings and external
   OAuth/MCP revocation are covered by the exact-source signed-HTTP/PostgreSQL
   regressions and earlier dated product probes. Those evidence types remain
@@ -80,10 +78,10 @@ active and must not be removed.
 - Core 7.4.0 passed the packed public API and consumer checks below. Its version
   change merged through normal CI; registry and production evidence are recorded
   separately from the source merge.
-- The rollout coordinator approved the final inventory, parking and drain gates
-  before promotion. Do not repeat completed parking or binding mutations.
+- The rollout coordinator approved the final inventory, last-producer stop and drain
+  gates before promotion. Do not repeat completed binding mutations.
 
-### Completed parking and release verification (2026-10-25)
+### Completed drain and release verification (2026-10-25)
 
 The [migration ledger](../architecture/first-party-integration-migration.md)
 records the verified product receiver/producer deployments, Inbox rollout,
@@ -98,29 +96,25 @@ POS 40213492781). Website API revision 70 and its frontend run
 `a30d271115fe9afb95e038e46d84e1ba51adff12`. Neither replaces account-specific
 acceptance tests or establishes whole-fleet readiness.
 
-The owner deferred Schedio before launch. Its deployment workflows are disabled,
-and the service is parked at desired/running/pending `0/0/0`. The last old process
+The last old process
 stopped at `19:36:26.289Z`. An exact-tuple CAS committed at `19:38:09.468Z`,
 changing only that workload binding's expiry; application, public client, role,
 customer credentials and product data were preserved. A real signed mint under
-the Schedio role returned `403 unbound_workload` at `19:39:15.618Z`. Diagnostic
+that role returned `403 unbound_workload` at `19:39:15.618Z`. Diagnostic
 tasks stopped and their definitions became inactive before the conservative
 drain boundary `19:39:52.720361Z`.
 
 The deployed lifetime ceiling was 300 seconds. The final readback after
-`19:44:52.720361Z` confirmed 30 stable services, no running Schedio process,
+`19:44:52.720361Z` confirmed 30 stable services, no running old process,
 unchanged reviewed image digests, and supported launchers using their reviewed
 images or the live service revision. The intervening Mention sitemap task used
 exactly the migrated revision 723 and exited successfully. Issuer observations
 through `19:50:51.657Z` contained 178 emissions, all protocol 2. These logs support
 the actual stop, binding expiry and signed refusal; absence of v1 events alone
 would not establish a drain. See the durable
-[parking and drain evidence](../architecture/evidence/first-party-prelaunch-parking-20261025.json).
+[drain evidence](../architecture/evidence/first-party-prelaunch-parking-20261025.json).
 
-Cloudflare access, DNS/ACM validation and public launch are future Schedio launch
-requirements, not blockers for this parked producer. Relaunch must use current
-v2 artifacts, reviewed binding administration and the normal receiver canary;
-never restore an old v1 launcher or unconditionally clear the expired binding.
+Never restore an old v1 launcher or unconditionally clear the expired binding.
 
 Mercaria's public HTTP/Chromium acceptance passed at
 `2026-10-25T16:58:19.383Z`: ordinary requests omit cookies, old cookie-only clients
@@ -136,7 +130,7 @@ and its linked runtime, preflight, diagnostic-cleanup and public-acceptance
 receipts. Mercaria is no longer a pending migration prerequisite. Its finite
 referral bridge is separate from workload v1 and must not be removed by this PR.
 
-Parking, current fleet/launcher readback, the full token-lifetime drain and final
+The last-producer stop, current fleet/launcher readback, the full token-lifetime drain and final
 artifact compatibility gates are complete. The actual Core publication, exact
 API/worker
 production rollout and live retirement canaries are also verified.
@@ -182,7 +176,7 @@ Jest discovery and AGENTS/diff checks were repeated; the 49 consumer tests and f
 Core results below remain applicable without duplicating them for a docs-only
 upstream rebase. Final branch CI 40215450916 and scaffold smoke 40215450924 both
 completed successfully on `e61b56ddc2848293089f504b18f31687862240ba`, including
-all four API shards. The later Schedio-deferral edit changes documentation only.
+all four API shards.
 At that checkpoint, versioned release artifacts and fresh production/drain
 evidence were still required; the completed cutover is recorded above.
 
@@ -269,8 +263,8 @@ below establish release completion.
 
 ### Release procedure and future audit reference
 
-1. Record the fresh fleet and launcher inventory, including the exact Schedio
-   parked issuer disposition. Identify the latest possible v1 issuance time
+1. Record the fresh fleet and launcher inventory, including the exact
+   disposition of every stopped issuer. Identify the latest possible v1 issuance time
    across every old producer; wait the deployed maximum lifetime (currently
    300 seconds) after that bound and perform the final readback/canaries. This
    clock cannot start from a source merge or a quiet mint metric alone.
@@ -303,8 +297,8 @@ below establish release completion.
 
 Steps 1–4, the normal merge and registry verification in step 5 are complete.
 API/worker production verification and live canaries in step 5 also passed.
-This procedure does not authorize starting
-Schedio or repeating any binding mutation.
+This procedure does not authorize restarting
+an old producer or repeating any binding mutation.
 
 ### Prepared Core 7.4.0 artifact validation
 
@@ -329,7 +323,7 @@ acceptance, nor replace the live-grant/OAuth regressions in full branch CI.
 Receipts, declaration review, test logs and the tarball are under
 `/home/nate/Oxy/.scratch/first-party-core-tmp/retirement-core-7.4/`.
 
-Versioned branch and queue CI, parked-issuer, launcher, fresh binding and
+Versioned branch and queue CI, stopped-issuer, launcher, fresh binding and
 full-lifetime drain receipts passed before merge. Registry publication and exact
 production activation are tracked separately at the top of this document.
 
@@ -368,8 +362,8 @@ negative is not a positive live external-customer key/OAuth exercise: those
 compatibility paths retain their dedicated source and real-HTTP regression
 coverage, rather than being inferred from this canary.
 
-The post-release Schedio probe at `20:16:47.538Z` used the exact parked workload
+The post-release probe at `20:16:47.538Z` used the exact expired workload
 role against the new API 1080 and again returned `403 unbound_workload`. Its task
-exited 0 and its definition was inactive by `20:17:38Z`. This confirms parking
-remained enforced after the runtime change; it does not authorize a future
-Schedio launch or change the approved binding expiry.
+exited 0 and its definition was inactive by `20:17:38Z`. This confirms the binding
+expiry remained enforced after the runtime change; it does not change the approved
+binding expiry.

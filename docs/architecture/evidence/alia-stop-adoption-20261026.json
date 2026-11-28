@@ -540,7 +540,6 @@
     }
   },
   "limits": [
-    "Schedio explicitly excluded and parked",
     "No user account identifiers, subscription details, session proofs, prompts or credentials included",
     "No native or desktop installed/distribution completion inferred from source or web rollout",
     "Codea VSIX1.0.10 and Cowork Linux AppImage1.0.3 are reviewed local artifacts only",

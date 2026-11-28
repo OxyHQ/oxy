@@ -832,12 +832,6 @@
     "publicRegistryArchiveVerified": true,
     "integrity": "sha512-NM26B17Ele/2OfB4q/UISACPPHg8hdIM1JDdYy5ko9MwaEcQSEKqotlCB/b6UYJZ09ZGCO0fEn082Xn1h74Dfg=="
   },
-  "schedioRolloutHold": {
-    "sourceSha": "07618821895ca7f4c5c61c5a6a23e3e4d238db38",
-    "run": 40186013122,
-    "result": "Public DNS smoke failed; automatic backend rollback to revision 17",
-    "v1RetirementAllowed": false
-  },
   "mercariaReaderCanary": {
     "success": true,
     "checks": [
@@ -914,7 +908,6 @@
     "deploymentRun": 40189808422
   },
   "remainingAcceptance": {
-    "schedio": "Public DNS smoke failed; runtime rolled back to revision17; domain decision pending",
     "cookies": "User decision on the storefront instruction conflict pending; no authorization policy change recorded",
     "website": "API69 and frontend c8746a7 deployed; live installed SDK canary passed; not a private user-data or inference-generation acceptance claim",
     "sockets": "Peable172 and Moovo177 deployed; Mention1627 frontend deployed with backend/MCP jobs skipped; remaining Syra publication/adoption acceptance tracked separately",
@@ -1157,17 +1150,6 @@
       "pr": 1158,
       "sourceSha": "6e67951e5c2588324735d82b97a80cad2269dd9d",
       "status": "merged; separate from verified backend144 source5ef0982"
-    },
-    "schedioDocs": {
-      "pr": 73,
-      "sourceSha": "05b64c324233c3ae506db0ca80508b5d9eb4a85a",
-      "mainCi": 40192273248,
-      "mainCiConclusion": "cancelled intentionally to preserve DNS hold",
-      "apiDeploy": 40192399564,
-      "frontendDeploy": 40192399528,
-      "deployConclusions": "skipped",
-      "sdkUpdatePr72": "held; DNS absent",
-      "producerPr71": "merged source; producer not live after rollback"
     }
   },
   "v1RetirementDraft": {

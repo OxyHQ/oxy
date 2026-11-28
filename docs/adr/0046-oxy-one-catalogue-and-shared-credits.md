@@ -12,8 +12,8 @@ minor units. Family allowances are shared, not multiplied by member count;
 business includes a base plus per-seat terms. Annual quotes round each billable
 line before totaling it, matching Website.
 
-The included product set covers Alia, Mention, Inbox, Noted, Clarity, Homiio,
-Schedio and Mercaria according to the audience/tier mappings. Each product keeps
+The included product set covers Alia, Mention, Inbox, Noted, Clarity, Homiio
+and Mercaria according to the audience/tier mappings. Each product keeps
 its own tier names and enforces actual capabilities on its server. A label or
 client-side selection never grants access.
 
@@ -38,7 +38,7 @@ lifecycle semantics and verified fiscal configuration. See
 `docs/products/oxy-one-launch-readiness.md`.
 Existing product integrations cannot be assumed to support all new tier mappings:
 Alia's adapter currently selects one configured plan; Mention uses its specific
-mono capability; Noted uses shared storage. Inbox/Schedio/Clarity/Homiio/Mercaria
+mono capability; Noted uses shared storage. Inbox/Clarity/Homiio/Mercaria
 need their corresponding product mappings and capability enforcement verified.
 No new app entitlements, live prices, subscriptions, migrations or deployments
 were activated by the preview work.

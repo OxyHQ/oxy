@@ -27,8 +27,8 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 
 const apps = {
   personal: ['alia', 'mention', 'inbox', 'noted', 'clarity', 'homiio'],
-  creator: ['alia', 'mention', 'inbox', 'noted', 'clarity', 'schedio', 'mercaria'],
-  business: ['alia', 'mention', 'inbox', 'noted', 'clarity', 'schedio'],
+  creator: ['alia', 'mention', 'inbox', 'noted', 'clarity', 'mercaria'],
+  business: ['alia', 'mention', 'inbox', 'noted', 'clarity'],
 } as const;
 
 /** The shared Bloom presentation, populated with Oxy's approved commercial terms.

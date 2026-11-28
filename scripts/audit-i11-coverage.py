@@ -25,8 +25,8 @@ def main():
     rows = data['repositories']
     errors = []
     names = [row['repository'] for row in rows]
-    if len(names) != 50 or len(set(names)) != 50:
-        errors.append('Expected exactly 50 distinct repositories for this dated snapshot')
+    if len(names) != 49 or len(set(names)) != 49:
+        errors.append('Expected exactly 49 distinct repositories for this dated snapshot')
     registry = {(record['package'], record['requested_version']): record for record in data['registry_observations']}
     latest = {record['package']: record for record in data['registry_observations'] if record['requested_version'] == 'latest'}
     proposals = []

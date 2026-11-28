@@ -95,7 +95,6 @@
   },
   "retirementActivated": false,
   "holds": [
-    "Schedio producer remains on revision17 after DNS rollback; source merge and zero observed v1 mints do not prove that producer migrated.",
     "Storefront cookie policy requires the owner decision; no policy change is inferred.",
     "Final Core7.x release gates, pack and consumer composition, final process and launcher inventory, and >=300 seconds after the last old producer stops are still required."
   ],

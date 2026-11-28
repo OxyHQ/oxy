@@ -51,6 +51,6 @@ describe('approved Oxy One terms from website /one', () => {
     expect(Object.values(OXY_ONE_APP_SUBSCRIPTIONS).every((app) => app.tiers.Free === null)).toBe(
       true,
     );
-    expect(Object.keys(OXY_ONE_APP_SUBSCRIPTIONS)).toHaveLength(8);
+    expect(Object.keys(OXY_ONE_APP_SUBSCRIPTIONS)).toHaveLength(7);
   });
 });

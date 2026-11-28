@@ -83,8 +83,6 @@ internal object OxyCallerPolicy {
     "co.mercaria.dashboard.dev",
     "co.mercaria.pos",
     "co.mercaria.pos.dev",
-    "com.schedio.app",
-    "com.schedio.app.dev",
     "fm.syra.app",
     "fm.syra.app.dev",
     "fm.syra.studio",

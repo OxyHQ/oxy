@@ -26,7 +26,6 @@ Three were not, and no document said which way was right:
   cannot be given two translations. Nothing shows where a string belongs, so a
   dead string is invisible: the translations held 11,000 keys the English
   catalog no longer had.
-- **Schedio** had the same mix, 372 flat entries.
 - **Allo** stored every key as a flat dotted string (`"chat.sticker.unavailable"`).
   The keys were well chosen but read with `keySeparator: false`. That is a second
   dialect: the same path means a different JSON shape in Allo than in every
@@ -74,7 +73,7 @@ Three were not, and no document said which way was right:
 
 ## Consequences
 
-- Mention, Schedio and Allo migrate: keys rewritten across code and every
+- Mention and Allo migrate: keys rewritten across code and every
   locale, dead keys deleted, `keySeparator: false` removed. Every other
   catalog already passes or needs only small fixes (one top-level string,
   stray translations).

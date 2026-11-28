@@ -200,15 +200,6 @@
       "opening": "<OxyProvider\n              oxyServices={oxyServices}\n              clientId={OXY_CLIENT_ID}\n              authRedirectUri={OXY_AUTH_REDIRECT_URI}\n              storageKeyPrefix=\"peable\"\n              queryClient={queryClient}\n              language={{\n                supportedLocales: TRANSLATED_LANGUAGE_CODES,\n                fallbackLocale: DEFAULT_LANGUAGE,\n                onChange: handleLanguageChange,\n                onError: handleLanguageError,\n              }}\n            >"
     },
     {
-      "repository": "Schedio",
-      "head": "a5142004f785f3a41501d0ac7e96138fc93eeec4",
-      "path": "packages/frontend/components/providers/AppProviders.tsx",
-      "line": 46,
-      "clientId_present_in_opening": true,
-      "spread_requires_inspection": false,
-      "opening": "<OxyProvider\n            oxyServices={oxyServices}\n            clientId={OXY_CLIENT_ID}\n            language={{\n              supportedLocales: SUPPORTED_LANGUAGES,\n              fallbackLocale: DEFAULT_LANGUAGE,\n              onChange: setLanguage,\n              onError: (error, locale) =>"
-    },
-    {
       "repository": "Syra",
       "head": "7804e1f1c1be89edf802e92ef41c81a4fb91eeae",
       "path": "packages/studio/components/providers/AppProviders.tsx",

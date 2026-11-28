@@ -19,8 +19,8 @@
  * `var(--radius)` -> 16px, against Tailwind's own 8px, with `rounded-md` at
  * 14px against 6px and `rounded-sm` at 12px against 4px. Nothing errored and
  * nothing looked broken; Bloom's corners were simply not Bloom's. This is the
- * exact failure `~/Oxy/docs/frontend-conventions.md` censuses in Schedio,
- * Homiio, Syra and website.
+ * exact failure `~/Oxy/docs/frontend-conventions.md` censuses in Homiio,
+ * Syra and website.
  *
  * Nothing in this app ever used `rounded-lg`/`md`/`sm` itself, so the block had
  * no upside at all. App radii come from Bloom's own scale —
