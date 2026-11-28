@@ -10,16 +10,20 @@
  * The email is confirmed before the account exists, and it is how the account
  * signs in (a code or a link each time). A password and an authenticator app
  * are added later, in the account's security settings. Commons stays the way to
- * hold your own key: "Create it in Commons instead" — and linking Commons later
- * makes the account self-custodied and deletes the email.
+ * hold your own key: the username step says what that means, then "Create it in
+ * Commons instead" — and linking Commons later makes the account self-custodied
+ * and deletes the email. A host may preview the profile the username becomes
+ * (`handlePreviewTemplate`); this screen never names an app's domain itself.
  */
 
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { Linking, Platform, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { DatePicker } from '@oxy.so/bloom/date-picker';
 import { TextFieldLabel } from '@oxy.so/bloom/text-field';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
+import { Text } from '@oxy.so/bloom/typography';
 import type { EmailVerificationConfirmResponse } from '@oxy.so/contracts';
 import {
   MIN_BIRTH_YEAR,
@@ -33,11 +37,18 @@ import {
 import { useOxy } from '../../context/oxyRuntimeContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useI18n } from '../../hooks/useI18n';
+import { useUsernameAvailability } from '../../hooks/useUsernameAvailability';
 import { getCommonsAcquisitionUrl } from '../../utils/commonsStoreLinks';
 import { isWebBrowser } from '../../utils/isWebBrowser';
 import { fromCalendarDate, toCalendarDate } from '../../utils/calendarDate';
+import { renderHandlePreview } from '../../utils/handlePreview';
+import {
+  shareUsernameLookup,
+  usernameLookupCooldownSeconds,
+} from '../../utils/usernameLookupBudget';
 import { checkUsernameDraft, describeUsernameRefusal } from '../../utils/usernamePolicy';
 import { SubtleLink } from '../authChooser/primitives';
+import { useAccountDialogHost } from '../accountDialogHost';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
 import { readSignInFlow, writeSignInFlow } from './signInFlowStore';
 import {
@@ -70,6 +81,14 @@ export interface OxySignUpPanelProps {
    * this screen (`signInFlowStore`). `page` — a page of its own.
    */
   host?: 'dialog' | 'page';
+  /**
+   * Preview of the public profile this username becomes. `{username}` is
+   * replaced with the typed handle. The host writes its own origin, for
+   * example `{base}/@{username}` with that base already filled in. Omitted,
+   * the screen uses the template from `OxyProvider`, or shows none. Wins over
+   * the provider when both are set.
+   */
+  handlePreviewTemplate?: string | null;
 }
 
 /** What the dialog keeps of this screen across a remount. */
@@ -86,8 +105,11 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
   onSignedIn,
   onSignIn,
   host = 'page',
+  handlePreviewTemplate,
 }) => {
+  const theme = useTheme();
   const { t } = useI18n();
+  const hostDialog = useAccountDialogHost();
   const {
     oxyServices,
     handleWebSession,
@@ -104,6 +126,22 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
   const [dateOfBirth, setDateOfBirth] = useState(saved?.dateOfBirth ?? '');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A new account is not the one already signed in on this device, so a matching
+  // handle is checked rather than treated as "unchanged".
+  const availability = useUsernameAvailability(username, step.name === 'username', {
+    matchCurrentUser: false,
+    // Preview lookups share the ten-a-minute quota with the check below.
+    reserveSubmit: true,
+  });
+  const previewTemplate = (handlePreviewTemplate ?? hostDialog.handlePreviewTemplate)?.trim() || '';
+  const handlePreview = renderHandlePreview(previewTemplate, username);
+  const liveTaken =
+    !error && availability.status === 'taken' && availability.candidate === username.trim();
+  const showAvailable =
+    !error &&
+    availability.status === 'available' &&
+    availability.candidate === username.trim() &&
+    username.trim().length > 0;
 
   useEffect(() => {
     writeSignInFlow(flowOwner, SIGN_UP_FLOW_KEY, {
@@ -141,9 +179,23 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
     }
     const handle = draft.username;
     setUsername(handle);
+    // The live check already answered for this exact handle.
+    if (availability.status === 'taken' && availability.candidate === handle) {
+      setError(t('signup.username.taken'));
+      return;
+    }
     run(async () => {
-      const { available } = await oxyServices.auth.checkUsername(handle);
-      if (!available) throw new UsernameTakenError();
+      // Reuses the preview's answer for this exact handle, or the one lookup
+      // the preview left unused. Past that, wait out the window — sending
+      // would be refused and the refusal would count too.
+      const outcome = await shareUsernameLookup(handle, 'submit', (name) =>
+        oxyServices.auth.checkUsername(name),
+      );
+      if (outcome === 'deferred') {
+        setError(t('signin.errors.rateLimited', { seconds: usernameLookupCooldownSeconds() }));
+        return;
+      }
+      if (!outcome.available) throw new UsernameTakenError();
       setStep({ name: 'birthdate' });
     });
   };
@@ -344,33 +396,57 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
         <OxyAuthScreen>
           <OxyAuthScreenHeader title={t('signup.title')} description={t('signup.subtitle')} />
           {progress(0)}
-          <AccountFlowField
-            label={t('signup.username.label')}
-            value={username}
-            onChange={(value) => {
-              setUsername(stripDisallowedUsernameCharacters(value));
-              if (error) setError(null);
-            }}
-            onSubmit={submitUsername}
-            error={error}
-            disabled={pending}
-            placeholder={t('signup.username.placeholder')}
-            hint={t('usernamePolicy.hint')}
-            maxLength={USERNAME_MAX_LENGTH}
-            autoComplete="username"
-            testID="signup-username"
-          />
+          <View style={styles.usernameBlock}>
+            <AccountFlowField
+              label={t('signup.username.label')}
+              value={username}
+              onChange={(value) => {
+                setUsername(stripDisallowedUsernameCharacters(value));
+                if (error) setError(null);
+              }}
+              onSubmit={submitUsername}
+              error={error ?? (liveTaken ? t('signup.username.taken') : null)}
+              disabled={pending}
+              placeholder={t('signup.username.placeholder')}
+              hint={t('usernamePolicy.hint')}
+              maxLength={USERNAME_MAX_LENGTH}
+              autoComplete="username"
+              testID="signup-username"
+            />
+            {showAvailable ? (
+              <Text
+                testID="signup-username-status"
+                accessibilityLiveRegion="polite"
+                style={[styles.status, { color: theme.colors.success }]}
+              >
+                {t('signup.username.available')}
+              </Text>
+            ) : null}
+            {handlePreview ? (
+              <Text
+                testID="signup-handle-preview"
+                style={[styles.status, { color: theme.colors.textSecondary }]}
+              >
+                {handlePreview}
+              </Text>
+            ) : null}
+          </View>
           <AccountFlowAction
             label={t('signin.actions.continue')}
             onPress={submitUsername}
             pending={pending}
             testID="signup-username-continue"
           />
-          <SubtleLink
-            label={t('signup.createInCommons')}
-            onPress={createInCommons}
-            testID="signup-commons-instead"
-          />
+          <View style={styles.commons}>
+            <AccountFlowNote testID="signup-commons-note">
+              {t('signup.commonsSubtitle')}
+            </AccountFlowNote>
+            <SubtleLink
+              label={t('signup.createInCommons')}
+              onPress={createInCommons}
+              testID="signup-commons-instead"
+            />
+          </View>
           <SubtleLink
             label={t('signup.backToSignInLink')}
             onPress={onSignIn}
@@ -384,3 +460,16 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
 
 /** The username was taken between typing it and creating the account. */
 class UsernameTakenError extends Error {}
+
+const styles = StyleSheet.create({
+  usernameBlock: {
+    gap: 8,
+  },
+  status: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  commons: {
+    gap: 8,
+  },
+});

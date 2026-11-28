@@ -86,6 +86,20 @@ export interface OxyProviderProps {
    * flow cannot start.
    */
   clientId?: string;
+  /**
+   * The app this provider's account dialog is signing into. When set, the
+   * sign-in screen says that one Oxy account works across this app and the
+   * others. Omitted, the line stays generic and names no app.
+   */
+  appName?: string;
+  /**
+   * Preview of the public profile a new username becomes, shown while signing
+   * up. `{username}` is replaced with the typed handle. Pass the host's own
+   * profile path, for example `{base}/@{username}` with the host's origin
+   * already written in place of `{base}` (`https://example.com/@{username}`).
+   * This SDK does not know or insert an app's domain.
+   */
+  handlePreviewTemplate?: string;
   baseURL?: string;
   authWebUrl?: string;
   authRedirectUri?: string;

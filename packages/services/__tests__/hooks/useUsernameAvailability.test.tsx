@@ -1,5 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { useUsernameAvailability } from '../../src/ui/hooks/useUsernameAvailability';
+import {
+  resetUsernameLookupBudget,
+  shareUsernameLookup,
+  USERNAME_LOOKUP_BACKGROUND_MAX,
+  USERNAME_LOOKUP_LIMIT,
+} from '../../src/ui/utils/usernameLookupBudget';
 
 const checkUsername = jest.fn();
 jest.mock('../../src/ui/context/oxyRuntimeContext', () => ({
@@ -16,6 +22,7 @@ const advance = async () => {
 beforeEach(() => {
   jest.useFakeTimers();
   checkUsername.mockReset();
+  resetUsernameLookupBudget();
 });
 afterEach(() => {
   jest.useRealTimers();
@@ -57,6 +64,17 @@ test('debounces edits and ignores an older response after a newer draft', async 
   expect(checkUsername.mock.calls).toEqual([['firstdraft'], ['seconddraft']]);
 });
 
+test('checks a new account even when the handle matches the signed-in one', async () => {
+  checkUsername.mockResolvedValueOnce({ available: false });
+  const { result } = renderHook(() =>
+    useUsernameAvailability('existinguser', true, { matchCurrentUser: false }),
+  );
+  expect(result.current.status).toBe('checking');
+  await advance();
+  expect(result.current.status).toBe('taken');
+  expect(checkUsername).toHaveBeenCalledWith('existinguser');
+});
+
 test('does not treat connection failure as availability and can retry', async () => {
   checkUsername
     .mockRejectedValueOnce(new Error('offline'))
@@ -69,4 +87,26 @@ test('does not treat connection failure as availability and can retry', async ()
   expect(result.current.status).toBe('checking');
   await advance();
   expect(result.current.canSave).toBe(true);
+});
+
+test('preview lookups leave the production quota one request for continue', async () => {
+  checkUsername.mockResolvedValue({ available: true });
+  const { result, rerender } = renderHook(
+    ({ name }) => useUsernameAvailability(name, true, { reserveSubmit: true }),
+    { initialProps: { name: 'user00' } },
+  );
+  for (let i = 0; i < USERNAME_LOOKUP_BACKGROUND_MAX; i++) {
+    rerender({ name: `user${String(i).padStart(2, '0')}` });
+    await advance();
+    expect(result.current.status).toBe('available');
+  }
+  expect(checkUsername).toHaveBeenCalledTimes(USERNAME_LOOKUP_BACKGROUND_MAX);
+  rerender({ name: 'user09' });
+  await advance();
+  expect(checkUsername).toHaveBeenCalledTimes(USERNAME_LOOKUP_BACKGROUND_MAX);
+  expect(result.current.status).toBe('deferred');
+  await expect(shareUsernameLookup('user09', 'submit', checkUsername)).resolves.toEqual({
+    available: true,
+  });
+  expect(checkUsername).toHaveBeenCalledTimes(USERNAME_LOOKUP_LIMIT);
 });

@@ -150,6 +150,8 @@ const dict = {
   signin: {
     title: 'Iniciar sesión',
     subtitle: 'Usa tu cuenta de Oxy',
+    oneAccount: 'Con una cuenta de Oxy entras en las apps de Oxy',
+    oneAccountInApp: 'Con una cuenta de Oxy entras en {{app}} y en el resto de apps de Oxy',
     emailAccounts: {
       title: 'Elige una cuenta',
       description: '{{identifier}} tiene varias cuentas. Elige con cuál entrar.',
@@ -289,6 +291,7 @@ const dict = {
     username: {
       label: 'Nombre de usuario',
       placeholder: 'tunombre',
+      available: 'Este nombre de usuario está disponible.',
       taken: 'Ese nombre de usuario ya está en uso.',
     },
     email: {
