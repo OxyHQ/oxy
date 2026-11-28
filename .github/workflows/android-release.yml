@@ -44,6 +44,13 @@ on:
         description: Release tag prefix; distinct per app when a repository has several.
         type: string
         default: android
+      builder:
+        description: >-
+          What builds the native app: `expo` (expo prebuild and Gradle) or `bloom` (`bloomc build
+          android --store`, Bloom's hybrid build of an adopted app: its Package.bloom and the
+          compiler the app installs). The artifacts, archive, Play upload and release are the same.
+        type: string
+        default: expo
 
 permissions:
   contents: write
@@ -63,6 +70,7 @@ jobs:
       APP_DIR: ${{ inputs.app-dir }}
       EAS_PROFILE: ${{ inputs.eas-profile }}
       TAG_PREFIX: ${{ inputs.tag-prefix }}
+      BUILDER: ${{ inputs.builder }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
@@ -74,6 +82,10 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
+          case "$BUILDER" in
+            expo | bloom) ;;
+            *) echo "::error::builder is '$BUILDER': expo or bloom."; exit 1 ;;
+          esac
           if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
             echo "::error::An Android release builds only $DEFAULT_BRANCH, not $GITHUB_REF."
             exit 1
@@ -192,7 +204,7 @@ jobs:
           node "$checker" "$IOS_BUNDLE_ID" ios
 
       - name: Prebuild the native project
-        if: steps.plan.outputs.build == 'true'
+        if: steps.plan.outputs.build == 'true' && inputs.builder == 'expo'
         working-directory: ${{ inputs.app-dir }}
         run: bunx expo prebuild --platform android --clean --no-install
 
@@ -200,12 +212,63 @@ jobs:
       # builds a bundle, because AGP refuses split APKs next to an app bundle
       # while R8 shrinks resources (https://issuetracker.google.com/402800800).
       - name: Build the signed AAB and APKs
-        if: steps.plan.outputs.build == 'true'
+        if: steps.plan.outputs.build == 'true' && inputs.builder == 'expo'
         working-directory: ${{ inputs.app-dir }}/android
         run: |
           set -euo pipefail
           ./gradlew :app:bundleRelease --console=plain
           ./gradlew :app:assembleRelease --console=plain
+
+      # The Bloom build (`builder: bloom`): `bloomc build android --store` generates and drives the
+      # Gradle project from the app's Package.bloom (no expo prebuild), and writes the AAB and one
+      # APK per ABI to .bloom/dist/android/. It signs with the same ecosystem key, read from the
+      # runner's ORG_GRADLE_PROJECT_OXY_UPLOAD_* (never written to disk by this step), and fails
+      # unless every artifact carries the ecosystem certificate (BLOOM_ANDROID_CERT_SHA256, the
+      # check oxyVerifyReleaseSigning makes for the Expo build). Package.bloom must name the app
+      # config's version and versionCode, and the build's OTA runtime must be its own
+      # (`<version>-bloom`), so an update exported from the Expo build can never land on it.
+      - name: Build the signed AAB and APKs (Bloom)
+        if: steps.plan.outputs.build == 'true' && inputs.builder == 'bloom'
+        working-directory: ${{ inputs.app-dir }}
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          VERSION_CODE: ${{ steps.plan.outputs.version-code }}
+          BLOOM_ANDROID_ABIS: armeabi-v7a,arm64-v8a,x86,x86_64
+          BLOOM_ANDROID_KEY_ALIAS: oxy
+          BLOOM_ANDROID_CERT_SHA256: b8ab3746466ce4569d7a6a0ffa1eed91bc375174d503613987ca09cb33d6a58d
+        run: |
+          set -euo pipefail
+          grep -q "version: \"$VERSION\"," Package.bloom || { echo "::error::Package.bloom does not name version $VERSION (the app config's)."; exit 1; }
+          grep -q "build: $VERSION_CODE," Package.bloom || { echo "::error::Package.bloom does not name build $VERSION_CODE (the app config's versionCode)."; exit 1; }
+          : "${ORG_GRADLE_PROJECT_OXY_UPLOAD_STORE_FILE:?the seldon runner sets the ecosystem keystore}"
+          export BLOOM_ANDROID_KEYSTORE="$ORG_GRADLE_PROJECT_OXY_UPLOAD_STORE_FILE"
+          if [ -n "${ORG_GRADLE_PROJECT_OXY_UPLOAD_STORE_PASSWORD:-}" ]; then
+            BLOOM_ANDROID_KEYSTORE_PASSWORD="$ORG_GRADLE_PROJECT_OXY_UPLOAD_STORE_PASSWORD"
+          else
+            BLOOM_ANDROID_KEYSTORE_PASSWORD="$(cat "${ORG_GRADLE_PROJECT_OXY_UPLOAD_STORE_PASSWORD_FILE:?no store password}")"
+          fi
+          export BLOOM_ANDROID_KEYSTORE_PASSWORD
+          bunx --no-install bloomc build android --store
+          # Stage the artifacts where the Expo build leaves them, for the steps below.
+          out=android/app/build/outputs
+          rm -rf android
+          mkdir -p "$out/apk/release" "$out/bundle/release"
+          shopt -s nullglob
+          aabs=(.bloom/dist/android/*.aab)
+          [ "${#aabs[@]}" -eq 1 ] || { echo "::error::bloomc wrote ${#aabs[@]} app bundles, not one."; exit 1; }
+          cp "${aabs[0]}" "$out/bundle/release/app-release.aab"
+          for abi in ${BLOOM_ANDROID_ABIS//,/ }; do
+            apk=("${aabs[0]%.aab}-$abi.apk")
+            cp "${apk[0]}" "$out/apk/release/app-$abi-release.apk"
+          done
+          # The OTA runtime the APK asks Oxy Updates for.
+          aapt2="$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)"
+          runtime="$("$aapt2" dump resources "$out/apk/release/app-arm64-v8a-release.apk" | grep -A1 'string/expo_runtime_version' | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)"
+          if [ "$runtime" != "$VERSION-bloom" ]; then
+            echo "::error::The Bloom build's OTA runtime is '${runtime:-none}', not '$VERSION-bloom': updates exported from the Expo build would land on it."
+            exit 1
+          fi
+          echo "::notice::Bloom build of $VERSION, OTA runtime $runtime."
 
       # Every build is kept on seldon too, the AAB included: the GitHub release
       # carries only what the public installs (the per-ABI APKs and their
