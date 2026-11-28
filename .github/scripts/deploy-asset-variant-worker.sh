@@ -117,9 +117,15 @@ if [[ "$phase" == "start" ]]; then
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
-          # Match the oxy-infra sustained-encoding reservation. Carrying the old
-          # 256 shares forward hides CPU demand from EC2 capacity scaling.
-          | .cpu = 1024
+          # Match the oxy-infra reservation (app-oxy-asset-variant-worker.tf).
+          # 512 shares / 1536 MiB since 2026-11-28 (was 1024 / 2304): with
+          # federated videos no longer re-encoded (#2347) the worker renders
+          # images and waits on R2, measured at ~0.12 vCPU per task on average
+          # and 1.36 GB at most over 7 days. 512 still lets a burst of local
+          # video encodes show up as reservation for EC2 capacity scaling
+          # (the old 256 hid it); the 6144 MiB hard limit is unchanged.
+          | .cpu = 512
+          | .memoryReservation = 1536
           | .command = ["bun", "packages/api/dist/asset-variant-worker.js"]
           | .secrets = ((.secrets // [] | map(select(.name as $n | $secretNames | index($n) | not))) + $secrets)
           | .environment = ((.environment // [] | map(select(.name as $n | ($environmentNames + $retiredNames) | index($n) | not))) + $environment)
